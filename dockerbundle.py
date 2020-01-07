@@ -12,22 +12,13 @@ import compose.config.serialize
 import subprocess
 import re
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--host-docker",
-                    help = """Use host Docker instance (instead of
-                    Docker-in-Docker). Note that this often is not possible
-                    since there are already images in the Docker storage which
-                    should not be part of the bundle.""")
-args = parser.parse_args()
-
 #
 # This class assumes we can use host Docker to create a bundle of the containers
 # Note that this is most often not the case as other images are already
 # preinstalled...
 #
 class DockerManager:
-    def __init__(self):
-        output_dir = os.path.join(os.getcwd(), "output")
+    def __init__(self, output_dir):
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         self.output_dir = output_dir
@@ -59,8 +50,8 @@ class DindManager(DockerManager):
     DIND_CONTAINER_NAME = "fetch-dind"
     DIND_VOLUME_NAME = "dind-volume"
 
-    def __init__(self):
-        super(DindManager, self).__init__()
+    def __init__(self, output_dir):
+        super(DindManager, self).__init__(output_dir)
         cert_dir = os.path.join(os.getcwd(), "certs")
         if not os.path.isdir(cert_dir):
             os.mkdir(cert_dir)
@@ -149,20 +140,30 @@ class DindManager(DockerManager):
                 auto_remove=True)
 
 
-def main(dind_manager):
+def download_containers_by_compose_file(output_dir, compose_file, use_host_docker=False):
+
+    # Open Docker Compose file
+    if not os.path.isabs(compose_file):
+        base_dir = os.path.dirname(os.path.abspath(compose_file))
+    else:
+        base_dir = os.path.dirname(compose_file)
+
+    environment = compose.config.environment.Environment.from_env_file(base_dir)
+    config = compose.config.find(base_dir, [ os.path.basename(compose_file) ], environment, None)
+    cfg = compose.config.load(config)
 
     print("Starting DIND container")
-    dind_manager.start("host")
+    if use_host_docker:
+        print("Using DockerManager")
+        manager = DockerManager(output_dir)
+    else:
+        print("Using DindManager")
+        manager = DindManager(output_dir)
+
+    manager.start("host")
 
     try:
-        dind_client = dind_manager.get_client()
-
-        # Open Docker Compose file
-        base_dir = "/builds/stefan.agner/ostree-tools-containers/docker-compose"
-        #base_dir = "/home/ags/projects/toradex/torizon/kiosk-mode-browser"
-        environment = compose.config.environment.Environment.from_env_file(base_dir)
-        config = compose.config.find(base_dir, None, environment, None)
-        cfg = compose.config.load(config)
+        dind_client = manager.get_client()
 
         # Now we can fetch the containers...
         for service in cfg.services:
@@ -174,23 +175,33 @@ def main(dind_manager):
             service['image'] = image.attrs['RepoDigests'][0]
 
         print("Save Docker Compose file")
-        f = open(os.path.join(dind_manager.output_dir, "docker-compose.yml"), "w")
+        f = open(os.path.join(manager.output_dir, "docker-compose.yml"), "w")
         f.write(compose.config.serialize.serialize_config(cfg))
         f.close()
        
         print("Exporting storage")
-        dind_manager.save_tar("docker-storage.tar")
+        manager.save_tar("docker-storage.tar")
 
     finally:
         print("Stopping DIND container")
-        dind_manager.stop()
+        manager.stop()
 
 if __name__== "__main__":
-    if args.host-docker:
-        print("Using DockerManager")
-        manager = DockerManager()
-    else:
-        print("Using DindManager")
-        manager = DindManager()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host-docker",
+                        help = """Use host Docker instance (instead of
+                        Docker-in-Docker). Note that this often is not possible
+                        since there are already images in the Docker storage which
+                        should not be part of the bundle.""")
+    parser.add_argument("--output-directory", dest="output_directory",
+                        help="Specify an alternate output directory")
+    parser.add_argument("-f", "--file", dest="compose_file",
+                        help="Specify an alternate compose file",
+                        default="docker-compose.yml")
+    args = parser.parse_args()
 
-    main(manager)
+    output_dir = args.output_directory
+    if args.output_directory is None:
+        output_dir = os.path.join(os.getcwd(), "output")
+
+    download_containers_by_compose_file(output_dir, args.compose_file, args.host_docker)
