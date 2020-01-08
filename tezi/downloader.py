@@ -55,7 +55,6 @@ def download(image_url, destdir):
     """
     ROOT_FILE_TAGS = ["u_boot_env", "prepare_script",
             "wrapup_script", "marketing", "icon"]
-    print(image_url)
     image_json_filename = os.path.basename(image_url)
     logging.debug("Downloading image json %s", image_json_filename)
     req = urllib.request.urlopen(image_url)
