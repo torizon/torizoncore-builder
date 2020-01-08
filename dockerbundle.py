@@ -11,6 +11,7 @@ import compose.config.environment
 import compose.config.serialize
 import subprocess
 import re
+import logging
 
 #
 # This class assumes we can use host Docker to create a bundle of the containers
@@ -81,7 +82,7 @@ class DindManager(DockerManager):
             else:
                 self.docker_host = "tcp://127.0.0.1:{}".format(port)
         else:
-            print("Create network {}".format(network_name))
+            logging.info("Create network {}".format(network_name))
             self.network = self.host_client.networks.create(network_name, driver="bridge")
 
         self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
@@ -121,7 +122,7 @@ class DindManager(DockerManager):
                 client_cert=(os.path.join(self.cert_dir, 'cert.pem'), os.path.join(self.cert_dir, 'key.pem')),
                 assert_hostname=False)
 
-        print("Connecting to Docker Daemon at {}".format(self.docker_host))
+        logging.info("Connecting to Docker Daemon at {}".format(self.docker_host))
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
         return dind_client
 
@@ -152,12 +153,12 @@ def download_containers_by_compose_file(output_dir, compose_file, use_host_docke
     config = compose.config.find(base_dir, [ os.path.basename(compose_file) ], environment, None)
     cfg = compose.config.load(config)
 
-    print("Starting DIND container")
+    logging.info("Starting DIND container")
     if use_host_docker:
-        print("Using DockerManager")
+        logging.info("Using DockerManager")
         manager = DockerManager(output_dir)
     else:
-        print("Using DindManager")
+        logging.info("Using DindManager")
         manager = DindManager(output_dir)
 
     manager.start("host")
@@ -168,25 +169,28 @@ def download_containers_by_compose_file(output_dir, compose_file, use_host_docke
         # Now we can fetch the containers...
         for service in cfg.services:
             image = service['image']
-            print("Fetching container image {}".format(image))
+            logging.info("Fetching container image {}".format(image))
             image = dind_client.images.pull(image, platform="linux/arm/v7")
 
             # Replace image with concrete Image ID
             service['image'] = image.attrs['RepoDigests'][0]
 
-        print("Save Docker Compose file")
+        logging.info("Save Docker Compose file")
         f = open(os.path.join(manager.output_dir, "docker-compose.yml"), "w")
         f.write(compose.config.serialize.serialize_config(cfg))
         f.close()
        
-        print("Exporting storage")
+        logging.info("Exporting storage")
         manager.save_tar("docker-storage.tar")
 
     finally:
-        print("Stopping DIND container")
+        logging.info("Stopping DIND container")
         manager.stop()
 
 if __name__== "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--host-docker",
                         help = """Use host Docker instance (instead of
