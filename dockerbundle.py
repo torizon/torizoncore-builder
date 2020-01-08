@@ -62,7 +62,7 @@ class DindManager(DockerManager):
         self.network = None
 
 
-    def start(self, network_name="fetch-dind-network"):
+    def start(self, network_name="fetch-dind-network", default_platform=None):
         dind_cmd = [ "--storage-driver", "overlay2" ]
 
         if network_name == "host":
@@ -86,9 +86,13 @@ class DindManager(DockerManager):
             self.network = self.host_client.networks.create(network_name, driver="bridge")
 
         self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
+
+        environment = { 'DOCKER_TLS_CERTDIR': '/certs' }
+        if default_platform is not None:
+            environment['DOCKER_DEFAULT_PLATFORM'] = default_platform
         self.dind_container = self.host_client.containers.run(self.DIND_CONTAINER_IMAGE,
             privileged=True,
-            environment= { 'DOCKER_TLS_CERTDIR': '/certs' },
+            environment=environment,
             volumes= {
                        self.cert_dir: {'bind': '/certs/client', 'mode': 'rw'},
                        self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'rw'}
@@ -141,7 +145,8 @@ class DindManager(DockerManager):
                 auto_remove=True)
 
 
-def download_containers_by_compose_file(output_dir, compose_file, use_host_docker=False):
+def download_containers_by_compose_file(output_dir, compose_file,
+        use_host_docker=False, platform="linux/arm/v7"):
 
     # Open Docker Compose file
     if not os.path.isabs(compose_file):
@@ -161,7 +166,7 @@ def download_containers_by_compose_file(output_dir, compose_file, use_host_docke
         logging.info("Using DindManager")
         manager = DindManager(output_dir)
 
-    manager.start("host")
+    manager.start("host", default_platform=platform)
 
     try:
         dind_client = manager.get_client()
@@ -170,7 +175,7 @@ def download_containers_by_compose_file(output_dir, compose_file, use_host_docke
         for service in cfg.services:
             image = service['image']
             logging.info("Fetching container image {}".format(image))
-            image = dind_client.images.pull(image, platform="linux/arm/v7")
+            image = dind_client.images.pull(image, platform=platform)
 
             # Replace image with concrete Image ID
             service['image'] = image.attrs['RepoDigests'][0]
@@ -202,10 +207,15 @@ if __name__== "__main__":
     parser.add_argument("-f", "--file", dest="compose_file",
                         help="Specify an alternate compose file",
                         default="docker-compose.yml")
+    parser.add_argument("--platform", dest="platform",
+                        help="""Specify platform to make sure fetching the correct
+                        image when multi-platform images are specified""",
+                        default="linux/arm/v7")
     args = parser.parse_args()
 
     output_dir = args.output_directory
     if args.output_directory is None:
         output_dir = os.path.join(os.getcwd(), "output")
 
-    download_containers_by_compose_file(output_dir, args.compose_file, args.host_docker)
+    download_containers_by_compose_file(output_dir, args.compose_file,
+            args.host_docker, args.platform)
