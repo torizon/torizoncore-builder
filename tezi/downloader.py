@@ -54,7 +54,8 @@ def download(image_url, destdir):
         destdir (string): Destination directory, must already exist.
     """
     ROOT_FILE_TAGS = ["u_boot_env", "prepare_script",
-            "wrapup_script", "marketing", "icon"]
+            "wrapup_script", "error_script", "license", "releasenotes",
+            "marketing", "icon"]
     image_json_filename = os.path.basename(image_url)
     logging.debug("Downloading image json %s", image_json_filename)
     req = urllib.request.urlopen(image_url)
