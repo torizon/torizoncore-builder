@@ -4,13 +4,16 @@
 import argparse
 import datetime
 import os
+import sys
 import json
 import shutil
 import urllib.request
+import urllib.parse
 import logging
 import glob
 from tezi import downloader
 from tezi import utils
+import subprocess
 import dockerbundle
 
 parser = argparse.ArgumentParser(description="""\
@@ -24,18 +27,51 @@ parser.add_argument("--output-directory", dest="output_directory",
 parser.add_argument("-f", "--file", dest="compose_file",
                     help="Specify an alternate compose file",
                     default="docker-compose.yml")
-parser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
-                    help='Machine names to process')
 parser.add_argument("--platform", dest="platform",
                     help="""Specify platform to make sure fetching the correct
-                    image when multi-platform images are specified""",
+                    container image when multi-platform container images are
+                    specified (e.g. linux/arm/v7 or linux/arm64)""",
                     default="linux/arm/v7")
+parser.add_argument("--repo", dest="repo",
+                    help="""Toradex Easy Installer source repository""",
+                    default="torizoncore-oe-nightly-horw")
+parser.add_argument("--branch", dest="branch",
+                    help="""ToroizonCore OpenEmbedded branch""",
+                    default="zeus")
+parser.add_argument("--distro", dest="distro", nargs='+',
+                    help="""ToroizonCore OpenEmbedded distro""",
+                    default=[ "torizon" ])
+parser.add_argument("--release-type", dest="release_type",
+                    help="""TorizonCore release type (nightly/monthly/release)""",
+                    default="nightly")
+parser.add_argument("--matrix-build-number", dest="matrix_build_number",
+                    help="""Matrix build number to processes.""")
+parser.add_argument("--image-name", dest="image_name",
+                    help="""New image name""",
+                    default="torizon-core-docker-with-containers")
+parser.add_argument("--post-script", dest="post_script",
+                    help="""Executes this script in every image generated.""")
+parser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
+                    help='Machine names to process.')
 args = parser.parse_args()
 
-TEZI_FEED_URL = "http://tezi.toradex.com/image_list.json"
-TEZI_CI_FEED_URL = "http://tezi.toradex.com/image_list_ci.json"
+TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
 
-def get_images(feed_url, machines):
+def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_number, machine, distro, image):
+    filter_params = {'repo': artifactory_repo,
+             'BUILD_MANIFEST_BRANCH': branch,
+             'BUILD_PIPELINETYPE': release_type,
+             'BUILD_MACHINE': machine,
+             'BUILD_DISTRO': distro,
+             'BUILD_RECIPE': image}
+
+    if matrix_build_number is not None:
+        filter_params['MATRIX_BUILD_NUMBER'] = matrix_build_number
+
+    params = urllib.parse.urlencode(filter_params)
+
+    feed_url = "{}?{}".format(feed_url, params)
+    logging.info("Requestion from \"{}\"".format(feed_url))
     req = urllib.request.urlopen(feed_url)
     content = req.read().decode(req.headers.get_content_charset() or "utf-8")
 
@@ -45,16 +81,10 @@ def get_images(feed_url, machines):
 
     imagelist = json.loads(content)
     for image in imagelist['images']:
-        # We can only work with TorizonCore Docker images...
-        if "torizon-core-docker" not in image:
-            continue
-
-        # Find machine in image name. Add - to avoid matching imx6ull with imx6
-        if not any(machine + "-" in image for machine in machines):
-            continue
-
-        image_url = os.path.join(image_base_url, image)
-        yield image_url
+        if not bool(urllib.parse.urlparse(image).netloc):
+            yield os.path.join(image_base_url, image)
+        else:
+            yield image
 
 def add_files(tezidir, image_json_filename, filelist):
     image_json_filepath = os.path.join(tezidir, image_json_filename)
@@ -88,10 +118,18 @@ if __name__== "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    logging.info("Downloading containers using Docker...")
+
     output_dir_containers = os.path.join(os.getcwd(), "output")
-    dockerbundle.download_containers_by_compose_file(output_dir_containers,
-            args.compose_file, platform=args.platform)
+
+    # Download only if not yet downloaded
+    if (os.path.exists(os.path.join(output_dir_containers, "docker-storage.tar"))
+        and
+        os.path.exists(os.path.join(output_dir_containers, "docker-compose.yml"))):
+        logging.info("Docker bundle present, reusing...")
+    else:
+        logging.info("Downloading containers using Docker...")
+        dockerbundle.download_containers_by_compose_file(output_dir_containers,
+                args.compose_file, platform=args.platform)
 
     if args.output_directory is None:
         image_dir = os.path.abspath("images")
@@ -101,34 +139,53 @@ if __name__== "__main__":
     if not os.path.exists(image_dir):
         os.mkdir(image_dir)
 
-    # TODO: get list of all images we have to process using build number or
-    # similar...
-    image_urls = list(get_images(TEZI_FEED_URL, args.machines))
+    for machine in args.machines:
+        for distro in args.distro:
+            # Get TorizonCore Toradex Easy Installer images for
+            # machine/distro/image combination...
+            image_urls = list(get_images(TEZI_FEED_URL, args.repo, args.branch,
+                args.release_type, args.matrix_build_number, machine, distro, 'torizon-core-docker'))
 
-    for url in image_urls:
-        image_name = os.path.basename(os.path.dirname(url))
-        output_dir = os.path.join(image_dir, image_name)
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
+            if len(image_urls) == 0:
+                continue
 
-        files_to_add = [
-                "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-                "docker-storage.tar:/ostree/deploy/torizon/var/lib/docker/:true"
-                ]
+            # Create image dir for image and add containers there...
+            output_dir = os.path.join(image_dir, machine, distro, args.image_name)
+            os.makedirs(output_dir, exist_ok=True)
 
-        # Copy container
-        for filename in files_to_add:
-            filename = filename.split(":")[0]
-            shutil.copy(os.path.join(output_dir_containers, filename),
-                        os.path.join(output_dir, filename))
+            files_to_add = [
+                    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
+                    "docker-storage.tar:/ostree/deploy/torizon/var/lib/docker/:true"
+                    ]
 
-        logging.info("Downloading from {0}".format(url))
-        downloader.download(url, output_dir)
+            # Copy container
+            for filename in files_to_add:
+                filename = filename.split(":")[0]
+                shutil.copy(os.path.join(output_dir_containers, filename),
+                            os.path.join(output_dir, filename))
 
-        logging.info("Adding container tarball to downloaded image")
-        for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-            add_files(output_dir, image_file, files_to_add)
-        # TODO: tar up and Artifactory upload...
+            for url in image_urls:
+                logging.info("Downloading from {0}".format(url))
+                downloader.download(url, output_dir)
+
+                logging.info("Adding container tarball to downloaded image")
+                add_files(output_dir, os.path.basename(url), files_to_add)
+
+                # Start Artifactory upload with a empty environment
+                if args.post_script is not None:
+                    logging.info("Executing post image generation script {0}.".format(args.post_script))
+
+                    cp = subprocess.run(
+                        [ args.post_script,
+                          machine, distro, image_name ],
+                        cwd=output_dir)
+
+                    if cp.returncode != 0:
+                        logging.error(
+                                "Executing post image generation script was unsuccessful. Exit code {0}."
+                                .format(cp.returncode))
+                        sys.exit(1)
+
 
     logging.info("Finished")
 
