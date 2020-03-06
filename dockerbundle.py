@@ -120,6 +120,11 @@ class DindManager(DockerManager):
             self.network.remove()
 
     def get_client(self):
+        # Wait until TLS certificate is generated
+        while (not os.path.exists(os.path.join(self.cert_dir, 'cert.pem')) or
+               not os.path.exists(os.path.join(self.cert_dir, 'key.pem'))):
+            time.sleep(1)
+
         # Use TLS to authenticate
         tls_config = docker.tls.TLSConfig(ca_cert=os.path.join(self.cert_dir, 'ca.pem'),
                 verify=os.path.join(self.cert_dir, 'ca.pem'),
