@@ -177,7 +177,7 @@ if __name__== "__main__":
 
                     cp = subprocess.run(
                         [ args.post_script,
-                          machine, distro, image_name ],
+                          machine, distro, args.image_name ],
                         cwd=output_dir)
 
                     if cp.returncode != 0:
