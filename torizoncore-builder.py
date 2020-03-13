@@ -92,16 +92,49 @@ def check_containers_bundle(output_dir_containers):
     else:
         return False
 
+def combine_single_image(source_dir_containers, output_dir):
+    files_to_add = [
+            "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
+            "docker-storage.tar:/ostree/deploy/torizon/var/lib/docker/:true"
+            ]
+
+    # Copy container
+    for filename in files_to_add:
+        filename = filename.split(":")[0]
+        shutil.copy(os.path.join(source_dir_containers, filename),
+                    os.path.join(output_dir, filename))
+
+    for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
+        add_files(output_dir, image_file, files_to_add)
+
+def combine_local_image(args):
+    output_dir_containers = os.path.abspath(args.bundle_directory)
+    if not check_containers_bundle(output_dir_containers):
+        logging.error("Docker Container bundle missing, use bundle sub-command.")
+        return
+
+    output_image_dir = os.path.abspath(args.output_directory)
+
+    if not os.path.exists(output_image_dir):
+        os.mkdir(output_image_dir)
+
+    image_dir = os.path.abspath(args.image_directory)
+
+    if not os.path.exists(image_dir):
+        logging.error("Source image directory does not exist")
+        return
+
+    shutil.copytree(image_dir, output_image_dir, dirs_exist_ok=True)
+
+    combine_single_image(output_dir_containers, output_image_dir)
+
 def batch_process(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
     if not check_containers_bundle(output_dir_containers):
         logging.error("Docker Container bundle missing, use bundle sub-command.")
         return
 
-    if args.output_directory is None:
-        image_dir = os.path.abspath("images")
-    else:
-        image_dir = os.path.abspath(args.output_directory)
+    image_dir = os.path.abspath(args.output_directory)
 
     if not os.path.exists(image_dir):
         os.mkdir(image_dir)
@@ -120,38 +153,26 @@ def batch_process(args):
             output_dir = os.path.join(image_dir, machine, distro, args.image_name)
             os.makedirs(output_dir, exist_ok=True)
 
-            files_to_add = [
-                    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-                    "docker-storage.tar:/ostree/deploy/torizon/var/lib/docker/:true"
-                    ]
-
-            # Copy container
-            for filename in files_to_add:
-                filename = filename.split(":")[0]
-                shutil.copy(os.path.join(output_dir_containers, filename),
-                            os.path.join(output_dir, filename))
-
             for url in image_urls:
                 logging.info("Downloading from {0}".format(url))
                 downloader.download(url, output_dir)
 
-                logging.info("Adding container tarball to downloaded image")
-                add_files(output_dir, os.path.basename(url), files_to_add)
+            combine_single_image(output_dir_containers, output_dir)
 
-                # Start Artifactory upload with a empty environment
-                if args.post_script is not None:
-                    logging.info("Executing post image generation script {0}.".format(args.post_script))
+            # Start Artifactory upload with a empty environment
+            if args.post_script is not None:
+                logging.info("Executing post image generation script {0}.".format(args.post_script))
 
-                    cp = subprocess.run(
-                        [ args.post_script,
-                          machine, distro, args.image_name ],
-                        cwd=output_dir)
+                cp = subprocess.run(
+                    [ args.post_script,
+                      machine, distro, args.image_name ],
+                    cwd=output_dir)
 
-                    if cp.returncode != 0:
-                        logging.error(
-                                "Executing post image generation script was unsuccessful. Exit code {0}."
-                                .format(cp.returncode))
-                        sys.exit(1)
+                if cp.returncode != 0:
+                    logging.error(
+                            "Executing post image generation script was unsuccessful. Exit code {0}."
+                            .format(cp.returncode))
+                    sys.exit(1)
 
 
     logging.info("Finished")
@@ -174,7 +195,8 @@ specified containers to it.
 """)
 
 subparser.add_argument("--output-directory", dest="output_directory",
-                    help="Specify an alternate output directory")
+                    help="Specify the output directory",
+                    default="output")
 subparser.add_argument("--repo", dest="repo",
                     help="""Toradex Easy Installer source repository""",
                     default="torizoncore-oe-nightly-horw")
@@ -210,8 +232,20 @@ subparser.add_argument("--platform", dest="platform",
                     container image when multi-platform container images are
                     specified (e.g. linux/arm/v7 or linux/arm64)""",
                     default="linux/arm/v7")
-
 subparser.set_defaults(func=bundle_containers)
+
+subparser = subparsers.add_parser("combine", help="""\
+Combines a container bundle with a specified Toradex Easy Installer image.
+""")
+subparser.add_argument("--output-directory", dest="output_directory",
+                    help="""\
+Output directory where the combined Toradex Easy Installer images will be stored.
+""",
+                    default="output")
+subparser.add_argument("--image-directory", dest="image_directory",
+                    help="""Path to TorizonCore Toradex Easy Installer source image.""",
+                    required=True)
+subparser.set_defaults(func=combine_local_image)
 
 if __name__== "__main__":
     logger = logging.getLogger()
