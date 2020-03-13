@@ -16,45 +16,6 @@ from tezi import utils
 import subprocess
 import dockerbundle
 
-parser = argparse.ArgumentParser(description="""\
-Utility to create TorizonCore images with containers pre-provisioned. Requires a
-TorizonCore base image (downloaded from Toradex Easy Installer feed) and a
-Docker Compose YAML file as input and creates a Toradex Easy Installer image
-with TorizonCore and the containers combined.
-""")
-parser.add_argument("--output-directory", dest="output_directory",
-                    help="Specify an alternate output directory")
-parser.add_argument("-f", "--file", dest="compose_file",
-                    help="Specify an alternate compose file",
-                    default="docker-compose.yml")
-parser.add_argument("--platform", dest="platform",
-                    help="""Specify platform to make sure fetching the correct
-                    container image when multi-platform container images are
-                    specified (e.g. linux/arm/v7 or linux/arm64)""",
-                    default="linux/arm/v7")
-parser.add_argument("--repo", dest="repo",
-                    help="""Toradex Easy Installer source repository""",
-                    default="torizoncore-oe-nightly-horw")
-parser.add_argument("--branch", dest="branch",
-                    help="""ToroizonCore OpenEmbedded branch""",
-                    default="zeus")
-parser.add_argument("--distro", dest="distro", nargs='+',
-                    help="""ToroizonCore OpenEmbedded distro""",
-                    default=[ "torizon" ])
-parser.add_argument("--release-type", dest="release_type",
-                    help="""TorizonCore release type (nightly/monthly/release)""",
-                    default="nightly")
-parser.add_argument("--matrix-build-number", dest="matrix_build_number",
-                    help="""Matrix build number to processes.""")
-parser.add_argument("--image-name", dest="image_name",
-                    help="""New image name""",
-                    default="torizon-core-docker-with-containers")
-parser.add_argument("--post-script", dest="post_script",
-                    help="""Executes this script in every image generated.""")
-parser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
-                    help='Machine names to process.')
-args = parser.parse_args()
-
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
 
 def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_number, machine, distro, image):
@@ -114,22 +75,28 @@ def add_files(tezidir, image_json_filename, filelist):
         json.dump(jsondata, jsonfile, indent=4)
 
 
-if __name__== "__main__":
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
 
+def bundle_containers(args):
+    output_dir_containers = os.path.abspath(args.bundle_directory)
 
-    output_dir_containers = os.path.join(os.getcwd(), "output")
+    logging.info("Creating Docker Container bundle.")
+    dockerbundle.download_containers_by_compose_file(output_dir_containers,
+                args.compose_file, platform=args.platform)
 
+def check_containers_bundle(output_dir_containers):
     # Download only if not yet downloaded
     if (os.path.exists(os.path.join(output_dir_containers, "docker-storage.tar"))
         and
         os.path.exists(os.path.join(output_dir_containers, "docker-compose.yml"))):
-        logging.info("Docker bundle present, reusing...")
+        return True
     else:
-        logging.info("Downloading containers using Docker...")
-        dockerbundle.download_containers_by_compose_file(output_dir_containers,
-                args.compose_file, platform=args.platform)
+        return False
+
+def batch_process(args):
+    output_dir_containers = os.path.abspath(args.bundle_directory)
+    if not check_containers_bundle(output_dir_containers):
+        logging.error("Docker Container bundle missing, use bundle sub-command.")
+        return
 
     if args.output_directory is None:
         image_dir = os.path.abspath("images")
@@ -189,3 +156,66 @@ if __name__== "__main__":
 
     logging.info("Finished")
 
+parser = argparse.ArgumentParser(description="""\
+Utility to create TorizonCore images with containers pre-provisioned. Requires a
+TorizonCore base image and a Docker Compose YAML file as input and creates a
+Toradex Easy Installer image with TorizonCore and the containers combined.
+""")
+
+parser.add_argument("--bundle-directory", dest="bundle_directory",
+                    help="Container bundle directory",
+                    default="bundle")
+
+subparsers = parser.add_subparsers(title='Commands:')
+
+subparser = subparsers.add_parser("batch", help="""\
+Automatically downloads a set of Toradex Easy Installer images and adds the
+specified containers to it.
+""")
+
+subparser.add_argument("--output-directory", dest="output_directory",
+                    help="Specify an alternate output directory")
+subparser.add_argument("--repo", dest="repo",
+                    help="""Toradex Easy Installer source repository""",
+                    default="torizoncore-oe-nightly-horw")
+subparser.add_argument("--branch", dest="branch",
+                    help="""ToroizonCore OpenEmbedded branch""",
+                    default="zeus")
+subparser.add_argument("--distro", dest="distro", nargs='+',
+                    help="""ToroizonCore OpenEmbedded distro""",
+                    default=[ "torizon" ])
+subparser.add_argument("--release-type", dest="release_type",
+                    help="""TorizonCore release type (nightly/monthly/release)""",
+                    default="nightly")
+subparser.add_argument("--matrix-build-number", dest="matrix_build_number",
+                    help="""Matrix build number to processes.""")
+subparser.add_argument("--image-name", dest="image_name",
+                    help="""New image name""",
+                    default="torizon-core-docker-with-containers")
+subparser.add_argument("--post-script", dest="post_script",
+                    help="""Executes this script in every image generated.""")
+subparser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
+                    help='Machine names to process.')
+subparser.set_defaults(func=batch_process)
+
+subparser = subparsers.add_parser("bundle", help="""\
+Create container bundle from a Docker Compose file. Can be used to combine with
+a TorizonCore base image.
+""")
+subparser.add_argument("-f", "--file", dest="compose_file",
+                    help="Specify an alternate compose file",
+                    default="docker-compose.yml")
+subparser.add_argument("--platform", dest="platform",
+                    help="""Specify platform to make sure fetching the correct
+                    container image when multi-platform container images are
+                    specified (e.g. linux/arm/v7 or linux/arm64)""",
+                    default="linux/arm/v7")
+
+subparser.set_defaults(func=bundle_containers)
+
+if __name__== "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    args = parser.parse_args()
+    args.func(args)
