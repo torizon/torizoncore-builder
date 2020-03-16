@@ -187,7 +187,7 @@ parser.add_argument("--bundle-directory", dest="bundle_directory",
                     help="Container bundle directory",
                     default="bundle")
 
-subparsers = parser.add_subparsers(title='Commands:')
+subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
 
 subparser = subparsers.add_parser("batch", help="""\
 Automatically downloads a set of Toradex Easy Installer images and adds the
