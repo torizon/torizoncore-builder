@@ -23,6 +23,7 @@ class DockerManager:
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         self.output_dir = output_dir
+        self.output_dir_host = output_dir
 
     def start(self):
         pass
@@ -51,11 +52,13 @@ class DindManager(DockerManager):
     DIND_CONTAINER_NAME = "fetch-dind"
     DIND_VOLUME_NAME = "dind-volume"
 
-    def __init__(self, output_dir):
+    def __init__(self, output_dir, host_workdir):
         super(DindManager, self).__init__(output_dir)
+        self.output_dir_host = os.path.join(host_workdir, output_dir)
         cert_dir = os.path.join(os.getcwd(), "certs")
         if not os.path.isdir(cert_dir):
             os.mkdir(cert_dir)
+        self.cert_dir_host = os.path.join(host_workdir, "certs")
         self.cert_dir = cert_dir
 
         self.host_client = docker.from_env()
@@ -94,7 +97,7 @@ class DindManager(DockerManager):
             privileged=True,
             environment=environment,
             volumes= {
-                       self.cert_dir: {'bind': '/certs/client', 'mode': 'rw'},
+                       self.cert_dir_host: {'bind': '/certs/client', 'mode': 'rw'},
                        self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'rw'}
                      },
             network=network_name,
@@ -150,16 +153,17 @@ class DindManager(DockerManager):
 
         # Use a container to tar the Docker storage backend instead of the
         # built-in save_tar() is more flexible...
+        logging.info("Storing container bundle to {}".format(self.output_dir_host))
         tar_container = self.host_client.containers.run("debian:buster",
                 volumes = {
                             self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'ro'},
-                            self.output_dir: {'bind': output_mount_dir, 'mode': 'rw'}
+                            self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
                           },
                 command = self.get_tar_command(output_file),
                 auto_remove=True)
 
 
-def download_containers_by_compose_file(output_dir, compose_file,
+def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         use_host_docker=False, platform="linux/arm/v7"):
 
     # Open Docker Compose file
@@ -178,7 +182,7 @@ def download_containers_by_compose_file(output_dir, compose_file,
         manager = DockerManager(output_dir)
     else:
         logging.info("Using DindManager")
-        manager = DindManager(output_dir)
+        manager = DindManager(output_dir, host_workdir)
 
     manager.start("host", default_platform=platform)
 
@@ -219,7 +223,13 @@ if __name__== "__main__":
                         since there are already images in the Docker storage which
                         should not be part of the bundle.""")
     parser.add_argument("--output-directory", dest="output_directory",
-                        help="Specify an alternate output directory")
+                        help="Specify the bundle output directory",
+                        default="output")
+    parser.add_argument("--host-workdir", dest="host_workdir",
+                        help="""Location where Docker needs to bind mount to.
+                        This is useful if this script runs in a container
+                        and accesses a Docker Engine on the host.
+                        """)
     parser.add_argument("-f", "--file", dest="compose_file",
                         help="Specify an alternate compose file",
                         default="docker-compose.yml")
@@ -229,9 +239,14 @@ if __name__== "__main__":
                         default="linux/arm/v7")
     args = parser.parse_args()
 
-    output_dir = args.output_directory
-    if args.output_directory is None:
-        output_dir = os.path.join(os.getcwd(), "output")
+    # This is required to share a bind mounted location (for the TLS
+    # certificate) between the DIND instace and the accessing client (this
+    # script). If that accessing client is by itself inside a container, then
+    # the location of host Docker might not match the location this script is
+    # running in.
+    host_workdir = args.host_workdir
+    if host_workdir is None:
+        host_workdir = os.getcwd()
 
-    download_containers_by_compose_file(output_dir, args.compose_file,
-            args.host_docker, args.platform)
+    download_containers_by_compose_file(args.output_directory, args.compose_file,
+            host_workdir, args.host_docker, args.platform)
