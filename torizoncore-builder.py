@@ -77,11 +77,18 @@ def add_files(tezidir, image_json_filename, filelist):
 
 
 def bundle_containers(args):
-    output_dir_containers = os.path.abspath(args.bundle_directory)
+    # If no Docker host workdir is given, we assume that Docker uses the same
+    # path as we do to access the current working directory.
+    host_workdir = args.host_workdir
+    if host_workdir is None:
+        host_workdir = os.getcwd()
 
     logging.info("Creating Docker Container bundle.")
-    dockerbundle.download_containers_by_compose_file(output_dir_containers,
-                args.compose_file, platform=args.platform)
+    dockerbundle.download_containers_by_compose_file(
+                args.bundle_directory, args.compose_file, host_workdir,
+                platform=args.platform)
+    logging.info("Successfully created Docker Container bundle in {}."
+            .format(args.bundle_directory))
 
 def check_containers_bundle(output_dir_containers):
     # Download only if not yet downloaded
@@ -128,7 +135,10 @@ def combine_local_image(args):
     shutil.rmtree(output_image_dir)
     shutil.copytree(image_dir, output_image_dir)
 
+    logging.info("Combining TorizonCore image with Docker Container bundle.")
     combine_single_image(output_dir_containers, output_image_dir)
+    logging.info("Successfully created a TorizonCore image with Docker Containers preprovisioned in {}"
+            .format(args.output_directory))
 
 def batch_process(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
@@ -234,6 +244,9 @@ subparser.add_argument("--platform", dest="platform",
                     container image when multi-platform container images are
                     specified (e.g. linux/arm/v7 or linux/arm64)""",
                     default="linux/arm/v7")
+subparser.add_argument("--host-workdir", dest="host_workdir",
+                    help="""Location where Docker needs to bind mount to to
+                    share data between this script and the DIND instance.""")
 subparser.set_defaults(func=bundle_containers)
 
 subparser = subparsers.add_parser("combine", help="""\
