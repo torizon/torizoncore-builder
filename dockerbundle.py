@@ -121,10 +121,19 @@ class DindManager(DockerManager):
 
     def get_client(self):
         # Wait until TLS certificate is generated
-        while (not os.path.exists(os.path.join(self.cert_dir, 'cert.pem')) or
-               not os.path.exists(os.path.join(self.cert_dir, 'key.pem'))):
+        timeout = 30
+        while ((not os.path.exists(os.path.join(self.cert_dir, 'cert.pem')) or
+                not os.path.exists(os.path.join(self.cert_dir, 'key.pem'))) and
+               timeout > 0):
             time.sleep(1)
+            timeout = timeout - 1
 
+        if timeout == 0:
+            logging.error("""The script could not access the TLS certificates which
+            has been created by the Docker in Docker instance. Make sure {} is
+            a shared location between this script and the Docker host."""
+            .format(self.cert_dir))
+            return
         # Use TLS to authenticate
         tls_config = docker.tls.TLSConfig(ca_cert=os.path.join(self.cert_dir, 'ca.pem'),
                 verify=os.path.join(self.cert_dir, 'ca.pem'),
@@ -175,6 +184,8 @@ def download_containers_by_compose_file(output_dir, compose_file,
 
     try:
         dind_client = manager.get_client()
+        if dind_client is None:
+            return
 
         # Now we can fetch the containers...
         for service in cfg.services:
