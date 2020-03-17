@@ -124,7 +124,9 @@ def combine_local_image(args):
         logging.error("Source image directory does not exist")
         return
 
-    shutil.copytree(image_dir, output_image_dir, dirs_exist_ok=True)
+    logging.info("Creating copy of TorizonCore source image.")
+    shutil.rmtree(output_image_dir)
+    shutil.copytree(image_dir, output_image_dir)
 
     combine_single_image(output_dir_containers, output_image_dir)
 
