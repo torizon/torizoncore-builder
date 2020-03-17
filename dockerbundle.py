@@ -48,7 +48,7 @@ class DockerManager:
         subprocess.run(get_tar_command(output_file), check=True)
 
 class DindManager(DockerManager):
-    DIND_CONTAINER_IMAGE = "docker:19.03.2-dind"
+    DIND_CONTAINER_IMAGE = "docker:19.03.8-dind"
     DIND_CONTAINER_NAME = "fetch-dind"
     DIND_VOLUME_NAME = "dind-volume"
 
