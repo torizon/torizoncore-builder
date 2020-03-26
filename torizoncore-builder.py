@@ -47,12 +47,18 @@ def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_nu
         else:
             yield image
 
-def add_files(tezidir, image_json_filename, filelist):
+def add_files(tezidir, image_json_filename, filelist, image_name, image_description):
     image_json_filepath = os.path.join(tezidir, image_json_filename)
     with open(image_json_filepath, "r") as jsonfile:
         jsondata = json.load(jsonfile)
 
-    jsondata["name"] = jsondata["name"] + " with Containers"
+    if image_name is None:
+        jsondata["name"] = jsondata["name"] + " with Containers"
+    else:
+        jsondata["name"] = image_name
+    if image_description is not None:
+        jsondata["description"] = image_description
+
     jsondata["version"] = jsondata["version"] + ".container"
     jsondata["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
 
@@ -99,7 +105,7 @@ def check_containers_bundle(output_dir_containers):
     else:
         return False
 
-def combine_single_image(source_dir_containers, output_dir):
+def combine_single_image(source_dir_containers, output_dir, image_name, image_description):
     files_to_add = [
             "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
             "docker-storage.tar:/ostree/deploy/torizon/var/lib/docker/:true"
@@ -112,7 +118,7 @@ def combine_single_image(source_dir_containers, output_dir):
                     os.path.join(output_dir, filename))
 
     for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        add_files(output_dir, image_file, files_to_add)
+        add_files(output_dir, image_file, files_to_add, image_name, image_description)
 
 def combine_local_image(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
@@ -136,7 +142,8 @@ def combine_local_image(args):
     shutil.copytree(image_dir, output_image_dir)
 
     logging.info("Combining TorizonCore image with Docker Container bundle.")
-    combine_single_image(output_dir_containers, output_image_dir)
+    combine_single_image(output_dir_containers, output_image_dir,
+                         args.image_name, args.image_description)
     logging.info("Successfully created a TorizonCore image with Docker Containers preprovisioned in {}"
             .format(args.output_directory))
 
@@ -162,14 +169,15 @@ def batch_process(args):
                 continue
 
             # Create image dir for image and add containers there...
-            output_dir = os.path.join(image_dir, machine, distro, args.image_name)
+            output_dir = os.path.join(image_dir, machine, distro, args.image_directory)
             os.makedirs(output_dir, exist_ok=True)
 
             for url in image_urls:
                 logging.info("Downloading from {0}".format(url))
                 downloader.download(url, output_dir)
 
-            combine_single_image(output_dir_containers, output_dir)
+            combine_single_image(output_dir_containers, output_dir,
+                                 args.image_name, args.image_description)
 
             # Start Artifactory upload with a empty environment
             if args.post_script is not None:
@@ -177,7 +185,7 @@ def batch_process(args):
 
                 cp = subprocess.run(
                     [ args.post_script,
-                      machine, distro, args.image_name ],
+                      machine, distro, args.image_directory ],
                     cwd=output_dir)
 
                 if cp.returncode != 0:
@@ -223,9 +231,13 @@ subparser.add_argument("--release-type", dest="release_type",
                     default="nightly")
 subparser.add_argument("--matrix-build-number", dest="matrix_build_number",
                     help="""Matrix build number to processes.""")
-subparser.add_argument("--image-name", dest="image_name",
-                    help="""New image name""",
+subparser.add_argument("--image-directory", dest="image_directory",
+                    help="""Image directory name""",
                     default="torizon-core-docker-with-containers")
+subparser.add_argument("--image-name", dest="image_name",
+                    help="""Image name used in Easy Installer image json""")
+subparser.add_argument("--image-description", dest="image_description",
+                    help="""Image description used in Easy Installer image json""")
 subparser.add_argument("--post-script", dest="post_script",
                     help="""Executes this script in every image generated.""")
 subparser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
@@ -260,6 +272,11 @@ Output directory where the combined Toradex Easy Installer images will be stored
 subparser.add_argument("--image-directory", dest="image_directory",
                     help="""Path to TorizonCore Toradex Easy Installer source image.""",
                     required=True)
+subparser.add_argument("--image-name", dest="image_name",
+                    help="""Image name used in Easy Installer image json""")
+subparser.add_argument("--image-description", dest="image_description",
+                    help="""Image description used in Easy Installer image json""")
+
 subparser.set_defaults(func=combine_local_image)
 
 if __name__== "__main__":
