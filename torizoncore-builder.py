@@ -53,6 +53,9 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
     with open(image_json_filepath, "r") as jsonfile:
         jsondata = json.load(jsonfile)
 
+    # Version 3 image format is required for the advanced filelist syntax.
+    jsondata["config_format"] = 3
+
     if image_name is None:
         jsondata["name"] = jsondata["name"] + " with Containers"
     else:
