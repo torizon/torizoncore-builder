@@ -81,6 +81,7 @@ def add_files(tezidir, image_json_filename, filelist, image_name, image_descript
         json.dump(jsondata, jsonfile, indent=4)
 
 
+DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 
 def bundle_containers(args):
     # If no Docker host workdir is given, we assume that Docker uses the same
@@ -92,13 +93,13 @@ def bundle_containers(args):
     logging.info("Creating Docker Container bundle.")
     dockerbundle.download_containers_by_compose_file(
                 args.bundle_directory, args.compose_file, host_workdir,
-                platform=args.platform)
+                platform=args.platform, output_filename=DOCKER_BUNDLE_FILENAME)
     logging.info("Successfully created Docker Container bundle in {}."
             .format(args.bundle_directory))
 
 def check_containers_bundle(output_dir_containers):
     # Download only if not yet downloaded
-    if (os.path.exists(os.path.join(output_dir_containers, "docker-storage.tar"))
+    if (os.path.exists(os.path.join(output_dir_containers, DOCKER_BUNDLE_FILENAME))
         and
         os.path.exists(os.path.join(output_dir_containers, "docker-compose.yml"))):
         return True
@@ -108,7 +109,7 @@ def check_containers_bundle(output_dir_containers):
 def combine_single_image(source_dir_containers, output_dir, image_name, image_description):
     files_to_add = [
             "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-            "docker-storage.tar:/ostree/deploy/torizon/var/lib/docker/:true"
+            DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true"
             ]
 
     # Copy container

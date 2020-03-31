@@ -38,14 +38,46 @@ class DockerManager:
                 "--xattrs-include='*'", "--create", "--file", output_file,
                 "overlay2/", "image/" ]
 
+    """
+    Get compression command
+
+    Args:
+        output_filename: File name or path with compression extension
+
+    Returns:
+        (str, str): output_file without compression ending, compression command
+    """
+    def get_compression_command(self, output_file):
+        command = None
+        if output_file.endswith(".xz"):
+            output_file_tar = output_file[:-3]
+            command = [ "xz" , "-3", "-z", output_file_tar ]
+        elif output_file.endswith(".gz"):
+            output_file_tar = output_file[:-3]
+            command = [ "gzip", output_file_tar ]
+        elif output_file.endswith(".lzo"):
+            output_file_tar = output_file[:-4]
+            command = [ "lzop", "-U", "-o", output_file, output_file_tar ]
+        elif output_file.endswith(".zst"):
+            output_file_tar = output_file[:-4]
+            command = [ "zstd", "--rm", output_file_tar, "-o", output_file ]
+
+        return (output_file_tar, command)
+
     def get_client(self):
         return docker.from_env()
 
-    def save_tar(self, filename):
-        output_file = os.path.join(self.output_dir, filename)
+    def save_tar(self, output_file):
+
+        (output_file_tar, compression_command) = self.get_compression_command(output_file)
 
         # Use host tar to store the Docker storage backend
-        subprocess.run(get_tar_command(output_file), check=True)
+        subprocess.run(self.get_tar_command(os.path.join(self.output_dir, output_file_tar), check=True))
+
+        output_filepath = os.path.join(self.output_dir, self.output_file)
+        if os.path.exists(output_filepath):
+            os.remove(output_filepath)
+        subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
 class DindManager(DockerManager):
     DIND_CONTAINER_IMAGE = "docker:19.03.8-dind"
@@ -147,24 +179,32 @@ class DindManager(DockerManager):
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
         return dind_client
 
-    def save_tar(self, filename):
+    def save_tar(self, output_file):
         output_mount_dir = "/mnt"
-        output_file = os.path.join(output_mount_dir, filename)
+        logging.info("Storing container bundle to {}".format(self.output_dir_host))
+
+        # Get tar filename and compression command to convert to compressed tar
+        # locally in a second command (we do not have the compression utils in
+        # the tar container).
+        (output_file_tar, compression_command) = self.get_compression_command(output_file)
 
         # Use a container to tar the Docker storage backend instead of the
         # built-in save_tar() is more flexible...
-        logging.info("Storing container bundle to {}".format(self.output_dir_host))
         tar_container = self.host_client.containers.run("debian:buster",
                 volumes = {
                             self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'ro'},
                             self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
                           },
-                command = self.get_tar_command(output_file),
+                command = self.get_tar_command(os.path.join(output_mount_dir, output_file_tar)),
                 auto_remove=True)
 
+        output_filepath = os.path.join(self.output_dir, output_file)
+        if os.path.exists(output_filepath):
+            os.remove(output_filepath)
+        subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
 def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
-        use_host_docker=False, platform="linux/arm/v7"):
+        use_host_docker=False, platform="linux/arm/v7", output_filename="docker-storage.tar"):
 
     # Open Docker Compose file
     if not os.path.isabs(compose_file):
@@ -206,7 +246,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         f.close()
        
         logging.info("Exporting storage")
-        manager.save_tar("docker-storage.tar")
+        manager.save_tar(output_filename)
 
     finally:
         logging.info("Stopping DIND container")
