@@ -47,7 +47,8 @@ def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_nu
         else:
             yield image
 
-def add_files(tezidir, image_json_filename, filelist, image_name, image_description):
+def add_files(tezidir, image_json_filename, filelist, additional_size,
+              image_name, image_description):
     image_json_filepath = os.path.join(tezidir, image_json_filename)
     with open(image_json_filepath, "r") as jsonfile:
         jsondata = json.load(jsonfile)
@@ -67,13 +68,6 @@ def add_files(tezidir, image_json_filename, filelist, image_name, image_descript
     if content is None:
         raise Exception("No root file system content section found")
 
-    # Asuming those files are uncompressed/copied as is
-    additional_size = 0
-    for filename in filelist:
-        filename = filename.split(":")[0]
-        st = os.stat(os.path.join(tezidir, filename))
-        additional_size = additional_size + st.st_size
-
     content["filelist"] = filelist
     content["uncompressed_size"] += float(additional_size) / 1024 / 1024
 
@@ -82,6 +76,10 @@ def add_files(tezidir, image_json_filename, filelist, image_name, image_descript
 
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
+DOCKER_FILES_TO_ADD = [
+    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
+    DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true"
+]
 
 def bundle_containers(args):
     # If no Docker host workdir is given, we assume that Docker uses the same
@@ -97,21 +95,52 @@ def bundle_containers(args):
     logging.info("Successfully created Docker Container bundle in {}."
             .format(args.bundle_directory))
 
-def check_containers_bundle(output_dir_containers):
-    # Download only if not yet downloaded
-    if (os.path.exists(os.path.join(output_dir_containers, DOCKER_BUNDLE_FILENAME))
-        and
-        os.path.exists(os.path.join(output_dir_containers, "docker-compose.yml"))):
-        return True
-    else:
-        return False
+def get_additional_size(output_dir_containers, files_to_add):
+    additional_size = 0
 
-def combine_single_image(source_dir_containers, output_dir, image_name, image_description):
-    files_to_add = [
-            "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-            DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true"
-            ]
+    # Check size of files to add to theimage
+    for fileentry in files_to_add:
+        filename, destination, *rest = fileentry.split(":")
+        filepath = os.path.join(output_dir_containers, filename)
+        if not os.path.exists(filepath):
+            return None
 
+        # Check third parameter, if unpack is set to true we need to get size
+        # of unpacked tarball...
+        unpack = False
+        if len(rest) > 0:
+            unpack = rest[0].lower() == "true"
+
+        if unpack:
+            if filename.endswith(".gz"):
+                command = "gzip -dc"
+            elif filename.endswith(".xz"):
+                command = "xz -dc"
+            elif filename.endswith(".lzo"):
+                command = "lzop -dc"
+            elif filename.endswith(".zst"):
+                command = "zstd -dc"
+
+            # Unpack similar to how Tezi does the size check
+            size_proc = subprocess.run(
+                    "cat '{0}' | {1} | wc -c".format(filename, command),
+                    shell=True, capture_output=True, cwd=output_dir_containers)
+
+            if size_proc.returncode != 0:
+                logging.error("Size estimation failed. Exit code {0}."
+                              .format(size_proc.returncode))
+                sys.exit(1)
+
+            additional_size += int(size_proc.stdout.decode('utf-8'))
+
+        else:
+            st = os.stat(filepath)
+            additional_size += st.st_size
+
+    return additional_size
+
+def combine_single_image(source_dir_containers, files_to_add, additional_size,
+                         output_dir, image_name, image_description):
     # Copy container
     for filename in files_to_add:
         filename = filename.split(":")[0]
@@ -119,11 +148,14 @@ def combine_single_image(source_dir_containers, output_dir, image_name, image_de
                     os.path.join(output_dir, filename))
 
     for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        add_files(output_dir, image_file, files_to_add, image_name, image_description)
+        add_files(output_dir, image_file, files_to_add, additional_size,
+                  image_name, image_description)
 
 def combine_local_image(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
-    if not check_containers_bundle(output_dir_containers):
+
+    additional_size = get_additional_size(output_dir_containers, DOCKER_FILES_TO_ADD)
+    if additional_size is None:
         logging.error("Docker Container bundle missing, use bundle sub-command.")
         return
 
@@ -143,14 +175,15 @@ def combine_local_image(args):
     shutil.copytree(image_dir, output_image_dir)
 
     logging.info("Combining TorizonCore image with Docker Container bundle.")
-    combine_single_image(output_dir_containers, output_image_dir,
-                         args.image_name, args.image_description)
+    combine_single_image(output_dir_containers, DOCKER_FILES_TO_ADD, additional_size,
+                         output_image_dir, args.image_name, args.image_description)
     logging.info("Successfully created a TorizonCore image with Docker Containers preprovisioned in {}"
             .format(args.output_directory))
 
 def batch_process(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
-    if not check_containers_bundle(output_dir_containers):
+    additional_size = get_additional_size(output_dir_containers, DOCKER_FILES_TO_ADD)
+    if additional_size is None:
         logging.error("Docker Container bundle missing, use bundle sub-command.")
         return
 
@@ -177,8 +210,8 @@ def batch_process(args):
                 logging.info("Downloading from {0}".format(url))
                 downloader.download(url, output_dir)
 
-            combine_single_image(output_dir_containers, output_dir,
-                                 args.image_name, args.image_description)
+            combine_single_image(output_dir_containers, DOCKER_FILES_TO_ADD, additional_size,
+                                 output_dir, args.image_name, args.image_description)
 
             # Start Artifactory upload with a empty environment
             if args.post_script is not None:
