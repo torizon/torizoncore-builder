@@ -234,6 +234,14 @@ def batch_process(args):
 
     logging.info("Finished")
 
+
+def add_common_image_arguments(subparser):
+    subparser.add_argument("--image-name", dest="image_name",
+                        help="""Image name used in Easy Installer image json""")
+    subparser.add_argument("--image-description", dest="image_description",
+                        help="""Image description used in Easy Installer image json""")
+
+
 parser = argparse.ArgumentParser(description="""\
 Utility to create TorizonCore images with containers pre-provisioned. Requires a
 TorizonCore base image and a Docker Compose YAML file as input and creates a
@@ -271,10 +279,7 @@ subparser.add_argument("--matrix-build-number", dest="matrix_build_number",
 subparser.add_argument("--image-directory", dest="image_directory",
                     help="""Image directory name""",
                     default="torizon-core-docker-with-containers")
-subparser.add_argument("--image-name", dest="image_name",
-                    help="""Image name used in Easy Installer image json""")
-subparser.add_argument("--image-description", dest="image_description",
-                    help="""Image description used in Easy Installer image json""")
+add_common_image_arguments(subparser)
 subparser.add_argument("--post-script", dest="post_script",
                     help="""Executes this script in every image generated.""")
 subparser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
@@ -309,10 +314,7 @@ Output directory where the combined Toradex Easy Installer images will be stored
 subparser.add_argument("--image-directory", dest="image_directory",
                     help="""Path to TorizonCore Toradex Easy Installer source image.""",
                     required=True)
-subparser.add_argument("--image-name", dest="image_name",
-                    help="""Image name used in Easy Installer image json""")
-subparser.add_argument("--image-description", dest="image_description",
-                    help="""Image description used in Easy Installer image json""")
+add_common_image_arguments(subparser)
 
 subparser.set_defaults(func=combine_local_image)
 
