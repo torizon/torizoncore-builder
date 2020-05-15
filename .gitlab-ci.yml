@@ -1,0 +1,56 @@
+image: docker:latest
+
+variables:
+  # This should be set by docker image already, just to be sure...
+  DOCKER_HOST: tcp://docker:2375
+  # Use overlayfs driver for better performance
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  GITLAB_DOCKERREGISTRY_TAG: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
+  GITLAB_DOCKERREGISTRY_TAG_LATEST: ${CI_COMMIT_REF_SLUG}-latest
+
+services:
+  - name: docker:dind
+
+stages:
+  - build
+  - deploy
+
+# Docker image builds
+#
+# Build the Docker images  specificd in DOCKERFILE_FOLDER/IMAGE_NAME and push
+# it to Gitlab's internal Docker registry
+.docker-build:
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -f ${DOCKERFILE_NAME} -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG} .
+    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG}
+  stage: build
+
+docker-build-torizoncore-builder:
+  extends: .docker-build
+  variables:
+    IMAGE_NAME: torizoncore-builder
+    DOCKERFILE_NAME: torizoncore-builder.Dockerfile
+
+# Docker deploy jobs
+#
+# Make sure DOCKER_HUB_USER/DOCKER_HUB_PW is properly set in the project
+# specific Gitlab CI settings.
+.docker-deploy:
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  when: manual
+  script:
+    - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG}
+    - docker tag ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:latest
+    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
+    - docker push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:latest
+  stage: deploy
+
+docker-deploy-torizoncore-builder:
+  extends: .docker-deploy
+  variables:
+    IMAGE_NAME: torizoncore-builder
