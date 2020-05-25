@@ -24,6 +24,7 @@ RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
 ADD tezi /builder/tezi/
+ADD tcbuilder /builder/tcbuilder/
 ADD dockerbundle.py /builder/
 ADD torizoncore-builder.py /builder/torizoncore-builder
 

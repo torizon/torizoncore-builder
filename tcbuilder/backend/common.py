@@ -1,0 +1,2 @@
+class TorizonCoreBuilderError(Exception):
+    pass

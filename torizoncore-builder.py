@@ -15,6 +15,7 @@ from tezi import downloader
 from tezi import utils
 import subprocess
 import dockerbundle
+from tcbuilder.cli import unpack
 
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
 
@@ -338,6 +339,9 @@ subparser.add_argument("--image-directory", dest="image_directory",
 add_common_image_arguments(subparser)
 
 subparser.set_defaults(func=combine_local_image)
+
+
+unpack.init_parser(subparsers)
 
 if __name__== "__main__":
     logger = logging.getLogger()
