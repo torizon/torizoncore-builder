@@ -17,3 +17,5 @@ def unpack_local_image(image_dir, sysroot_dir):
     logging.info("Running tar command: " + tarcmd)
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
 
+    # Remove the tarball since we have it unpacked now
+    os.unlink(tarfile)
