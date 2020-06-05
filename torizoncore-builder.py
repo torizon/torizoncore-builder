@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+MIN_PYTHON = (3, 7)
+if sys.version_info < MIN_PYTHON:
+        sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
+
 import argparse
 import datetime
 import os
-import sys
 import json
 import shutil
 import urllib.request
