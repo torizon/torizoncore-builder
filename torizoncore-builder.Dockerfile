@@ -14,7 +14,7 @@ RUN if [ "$APT_PROXY" != "" ]; then \
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     ostree python3 python3-pip python3-gi \
     python3-docker docker-compose curl \
-    gir1.2-ostree-1.0 \
+    gir1.2-ostree-1.0 python3-paramiko \
     gzip xz-utils lzop zstd \
     &&  rm -rf /var/lib/apt/lists/*
 
