@@ -4,6 +4,7 @@ import logging
 import shutil
 import tezi.utils
 from tcbuilder.backend import unpack
+from tcbuilder.backend import ostree
 
 def unpack_subcommand(args):
     image_dir = os.path.abspath(args.image_directory)
@@ -32,6 +33,15 @@ def unpack_subcommand(args):
 
         print("Unpacking TorizonCore Toradex Easy Installer image.")
         unpack.unpack_local_image(tezi_dir, src_sysroot_dir)
+
+        src_sysroot = ostree.load_sysroot(src_sysroot_dir)
+        ref, kargs = ostree.get_ref_from_sysroot(src_sysroot)
+        metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), ref)
+
+        print("Unpacked OSTree from oradex Easy Installer image:")
+        print("Commit ref: {}".format(ref))
+        print("TorizonCore Version: {}".format(metadata['version']))
+        print()
 
     except Exception as ex:
         print("Failed to unpack: " + str(ex), file=sys.stderr)
