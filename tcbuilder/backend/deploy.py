@@ -153,3 +153,8 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT,
                             env={ "XZ_OPT": "-1" })
 
+def copy_home_from_old_sysroot(src_sysroot, dst_sysroot):
+    src_var = get_var_path(src_sysroot)
+    dst_var = get_var_path(dst_sysroot)
+    shutil.copytree(os.path.join(src_var, "rootdirs"),
+        os.path.join(dst_var, "rootdirs"), symlinks=True)

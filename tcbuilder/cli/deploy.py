@@ -67,6 +67,9 @@ def deploy_image(args):
     deploy.deploy_rootfs(sysroot, ref, "torizon", newkargs)
     print("Deploying done.")
 
+    print("Copy rootdirs such as /home from original deployment.")
+    deploy.copy_home_from_old_sysroot(src_sysroot, sysroot)
+
     print("Packing rootfs...")
     deploy.copy_tezi_image(tezi_dir, output_dir)
     deploy.pack_rootfs_for_tezi(dst_sysroot_dir, output_dir)
