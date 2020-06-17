@@ -1,5 +1,4 @@
 import gi
-from tcbuilder.backend.common import TorizonCoreBuilderError
 
 gi.require_version("OSTree", "1.0")
 

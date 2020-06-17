@@ -6,7 +6,9 @@ import shutil
 import paramiko
 from subprocess import Popen
 from subprocess import PIPE
-from tcbuilder.backend.common import TorizonCoreBuilderError
+from tcbuilder.errors import OperationFailureError
+from tcbuilder.errors import ConnectionError
+
 
 ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysinit.target.wants/run-postinsts.service',
                 'ostree/remotes.d/toradex-nightly.conf', 'docker/key.json', '.updated', '.pwd.lock', 'group-',
@@ -19,6 +21,7 @@ TAR_NAME = 'isolated_changes.tar'
 
 NO_CHANGES = 0
 CHANGES_CAPTURED = 1
+
 
 def run_command_with_sudo(client, command, password):
     stdin, stdout, stderr = client.exec_command(command=command, get_pty=True)
@@ -75,10 +78,12 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
                                                                              deleted_file_dir_to_tar)
         status, stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
         if status > 0:
-            raise TorizonCoreBuilderError('Deleted Files information is not moved to host' + stdout.read().decode(
+            raise OperationFailureError('could not create dir in /tmp',  stdout.read().decode(
                 'utf-8').strip())
-    except:
-        # need to be handled by frontend
+    except Exception as ex:
+        # create additional variables of exception to be coherent with our custom exception layout
+        ex.msg = "issue occured during handling of deleted stuff"
+        ex.det = ""
         raise
 
 
@@ -117,17 +122,20 @@ def isolate_user_changes(rcv_args):
         status, stdin, stdout = run_command_with_sudo(client, 'sudo ostree admin config-diff', r_password)
         if status > 0:
             client.close()
-            raise TorizonCoreBuilderError('Unable to get config diff' + stdout.read().decode('utf-8').strip())
+            raise OperationFailureError('Unable to get user changes',
+                                                 stdout.read().decode('utf-8').strip())
 
         output = stdout.read().decode("utf-8").strip().split("\r\n")
         # remove upto password keyword
         indx = output.index("Password: ")
         output = output[(indx + 1):]
+
         # filter out files
         changed_itr = filter(ignore_changes_deletion, output)
         changes = list(changed_itr)
         if not changes:
             return NO_CHANGES
+
 
         sftp = client.open_sftp()
         if sftp is not None:
@@ -159,7 +167,8 @@ def isolate_user_changes(rcv_args):
                 remove_tmp_dir(client, tmp_dir_name)
                 sftp.close()
                 client.close()
-                raise TorizonCoreBuilderError('Unable to collect info' + stdout.read().decode('utf-8').strip())
+                raise OperationFailureError('Unable to bundle up changes at target',
+                                                   stdout.read().decode('utf-8').strip())
 
             # get the tar
             sftp.get(tmp_dir_name + '/' + TAR_NAME, diff_dir
@@ -168,7 +177,8 @@ def isolate_user_changes(rcv_args):
             sftp.close()
         else:
             client.close()
-            raise TorizonCoreBuilderError('Unable to connect to the host')
+            raise ConnectionError('Unable to create secure connection for transferring of files',
+                                         "")
 
         client.close()
 
@@ -183,6 +193,9 @@ def isolate_user_changes(rcv_args):
         subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
         subprocess.check_output('rm {}/{}'.format(diff_dir,
                                                   TAR_NAME), shell=True, stderr=subprocess.STDOUT)
+
         return CHANGES_CAPTURED
-    except:
+    except Exception as ex:
+        ex.msg = "issue occurred during handling of isolated changes. Contact Developer"
+        ex.det = ""
         raise

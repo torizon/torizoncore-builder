@@ -259,7 +259,6 @@ def batch_process(args):
                             .format(cp.returncode))
                     sys.exit(1)
 
-
     logging.info("Finished")
 
 
@@ -278,6 +277,59 @@ Utility to create TorizonCore images with containers pre-provisioned. Requires a
 TorizonCore base image and a Docker Compose YAML file as input and creates a
 Toradex Easy Installer image with TorizonCore and the containers combined.
 """)
+
+
+def setup_logging(level, verbose, file):
+    logger = logging.getLogger("torizon")  # use name hierarchy
+    lhandler = None
+    if file is None:
+        lhandler = logging.StreamHandler()
+    else:
+        file = os.path.abspath(file)
+        lhandler = logging.FileHandler(file)
+
+    set_level = None
+    if level is not None:
+        levels = {
+             'DEBUG': logging.DEBUG,
+             'INFO': logging.INFO,
+             'WARNING': logging.WARNING,
+             'ERROR': logging.ERROR,
+             'CRITICAL': logging.CRITICAL,
+        }
+        set_level = levels.get(level.upper())
+
+    if set_level is None:
+        print('Invalid value for --log-level. Expected one of DEBUG, INFO, WARNING, ERROR, CRITICAL.')
+        sys.exit(-1)
+
+    if verbose:
+        logger.setLevel(logging.INFO)
+        lformat = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        lhandler.setFormatter(lformat)
+
+    if set_level == logging.DEBUG:
+        logger.setLevel(logging.DEBUG)
+        lformat = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        lhandler.setFormatter(lformat)
+    else:
+        logger.setLevel(set_level)
+
+    logger.addHandler(lhandler)
+
+
+parser.add_argument("--verbose", dest="verbose",
+                    action='store_true',
+                    help="Show more output")
+
+parser.add_argument("--log-level", dest="log_level",
+                    help="--log-level Set log level (debug, info, warning, error, critical)",
+                    default="warning")
+
+parser.add_argument("--log-file", dest="log_file",
+                    help="write logs to a file instead of console",
+                    default=None)
+
 
 parser.add_argument("--bundle-directory", dest="bundle_directory",
                     help="Container bundle directory",
@@ -356,9 +408,10 @@ union.init_parser(subparsers)
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
     args = parser.parse_args()
-    args.func(args)
+    setup_logging(args.log_level, args.verbose, args.log_file)
 
+    if hasattr(args, 'func'):
+        args.func(args)
+    else:
+        print(f"Try --help for options")
