@@ -22,8 +22,11 @@ import dockerbundle
 from tcbuilder.cli import unpack
 from tcbuilder.cli import isolate
 from tcbuilder.cli import deploy
+from tcbuilder.cli import union
+
 
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
+
 
 def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_number, machine, distro, image):
     filter_params = {'repo': artifactory_repo,
@@ -349,6 +352,8 @@ subparser.set_defaults(func=combine_local_image)
 unpack.init_parser(subparsers)
 isolate.init_parser(subparsers)
 deploy.init_parser(subparsers)
+union.init_parser(subparsers)
+
 
 if __name__ == "__main__":
     logger = logging.getLogger()
