@@ -83,7 +83,6 @@ def union_changes(storage_dir, changes_dir, final_branch):
     if not os.path.exists(sysroot_dir):
         raise TorizonCoreBuilderError(f"{sysroot_dir} does not exist")
 
-    changes_dir = os.path.join(changes_dir, "changes")
     if not os.path.exists(changes_dir):
         raise TorizonCoreBuilderError(f"{changes_dir} does not exist")
 

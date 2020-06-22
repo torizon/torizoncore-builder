@@ -23,7 +23,7 @@ def init_parser(subparsers):
                         (must be same as provided for isolate).
                         Must be a file system capable of carrying Linux file system 
                         metadata (Unix file permissions and xattr).""",
-                        default="/storage")
+                        default="/storage/changes")
     subparser.add_argument("--storage-directory", dest="storage_directory",
                         help="""Path to the unpacked base Tezi Image.
                         (must be same as provided for unpack).""",

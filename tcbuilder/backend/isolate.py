@@ -82,20 +82,24 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
 
 
 def isolate_user_changes(rcv_args):
-    usr_prov_dir = os.path.abspath(rcv_args.diff_dir)
-    if not os.path.exists(usr_prov_dir):
-        raise TorizonCoreBuilderError(f'{rcv_args.diff_dir} does not exist')
+    if rcv_args.diff_dir is None:
+        diff_dir = "/storage/changes"
+    else:
+        diff_dir = os.path.abspath(rcv_args.diff_dir)
 
-    diff_dir = os.path.join(usr_prov_dir, "changes")
+    if not os.path.exists(diff_dir):
+        if diff_dir == "/storage/changes":
+            os.mkdir(diff_dir)
+        else:
+            raise TorizonCoreBuilderError(f'{rcv_args.diff_dir} does not exist')
 
-    if os.path.exists(diff_dir):
-        ans = input(f"{usr_prov_dir} is not empty. Delete contents before continuing? [y/N] ")
+    if os.listdir(diff_dir):
+        ans = input(f"{diff_dir} is not empty. Delete contents before continuing? [y/N] ")
         if ans.lower() != "y":
             return
-        if os.path.exists(diff_dir):
-            shutil.rmtree(diff_dir)
 
-    os.mkdir(diff_dir)
+        shutil.rmtree(diff_dir)
+        os.mkdir(diff_dir)
 
     r_name_ip = rcv_args.remoteip
     r_username = rcv_args.remote_username
