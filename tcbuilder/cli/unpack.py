@@ -10,7 +10,11 @@ def unpack_subcommand(args):
     image_dir = os.path.abspath(args.image_directory)
     storage_dir = os.path.abspath(args.storage_directory)
     tezi_dir = os.path.join(storage_dir, "tezi")
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+
+    if args.sysroot_directory is None:
+        src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+    else:
+        src_sysroot_dir = os.path.abspath(args.sysroot_directory)
 
     try:
         if not os.path.exists(storage_dir):
@@ -59,6 +63,8 @@ def init_parser(subparsers):
                         capable of carring Linux file system metadata (Unnix
                         file permissions and xattr).""",
                         default="/storage")
+    subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
+                        help="""Path to source sysroot storage.""")
 
     subparser.set_defaults(func=unpack_subcommand)
 
