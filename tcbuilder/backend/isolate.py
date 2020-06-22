@@ -2,6 +2,7 @@ import datetime
 import os
 import sys
 import subprocess
+import shutil
 import paramiko
 from subprocess import Popen
 from subprocess import PIPE
@@ -12,9 +13,12 @@ ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysi
                 'gshadow-', 'hostname', 'ssh/ssh_host_rsa_key', 'ssh/ssh_host_rsa_key.pub', 'ssh/ssh_host_ecdsa_key',
                 'ssh/ssh_host_ecdsa_key.pub',
                 'ssh/ssh_host_ed25519_key',
-                'ssh/ssh_host_ed25519_key.pub']
+                'ssh/ssh_host_ed25519_key.pub',
+                'ipk-postinsts', 'fw_env.conf' ]
 TAR_NAME = 'isolated_changes.tar'
 
+NO_CHANGES = 0
+CHANGES_CAPTURED = 1
 
 def run_command_with_sudo(client, command, password):
     stdin, stdout, stderr = client.exec_command(command=command, get_pty=True)
@@ -79,7 +83,25 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
 
 
 def isolate_user_changes(rcv_args):
-    diff_dir = os.path.abspath(rcv_args.diff_dir)
+    if rcv_args.diff_dir is None:
+        diff_dir = "/storage/changes"
+    else:
+        diff_dir = os.path.abspath(rcv_args.diff_dir)
+
+    if not os.path.exists(diff_dir):
+        if diff_dir == "/storage/changes":
+            os.mkdir(diff_dir)
+        else:
+            raise TorizonCoreBuilderError(f'{rcv_args.diff_dir} does not exist')
+
+    if os.listdir(diff_dir):
+        ans = input(f"{diff_dir} is not empty. Delete contents before continuing? [y/N] ")
+        if ans.lower() != "y":
+            return
+
+        shutil.rmtree(diff_dir)
+        os.mkdir(diff_dir)
+
     r_name_ip = rcv_args.remoteip
     r_username = rcv_args.remote_username
     r_password = rcv_args.remote_password
@@ -98,12 +120,14 @@ def isolate_user_changes(rcv_args):
             raise TorizonCoreBuilderError('Unable to get config diff' + stdout.read().decode('utf-8').strip())
 
         output = stdout.read().decode("utf-8").strip().split("\r\n")
-        output = output[2:]  # remove password keyword and password entered from output
+        # remove upto password keyword
+        indx = output.index("Password: ")
+        output = output[(indx + 1):]
         # filter out files
         changed_itr = filter(ignore_changes_deletion, output)
         changes = list(changed_itr)
         if not changes:
-            raise TorizonCoreBuilderError('no change is made in /etc by user')
+            return NO_CHANGES
 
         sftp = client.open_sftp()
         if sftp is not None:
@@ -148,12 +172,17 @@ def isolate_user_changes(rcv_args):
 
         client.close()
 
-        # extract tar
+        """
+         extract tar to diff_dir/usr/ so that at time of union 
+         they can be committed to /usr/etc of unpacked image as it is
+        """
+        os.mkdir(diff_dir + "/usr")
         extract_tar_cmd = "tar --acls --xattrs --overwrite --preserve-permissions " \
-                          "-xf {0}/{1} -C {0}/".format(
-            diff_dir, TAR_NAME)
+                          "-xf {0}/{1} -C {2}/".format(
+            diff_dir, TAR_NAME, diff_dir + "/usr")
         subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
         subprocess.check_output('rm {}/{}'.format(diff_dir,
                                                   TAR_NAME), shell=True, stderr=subprocess.STDOUT)
+        return CHANGES_CAPTURED
     except:
         raise
