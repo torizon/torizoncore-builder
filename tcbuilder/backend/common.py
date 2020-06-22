@@ -2,9 +2,7 @@ import os
 import json
 import glob
 import tezi.utils
-
-class TorizonCoreBuilderError(Exception):
-    pass
+from tcbuilder.errors import TorizonCoreBuilderError
 
 def get_rootfs_tarball(tezi_image_dir):
     if not os.path.exists(tezi_image_dir):

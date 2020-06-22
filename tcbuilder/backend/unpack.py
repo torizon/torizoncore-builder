@@ -3,7 +3,7 @@ import sys
 import logging
 import subprocess
 from tcbuilder.backend.common import get_rootfs_tarball
-from tcbuilder.backend.common import TorizonCoreBuilderError
+
 
 def unpack_local_image(image_dir, sysroot_dir):
     tarfile = get_rootfs_tarball(image_dir)

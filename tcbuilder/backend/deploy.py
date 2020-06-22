@@ -5,12 +5,14 @@ import subprocess
 import shutil
 import tezi.utils
 from tcbuilder.backend.common import get_rootfs_tarball
-from tcbuilder.backend.common import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError
 import gi
 
 gi.require_version("OSTree", "1.0")
 
 from gi.repository import GLib, Gio, OSTree
+
+log = logging.getLogger("torizon." + __name__)
 
 OSNAME = "torizon"
 
@@ -39,7 +41,7 @@ def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
         "gpg-verify": GLib.Variant("b", False)
     })
 
-    logging.debug("Pulling remote %s reference %s", uri, ref)
+    log.debug("Pulling remote %s reference %s", uri, ref)
 
     if not repo.remote_add("origin", remote, options=options):
         raise TorizonCoreBuilderError("Error adding remote.")
@@ -74,7 +76,7 @@ def pull_local_ref(repo, repopath, ref, remote=None):
         raises:
             Exception - for failure to perform operations
     """
-    logging.debug("Pulling from local repository %s reference %s", repopath, ref)
+    log.debug("Pulling from local repository %s reference %s", repopath, ref)
 
     # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref}
     options = GLib.Variant("a{sv}", {
@@ -101,7 +103,7 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
     keyfile = sysroot.origin_new_from_refspec(refspec)
 
     # ostree admin --sysroot=${OTA_SYSROOT} deploy ${kargs_list} --os=${OSTREE_OSNAME} ${ref}
-    logging.debug("Deploying reference %s", ref)
+    log.debug("Deploying reference %s", ref)
     result, deployment = sysroot.deploy_tree(
         OSNAME, ref, keyfile, None, kargs.split())
     if not result:
@@ -117,7 +119,7 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
     file = open(os.path.join(bootdir, "loader/uEnv.txt"), "w")
     file.close()
 
-    logging.debug("Write deployment for reference %s", ref)
+    log.debug("Write deployment for reference %s", ref)
     if not sysroot.simple_write_deployment(OSNAME, deployment, None,
             OSTree.SysrootSimpleWriteDeploymentFlags.NO_CLEAN):
         raise TorizonCoreBuilderError("Error writing deployment.")
@@ -149,7 +151,7 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     tarcmd = "tar --xattrs --xattrs-include='*' -cf {0} {1} -S -C {2} -p .".format(
                 tarfile, compression, dst_sysroot_dir)
-    logging.info("Running tar command: " + tarcmd)
+    log.info("Running tar command: " + tarcmd)
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT,
                             env={ "XZ_OPT": "-1" })
 
