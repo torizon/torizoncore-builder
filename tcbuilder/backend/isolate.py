@@ -13,7 +13,8 @@ ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysi
                 'gshadow-', 'hostname', 'ssh/ssh_host_rsa_key', 'ssh/ssh_host_rsa_key.pub', 'ssh/ssh_host_ecdsa_key',
                 'ssh/ssh_host_ecdsa_key.pub',
                 'ssh/ssh_host_ed25519_key',
-                'ssh/ssh_host_ed25519_key.pub']
+                'ssh/ssh_host_ed25519_key.pub',
+                'ipk-postinsts', 'fw_env.conf' ]
 TAR_NAME = 'isolated_changes.tar'
 
 NO_CHANGES = 0
