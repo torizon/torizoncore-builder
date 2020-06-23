@@ -334,6 +334,11 @@ parser.add_argument("--log-file", dest="log_file",
 parser.add_argument("--bundle-directory", dest="bundle_directory",
                     help="Container bundle directory",
                     default="bundle")
+parser.add_argument("--storage-directory", dest="storage_directory",
+                    help="""Path to internal storage. Must be a file system
+                    capable of carring Linux file system metadata (Unix
+                    file permissions and xattr).""",
+                    default="/storage")
 
 subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
 

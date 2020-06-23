@@ -24,10 +24,6 @@ def init_parser(subparsers):
                         Must be a file system capable of carrying Linux file system 
                         metadata (Unix file permissions and xattr).""",
                         default="/storage/changes")
-    subparser.add_argument("--storage-directory", dest="storage_directory",
-                        help="""Path to the unpacked base Tezi Image.
-                        (must be same as provided for unpack).""",
-                        default="/storage")
     subparser.add_argument("--final-branch", dest="fbranch",
                         help="""Name of branch containing the changes commited to 
                         the unpacked repo.  

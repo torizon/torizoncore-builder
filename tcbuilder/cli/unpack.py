@@ -58,11 +58,6 @@ def init_parser(subparsers):
     subparser.add_argument("--image-directory", dest="image_directory",
                         help="""Path to TorizonCore Toradex Easy Installer source image.""",
                         required=True)
-    subparser.add_argument("--storage-directory", dest="storage_directory",
-                        help="""Path to internal storage. Must be a file system
-                        capable of carring Linux file system metadata (Unnix
-                        file permissions and xattr).""",
-                        default="/storage")
     subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
                         help="""Path to source sysroot storage.""")
 
