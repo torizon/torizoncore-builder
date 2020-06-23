@@ -87,30 +87,7 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
         raise
 
 
-def isolate_user_changes(rcv_args):
-    if rcv_args.diff_dir is None:
-        diff_dir = "/storage/changes"
-    else:
-        diff_dir = os.path.abspath(rcv_args.diff_dir)
-
-    if not os.path.exists(diff_dir):
-        if diff_dir == "/storage/changes":
-            os.mkdir(diff_dir)
-        else:
-            raise TorizonCoreBuilderError(f'{rcv_args.diff_dir} does not exist')
-
-    if os.listdir(diff_dir):
-        ans = input(f"{diff_dir} is not empty. Delete contents before continuing? [y/N] ")
-        if ans.lower() != "y":
-            return
-
-        shutil.rmtree(diff_dir)
-        os.mkdir(diff_dir)
-
-    r_name_ip = rcv_args.remoteip
-    r_username = rcv_args.remote_username
-    r_password = rcv_args.remote_password
-
+def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
     try:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())

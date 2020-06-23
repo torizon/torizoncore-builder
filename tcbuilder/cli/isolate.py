@@ -7,8 +7,32 @@ from tcbuilder.backend import isolate
 
 def isolate_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+
+    if args.diff_dir is None:
+        diff_dir = "/storage/changes"
+    else:
+        diff_dir = os.path.abspath(args.diff_dir)
+
+    if not os.path.exists(diff_dir):
+        if diff_dir == "/storage/changes":
+            os.mkdir(diff_dir)
+        else:
+            log.error(f'{args.diff_dir} does not exist')
+
+    if os.listdir(diff_dir):
+        ans = input(f"{diff_dir} is not empty. Delete contents before continuing? [y/N] ")
+        if ans.lower() != "y":
+            return
+
+        shutil.rmtree(diff_dir)
+        os.mkdir(diff_dir)
+
+    r_name_ip = args.remoteip
+    r_username = args.remote_username
+    r_password = args.remote_password
+
     try:
-        ret = isolate.isolate_user_changes(args)
+        ret = isolate.isolate_user_changes(diff_dir, r_name_ip, r_username, r_password)
         if ret == isolate.NO_CHANGES:
             print("no change is made in /etc by user")
 
