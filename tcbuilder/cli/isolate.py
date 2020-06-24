@@ -8,15 +8,14 @@ from tcbuilder.backend import isolate
 def isolate_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
+    storage_dir = os.path.abspath(args.storage_directory)
     if args.diff_dir is None:
-        diff_dir = "/storage/changes"
+        diff_dir = os.path.join(storage_dir, "changes")
+        if not os.path.exists(diff_dir):
+            os.mkdir(diff_dir)
     else:
         diff_dir = os.path.abspath(args.diff_dir)
-
-    if not os.path.exists(diff_dir):
-        if diff_dir == "/storage/changes":
-            os.mkdir(diff_dir)
-        else:
+        if not os.path.exists(diff_dir):
             log.error(f'{args.diff_dir} does not exist')
 
     if os.listdir(diff_dir):
