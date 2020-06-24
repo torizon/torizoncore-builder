@@ -235,9 +235,11 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         for service in cfg.services:
             image = service['image']
             logging.info("Fetching container image {}".format(image))
-            image = dind_client.images.pull(image, platform=platform)
 
-            # Replace image with concrete Image ID
+            if not ":" in image:
+                image += ":latest"
+
+            image = dind_client.images.pull(image, platform=platform)
             service['image'] = image.attrs['RepoDigests'][0]
 
         logging.info("Save Docker Compose file")
