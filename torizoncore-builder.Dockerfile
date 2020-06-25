@@ -54,8 +54,8 @@ FROM common-base
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-gi \
     python3-docker docker-compose curl \
-    python3-paramiko \
     gzip xz-utils lzop zstd \
+    && apt-get -t buster-backports -q -y --no-install-recommends install python3-paramiko \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy OSTree (including gir support) from build stage
