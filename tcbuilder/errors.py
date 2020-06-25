@@ -23,3 +23,6 @@ class ConnectionError(TorizonCoreBuilderError):
 
 class OperationFailureError(TorizonCoreBuilderError):
     pass
+
+class FileContentMissing(TorizonCoreBuilderError):
+    pass

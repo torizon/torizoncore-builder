@@ -7,14 +7,10 @@ if sys.version_info < MIN_PYTHON:
         sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
 import argparse
-import datetime
 import os
-import json
-import shutil
 import urllib.request
 import urllib.parse
 import logging
-import glob
 from tezi import downloader
 from tezi import utils
 import subprocess
@@ -23,8 +19,8 @@ from tcbuilder.cli import unpack
 from tcbuilder.cli import isolate
 from tcbuilder.cli import deploy
 from tcbuilder.cli import union
-
-
+from tcbuilder.cli import combine
+from tcbuilder.backend import common
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
 
 
@@ -57,49 +53,6 @@ def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_nu
         else:
             yield image
 
-def add_files(tezidir, image_json_filename, filelist, additional_size,
-              image_name, image_description, licence_file, release_notes_file):
-    image_json_filepath = os.path.join(tezidir, image_json_filename)
-    with open(image_json_filepath, "r") as jsonfile:
-        jsondata = json.load(jsonfile)
-
-    # Version 3 image format is required for the advanced filelist syntax.
-    jsondata["config_format"] = 3
-
-    if image_name is None:
-        jsondata["name"] = jsondata["name"] + " with Containers"
-    else:
-        jsondata["name"] = image_name
-    if image_description is not None:
-        jsondata["description"] = image_description
-
-    if licence_file is not None:
-        jsondata["license"] = licence_file
-
-    if release_notes_file is not None:
-        jsondata["releasenotes"] = release_notes_file
-
-    jsondata["version"] = jsondata["version"] + ".container"
-    jsondata["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
-
-    # Find root file system content
-    content = utils.find_rootfs_content(jsondata)
-    if content is None:
-        raise Exception("No root file system content section found")
-
-    content["filelist"] = filelist
-    content["uncompressed_size"] += float(additional_size) / 1024 / 1024
-
-    with open(image_json_filepath, "w") as jsonfile:
-        json.dump(jsondata, jsonfile, indent=4)
-
-
-DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
-DOCKER_FILES_TO_ADD = [
-    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-    DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true"
-]
-
 def bundle_containers(args):
     # If no Docker host workdir is given, we assume that Docker uses the same
     # path as we do to access the current working directory.
@@ -110,108 +63,13 @@ def bundle_containers(args):
     logging.info("Creating Docker Container bundle.")
     dockerbundle.download_containers_by_compose_file(
                 args.bundle_directory, args.compose_file, host_workdir,
-                platform=args.platform, output_filename=DOCKER_BUNDLE_FILENAME)
+                platform=args.platform, output_filename=common.DOCKER_BUNDLE_FILENAME)
     logging.info("Successfully created Docker Container bundle in {}."
             .format(args.bundle_directory))
 
-def get_additional_size(output_dir_containers, files_to_add):
-    additional_size = 0
-
-    # Check size of files to add to theimage
-    for fileentry in files_to_add:
-        filename, destination, *rest = fileentry.split(":")
-        filepath = os.path.join(output_dir_containers, filename)
-        if not os.path.exists(filepath):
-            return None
-
-        # Check third parameter, if unpack is set to true we need to get size
-        # of unpacked tarball...
-        unpack = False
-        if len(rest) > 0:
-            unpack = rest[0].lower() == "true"
-
-        if unpack:
-            if filename.endswith(".gz"):
-                command = "gzip -dc"
-            elif filename.endswith(".xz"):
-                command = "xz -dc"
-            elif filename.endswith(".lzo"):
-                command = "lzop -dc"
-            elif filename.endswith(".zst"):
-                command = "zstd -dc"
-
-            # Unpack similar to how Tezi does the size check
-            size_proc = subprocess.run(
-                    "cat '{0}' | {1} | wc -c".format(filename, command),
-                    shell=True, capture_output=True, cwd=output_dir_containers)
-
-            if size_proc.returncode != 0:
-                logging.error("Size estimation failed. Exit code {0}."
-                              .format(size_proc.returncode))
-                sys.exit(1)
-
-            additional_size += int(size_proc.stdout.decode('utf-8'))
-
-        else:
-            st = os.stat(filepath)
-            additional_size += st.st_size
-
-    return additional_size
-
-def combine_single_image(source_dir_containers, files_to_add, additional_size,
-                         output_dir, image_name, image_description,
-                         licence_file, release_notes_file):
-    # Copy container
-    for filename in files_to_add:
-        filename = filename.split(":")[0]
-        shutil.copy(os.path.join(source_dir_containers, filename),
-                    os.path.join(output_dir, filename))
-
-    if licence_file is not None:
-        shutil.copy(licence_file, os.path.join(output_dir, licence_file))
-
-    if release_notes_file is not None:
-        shutil.copy(release_notes_file, os.path.join(output_dir, release_notes_file))
-
-    for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        add_files(output_dir, image_file, files_to_add, additional_size,
-                  image_name, image_description, licence_file,
-                  release_notes_file)
-
-def combine_local_image(args):
-    output_dir_containers = os.path.abspath(args.bundle_directory)
-
-    additional_size = get_additional_size(output_dir_containers, DOCKER_FILES_TO_ADD)
-    if additional_size is None:
-        logging.error("Docker Container bundle missing, use bundle sub-command.")
-        return
-
-    output_image_dir = os.path.abspath(args.output_directory)
-
-    if not os.path.exists(output_image_dir):
-        os.mkdir(output_image_dir)
-
-    image_dir = os.path.abspath(args.image_directory)
-
-    if not os.path.exists(image_dir):
-        logging.error("Source image directory does not exist")
-        return
-
-    logging.info("Creating copy of TorizonCore source image.")
-    shutil.rmtree(output_image_dir)
-    shutil.copytree(image_dir, output_image_dir)
-
-    logging.info("Combining TorizonCore image with Docker Container bundle.")
-    combine_single_image(output_dir_containers, DOCKER_FILES_TO_ADD, additional_size,
-                         output_image_dir, args.image_name,
-                         args.image_description, args.licence_file,
-                         args.release_notes_file)
-    logging.info("Successfully created a TorizonCore image with Docker Containers preprovisioned in {}"
-            .format(args.output_directory))
-
 def batch_process(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
-    additional_size = get_additional_size(output_dir_containers, DOCKER_FILES_TO_ADD)
+    additional_size = common.get_additional_size(output_dir_containers, common.DOCKER_FILES_TO_ADD)
     if additional_size is None:
         logging.error("Docker Container bundle missing, use bundle sub-command.")
         return
@@ -239,7 +97,7 @@ def batch_process(args):
                 logging.info("Downloading from {0}".format(url))
                 downloader.download(url, output_dir)
 
-            combine_single_image(output_dir_containers, DOCKER_FILES_TO_ADD,
+            common.combine_single_image(output_dir_containers, common.DOCKER_FILES_TO_ADD,
                                  additional_size, output_dir, args.image_name,
                                  args.image_description, args.licence_file,
                                  args.release_notes_file)
@@ -261,16 +119,6 @@ def batch_process(args):
 
     logging.info("Finished")
 
-
-def add_common_image_arguments(subparser):
-    subparser.add_argument("--image-name", dest="image_name",
-                        help="""Image name used in Easy Installer image json""")
-    subparser.add_argument("--image-description", dest="image_description",
-                        help="""Image description used in Easy Installer image json""")
-    subparser.add_argument("--image-licence", dest="licence_file",
-                        help="""Licence file which will be shown on image installation""")
-    subparser.add_argument("--image-release-notes", dest="release_notes_file",
-                        help="""Release notes file which will be shown on image installation""")
 
 parser = argparse.ArgumentParser(description="""\
 Utility to create TorizonCore images with containers pre-provisioned. Requires a
@@ -367,7 +215,7 @@ subparser.add_argument("--matrix-build-number", dest="matrix_build_number",
 subparser.add_argument("--image-directory", dest="image_directory",
                     help="""Image directory name""",
                     default="torizon-core-docker-with-containers")
-add_common_image_arguments(subparser)
+common.add_common_image_arguments(subparser)
 subparser.add_argument("--post-script", dest="post_script",
                     help="""Executes this script in every image generated.""")
 subparser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
@@ -391,25 +239,11 @@ subparser.add_argument("--host-workdir", dest="host_workdir",
                     share data between this script and the DIND instance.""")
 subparser.set_defaults(func=bundle_containers)
 
-subparser = subparsers.add_parser("combine", help="""\
-Combines a container bundle with a specified Toradex Easy Installer image.
-""")
-subparser.add_argument("--output-directory", dest="output_directory",
-                    help="""\
-Output directory where the combined Toradex Easy Installer images will be stored.
-""",
-                    default="output")
-subparser.add_argument("--image-directory", dest="image_directory",
-                    help="""Path to TorizonCore Toradex Easy Installer source image.""",
-                    required=True)
-add_common_image_arguments(subparser)
-
-subparser.set_defaults(func=combine_local_image)
-
 unpack.init_parser(subparsers)
 isolate.init_parser(subparsers)
 deploy.init_parser(subparsers)
 union.init_parser(subparsers)
+combine.init_parser(subparsers)
 
 
 if __name__ == "__main__":
@@ -420,3 +254,4 @@ if __name__ == "__main__":
         args.func(args)
     else:
         print(f"Try --help for options")
+
