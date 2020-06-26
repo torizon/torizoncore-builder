@@ -3,6 +3,7 @@ import sys
 import logging
 import subprocess
 import traceback
+import shutil
 from tcbuilder.backend import isolate
 
 def isolate_subcommand(args):
