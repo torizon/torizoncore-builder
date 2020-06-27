@@ -173,6 +173,7 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
 
         return CHANGES_CAPTURED
     except Exception as ex:
-        ex.msg = "issue occurred during handling of isolated changes. Contact Developer"
-        ex.det = ""
+        if not hasattr(ex, "msg"):
+            ex.msg = "issue occurred during handling of isolated changes. Contact Developer"
+            ex.det = ""
         raise

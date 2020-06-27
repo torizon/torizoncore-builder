@@ -172,7 +172,7 @@ parser.add_argument("--verbose", dest="verbose",
 
 parser.add_argument("--log-level", dest="log_level",
                     help="--log-level Set log level (debug, info, warning, error, critical)",
-                    default="warning")
+                    default="info")
 
 parser.add_argument("--log-file", dest="log_file",
                     help="write logs to a file instead of console",

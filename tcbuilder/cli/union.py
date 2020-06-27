@@ -3,17 +3,26 @@ import sys
 import logging
 import subprocess
 import shutil
+import traceback
 from tcbuilder.backend import union
 
 
 def union_subcommand(args):
+    log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
     changes_dir = os.path.abspath(args.diff_dir)
     final_branch = args.fbranch
     try:
-        union.union_changes(storage_dir, changes_dir, final_branch)
+        commit = union.union_changes(storage_dir, changes_dir, final_branch)
+        log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except Exception as ex:
-        print("issue at union:" + str(ex))
+        if hasattr(ex, "msg"):
+            log.error(ex.msg)  # msg from all kinds of Exceptions
+            log.info(ex.det)  # more elaborative message
+        else:
+            log.error(str(ex))
+
+        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("union", help="""\

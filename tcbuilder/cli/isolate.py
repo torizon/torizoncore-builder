@@ -33,7 +33,7 @@ def isolate_subcommand(args):
     try:
         ret = isolate.isolate_user_changes(diff_dir, r_name_ip, r_username, r_password)
         if ret == isolate.NO_CHANGES:
-            print("no change is made in /etc by user")
+            log.info("no change is made in /etc by user")
 
         log.info("isolation command completed")
     except Exception as ex:
