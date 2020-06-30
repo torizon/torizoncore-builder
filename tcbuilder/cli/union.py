@@ -13,8 +13,9 @@ def union_subcommand(args):
     storage_dir = os.path.abspath(args.storage_directory)
     changes_dir = os.path.abspath(args.diff_dir)
     diff_branch = args.diff_branch
+    sysroot_directory = args.sysroot_directory
     try:
-        commit = union.union_changes(storage_dir, changes_dir, diff_branch)
+        commit = union.union_changes(storage_dir, changes_dir, sysroot_directory, diff_branch)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -31,6 +32,8 @@ def init_parser(subparsers):
                         Must be a file system capable of carrying Linux file system 
                         metadata (Unix file permissions and xattr).""",
                         default="/storage/changes")
+    subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
+                           help="""Path to source sysroot storage.""")
     subparser.add_argument("--diff-branch", dest="diff_branch",
                         help="""Name of branch containing the changes commited to 
                         the unpacked repo.  
