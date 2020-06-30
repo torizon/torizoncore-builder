@@ -23,7 +23,7 @@ def combine_image(args):
 
         output_dir = os.path.abspath(args.output_directory)
         if not os.path.exists(image_dir):
-            log.error(f"Source image directory {image_dir} does not exist")
+            log.error(f"Directory {image_dir} for combined image does not exist")
             return
 
         combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
@@ -52,7 +52,7 @@ def init_parser(subparsers):
                         which needs to be updated with docker bundle.""",
                            required=True)
     subparser.add_argument("--output-directory", dest="output_directory",
-                           help="""Path to TorizonCore Toradex Easy Installer source image, 
+                           help="""Path to combined TorizonCore Toradex Easy Installer image, 
                             which needs to be updated with docker bundle.""",
                            required=True)
     add_common_image_arguments(subparser)
