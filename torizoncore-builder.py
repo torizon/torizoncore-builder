@@ -184,7 +184,7 @@ parser.add_argument("--bundle-directory", dest="bundle_directory",
                     default="bundle")
 parser.add_argument("--storage-directory", dest="storage_directory",
                     help="""Path to internal storage. Must be a file system
-                    capable of carring Linux file system metadata (Unix
+                    capable of carrying Linux file system metadata (Unix
                     file permissions and xattr).""",
                     default="/storage")
 
