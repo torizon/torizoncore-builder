@@ -19,6 +19,7 @@ def isolate_subcommand(args):
         diff_dir = os.path.abspath(args.diff_dir)
         if not os.path.exists(diff_dir):
             log.error(f'{args.diff_dir} does not exist')
+            return
 
     if os.listdir(diff_dir):
         ans = input(f"{diff_dir} is not empty. Delete contents before continuing? [y/N] ")
