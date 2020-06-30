@@ -86,8 +86,7 @@ def union_changes(storage_dir, changes_dir, final_branch):
             raise TorizonCoreBuilderError(f"{sysroot_dir} does not exist")
 
         if not os.path.exists(changes_dir):
-            raise TorizonCoreBuilderError(f"{changes_dir} does not exist. Provide "
-                                          f"directory used for isolate command")
+            raise TorizonCoreBuilderError(f"{changes_dir} does not exist")
 
         sysroot = ostree.load_sysroot(sysroot_dir)
         deployment = sysroot.get_deployments()[0]
@@ -97,10 +96,6 @@ def union_changes(storage_dir, changes_dir, final_branch):
         # create commit of changes
         changes_branch = "isolated_changes"
         commit_changes(repo, changes_dir, changes_branch)
-        tmp_checkout_rootfs_dir = "/storage/tmp_chkout_rootfs"
-
-        if os.path.exists(tmp_checkout_rootfs_dir):
-            shutil.rmtree(tmp_checkout_rootfs_dir)
 
         ''' create temporary checked-out rootfs from unpacked repo to merge 
         commit from changes directory. Changes cannot be directly written to
@@ -108,6 +103,11 @@ def union_changes(storage_dir, changes_dir, final_branch):
         created and commit is needed to be merged in it. We can not simply copy
         files to even checked-out temporary rootfs.
         '''
+        tmp_checkout_rootfs_dir = os.path.join(storage_dir, "tmp_chkout_rootfs")
+
+        if os.path.exists(tmp_checkout_rootfs_dir):
+            shutil.rmtree(tmp_checkout_rootfs_dir)
+
         os.makedirs(tmp_checkout_rootfs_dir)
         merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs_dir)
         # commits merged version
@@ -120,4 +120,4 @@ def union_changes(storage_dir, changes_dir, final_branch):
         return final_commit
     except Exception as ex:
         raise TorizonCoreBuilderError("issue occurred during creating a commit for changes. Contact Developer") \
-            from ex
+             from ex
