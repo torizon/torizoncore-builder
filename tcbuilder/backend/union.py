@@ -79,19 +79,8 @@ def merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs
         raise TorizonCoreBuilderError("Error checking out local tree.")
 
 
-def union_changes(storage_dir, changes_dir, sysroot_directory, diff_branch):
+def union_changes(storage_dir, changes_dir, sysroot_dir, diff_branch):
     try:
-        if sysroot_directory is None:
-            sysroot_dir = os.path.join(storage_dir, "sysroot")
-        else:
-            sysroot_dir = os.path.abspath(sysroot_directory)
-        
-        if not os.path.exists(sysroot_dir):
-            raise TorizonCoreBuilderError(f"{sysroot_dir} does not exist")
-
-        if not os.path.exists(changes_dir):
-            raise TorizonCoreBuilderError(f"{changes_dir} does not exist")
-
         sysroot = ostree.load_sysroot(sysroot_dir)
         deployment = sysroot.get_deployments()[0]
         unpacked_repo_branch = deployment.get_csum()

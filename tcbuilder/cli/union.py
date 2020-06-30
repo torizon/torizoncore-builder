@@ -11,11 +11,28 @@ from tcbuilder.backend.common import TorizonCoreBuilderError
 def union_subcommand(args):
     log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
-    changes_dir = os.path.abspath(args.diff_dir)
+    diff_dir = os.path.abspath(args.diff_dir)
     diff_branch = args.diff_branch
-    sysroot_directory = args.sysroot_directory
+
+    if args.sysroot_directory is None:
+        sysroot_dir = os.path.join(storage_dir, "sysroot")
+    else:
+        sysroot_dir = os.path.abspath(args.sysroot_directory)
+
+    if not os.path.exists(sysroot_dir):
+        log.error(f"{sysroot_dir} does not exist")
+        return
+
+    if not os.path.exists(diff_dir):
+        log.error(f"{diff_dir} does not exist")
+        return
+
+    if not os.path.exists(storage_dir):
+        log.error(f"{storage_dir} does not exist")
+        return
+
     try:
-        commit = union.union_changes(storage_dir, changes_dir, sysroot_directory, diff_branch)
+        commit = union.union_changes(storage_dir, diff_dir, sysroot_dir, diff_branch)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
