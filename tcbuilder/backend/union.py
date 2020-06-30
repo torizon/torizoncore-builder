@@ -79,7 +79,7 @@ def merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs
         raise TorizonCoreBuilderError("Error checking out local tree.")
 
 
-def union_changes(storage_dir, changes_dir, final_branch):
+def union_changes(storage_dir, changes_dir, diff_branch):
     try:
         sysroot_dir = os.path.join(storage_dir, "sysroot")
         if not os.path.exists(sysroot_dir):
@@ -111,7 +111,7 @@ def union_changes(storage_dir, changes_dir, final_branch):
         os.makedirs(tmp_checkout_rootfs_dir)
         merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs_dir)
         # commits merged version
-        final_commit = commit_changes(repo, tmp_checkout_rootfs_dir, final_branch)
+        final_commit = commit_changes(repo, tmp_checkout_rootfs_dir, diff_branch)
 
         if os.path.exists(tmp_checkout_rootfs_dir):
             shutil.rmtree(tmp_checkout_rootfs_dir)
