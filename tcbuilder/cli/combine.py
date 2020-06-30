@@ -44,9 +44,6 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser("combine", help="""\
     Combines a container bundle with a specified Toradex Easy Installer image.
     """)
-    subparser.add_argument("--bundle-directory", dest="bundle_directory",
-                           help="""Path to docker bundle tar file""",
-                           required=True)
     subparser.add_argument("--image-directory", dest="image_directory",
                            help="""Path to TorizonCore Toradex Easy Installer source image, 
                         which needs to be updated with docker bundle.""",
