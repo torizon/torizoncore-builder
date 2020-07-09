@@ -8,6 +8,7 @@ from subprocess import Popen
 from subprocess import PIPE
 from tcbuilder.errors import OperationFailureError
 from tcbuilder.errors import ConnectionError
+from tcbuilder.errors import TorizonCoreBuilderError
 
 
 ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysinit.target.wants/run-postinsts.service',
@@ -173,7 +174,5 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
 
         return CHANGES_CAPTURED
     except Exception as ex:
-        if not hasattr(ex, "msg"):
-            ex.msg = "issue occurred during handling of isolated changes. Contact Developer"
-            ex.det = ""
-        raise
+        raise TorizonCoreBuilderError("issue occurred during handling of isolated changes. Contact Developer") \
+            from ex

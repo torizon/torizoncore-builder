@@ -119,7 +119,5 @@ def union_changes(storage_dir, changes_dir, final_branch):
         sysroot.unload()
         return final_commit
     except Exception as ex:
-        if not hasattr(ex, "msg"):
-            ex.msg = "issue occurred during creating a commit for changes. Contact Developer"
-            ex.det = str(ex)
-        raise
+        raise TorizonCoreBuilderError("issue occurred during creating a commit for changes. Contact Developer") \
+            from ex
