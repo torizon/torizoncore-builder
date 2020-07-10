@@ -9,14 +9,14 @@ from tcbuilder.backend import ostree
 
 log = logging.getLogger("torizon." + __name__)
 
-def commit_changes(repo, changes_dir, branch_name):
+def commit_changes(repo, diff_dir, branch_name):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=dir=my-changes
-    log.debug("Committing changes from %s to %s", changes_dir, branch_name)
+    log.debug("Committing changes from %s to %s", diff_dir, branch_name)
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
 
     mt = OSTree.MutableTree.new()
-    changesdir_fd = os.open(changes_dir, os.O_DIRECTORY)
+    changesdir_fd = os.open(diff_dir, os.O_DIRECTORY)
 
     if not repo.write_dfd_to_mtree(changesdir_fd, ".", mt):
         raise TorizonCoreBuilderError("Error adding directory to ostree commit")
@@ -40,7 +40,7 @@ def commit_changes(repo, changes_dir, branch_name):
     return commit
 
 
-def merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs_dir):
+def merge_branch(repo, unpacked_repo_branch, diff_branch, tmp_checkout_rootfs_dir):
     OSTREE_GIO_FAST_QUERYINFO = ("standard::name,standard::type,standard::size,standard::is-symlink,standard::symlink-target,"
                                  "unix::device,unix::inode,unix::mode,unix::uid,unix::gid,unix::rdev")
 
@@ -66,8 +66,8 @@ def merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs
         raise TorizonCoreBuilderError("Error checking out remote tree.")
 
     # get commit from changes branch name
-    result, changes_commit = repo.resolve_rev(changes_branch, False)
-    log.debug("Merging local %s - commit %s...", changes_branch, changes_commit)
+    result, diff_commit = repo.resolve_rev(diff_branch, False)
+    log.debug("Merging local %s - commit %s...", diff_branch, diff_commit)
     if not result:
         raise TorizonCoreBuilderError("Error getting local commit.")
 
@@ -75,11 +75,11 @@ def merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs
     options.process_whiteouts = True
     if not repo.checkout_at(options,
                             tmp_fd,
-                            ".", changes_commit, None):
+                            ".", diff_commit, None):
         raise TorizonCoreBuilderError("Error checking out local tree.")
 
 
-def union_changes(storage_dir, changes_dir, sysroot_dir, diff_branch):
+def union_changes(storage_dir, diff_dir, sysroot_dir, union_branch):
     try:
         sysroot = ostree.load_sysroot(sysroot_dir)
         deployment = sysroot.get_deployments()[0]
@@ -87,8 +87,8 @@ def union_changes(storage_dir, changes_dir, sysroot_dir, diff_branch):
         repo = sysroot.repo()
 
         # create commit of changes
-        changes_branch = "isolated_changes"
-        commit_changes(repo, changes_dir, changes_branch)
+        diff_branch = "isolated_changes"
+        commit_changes(repo, diff_dir, diff_branch)
 
         ''' create temporary checked-out rootfs from unpacked repo to merge 
         commit from changes directory. Changes cannot be directly written to
@@ -102,9 +102,9 @@ def union_changes(storage_dir, changes_dir, sysroot_dir, diff_branch):
             shutil.rmtree(tmp_checkout_rootfs_dir)
 
         os.makedirs(tmp_checkout_rootfs_dir)
-        merge_branch(repo, unpacked_repo_branch, changes_branch, tmp_checkout_rootfs_dir)
+        merge_branch(repo, unpacked_repo_branch, diff_branch, tmp_checkout_rootfs_dir)
         # commits merged version
-        final_commit = commit_changes(repo, tmp_checkout_rootfs_dir, diff_branch)
+        final_commit = commit_changes(repo, tmp_checkout_rootfs_dir, union_branch)
 
         if os.path.exists(tmp_checkout_rootfs_dir):
             shutil.rmtree(tmp_checkout_rootfs_dir)
