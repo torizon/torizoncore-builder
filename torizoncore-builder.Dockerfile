@@ -53,10 +53,14 @@ FROM common-base
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-gi \
-    python3-docker docker-compose curl \
-    gzip xz-utils lzop zstd \
+    curl gzip xz-utils lzop zstd \
     && apt-get -t buster-backports -q -y --no-install-recommends install python3-paramiko \
     && rm -rf /var/lib/apt/lists/*
+
+# Debian has old version of docker and docker-compose, which does not support some of
+# required functionality like escaping $ in compose file during serialization
+RUN pip3 install setuptools
+RUN pip3 install docker docker-compose
 
 # Copy OSTree (including gir support) from build stage
 COPY --from=ostree-builder /ostree-build/ /

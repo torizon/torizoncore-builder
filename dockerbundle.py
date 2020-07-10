@@ -214,7 +214,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
 
     environment = compose.config.environment.Environment.from_env_file(base_dir)
     config = compose.config.find(base_dir, [ os.path.basename(compose_file) ], environment, None)
-    cfg = compose.config.load(config)
+    cfg = compose.config.load(config, interpolate=False)
 
     logging.info("Starting DIND container")
     if use_host_docker:
@@ -244,7 +244,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
 
         logging.info("Save Docker Compose file")
         f = open(os.path.join(manager.output_dir, "docker-compose.yml"), "w")
-        f.write(compose.config.serialize.serialize_config(cfg))
+        f.write(compose.config.serialize.serialize_config(cfg, escape_dollar=False))
         f.close()
        
         logging.info("Exporting storage")
