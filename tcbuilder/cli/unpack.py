@@ -42,7 +42,7 @@ def unpack_subcommand(args):
         ref, kargs = ostree.get_ref_from_sysroot(src_sysroot)
         metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), ref)
 
-        print("Unpacked OSTree from oradex Easy Installer image:")
+        print("Unpacked OSTree from Toradex Easy Installer image:")
         print("Commit ref: {}".format(ref))
         print("TorizonCore Version: {}".format(metadata['version']))
         print()
