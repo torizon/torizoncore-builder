@@ -15,6 +15,7 @@ from tezi import downloader
 from tezi import utils
 import subprocess
 import dockerbundle
+import json
 from tcbuilder.cli import unpack
 from tcbuilder.cli import isolate
 from tcbuilder.cli import deploy
