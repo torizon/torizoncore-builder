@@ -16,11 +16,6 @@ log = logging.getLogger("torizon." + __name__)
 
 OSNAME = "torizon"
 
-def create_ostree(ostree_dir):
-    repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
-
-    repo.open()
-
 def create_sysroot(deploy_sysroot_dir):
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(deploy_sysroot_dir))
 
@@ -34,59 +29,6 @@ def create_sysroot(deploy_sysroot_dir):
         raise TorizonCoreBuilderError("Error loading sysroot.")
 
     return sysroot
-
-def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
-    # ostree --repo=toradex-os-tree remote add origin http://feeds.toradex.com/ostree/nightly/colibri-imx7/ --no-gpg-verify
-    options = GLib.Variant("a{sv}", {
-        "gpg-verify": GLib.Variant("b", False)
-    })
-
-    log.debug("Pulling remote %s reference %s", uri, ref)
-
-    if not repo.remote_add("origin", remote, options=options):
-        raise TorizonCoreBuilderError("Error adding remote.")
-
-    # ostree --repo=toradex-os-tree pull origin torizon/torizon-core-docker --depth=1
-
-    options = GLib.Variant("a{sv}", {
-        "refs": GLib.Variant.new_strv([ref]),
-        "depth": GLib.Variant("i", 1),
-        "override-remote-name": GLib.Variant('s', remote),
-    })
-
-    if progress is not None:
-        asyncprogress = OSTree.AsyncProgress.new()
-        asyncprogress.connect("changed", progress)
-    else:
-        asyncprogress = None
-
-    if not repo.pull_with_options("origin", options, progress=asyncprogress):
-        raise TorizonCoreBuilderError("Error pulling contents from local repository.")
-
-def pull_local_ref(repo, repopath, ref, remote=None):
-    """ fetches reference from local repository
-
-        args:
-
-            repo(OSTree.Repo) - repo object
-            repopath(str) - absolute path of local repository to pull from
-            ref(str) - remote reference to pull
-            remote = remote name used in refspec
-
-        raises:
-            Exception - for failure to perform operations
-    """
-    log.debug("Pulling from local repository %s reference %s", repopath, ref)
-
-    # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref}
-    options = GLib.Variant("a{sv}", {
-        "refs": GLib.Variant.new_strv([ref]),
-    #    "depth": GLib.Variant("i", 1),
-        "override-remote-name": GLib.Variant('s', remote),
-    })
-
-    if not repo.pull_with_options("file://" + repopath, options):
-        raise TorizonCoreBuilderError("Error pulling contents from local repository.")
 
 def deploy_rootfs(sysroot, ref, refspec, kargs):
     """ deploy OSTree commit given by ref in sysroot with kernel arguments

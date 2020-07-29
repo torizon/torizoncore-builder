@@ -62,7 +62,7 @@ def deploy_image(args):
 
     print("Pulling OSTree with ref {0} from local repository...".format(ref))
     src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
-    deploy.pull_local_ref(repo, src_ostree_dir, ref, remote="torizon")
+    ostree.pull_local_ref(repo, src_ostree_dir, ref, remote="torizon")
     print("Pulling done.")
 
     print("Deploying OSTree with ref {0}".format(ref))
