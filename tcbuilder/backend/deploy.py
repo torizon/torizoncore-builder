@@ -42,12 +42,16 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
         raises:
             Exception - for failure to perform operations
     """
+    result, revision = sysroot.repo().resolve_rev(ref, False)
+    if not result:
+        raise TorizonCoreBuilderError(f"Error getting revision of reference {ref}.")
+
     keyfile = sysroot.origin_new_from_refspec(refspec)
 
-    # ostree admin --sysroot=${OTA_SYSROOT} deploy ${kargs_list} --os=${OSTREE_OSNAME} ${ref}
-    log.debug("Deploying reference %s", ref)
+    # ostree admin --sysroot=${OTA_SYSROOT} deploy ${kargs_list} --os=${OSTREE_OSNAME} ${revision}
+    log.debug("Deploying revision %s", revision)
     result, deployment = sysroot.deploy_tree(
-        OSNAME, ref, keyfile, None, kargs.split())
+        OSNAME, revision, keyfile, None, kargs.split())
     if not result:
         raise TorizonCoreBuilderError("Error creating deployment.")
 
@@ -61,7 +65,7 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
     file = open(os.path.join(bootdir, "loader/uEnv.txt"), "w")
     file.close()
 
-    log.debug("Write deployment for reference %s", ref)
+    log.debug("Write deployment for revision %s", revision)
     if not sysroot.simple_write_deployment(OSNAME, deployment, None,
             OSTree.SysrootSimpleWriteDeploymentFlags.NO_CLEAN):
         raise TorizonCoreBuilderError("Error writing deployment.")

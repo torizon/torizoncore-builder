@@ -86,7 +86,7 @@ def init_parser(subparsers):
     subparser.add_argument("--output-directory", dest="output_directory",
                         help="""Output path for TorizonCore Toradex Easy Installer image.""",
                         required=True)
-    subparser.add_argument("--ref", dest="ref",
+    subparser.add_argument(metavar="REF", nargs="?", dest="ref",
                         help="""OSTree reference to deploy.""")
     subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
                         help="""Path to source sysroot storage.""")
