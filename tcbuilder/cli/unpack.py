@@ -7,6 +7,8 @@ from tcbuilder.backend import unpack
 from tcbuilder.backend import ostree
 
 def unpack_subcommand(args):
+    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+
     image_dir = os.path.abspath(args.image_directory)
     storage_dir = os.path.abspath(args.storage_directory)
     tezi_dir = os.path.join(storage_dir, "tezi")
@@ -47,8 +49,11 @@ def unpack_subcommand(args):
         print("  TorizonCore Version: {}".format(metadata['version']))
         print()
 
-    except Exception as ex:
-        print("Failed to unpack: " + str(ex), file=sys.stderr)
+    except TorizonCoreBuilderError as ex:
+        log.error(ex.msg)  # msg from all kinds of Exceptions
+        if ex.det is not None:
+            log.info(ex.det)  # more elaborative message
+        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("unpack", help="""\
