@@ -39,12 +39,12 @@ def unpack_subcommand(args):
         unpack.unpack_local_image(tezi_dir, src_sysroot_dir)
 
         src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-        ref, kargs = ostree.get_ref_from_sysroot(src_sysroot)
-        metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), ref)
+        csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
+        metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
 
         print("Unpacked OSTree from Toradex Easy Installer image:")
-        print("Commit ref: {}".format(ref))
-        print("TorizonCore Version: {}".format(metadata['version']))
+        print("  Commit checksum: {}".format(csum))
+        print("  TorizonCore Version: {}".format(metadata['version']))
         print()
 
     except Exception as ex:

@@ -42,17 +42,20 @@ def deploy_image(args):
 
     # Currently we use the OSTree from the unpacked Tezi rootfs as source
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-    ref, kargs = ostree.get_ref_from_sysroot(src_sysroot)
-    metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), ref)
+    csum, kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
+    metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
 
     print("Using unpacked Toradex Easy Installer image as base:")
-    print("  Commit ref: {}".format(ref))
+    print("  Commit checksum: {}".format(csum))
     print("  TorizonCore Version: {}".format(metadata['version']))
     print("  Kernel arguments: {}".format(kargs))
     print()
 
-    if args.ref is not None:
-        ref = args.ref
+    ref = args.ref
+    # It seems the customer did not pass a reference, deploy the original commit
+    # (probably not that useful in practise, but useful to test the workflow)
+    if ref is None:
+        ref = csum
     print("Deploying commit ref: {}".format(ref))
 
     # Create a new sysroot for our deployment

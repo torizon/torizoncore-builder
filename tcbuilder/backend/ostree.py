@@ -22,8 +22,8 @@ def load_sysroot(sysroot_dir):
     sysroot.load()
     return sysroot
 
-def get_ref_from_sysroot(sysroot):
-    # Get deployment hash of current Toradex Easy Installer image
+def get_deployment_info_from_sysroot(sysroot):
+    # Get commit csum and kernel arguments from the currenty sysroot
 
     # There is a single deployment in our OSTree sysroots
     deployment = sysroot.get_deployments()[0]
@@ -33,10 +33,10 @@ def get_ref_from_sysroot(sysroot):
 
     bootparser = deployment.get_bootconfig()
     kargs = bootparser.get('options')
-    ref = deployment.get_csum()
+    csum = deployment.get_csum()
     sysroot.unload()
 
-    return ref, kargs
+    return csum, kargs
 
 def get_metadata_from_ref(repo, ref):
     result, commitvar, state = repo.load_commit(ref)
