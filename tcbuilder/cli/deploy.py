@@ -32,6 +32,8 @@ def deploy_image(args):
 
     dst_sysroot_dir = os.path.abspath(args.deploy_sysroot_directory)
 
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
     if os.path.exists(output_dir):
         print("Output directory must not exist!", file=sys.stderr)
         return
@@ -40,7 +42,8 @@ def deploy_image(args):
         print("Deploy sysroot directory does not exist", file=sys.stderr)
         return
 
-    # Currently we use the OSTree from the unpacked Tezi rootfs as source
+    # Currently we use the sysroot from the unpacked Tezi rootfs as source
+    # for kargs, /home directories and the default csum
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
     metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
@@ -63,9 +66,8 @@ def deploy_image(args):
 
     repo = sysroot.repo()
 
-    print("Pulling OSTree with ref {0} from local repository...".format(ref))
-    src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
-    ostree.pull_local_ref(repo, src_ostree_dir, ref, remote="torizon")
+    print("Pulling OSTree with ref {0} from local archive repository...".format(ref))
+    ostree.pull_local_ref(repo, src_ostree_archive_dir, ref, remote="torizon")
     print("Pulling done.")
 
     print("Deploying OSTree with ref {0}".format(ref))

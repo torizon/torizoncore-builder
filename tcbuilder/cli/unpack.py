@@ -18,6 +18,8 @@ def unpack_subcommand(args):
     else:
         src_sysroot_dir = os.path.abspath(args.sysroot_directory)
 
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
     try:
         if not os.path.exists(storage_dir):
             os.mkdir(storage_dir)
@@ -42,6 +44,11 @@ def unpack_subcommand(args):
 
         src_sysroot = ostree.load_sysroot(src_sysroot_dir)
         csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
+
+        print("Importing OSTree revision {0} from local repository...".format(csum))
+        repo = ostree.create_ostree(src_ostree_archive_dir)
+        src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
+        ostree.pull_local_ref(repo, src_ostree_dir, csum, remote="torizon")
         metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
 
         print("Unpacked OSTree from Toradex Easy Installer image:")

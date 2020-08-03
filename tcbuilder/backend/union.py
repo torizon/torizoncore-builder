@@ -79,12 +79,12 @@ def merge_branch(repo, unpacked_repo_branch, diff_branch, tmp_checkout_rootfs_di
         raise TorizonCoreBuilderError("Error checking out local tree.")
 
 
-def union_changes(storage_dir, diff_dir, sysroot_dir, union_branch):
+def union_changes(storage_dir, diff_dir, sysroot_dir, ostree_archive_dir, union_branch):
     try:
         sysroot = ostree.load_sysroot(sysroot_dir)
         deployment = sysroot.get_deployments()[0]
         unpacked_repo_branch = deployment.get_csum()
-        repo = sysroot.repo()
+        repo = ostree.open_ostree(ostree_archive_dir)
 
         # create commit of changes
         diff_branch = "isolated_changes"
