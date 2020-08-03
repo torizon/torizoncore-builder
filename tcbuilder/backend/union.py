@@ -40,16 +40,16 @@ def commit_changes(repo, diff_dir, branch_name):
     return commit
 
 
-def merge_branch(repo, unpacked_repo_branch, diff_branch, tmp_checkout_rootfs_dir):
+def merge_branch(repo, base_ref, diff_branch, tmp_checkout_rootfs_dir):
     OSTREE_GIO_FAST_QUERYINFO = ("standard::name,standard::type,standard::size,standard::is-symlink,standard::symlink-target,"
                                  "unix::device,unix::inode,unix::mode,unix::uid,unix::gid,unix::rdev")
 
     # ostree --repo=toradex-os-tree checkout -U --union torizon/torizon-core-docker temporary-rootfs
 
-    # get commit from unpacked branch name
-    result, unpacked_commit = repo.resolve_rev(unpacked_repo_branch, False)
-    log.debug("Merging unpacked %s - commit %s...",
-                  unpacked_repo_branch, unpacked_commit)
+    # get commit from base ref name
+    result, base_commit = repo.resolve_rev(base_ref, False)
+    log.debug("Merging base reference %s (commit %s)...",
+                  base_ref, base_commit)
     if not result:
         raise TorizonCoreBuilderError("Error getting remote commit.")
 
@@ -62,7 +62,7 @@ def merge_branch(repo, unpacked_repo_branch, diff_branch, tmp_checkout_rootfs_di
     tmp_fd = os.open(tmp_checkout_rootfs_dir, os.O_DIRECTORY)
     if not repo.checkout_at(options,
                             tmp_fd,
-                            ".", unpacked_commit, None):
+                            ".", base_commit, None):
         raise TorizonCoreBuilderError("Error checking out remote tree.")
 
     # get commit from changes branch name
@@ -83,7 +83,7 @@ def union_changes(storage_dir, diff_dir, sysroot_dir, ostree_archive_dir, union_
     try:
         sysroot = ostree.load_sysroot(sysroot_dir)
         deployment = sysroot.get_deployments()[0]
-        unpacked_repo_branch = deployment.get_csum()
+        base_csum = deployment.get_csum()
         repo = ostree.open_ostree(ostree_archive_dir)
 
         # create commit of changes
@@ -102,7 +102,7 @@ def union_changes(storage_dir, diff_dir, sysroot_dir, ostree_archive_dir, union_
             shutil.rmtree(tmp_checkout_rootfs_dir)
 
         os.makedirs(tmp_checkout_rootfs_dir)
-        merge_branch(repo, unpacked_repo_branch, diff_branch, tmp_checkout_rootfs_dir)
+        merge_branch(repo, base_csum, diff_branch, tmp_checkout_rootfs_dir)
         # commits merged version
         final_commit = commit_changes(repo, tmp_checkout_rootfs_dir, union_branch)
 
