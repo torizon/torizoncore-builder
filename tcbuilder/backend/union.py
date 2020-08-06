@@ -1,6 +1,6 @@
 import logging
 import os
-import shutil
+import datetime
 import gi
 gi.require_version('OSTree', '1.0')
 from gi.repository import GLib, Gio, OSTree
@@ -21,7 +21,6 @@ def commit_changes(repo, csum, diff_dir, branch_name):
     result, root, commit = repo.read_commit(csum)
     if not result:
         raise TorizonCoreBuilderError("Read base commit failed.")
-    print(root, commit)
 
     result = repo.write_directory_to_mtree(root, mt)
     if not result:
@@ -36,7 +35,41 @@ def commit_changes(repo, csum, diff_dir, branch_name):
     if not result:
         raise TorizonCoreBuilderError("Write mtree failed.")
 
-    result, commit = repo.write_commit(None, None, None, None, root)
+    result, commitvar, state = repo.load_commit(csum)
+    if not result:
+        raise TorizonCoreBuilderError(f"Error loading parent commit {csum}.")
+
+    # Unpack commit object, see OSTree src/libostree/ostree-repo-commit.c
+    # We cannot use commitvar.unpack() here since this would lead to a pure
+    # Python object. However, we want to retain the metadata as GLib.Variant
+    # so we can transparently pass them to our commit. Otherwise we need to know
+    # the whole GLib.Variant's structure, which we do not know (e.g. future
+    # OSTree commits might add structured data we do not know about today).
+    metadata = commitvar.get_child_value(0)
+    subject = commitvar.get_child_value(3).get_string()
+    body = commitvar.get_child_value(4).get_string()
+
+    # Append something to the version object
+    newmetadata = []
+    for i in range(metadata.n_children()):
+        kv = metadata.get_child_value(i)
+        # Adjust the "verison" metadata, and pass everyting else transparently
+        if kv.get_child_value(0).get_string() == 'version':
+            # Version itself is a Variant, which just contains a string...
+            version = kv.get_child_value(1).get_child_value(0).get_string()
+            version += "-tcbuilder." + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            newmetadata.append(
+                    GLib.Variant.new_dict_entry(GLib.Variant("s", "version"),
+                        GLib.Variant('v', GLib.Variant("s", version)))
+                    )
+        else:
+            newmetadata.append(kv)
+
+    # GLib.Variant of type "a{sv}" (array of dictionaries), which is the
+    # metadata obeject
+    newmetadatavar = GLib.Variant.new_array(GLib.VariantType("{sv}"), newmetadata)
+
+    result, commit = repo.write_commit(csum, subject, body, newmetadatavar, root)
     if not result:
         raise TorizonCoreBuilderError("Write commit failed.")
 
