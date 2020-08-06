@@ -1,0 +1,7 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore cache of mypy static checker
+.mypy_cache/
