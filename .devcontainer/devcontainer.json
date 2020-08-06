@@ -1,0 +1,43 @@
+// For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.106.0/containers/docker-existing-dockerfile
+{
+	"name": "Existing Dockerfile",
+
+	// Dockerfile/bulid target for development container
+	"build": {
+		"dockerfile": "../torizoncore-builder.Dockerfile",
+		"target": "tcbuilder-base",
+		"context": ".."
+	},
+
+	// Set *default* container specific settings.json values on container create.
+	"settings": {
+		"terminal.integrated.shell.linux": "/bin/bash",
+		"python.pythonPath": "/usr/bin/python3"
+	},
+
+	// Add the IDs of extensions you want installed when the container is created.
+	"extensions": [
+		"ms-python.python"
+	],
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Uncomment the next line to run commands after the container is created - for example installing git.
+	"postCreateCommand": "apt-get update && apt-get install -y git",
+
+	"runArgs": [ "--net=host" ],
+
+	// We need this for the bundle command. See https://aka.ms/vscode-remote/samples/docker-in-docker.
+	"mounts":
+	[
+		"source=${localWorkspaceFolder}/workdir,target=/workdir,type=bind",
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+		"source=storage,target=/storage,type=volume",
+		"target=/deploy,type=volume",
+	],
+
+	// Uncomment to connect as a non-root user. See https://aka.ms/vscode-remote/containers/non-root.
+	// "remoteUser": "vscode"
+}

@@ -28,7 +28,7 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
 
 # Build OSTree from source so we can patch it with device tree deployment
 # capabilities.
-FROM common-base as ostree-builder
+FROM common-base AS ostree-builder
 
 COPY sources.list /etc/apt/sources.list
 
@@ -49,7 +49,7 @@ RUN cd ostree && patch -p1 < 0001-deploy-support-devicetree-directory.patch && \
     ./autogen.sh && ./configure --without-avahi && make && \
     make install DESTDIR=/ostree-build
 
-FROM common-base
+FROM common-base AS tcbuilder-base
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
@@ -69,6 +69,8 @@ RUN pip3 install -r /tmp/requirements_debian.txt \
      && rm -rf /tmp/requirements_debian.txt
 
 RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
+
+FROM tcbuilder-base
 
 # put all the tools in the /builder directory 
 RUN mkdir -p /builder

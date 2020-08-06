@@ -1,0 +1,2 @@
+# Ignore workdir meant for development/debugging using Visual Studio Code
+workdir/

@@ -1,0 +1,5 @@
+# Directory used as default workdir by the Visual Studio Code Dev Container
+# Ignore everything in here...
+*
+# Except this file
+!.gitignore
