@@ -52,20 +52,21 @@ RUN cd ostree && patch -p1 < 0001-deploy-support-devicetree-directory.patch && \
 FROM common-base
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
-    python3 python3-pip python3-gi \
+    python3 python3-pip python3-setuptools python3-wheel python3-gi \
     curl gzip xz-utils lzop zstd \
     && apt-get -t buster-backports -q -y --no-install-recommends install python3-paramiko \
     && rm -rf /var/lib/apt/lists/*
-
-# Debian has old version of docker and docker-compose, which does not support some of
-# required functionality like escaping $ in compose file during serialization
-RUN pip3 install setuptools
-RUN pip3 install docker docker-compose
 
 # Copy OSTree (including gir support) from build stage
 COPY --from=ostree-builder /ostree-build/ /
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf && ldconfig
 ENV GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0/
+
+# Debian has old version of docker and docker-compose, which does not support some of
+# required functionality like escaping $ in compose file during serialization
+COPY requirements_debian.txt /tmp
+RUN pip3 install -r /tmp/requirements_debian.txt \
+     && rm -rf /tmp/requirements_debian.txt
 
 RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 
