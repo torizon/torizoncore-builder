@@ -70,6 +70,12 @@ RUN pip3 install -r /tmp/requirements_debian.txt \
 
 RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 
+FROM tcbuilder-base AS tcbuilder-dev
+
+COPY requirements_dev.txt /tmp
+RUN pip3 install -r /tmp/requirements_dev.txt \
+     && rm -rf /tmp/requirements_dev.txt
+
 FROM tcbuilder-base
 
 # put all the tools in the /builder directory 
