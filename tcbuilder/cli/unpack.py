@@ -1,12 +1,22 @@
-import os
-import sys
+"""Unpack sub-command CLI handling
+
+The unpack sub-command take a (unzipped!) TorizonCore Toradex Easy
+Installer image and unpacks the rootfs so the TorizonCore Builder
+can customize the image. This gives access to the rootfs' OSTree
+sysroot (deployment) and OSTree repository.
+"""
+
 import logging
+import os
 import shutil
-import tezi.utils
-from tcbuilder.backend import unpack
-from tcbuilder.backend import ostree
+import traceback
+
+from tcbuilder.backend import ostree, unpack
+from tcbuilder.errors import TorizonCoreBuilderError
+
 
 def unpack_subcommand(args):
+    """Run \"unpack\" subcommand"""
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
     image_dir = os.path.abspath(args.image_directory)
@@ -49,7 +59,7 @@ def unpack_subcommand(args):
         repo = ostree.create_ostree(src_ostree_archive_dir)
         src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
         ostree.pull_local_ref(repo, src_ostree_dir, csum, remote="torizon")
-        metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
+        metadata, _, _ = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
 
         print("Unpacked OSTree from Toradex Easy Installer image:")
         print("  Commit checksum: {}".format(csum))
@@ -63,16 +73,15 @@ def unpack_subcommand(args):
         log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
 def init_parser(subparsers):
+    """Initialize argument parser"""
     subparser = subparsers.add_parser("unpack", help="""\
     Unpack a specified Toradex Easy Installer image so it can be modified with
     union subcommand.
     """)
     subparser.add_argument("--image-directory", dest="image_directory",
-                        help="""Path to TorizonCore Toradex Easy Installer source image.""",
-                        required=True)
+                           help="""Path to TorizonCore Toradex Easy Installer source image.""",
+                           required=True)
     subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
-                        help="""Path to source sysroot storage.""")
+                           help="""Path to source sysroot storage.""")
 
     subparser.set_defaults(func=unpack_subcommand)
-
-
