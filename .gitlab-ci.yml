@@ -6,9 +6,9 @@ variables:
   # Use overlayfs driver for better performance
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
-  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-  GITLAB_DOCKERREGISTRY_TAG: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
-  GITLAB_DOCKERREGISTRY_TAG_LATEST: ${CI_COMMIT_REF_SLUG}-latest
+  DOCKER_BUILDKIT: 1
+  GITLAB_DOCKERREGISTRY_SUFFIX: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
+  GITLAB_DOCKERREGISTRY_SUFFIX_LATEST: ${CI_COMMIT_REF_SLUG}-latest
 
 services:
   - name: docker:dind
@@ -25,13 +25,22 @@ stages:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker build -f ${DOCKERFILE_NAME}
-                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
-                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG}
-                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG_LATEST}
+    # Try to download latest image for cache, but don't fail if it does not exist
+    # Download tag for ostree-builder stage first.
+    - docker build -f ${DOCKERFILE_NAME} --target ostree-builder --build-arg BUILDKIT_INLINE_CACHE=1
+                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
+                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
                      .
-    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG}
-    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG_LATEST}
+    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
+    # Try to download latest image for cache, but don't fail if it does not exist
+    - docker build -f ${DOCKERFILE_NAME} --build-arg BUILDKIT_INLINE_CACHE=1
+                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
+                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+                     .
+    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
   stage: build
 
 pylint:
