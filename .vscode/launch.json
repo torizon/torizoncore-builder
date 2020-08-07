@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/torizoncore-builder.py",
             "cwd": "/workdir",
-            "console": "integratedTerminal",
+            "sudo": true,
             "args": [
                 "unpack",
                 "--image-directory",
