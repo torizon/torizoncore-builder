@@ -1,14 +1,19 @@
+"""Union sub-command CLI handling
+
+The union sub-command merges a given OSTree reference (e.g. branch or commit
+hash) with local changes (e.g. copied from an adjusted module using the isolate
+sub-command).
+"""
+
 import os
-import sys
 import logging
-import subprocess
-import shutil
 import traceback
 from tcbuilder.backend import union
 from tcbuilder.backend.common import TorizonCoreBuilderError
 
 
 def union_subcommand(args):
+    """Run \"union\" subcommand"""
     log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
     diff_dir = os.path.abspath(args.diff_dir)
@@ -22,21 +27,21 @@ def union_subcommand(args):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     if not os.path.exists(sysroot_dir):
-        log.error(f"{sysroot_dir} does not exist")
+        log.error("{sysroot_dir} does not exist", sysroot_dir)
         return
 
     if not os.path.exists(diff_dir):
-        log.error(f"{diff_dir} does not exist")
+        log.error("{diff_dir} does not exist", diff_dir)
         return
 
     if not os.path.exists(storage_dir):
-        log.error(f"{storage_dir} does not exist")
+        log.error("{storage_dir} does not exist", storage_dir)
         return
 
     try:
         commit = union.union_changes(storage_dir, diff_dir, sysroot_dir,
                                      src_ostree_archive_dir, union_branch)
-        log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
+        log.info("Commit {commit} has been generated for changes and ready to be deployed.", commit)
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
         if ex.det is not None:
@@ -44,20 +49,21 @@ def union_subcommand(args):
         log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
 def init_parser(subparsers):
+    """Initialize argument parser"""
     subparser = subparsers.add_parser("union", help="""\
     Create a commit out of isolated changes for unpacked Tezi Image""")
     subparser.add_argument("--diff-directory", dest="diff_dir",
-                       help="""Path to the directory containing user changes
-                        (must be same as provided for isolate).
-                        Must be a file system capable of carrying Linux file system 
-                        metadata (Unix file permissions and xattr).""",
-                        default="/storage/changes")
+                           help="""Path to the directory containing user changes
+                           (must be same as provided for isolate).
+                           Must be a file system capable of carrying Linux file system
+                           metadata (Unix file permissions and xattr).""",
+                           default="/storage/changes")
     subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
                            help="""Path to source sysroot storage.""")
     subparser.add_argument("--union-branch", dest="union_branch",
-                        help="""Name of branch containing the changes committed to 
-                        the unpacked repo.  
-                        """,
-                        required=True)
+                           help="""Name of branch containing the changes committed to
+                           the unpacked repo.
+                           """,
+                           required=True)
 
     subparser.set_defaults(func=union_subcommand)
