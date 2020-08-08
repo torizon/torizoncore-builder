@@ -77,7 +77,7 @@ FROM common-base AS tcbuilder-base
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
-    curl gzip xz-utils lzop zstd \
+    curl gzip xz-utils lzop zstd cpio \
     device-tree-compiler cpp \
     && apt-get -t buster-backports -q -y --no-install-recommends install python3-paramiko \
     python3-dnspython && rm -rf /var/lib/apt/lists/*
