@@ -4,9 +4,11 @@ import json
 import os
 import shutil
 import subprocess
-
+import dns.resolver
+import socket
+import ipaddress
 import tezi.utils
-from tcbuilder.errors import FileContentMissing, OperationFailureError, PathNotExistError
+from tcbuilder.errors import TorizonCoreBuilderError, FileContentMissing, OperationFailureError, PathNotExistError
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
@@ -147,3 +149,53 @@ def get_additional_size(output_dir_containers, files_to_add):
             additional_size += st.st_size
 
     return additional_size
+
+
+def resolve_hostname(hostname: str) -> (str, bool):
+    """
+    Convert a hostname to ip using dns first and then mdnsself.
+    If it does not resolve it, returns the original value (in
+    case this may be parsed in some smarter ways down the line)
+
+    Arguments:
+        hostname {str} -- mnemonic name
+
+    Returns:
+        str -- ip address as string
+        bool - true id mdns has been used
+    """
+
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ["224.0.0.251"]  # mDNS IPv4 link-local multicast address
+    resolver.port = 5353  # mDNS port
+
+    ip = hostname
+    mdns = False
+
+    try:
+        ip = socket.gethostbyname(hostname)
+    except socket.gaierror:
+        if not hostname.endswith(".local"):
+            hostname += ".local"
+            addr = resolver.query(hostname, "A")
+            if addr is not None and len(addr) > 0:
+                ip = addr[0].to_text()
+                mdns = True
+
+    return ip, mdns
+
+
+def resolve_remote_address(remote_host):
+    ip = ""
+    try:
+        _ip_obj = ipaddress.ip_address(remote_host)
+        ip = remote_host ## valid ip string
+    except ValueError:
+        try:
+            ip, _mdns = resolve_hostname(remote_host)
+        except Exception as ex:
+            raise TorizonCoreBuilderError("unable to resolve address") from ex
+    except Exception as ex:
+        raise TorizonCoreBuilderError("unable to resolve address") from ex
+
+    return ip

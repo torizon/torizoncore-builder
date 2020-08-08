@@ -80,7 +80,7 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     curl gzip xz-utils lzop zstd \
     device-tree-compiler cpp \
     && apt-get -t buster-backports -q -y --no-install-recommends install python3-paramiko \
-    && rm -rf /var/lib/apt/lists/*
+    python3-dnspython && rm -rf /var/lib/apt/lists/*
 
 # Copy OSTree (including gir support) from build stage
 COPY --from=ostree-builder /ostree-build/ /
