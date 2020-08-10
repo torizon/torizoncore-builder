@@ -4,3 +4,5 @@ init-hook="from pylint.config import find_pylintrc;import os, sys; sys.path.appe
 logging-format-style=new
 [BASIC]
 good-names=torizoncore-builder,ex
+[MESSAGES CONTROL]
+disable=logging-fstring-interpolation

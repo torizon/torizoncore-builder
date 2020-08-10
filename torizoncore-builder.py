@@ -49,7 +49,7 @@ def get_images(feed_url, artifactory_repo, branch, release_type, matrix_build_nu
     params = urllib.parse.urlencode(filter_params)
 
     feed_url = "{}?{}".format(feed_url, params)
-    logging.info("Requestion from \"{feed_url}\"", feed_url)
+    logging.info(f"Requestion from \"{feed_url}\"")
     req = urllib.request.urlopen(feed_url)
     content = req.read().decode(req.headers.get_content_charset() or "utf-8")
 
@@ -76,8 +76,7 @@ def bundle_containers(args):
     dockerbundle.download_containers_by_compose_file(
                 args.bundle_directory, args.compose_file, host_workdir,
                 platform=args.platform, output_filename=common.DOCKER_BUNDLE_FILENAME)
-    logging.info("Successfully created Docker Container bundle in {bundle_dir}.",
-                 bundle_dir=args.bundle_directory)
+    logging.info(f"Successfully created Docker Container bundle in {args.bundle_directory}.")
 
 def batch_process(args):
     """\"batch\" sub-command"""
@@ -108,7 +107,7 @@ def batch_process(args):
             os.makedirs(output_dir, exist_ok=True)
 
             for url in image_urls:
-                logging.info("Downloading from {url}", url)
+                logging.info(f"Downloading from {url}")
                 downloader.download(url, output_dir)
 
             common.combine_single_image(output_dir_containers, common.DOCKER_FILES_TO_ADD,
@@ -118,8 +117,7 @@ def batch_process(args):
 
             # Start Artifactory upload with a empty environment
             if args.post_script is not None:
-                logging.info("Executing post image generation script {post_script}.",
-                             post_script=args.post_script)
+                logging.info(f"Executing post image generation script {args.post_script}.")
 
                 cp_process = subprocess.run([args.post_script, machine, distro,
                                              args.image_directory],
@@ -128,9 +126,8 @@ def batch_process(args):
 
                 if cp_process.returncode != 0:
                     logging.error(
-                        """Executing post image generation script was unsuccessful.
-                        Exit code {returncode}.""",
-                        returncode=cp_process.returncode)
+                        f"""Executing post image generation script was unsuccessful.
+                        Exit code {cp_process.returncode}.""")
                     sys.exit(1)
 
     logging.info("Finished")

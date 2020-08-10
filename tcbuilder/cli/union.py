@@ -27,21 +27,21 @@ def union_subcommand(args):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     if not os.path.exists(sysroot_dir):
-        log.error("{sysroot_dir} does not exist", sysroot_dir)
+        log.error(f"{sysroot_dir} does not exist")
         return
 
     if not os.path.exists(diff_dir):
-        log.error("{diff_dir} does not exist", diff_dir)
+        log.error(f"{diff_dir} does not exist")
         return
 
     if not os.path.exists(storage_dir):
-        log.error("{storage_dir} does not exist", storage_dir)
+        log.error(f"{storage_dir} does not exist")
         return
 
     try:
         commit = union.union_changes(storage_dir, diff_dir, sysroot_dir,
                                      src_ostree_archive_dir, union_branch)
-        log.info("Commit {commit} has been generated for changes and ready to be deployed.", commit)
+        log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
         if ex.det is not None:
