@@ -27,7 +27,7 @@ import urllib.request
 
 import dockerbundle
 from tcbuilder.backend import common
-from tcbuilder.cli import combine, deploy, isolate, union, unpack, dt
+from tcbuilder.cli import combine, deploy, isolate, union, unpack, dt, push
 from tezi import downloader
 
 #pylint: enable=wrong-import-position
@@ -259,6 +259,7 @@ deploy.init_parser(subparsers)
 union.init_parser(subparsers)
 combine.init_parser(subparsers)
 dt.init_parser(subparsers)
+push.init_parser(subparsers)
 
 
 if __name__ == "__main__":

@@ -49,6 +49,30 @@ RUN cd ostree && patch -p1 < 0001-deploy-support-devicetree-directory.patch && \
     ./autogen.sh && ./configure --without-avahi && make && \
     make install DESTDIR=/ostree-build
 
+# Build SOTA tools (garage-push/garage-sign)
+
+# Dependencies according to README.adoc + glibc and file
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
+    asn1c build-essential cmake curl libarchive-dev \
+    libboost-dev libboost-filesystem-dev libboost-log-dev libboost-program-options-dev \
+    libcurl4-openssl-dev libpthread-stubs0-dev libsodium-dev libsqlite3-dev \
+    libssl-dev python3 libglib2.0-dev file && \
+    apt-get -q -y build-dep ostree \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+
+RUN git clone --recursive https://github.com/advancedtelematic/aktualizr && cd aktualizr && \
+    git checkout 2020.8
+
+COPY 0001-Allow-custom-Debian-package-dependencies.patch /root/aktualizr
+
+RUN cd aktualizr && patch -p1 < 0001-Allow-custom-Debian-package-dependencies.patch && \
+    mkdir build/ && cd build/ && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DEB=ON -DBUILD_SOTA_TOOLS=ON \
+          -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless .. && \
+    make package
+
 FROM common-base AS tcbuilder-base
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
@@ -62,6 +86,17 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
 COPY --from=ostree-builder /ostree-build/ /
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf && ldconfig
 ENV GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0/
+
+# Copy and install SOTA tools from build stage
+COPY --from=ostree-builder /root/aktualizr/build/garage_deploy.deb /
+
+# Try to install garage deploy, and then use apt-get to install actual dependencies
+# (the mkdir -p /usr/share/man/man1 is required to make JRE installation happy)
+RUN apt-get -q -y update && ls && pwd \
+    && mkdir -p /usr/share/man/man1 \
+    && dpkg -i ./garage_deploy.deb || apt-get -q -y --fix-broken --no-install-recommends install \
+    && rm ./garage_deploy.deb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Debian has old version of docker and docker-compose, which does not support some of
 # required functionality like escaping $ in compose file during serialization
