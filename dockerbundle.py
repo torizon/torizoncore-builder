@@ -2,30 +2,56 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import logging
 import os
-import sys
+import re
+import subprocess
 import time
-import docker
+
 import compose.config
 import compose.config.environment
 import compose.config.serialize
-import subprocess
-import re
-import logging
+import docker
 
-#
-# This class assumes we can use host Docker to create a bundle of the containers
-# Note that this is most often not the case as other images are already
-# preinstalled...
-#
+def get_compression_command(output_file):
+    """Get compression command
+
+    Args:
+        output_filename: File name or path with compression extension
+
+    Returns:
+        (str, str): output_file without compression ending, compression command
+    """
+    command = None
+    if output_file.endswith(".xz"):
+        output_file_tar = output_file[:-3]
+        command = ["xz", "-3", "-z", output_file_tar]
+    elif output_file.endswith(".gz"):
+        output_file_tar = output_file[:-3]
+        command = ["gzip", output_file_tar]
+    elif output_file.endswith(".lzo"):
+        output_file_tar = output_file[:-4]
+        command = ["lzop", "-U", "-o", output_file, output_file_tar]
+    elif output_file.endswith(".zst"):
+        output_file_tar = output_file[:-4]
+        command = ["zstd", "--rm", output_file_tar, "-o", output_file]
+
+    return (output_file_tar, command)
+
 class DockerManager:
+    """Docker bundle helper class
+
+    This class assumes we can use host Docker to create a bundle of the containers
+    Note that this is most often not the case as other images are already
+    preinstalled...
+    """
     def __init__(self, output_dir):
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         self.output_dir = output_dir
         self.output_dir_host = output_dir
 
-    def start(self):
+    def start(self, network_name=None, default_platform=None):
         pass
 
     def stop(self):
@@ -34,47 +60,22 @@ class DockerManager:
     def get_tar_command(self, output_file):
 
         return [ "tar", "--numeric-owner",
-                "--preserve-permissions", "--directory=/var/lib/docker",
-                "--xattrs-include='*'", "--create", "--file", output_file,
-                "overlay2/", "image/" ]
-
-    """
-    Get compression command
-
-    Args:
-        output_filename: File name or path with compression extension
-
-    Returns:
-        (str, str): output_file without compression ending, compression command
-    """
-    def get_compression_command(self, output_file):
-        command = None
-        if output_file.endswith(".xz"):
-            output_file_tar = output_file[:-3]
-            command = [ "xz" , "-3", "-z", output_file_tar ]
-        elif output_file.endswith(".gz"):
-            output_file_tar = output_file[:-3]
-            command = [ "gzip", output_file_tar ]
-        elif output_file.endswith(".lzo"):
-            output_file_tar = output_file[:-4]
-            command = [ "lzop", "-U", "-o", output_file, output_file_tar ]
-        elif output_file.endswith(".zst"):
-            output_file_tar = output_file[:-4]
-            command = [ "zstd", "--rm", output_file_tar, "-o", output_file ]
-
-        return (output_file_tar, command)
+                 "--preserve-permissions", "--directory=/var/lib/docker",
+                 "--xattrs-include='*'", "--create", "--file", output_file,
+                 "overlay2/", "image/" ]
 
     def get_client(self):
         return docker.from_env()
 
     def save_tar(self, output_file):
 
-        (output_file_tar, compression_command) = self.get_compression_command(output_file)
+        (output_file_tar, compression_command) = get_compression_command(output_file)
 
         # Use host tar to store the Docker storage backend
-        subprocess.run(self.get_tar_command(os.path.join(self.output_dir, output_file_tar), check=True))
+        subprocess.run(self.get_tar_command(os.path.join(self.output_dir, output_file_tar)),
+                       check=True)
 
-        output_filepath = os.path.join(self.output_dir, self.output_file)
+        output_filepath = os.path.join(self.output_dir, output_file)
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
@@ -96,6 +97,10 @@ class DindManager(DockerManager):
         self.host_client = docker.from_env()
         self.network = None
 
+        self.docker_host = None
+        self.dind_volume = None
+        self.dind_container = None
+
 
     def start(self, network_name="fetch-dind-network", default_platform=None):
         dind_cmd = [ "--storage-driver", "overlay2" ]
@@ -104,20 +109,22 @@ class DindManager(DockerManager):
             # Choose a safe and high port to avoid conflict with already
             # running docker instance...
             port = 22376
-            dind_cmd.append("--host=tcp://0.0.0.0:{}".format(port))
+            dind_cmd.append(f"--host=tcp://0.0.0.0:{port}")
 
             if "DOCKER_HOST" in os.environ:
                 # In case we use a Docker host, also connect to that host to
                 # reach the DIND instance (Gitlab CI case)
                 docker_host = os.environ["DOCKER_HOST"]
-                results = re.findall("tcp?:\/\/(.*):(\d*)\/?.*", docker_host)
+                results = re.findall(r"tcp?:\/\/(.*):(\d*)\/?.*", docker_host)
                 if not results or len(results) < 1:
                     raise Exception("Regex does not match: {}".format(docker_host))
-                self.docker_host = "tcp://{}:{}".format(results[0][0], port)
+                ip = results[0][0]
+                self.docker_host = f"tcp://{ip}:{port}"
             else:
-                self.docker_host = "tcp://127.0.0.1:{}".format(port)
+                self.docker_host = f"tcp://127.0.0.1:{port}"
+            logging.info(f"Using Docker host \"{self.docker_host}\"")
         else:
-            logging.info("Create network {}".format(network_name))
+            logging.info(f"Create network \"{network_name}\"")
             self.network = self.host_client.networks.create(network_name, driver="bridge")
 
         self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
@@ -164,10 +171,11 @@ class DindManager(DockerManager):
             timeout = timeout - 1
 
         if timeout == 0:
-            logging.error("""The script could not access the TLS certificates which
-            has been created by the Docker in Docker instance. Make sure {} is
-            a shared location between this script and the Docker host."""
-            .format(self.cert_dir))
+            logging.error(
+                """The script could not access the TLS certificates which
+                   has been created by the Docker in Docker instance. Make sure {} is
+                   a shared location between this script and the Docker host.""",
+                self.cert_dir)
             return
         # Use TLS to authenticate
         tls_config = docker.tls.TLSConfig(ca_cert=os.path.join(self.cert_dir, 'ca.pem'),
@@ -175,22 +183,22 @@ class DindManager(DockerManager):
                 client_cert=(os.path.join(self.cert_dir, 'cert.pem'), os.path.join(self.cert_dir, 'key.pem')),
                 assert_hostname=False)
 
-        logging.info("Connecting to Docker Daemon at {}".format(self.docker_host))
+        logging.info(f"Connecting to Docker Daemon at {self.docker_host}")
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
         return dind_client
 
     def save_tar(self, output_file):
         output_mount_dir = "/mnt"
-        logging.info("Storing container bundle to {}".format(self.output_dir_host))
+        logging.info(f"Storing container bundle to {self.output_dir_host}")
 
         # Get tar filename and compression command to convert to compressed tar
         # locally in a second command (we do not have the compression utils in
         # the tar container).
-        (output_file_tar, compression_command) = self.get_compression_command(output_file)
+        (output_file_tar, compression_command) = get_compression_command(output_file)
 
         # Use a container to tar the Docker storage backend instead of the
         # built-in save_tar() is more flexible...
-        tar_container = self.host_client.containers.run("debian:buster",
+        _tar_container = self.host_client.containers.run("debian:buster",
                 volumes = {
                             self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'ro'},
                             self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
@@ -234,7 +242,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         # Now we can fetch the containers...
         for service in cfg.services:
             image = service['image']
-            logging.info("Fetching container image {}".format(image))
+            logging.info(f"Fetching container image {image}")
 
             if not ":" in image:
                 image += ":latest"
@@ -254,7 +262,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         logging.info("Stopping DIND container")
         manager.stop()
 
-if __name__== "__main__":
+def main():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
@@ -290,5 +298,9 @@ if __name__== "__main__":
     if host_workdir is None:
         host_workdir = os.getcwd()
 
-    download_containers_by_compose_file(args.output_directory, args.compose_file,
-            host_workdir, args.host_docker, args.platform)
+    download_containers_by_compose_file(
+        args.output_directory, args.compose_file,
+        host_workdir, args.host_docker, args.platform)
+
+if __name__ == "__main__":
+    main()
