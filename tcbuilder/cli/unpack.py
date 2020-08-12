@@ -11,7 +11,7 @@ import os
 import shutil
 import traceback
 
-from tcbuilder.backend import ostree, unpack
+from tcbuilder.backend import unpack
 from tcbuilder.errors import TorizonCoreBuilderError
 
 
@@ -44,27 +44,8 @@ def unpack_subcommand(args):
             if os.path.exists(src_sysroot_dir):
                 shutil.rmtree(src_sysroot_dir)
 
-        os.mkdir(src_sysroot_dir)
+        unpack.import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir)
 
-        print("Copying Toradex Easy Installer image.")
-        shutil.copytree(image_dir, tezi_dir)
-
-        print("Unpacking TorizonCore Toradex Easy Installer image.")
-        unpack.unpack_local_image(tezi_dir, src_sysroot_dir)
-
-        src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-        csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
-
-        print("Importing OSTree revision {0} from local repository...".format(csum))
-        repo = ostree.create_ostree(src_ostree_archive_dir)
-        src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
-        ostree.pull_local_ref(repo, src_ostree_dir, csum, remote="torizon")
-        metadata, _, _ = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
-
-        print("Unpacked OSTree from Toradex Easy Installer image:")
-        print("  Commit checksum: {}".format(csum))
-        print("  TorizonCore Version: {}".format(metadata['version']))
-        print()
 
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
