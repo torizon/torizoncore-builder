@@ -96,7 +96,7 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     tarcmd = "tar --xattrs --xattrs-include='*' -cf {0} {1} -S -C {2} -p .".format(
                 tarfile, compression, dst_sysroot_dir)
-    log.debug("Running tar command: {}", tarcmd)
+    log.debug(f"Running tar command: {tarcmd}")
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT,
                             env={ "XZ_OPT": "-1" })
 

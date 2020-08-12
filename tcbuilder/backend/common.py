@@ -113,7 +113,7 @@ def get_additional_size(output_dir_containers, files_to_add):
         filename, _destination, *rest = fileentry.split(":")
         filepath = os.path.join(output_dir_containers, filename)
         if not os.path.exists(filepath):
-            raise PathNotExistError(f"Source image {filepath} directory does not exist")
+            raise PathNotExistError(f"File {filepath} to be added to image.json does not exist")
 
         # Check third parameter, if unpack is set to true we need to get size
         # of unpacked tarball...
