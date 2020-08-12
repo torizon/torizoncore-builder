@@ -1,15 +1,11 @@
 import os
-import sys
-import glob
-import logging
-import json
-import subprocess
-import tezi.utils
 import re
-from tcbuilder.backend import deploy
-from tcbuilder.backend import ostree
+import sys
 
-def progress_update(asyncprogress, user_data=None):
+from tcbuilder.backend import deploy, ostree
+
+
+def progress_update(asyncprogress, _user_data=None):
     """ Update progress status
 
         self:
@@ -46,7 +42,7 @@ def deploy_image(args):
     # for kargs, /home directories and the default csum
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
-    metadata, subject, body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
+    metadata, _subject, _body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
 
     print("Using unpacked Toradex Easy Installer image as base:")
     print("  Commit checksum: {}".format(csum))
@@ -72,7 +68,7 @@ def deploy_image(args):
 
     print("Deploying OSTree with ref {0}".format(ref))
     # Remove old ostree= kernel argument
-    newkargs = re.sub("ostree=[^\s]*", "", kargs)
+    newkargs = re.sub(r"ostree=[^\s]*", "", kargs)
     deploy.deploy_rootfs(sysroot, ref, "torizon", newkargs)
     print("Deploying done.")
 
@@ -104,5 +100,4 @@ def init_parser(subparsers):
                         default="/deploy")
 
     subparser.set_defaults(func=deploy_image)
-
 

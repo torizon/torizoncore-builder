@@ -1,17 +1,19 @@
+import datetime
 import logging
 import os
-import datetime
+
 import gi
-gi.require_version('OSTree', '1.0')
-from gi.repository import GLib, Gio, OSTree
-from tcbuilder.backend.common import TorizonCoreBuilderError
+gi.require_version("OSTree", "1.0")
+from gi.repository import GLib, OSTree
+
 from tcbuilder.backend import ostree
+from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
 def commit_changes(repo, csum, diff_dir, branch_name):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<csum> --tree=dir=my-changes
-    log.debug("Committing changes from %s to %s", diff_dir, branch_name)
+    log.debug(f"Committing changes from {diff_dir} to {branch_name}")
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
 
@@ -35,7 +37,7 @@ def commit_changes(repo, csum, diff_dir, branch_name):
     if not result:
         raise TorizonCoreBuilderError("Write mtree failed.")
 
-    result, commitvar, state = repo.load_commit(csum)
+    result, commitvar, _state = repo.load_commit(csum)
     if not result:
         raise TorizonCoreBuilderError(f"Error loading parent commit {csum}.")
 
@@ -78,12 +80,12 @@ def commit_changes(repo, csum, diff_dir, branch_name):
     if not result:
         raise TorizonCoreBuilderError("Commit failed.")
 
-    log.debug("Transaction committed. %s bytes %s objects written.", str(
-        stats.content_bytes_written), str(stats.content_objects_written))
+    log.debug("Transaction committed. {} bytes {} objects written.",
+              str(stats.content_bytes_written), str(stats.content_objects_written))
 
     return commit
 
-def union_changes(storage_dir, diff_dir, sysroot_dir, ostree_archive_dir, union_branch):
+def union_changes(diff_dir, sysroot_dir, ostree_archive_dir, union_branch):
     try:
         sysroot = ostree.load_sysroot(sysroot_dir)
         deployment = sysroot.get_deployments()[0]

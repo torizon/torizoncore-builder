@@ -1,10 +1,9 @@
 import os
-import sys
 import logging
-import subprocess
 import traceback
 from tcbuilder.backend.common import add_common_image_arguments
 from tcbuilder.backend import combine
+from tcbuilder.errors import TorizonCoreBuilderError
 
 
 def combine_image(args):
@@ -30,8 +29,8 @@ def combine_image(args):
                                     args.image_description, args.licence_file,
                                     args.release_notes_file)
         log.info("Successfully created a TorizonCore image with Docker Containers "
-                 "preprovisioned in {}".format(args.output_directory))
-    except Exception as ex:
+                 "preprovisioned in {}", args.output_directory)
+    except TorizonCoreBuilderError as ex:
         if hasattr(ex, "msg"):
             log.error(ex.msg)  # msg from all kinds of Exceptions
             log.info(ex.det)  # more elaborative message

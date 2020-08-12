@@ -1,14 +1,12 @@
-import os
-import json
-import glob
-import tezi.utils
-import subprocess
-import shutil
 import datetime
-from tcbuilder.errors import TorizonCoreBuilderError
-from tcbuilder.errors import PathNotExistError
-from tcbuilder.errors import FileNotFoundError
-from tcbuilder.errors import FileContentMissing
+import glob
+import json
+import os
+import shutil
+import subprocess
+
+import tezi.utils
+from tcbuilder.errors import FileContentMissing, OperationFailureError, PathNotExistError
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
@@ -112,10 +110,10 @@ def get_additional_size(output_dir_containers, files_to_add):
 
     # Check size of files to add to theimage
     for fileentry in files_to_add:
-        filename, destination, *rest = fileentry.split(":")
+        filename, _destination, *rest = fileentry.split(":")
         filepath = os.path.join(output_dir_containers, filename)
         if not os.path.exists(filepath):
-            raise PathNotExistError(f"Source image {tezi_image_dir} directory does not exist","")
+            raise PathNotExistError(f"Source image {filepath} directory does not exist")
 
         # Check third parameter, if unpack is set to true we need to get size
         # of unpacked tarball...
@@ -136,7 +134,8 @@ def get_additional_size(output_dir_containers, files_to_add):
             # Unpack similar to how Tezi does the size check
             size_proc = subprocess.run(
                     "cat '{0}' | {1} | wc -c".format(filename, command),
-                    shell=True, capture_output=True, cwd=output_dir_containers)
+                    shell=True, capture_output=True, cwd=output_dir_containers,
+                    check=False)
 
             if size_proc.returncode != 0:
                 raise OperationFailureError("Size estimation failed. Exit code {0}."

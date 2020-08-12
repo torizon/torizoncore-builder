@@ -1,15 +1,10 @@
 import datetime
 import os
-import sys
 import subprocess
-import shutil
-import paramiko
-from subprocess import Popen
-from subprocess import PIPE
-from tcbuilder.errors import OperationFailureError
-from tcbuilder.errors import ConnectionError
-from tcbuilder.errors import TorizonCoreBuilderError
 
+import paramiko
+
+from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
 
 ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysinit.target.wants/run-postinsts.service',
                 'ostree/remotes.d/toradex-nightly.conf', 'docker/key.json', '.updated', '.pwd.lock', 'group-',
@@ -25,7 +20,7 @@ CHANGES_CAPTURED = 1
 
 
 def run_command_with_sudo(client, command, password):
-    stdin, stdout, stderr = client.exec_command(command=command, get_pty=True)
+    stdin, stdout, _stderr = client.exec_command(command=command, get_pty=True)
     stdin.write(password + '\n')
     stdin.flush()
     status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
@@ -34,7 +29,7 @@ def run_command_with_sudo(client, command, password):
 
 
 def run_command_without_sudo(client, command):
-    stdin, stdout, stderr = client.exec_command(command)
+    stdin, stdout, _stderr = client.exec_command(command)
     status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
 
     return status, stdin, stdout
@@ -77,7 +72,7 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
                                                                              deleted_file_dir_to_tar.rsplit(
                                                                                  '/', 1)[0],
                                                                              deleted_file_dir_to_tar)
-        status, stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
+        status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
         if status > 0:
             raise OperationFailureError('could not create dir in /tmp',  stdout.read().decode(
                 'utf-8').strip())
@@ -97,7 +92,7 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
                        username=r_username,
                        password=r_password)
         # get config diff
-        status, stdin, stdout = run_command_with_sudo(client, 'sudo ostree admin config-diff', r_password)
+        status, _stdin, stdout = run_command_with_sudo(client, 'sudo ostree admin config-diff', r_password)
         if status > 0:
             client.close()
             raise OperationFailureError('Unable to get user changes',
@@ -140,7 +135,7 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
                                                                                 tmp_dir_name,
                                                                                 files_dir_to_tar)
             # make tar
-            status, stdin, stdout = run_command_with_sudo(client, tar_command, r_password)
+            status, _stdin, stdout = run_command_with_sudo(client, tar_command, r_password)
             if status > 0:
                 remove_tmp_dir(client, tmp_dir_name)
                 sftp.close()
@@ -155,15 +150,12 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
             sftp.close()
         else:
             client.close()
-            raise ConnectionError('Unable to create secure connection for transferring of files',
-                                         "")
+            raise TorizonCoreBuilderError('Unable to create SSH connection for transferring of files')
 
         client.close()
 
-        """
-         extract tar to diff_dir/usr/ so that at time of union 
-         they can be committed to /usr/etc of unpacked image as it is
-        """
+        # Extract tar to diff_dir/usr/ so that at time of union
+        # they can be committed to /usr/etc of unpacked image as it is
         os.mkdir(diff_dir + "/usr")
         extract_tar_cmd = "tar --acls --xattrs --overwrite --preserve-permissions " \
                           "-xf {0}/{1} -C {2}/".format(

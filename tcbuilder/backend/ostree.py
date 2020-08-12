@@ -1,15 +1,22 @@
-import gi
+"""Common OSTree functions
+
+Helper functions for commonly used OSTree functions.
+"""
+
 import logging
 
+import gi
 gi.require_version("OSTree", "1.0")
+from gi.repository import Gio, GLib, OSTree
 
-from gi.repository import GLib, Gio, OSTree
+from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
 def open_ostree(ostree_dir):
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
-    repo.open()
+    if not repo.open(None):
+        raise TorizonCoreBuilderError("Opening the archive OSTree repository failed.")
     return repo
 
 def create_ostree(ostree_dir, mode:OSTree.RepoMode = OSTree.RepoMode.ARCHIVE_Z2):
@@ -39,7 +46,7 @@ def get_deployment_info_from_sysroot(sysroot):
     return csum, kargs
 
 def get_metadata_from_ref(repo, ref):
-    result, commitvar, state = repo.load_commit(ref)
+    result, commitvar, _state = repo.load_commit(ref)
     if not result:
         raise TorizonCoreBuilderError("Error loading commit {}.".format(ref))
 
@@ -47,26 +54,25 @@ def get_metadata_from_ref(repo, ref):
     commit = commitvar.unpack()
 
     # Unpack commit object, see OSTree src/libostree/ostree-repo-commit.c
-    metadata, parent, unused, subject, body, time, content_csum, metadata_csum = commit
+    metadata, _parent, _, subject, body, _time, _content_csum, _metadata_csum = commit
 
     return metadata, subject, body
 
 def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
-    # ostree --repo=toradex-os-tree remote add origin http://feeds.toradex.com/ostree/nightly/colibri-imx7/ --no-gpg-verify
     options = GLib.Variant("a{sv}", {
         "gpg-verify": GLib.Variant("b", False)
     })
 
-    log.debug("Pulling remote %s reference %s", uri, ref)
+    log.debug("Pulling remote {} reference {}", uri, ref)
 
     if not repo.remote_add("origin", remote, options=options):
         raise TorizonCoreBuilderError("Error adding remote.")
 
-    # ostree --repo=toradex-os-tree pull origin torizon/torizon-core-docker --depth=1
+    # ostree --repo=toradex-os-tree pull origin torizon/torizon-core-docker --depth=0
 
     options = GLib.Variant("a{sv}", {
         "refs": GLib.Variant.new_strv([ref]),
-        "depth": GLib.Variant("i", 1),
+        "depth": GLib.Variant("i", 0),
         "override-remote-name": GLib.Variant('s', remote),
     })
 
@@ -92,15 +98,14 @@ def pull_local_ref(repo, repopath, ref, remote=None):
         raises:
             Exception - for failure to perform operations
     """
-    log.debug("Pulling from local repository %s reference %s", repopath, ref)
+    log.debug("Pulling from local repository {} reference {}", repopath, ref)
 
-    # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref}
+    # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref} --depth=0
     options = GLib.Variant("a{sv}", {
         "refs": GLib.Variant.new_strv([ref]),
-    #    "depth": GLib.Variant("i", 1),
+        "depth": GLib.Variant("i", 0),
         "override-remote-name": GLib.Variant('s', remote),
     })
 
     if not repo.pull_with_options("file://" + repopath, options):
         raise TorizonCoreBuilderError("Error pulling contents from local repository.")
-

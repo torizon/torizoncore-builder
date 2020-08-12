@@ -9,8 +9,7 @@ import os
 import logging
 import traceback
 from tcbuilder.backend import union
-from tcbuilder.backend.common import TorizonCoreBuilderError
-
+from tcbuilder.errors import TorizonCoreBuilderError
 
 def union_subcommand(args):
     """Run \"union\" subcommand"""
@@ -39,7 +38,7 @@ def union_subcommand(args):
         return
 
     try:
-        commit = union.union_changes(storage_dir, diff_dir, sysroot_dir,
+        commit = union.union_changes(diff_dir, sysroot_dir,
                                      src_ostree_archive_dir, union_branch)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:

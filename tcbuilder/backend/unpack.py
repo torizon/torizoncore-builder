@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 import subprocess
 from tcbuilder.backend.common import get_rootfs_tarball
@@ -14,7 +13,7 @@ def unpack_local_image(image_dir, sysroot_dir):
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     tarcmd = "tar --xattrs --xattrs-include='*' -xhf {0} -C {1}".format(
                 tarfile, sysroot_dir)
-    logging.info("Running tar command: " + tarcmd)
+    logging.info(f"Running tar command: {tarcmd}")
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
 
     # Remove the tarball since we have it unpacked now

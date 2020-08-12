@@ -1,6 +1,3 @@
-import os
-import sys
-
 class TorizonCoreBuilderError(Exception):
     def __init__(self, msg, deb_details=None,  status_code=None, payload=None):
         self.msg = msg
@@ -13,12 +10,6 @@ class TorizonCoreBuilderError(Exception):
 
 
 class PathNotExistError(TorizonCoreBuilderError):
-    pass
-
-class FileNotFoundError(TorizonCoreBuilderError):
-    pass
-
-class ConnectionError(TorizonCoreBuilderError):
     pass
 
 class OperationFailureError(TorizonCoreBuilderError):

@@ -3,7 +3,7 @@ import subprocess
 import shutil
 import tempfile
 import logging
-from tcbuilder.errors import OperationFailureError, PathNotExistError, FileNotFoundError
+from tcbuilder.errors import OperationFailureError, PathNotExistError, TorizonCoreBuilderError
 
 def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
     """ Compile and apply several overlays to an input devicetree
@@ -18,7 +18,7 @@ def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
             FileNotFoundError: invalid file name or build errors
     """
     if not os.path.isfile(devicetree):
-        raise FileNotFoundError("Invalid input devicetree")
+        raise TorizonCoreBuilderError("Missing input devicetree")
 
     tempdir = tempfile.mkdtemp()
     dtbos = []
@@ -84,14 +84,14 @@ def build(overlay, outputpath=None, includepaths=None):
     cppcmdline += ["-o", tmppath, overlay]
 
     cppprocess=subprocess.run(
-        cppcmdline, stderr=subprocess.PIPE,)
+        cppcmdline, stderr=subprocess.PIPE, check=False)
 
     if cppprocess.returncode != 0:
         raise OperationFailureError("Failed to preprocess device tree.\n" +
                         cppprocess.stderr.decode("utf-8"))
 
     dtcprocess=subprocess.run(
-        dtccmdline, stderr=subprocess.PIPE)
+        dtccmdline, stderr=subprocess.PIPE, check=False)
 
     if dtcprocess.returncode != 0:
         raise OperationFailureError("Failed to build device tree.\n" +
@@ -123,7 +123,8 @@ def apply_overlays(devicetree, overlays, devicetree_out):
         fdtoverlay_args.append(overlays)
 
     fdtoverlay = subprocess.run(fdtoverlay_args,
-                                stderr=subprocess.PIPE)
+                                stderr=subprocess.PIPE,
+                                check=False)
     # For some reason fdtoverlay returns 0 even if it fails
     if fdtoverlay.stderr != b'':
         raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")

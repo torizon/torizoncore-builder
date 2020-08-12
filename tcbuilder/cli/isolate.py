@@ -1,7 +1,5 @@
 import os
-import sys
 import logging
-import subprocess
 import traceback
 import shutil
 from tcbuilder.backend import isolate
