@@ -112,6 +112,10 @@ COPY requirements_dev.txt /tmp
 RUN pip3 install -r /tmp/requirements_dev.txt \
      && rm -rf /tmp/requirements_dev.txt
 
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
+    git strace procps \
+    && rm -rf /var/lib/apt/lists/*
+
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
