@@ -119,6 +119,24 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     #"override-commit-ids": GLib.Variant.new_strv([ref]),
     repo.set_collection_ref_immediate(OSTree.CollectionRef.new(None, OSTREE_BASE_REF), csum)
 
+def _convert_gio_file_type(gio_file_type):
+    if gio_file_type == Gio.FileType.DIRECTORY:
+        return 'directory'
+    elif gio_file_type == Gio.FileType.MOUNTABLE:
+        return 'mountable'
+    elif gio_file_type == Gio.FileType.REGULAR:
+        return 'regular'
+    elif gio_file_type == Gio.FileType.SHORTCUT:
+        return 'shortcut'
+    elif gio_file_type == Gio.FileType.SPECIAL:
+        return 'special'
+    elif gio_file_type == Gio.FileType.SYMBOLIC_LINK:
+        return 'symbolic_link'
+    elif gio_file_type == Gio.FileType.UNKNOWN:
+        return 'unknown'
+    else:
+        raise TorizonCoreBuilderError(f"Unknown gio filetype {gio_file_type}")
+
 def ls(repo, path, commit):
     """ return a list of files and directories in a ostree repo under path
 
@@ -144,4 +162,36 @@ def ls(repo, path, commit):
     file_list = sub_path.enumerate_children(
         "*", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
 
-    return list(map(lambda f: f.get_name(), file_list))
+    return list(map(lambda f: {"name": f.get_name(),
+                               "type": _convert_gio_file_type(f.get_file_type())
+                               }, file_list))
+
+def get_kernel_version(repo, commit):
+    """ return the kernel version used in the commit
+
+        args:
+            repo(OSTree.Repo) - repo object
+            commit(str) - the ostree commit hash or name
+
+        return:
+            version(str) - The kernel version used in this OSTree commit
+    """
+
+    module_files = ls(repo, "/usr/lib/modules", commit)
+    module_dirs = filter(lambda file: file["type"] == "directory",
+                         module_files)
+
+    # This is a similar approach to what OSTree does in the deploy command.
+    # It searches for the directory under /usr/lib/modules/<kver> which
+    # contains a vmlinuz file.
+    for module_dir in module_dirs:
+        directory_name = module_dir["name"]
+
+        # Check if the directory contains a vmlinuz image if so it is our
+        # kernel directory
+        files = ls(repo, f"/usr/lib/modules/{directory_name}", commit)
+        if any(file for file in files if file["name"] == "vmlinuz"):
+            kernel_version = directory_name
+            break
+
+    return kernel_version
