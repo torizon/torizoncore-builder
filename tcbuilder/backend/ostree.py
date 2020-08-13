@@ -4,6 +4,7 @@ Helper functions for commonly used OSTree functions.
 """
 
 import logging
+import os
 
 import gi
 gi.require_version("OSTree", "1.0")
@@ -109,3 +110,30 @@ def pull_local_ref(repo, repopath, ref, remote=None):
 
     if not repo.pull_with_options("file://" + repopath, options):
         raise TorizonCoreBuilderError("Error pulling contents from local repository.")
+
+def ls(repo, path, commit):
+    """ return a list of files and directories in a ostree repo under path
+
+        args:
+            repo(OSTree.Repo) - repo object
+            path(str) - absolute path which we want to enumerate
+            commit(str) - the ostree commit hash or name
+
+        return:
+            file_list(list) - list of files and directories under path
+
+        raises:
+            TorizonCoreBuilderError - if commit does not exist
+    """
+    # Make sure we don't end the path with / because this confuses ostree
+    path = os.path.realpath(path)
+    ret, root, _commit = repo.read_commit(commit)
+    if not ret:
+        raise TorizonCoreBuilderError(f"Error couldn't reat commit: {commit}")
+
+    sub_path = root.resolve_relative_path(path)
+
+    file_list = sub_path.enumerate_children(
+        "*", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
+
+    return list(map(lambda f: f.get_name(), file_list))
