@@ -11,16 +11,16 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
-def commit_changes(repo, csum, diff_dir, branch_name):
-    # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<csum> --tree=dir=my-changes
+def commit_changes(repo, ref, diff_dir, branch_name):
+    # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
     log.debug(f"Committing changes from {diff_dir} to {branch_name}")
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
 
     mt = OSTree.MutableTree.new()
 
-    # --tree=ref=<csum>
-    result, root, commit = repo.read_commit(csum)
+    # --tree=ref=<ref>
+    result, root, csum = repo.read_commit(ref)
     if not result:
         raise TorizonCoreBuilderError("Read base commit failed.")
 
@@ -85,17 +85,12 @@ def commit_changes(repo, csum, diff_dir, branch_name):
 
     return commit
 
-def union_changes(diff_dir, sysroot_dir, ostree_archive_dir, union_branch):
+def union_changes(diff_dir, ostree_archive_dir, union_branch):
     try:
-        sysroot = ostree.load_sysroot(sysroot_dir)
-        deployment = sysroot.get_deployments()[0]
-        base_csum = deployment.get_csum()
-        sysroot.unload()
-
         repo = ostree.open_ostree(ostree_archive_dir)
 
         # Create new commit with the changes overlayed in a single transaction
-        final_commit = commit_changes(repo, base_csum, diff_dir, union_branch)
+        final_commit = commit_changes(repo, ostree.OSTREE_BASE_REF, diff_dir, union_branch)
 
         return final_commit
     except Exception as ex:

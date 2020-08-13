@@ -18,16 +18,7 @@ def union_subcommand(args):
     diff_dir = os.path.abspath(args.diff_dir)
     union_branch = args.union_branch
 
-    if args.sysroot_directory is None:
-        sysroot_dir = os.path.join(storage_dir, "sysroot")
-    else:
-        sysroot_dir = os.path.abspath(args.sysroot_directory)
-
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-    if not os.path.exists(sysroot_dir):
-        log.error(f"{sysroot_dir} does not exist")
-        return
 
     if not os.path.exists(diff_dir):
         log.error(f"{diff_dir} does not exist")
@@ -38,8 +29,7 @@ def union_subcommand(args):
         return
 
     try:
-        commit = union.union_changes(diff_dir, sysroot_dir,
-                                     src_ostree_archive_dir, union_branch)
+        commit = union.union_changes(diff_dir, src_ostree_archive_dir, union_branch)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -57,8 +47,6 @@ def init_parser(subparsers):
                            Must be a file system capable of carrying Linux file system
                            metadata (Unix file permissions and xattr).""",
                            default="/storage/changes")
-    subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
-                           help="""Path to source sysroot storage.""")
     subparser.add_argument("--union-branch", dest="union_branch",
                            help="""Name of branch containing the changes committed to
                            the unpacked repo.

@@ -14,6 +14,8 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
+OSTREE_BASE_REF = "base"
+
 def open_ostree(ostree_dir):
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
     if not repo.open(None):
@@ -86,7 +88,7 @@ def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
     if not repo.pull_with_options("origin", options, progress=asyncprogress):
         raise TorizonCoreBuilderError("Error pulling contents from local repository.")
 
-def pull_local_ref(repo, repopath, ref, remote=None):
+def pull_local_ref(repo, repopath, csum, remote=None):
     """ fetches reference from local repository
 
         args:
@@ -99,17 +101,23 @@ def pull_local_ref(repo, repopath, ref, remote=None):
         raises:
             Exception - for failure to perform operations
     """
-    log.debug("Pulling from local repository {} reference {}", repopath, ref)
+    log.debug("Pulling from local repository {} commit checksum {}", repopath, csum)
 
     # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref} --depth=0
     options = GLib.Variant("a{sv}", {
-        "refs": GLib.Variant.new_strv([ref]),
+        "refs": GLib.Variant.new_strv([csum]),
         "depth": GLib.Variant("i", 0),
         "override-remote-name": GLib.Variant('s', remote),
     })
 
     if not repo.pull_with_options("file://" + repopath, options):
         raise TorizonCoreBuilderError("Error pulling contents from local repository.")
+
+    # Note: In theory we can do this with two options in one go, but that seems
+    # to validate ref-bindings... (has probably something to do with Collection IDs etc..)
+    #"refs": GLib.Variant.new_strv(["base"]),
+    #"override-commit-ids": GLib.Variant.new_strv([ref]),
+    repo.set_collection_ref_immediate(OSTree.CollectionRef.new(None, OSTREE_BASE_REF), csum)
 
 def ls(repo, path, commit):
     """ return a list of files and directories in a ostree repo under path

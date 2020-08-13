@@ -39,7 +39,7 @@ def deploy_image(args):
         return
 
     # Currently we use the sysroot from the unpacked Tezi rootfs as source
-    # for kargs, /home directories and the default csum
+    # for kargs, /home directories
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
     metadata, _subject, _body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
@@ -54,7 +54,7 @@ def deploy_image(args):
     # It seems the customer did not pass a reference, deploy the original commit
     # (probably not that useful in practise, but useful to test the workflow)
     if ref is None:
-        ref = csum
+        ref = ostree.OSTREE_BASE_REF
     print("Deploying commit ref: {}".format(ref))
 
     # Create a new sysroot for our deployment
