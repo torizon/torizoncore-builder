@@ -141,7 +141,9 @@ Toradex Easy Installer image with TorizonCore and the containers combined.
 
 def setup_logging(level, verbose, file):
     """Setup logging levels and print handler for torizoncore-builder"""
-    logger = logging.getLogger("torizon")  # use name hierarchy
+
+    # Configure the root logger for our needs
+    logger = logging.getLogger()
     lhandler = None
     if file is None:
         lhandler = logging.StreamHandler()
