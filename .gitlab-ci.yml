@@ -44,7 +44,6 @@ stages:
   stage: build
 
 pylint:
-  allow_failure: true
   # Image built using --target tcbuilder-dev -f torizoncore-builder.Dockerfile
   image: gitlab.int.toradex.com:4567/rd/torizon-core-containers/torizoncore-builder/tcbuilder-dev:latest
   script:
