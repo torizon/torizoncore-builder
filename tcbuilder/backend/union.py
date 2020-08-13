@@ -80,8 +80,8 @@ def commit_changes(repo, ref, diff_dir, branch_name):
     if not result:
         raise TorizonCoreBuilderError("Commit failed.")
 
-    log.debug("Transaction committed. {} bytes {} objects written.",
-              str(stats.content_bytes_written), str(stats.content_objects_written))
+    log.debug(f"Transaction committed. {stats.content_bytes_written} bytes "
+              f"{stats.content_objects_written} objects written.")
 
     return commit
 
