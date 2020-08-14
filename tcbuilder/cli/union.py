@@ -15,7 +15,15 @@ def union_subcommand(args):
     """Run \"union\" subcommand"""
     log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
-    diff_dir = os.path.abspath(args.diff_dir)
+    if args.diff_dir is None:
+        ans = input("is this change for splash image? [y/N] ")
+        if ans.lower() == "y":
+            diff_dir = "/storage/splash"
+        else:
+            diff_dir = "/storage/changes"
+    else:
+        diff_dir = os.path.abspath(args.diff_dir)
+
     union_branch = args.union_branch
 
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
