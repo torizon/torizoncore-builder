@@ -21,14 +21,10 @@ def deploy_image(args):
     output_dir = os.path.abspath(args.output_directory)
     storage_dir = os.path.abspath(args.storage_directory)
     tezi_dir = os.path.join(storage_dir, "tezi")
-    if args.sysroot_directory is None:
-        src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    else:
-        src_sysroot_dir = os.path.abspath(args.sysroot_directory)
+    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     dst_sysroot_dir = os.path.abspath(args.deploy_sysroot_directory)
-
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     if os.path.exists(output_dir):
         print("Output directory must not exist!", file=sys.stderr)
@@ -89,8 +85,6 @@ def init_parser(subparsers):
                         required=True)
     subparser.add_argument(metavar="REF", nargs="?", dest="ref",
                         help="""OSTree reference to deploy.""")
-    subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
-                        help="""Path to source sysroot storage.""")
     subparser.add_argument("--deploy-sysroot-directory", dest="deploy_sysroot_directory",
                         help="""Work directory to store the intermittent deployment sysroot.
                         NOTE: OSTree need to be able to write extended

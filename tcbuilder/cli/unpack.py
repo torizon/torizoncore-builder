@@ -22,12 +22,7 @@ def unpack_subcommand(args):
     image_dir = os.path.abspath(args.image_directory)
     storage_dir = os.path.abspath(args.storage_directory)
     tezi_dir = os.path.join(storage_dir, "tezi")
-
-    if args.sysroot_directory is None:
-        src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    else:
-        src_sysroot_dir = os.path.abspath(args.sysroot_directory)
-
+    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     try:
@@ -62,7 +57,5 @@ def init_parser(subparsers):
     subparser.add_argument("--image-directory", dest="image_directory",
                            help="""Path to TorizonCore Toradex Easy Installer source image.""",
                            required=True)
-    subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
-                           help="""Path to source sysroot storage.""")
 
     subparser.set_defaults(func=unpack_subcommand)
