@@ -1,17 +1,21 @@
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
+import threading
 
 import gi
 gi.require_version("OSTree", "1.0")
 from gi.repository import Gio, OSTree
 
+import paramiko
+
+from tcbuilder.backend import ostree, serve
 from tcbuilder.backend.common import get_rootfs_tarball
+from tcbuilder.backend.rforward import reverse_forward_tunnel
 from tcbuilder.errors import TorizonCoreBuilderError
-from tcbuilder.backend import ostree
-import re
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -165,3 +169,79 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     copy_tezi_image(tezi_dir, output_dir)
     pack_rootfs_for_tezi(dst_sysroot_dir, output_dir)
     log.info("Packing rootfs done.")
+
+def run_command_with_sudo(client, command, password):
+    stdin, stdout, stderr = client.exec_command("sudo -S -- " + command)
+    stdin.write(f"{password}\n")
+    stdin.flush()
+    status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
+
+    stdout_str = stdout.read().decode('utf-8').strip()
+    stderr_str = stderr.read().decode('utf-8').strip()
+
+    if status != 0:
+        if len(stdout_str) > 0:
+            log.info(stdout_str)
+        if len(stderr_str) > 0:
+            log.error(stderr_str)
+        raise TorizonCoreBuilderError(f"Failed to run command on module: {command}")
+    else:
+        if len(stdout_str) > 0:
+            log.debug(stdout_str)
+        if len(stderr_str) > 0:
+            log.debug(stderr_str)
+
+def deploy_ostree_remote(remote_host, remote_username, remote_password,
+                         src_ostree_archive_dir, ref):
+    """Implementation to deploy OSTree on remote device"""
+
+    # It seems the customer did not pass a reference, deploy the original commit
+    # (probably not that useful in practise, but useful to test the workflow)
+    if ref is None:
+        ref = ostree.OSTREE_BASE_REF
+
+    # We need to resolve the reference to a checksum again, otherwise we
+    # pull_local_ref complains with:
+    # "Commit has no requested ref ‘base’ in ref binding metadata"
+    srcrepo = ostree.open_ostree(src_ostree_archive_dir)
+    ret, csumdeploy = srcrepo.resolve_rev(ref, False)
+    if not ret:
+        raise TorizonCoreBuilderError(f"Error resolving {ref}.")
+
+    log.info(f"Pulling OSTree with ref {ref} (checksum {csumdeploy})"
+             "from local archive repository...")
+
+    # Start http server...
+    http_server_thread = serve.serve_ostree_start(src_ostree_archive_dir)
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    client.connect(hostname=remote_host,
+                   username=remote_username,
+                   password=remote_password)
+
+    forwarding_thread = threading.Thread(target=reverse_forward_tunnel,
+                                         args=(8080, "127.0.0.1", 8080, client.get_transport()))
+    forwarding_thread.daemon = True
+    forwarding_thread.start()
+
+    run_command_with_sudo(
+        client,
+        "ostree remote add --no-gpg-verify --force tcbuilder http://localhost:8080/",
+        remote_password)
+
+    log.info("Starting OSTree pull on the device...")
+    run_command_with_sudo(
+        client, f"ostree pull tcbuilder:{csumdeploy}", remote_password)
+
+    log.info("Deploying new OSTree on the device...")
+    run_command_with_sudo(
+        client, f"ostree admin deploy --stage tcbuilder:{csumdeploy}", remote_password)
+
+    log.info("Deploying successfully finished. "
+             "Please reboot the device to boot into the new deployment.")
+
+    client.close()
+
+    serve.serve_ostree_stop(http_server_thread)
