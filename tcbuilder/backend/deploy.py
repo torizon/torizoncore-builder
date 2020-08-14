@@ -137,15 +137,25 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
 
     repo = sysroot.repo()
 
-    log.info(f"Pulling OSTree with ref {ref} from local archive repository...")
-    ostree.pull_local_ref(repo, src_ostree_archive_dir, ref, remote="torizon")
+    # We need to resolve the reference to a checksum again, otherwise we
+    # pull_local_ref complains with:
+    # "Commit has no requested ref ‘base’ in ref binding metadata"
+    srcrepo = ostree.open_ostree(src_ostree_archive_dir)
+    ret, csumdeploy = srcrepo.resolve_rev(ref, False)
+    if not ret:
+        raise TorizonCoreBuilderError(f"Error resolving {ref}.")
+
+    log.info(f"Pulling OSTree with ref {ref} (checksum {csumdeploy})"
+             "from local archive repository...")
+
+    ostree.pull_local_ref(repo, src_ostree_archive_dir, csumdeploy, remote="torizon")
     log.info("Pulling done.")
 
-    log.info(f"Deploying OSTree with ref {ref}")
+    log.info(f"Deploying OSTree with checksum {csumdeploy}")
 
     # Remove old ostree= kernel argument
     newkargs = re.sub(r"ostree=[^\s]*", "", kargs)
-    deploy_rootfs(sysroot, ref, "torizon", newkargs)
+    deploy_rootfs(sysroot, csumdeploy, "torizon", newkargs)
     log.info("Deploying done.")
 
     log.info("Copy rootdirs such as /home from original deployment.")
