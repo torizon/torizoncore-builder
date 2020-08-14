@@ -41,17 +41,17 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser("deploy", help="""\
     Deploy the current image as a Toradex Easy Installer image""")
     subparser.add_argument("--output-directory", dest="output_directory",
-                        help="""Output path for TorizonCore Toradex Easy Installer image.""",
-                        required=True)
+                           help="""Output path for TorizonCore Toradex Easy Installer image.""",
+                           required=True)
     subparser.add_argument(metavar="REF", nargs="?", dest="ref",
-                        help="""OSTree reference to deploy.""")
+                           help="""OSTree reference to deploy.""")
     subparser.add_argument("--deploy-sysroot-directory", dest="deploy_sysroot_directory",
-                        help="""Work directory to store the intermittent deployment sysroot.
-                        NOTE: OSTree need to be able to write extended
-                        attributes in this directory. This seems to only
-                        reliably work when using a Docker volume!
-                        """,
-                        default="/deploy")
+                           help="""Work directory to store the intermittent deployment sysroot.
+                           NOTE: OSTree need to be able to write extended
+                           attributes in this directory. This seems to only
+                           reliably work when using a Docker volume!
+                           """,
+                           default="/deploy")
 
     subparser.set_defaults(func=deploy_image)
 
