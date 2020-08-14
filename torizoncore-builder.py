@@ -139,7 +139,7 @@ Toradex Easy Installer image with TorizonCore and the containers combined.
 """)
 
 
-def setup_logging(level, verbose, file):
+def setup_logging(arg_level, verbose, file):
     """Setup logging levels and print handler for torizoncore-builder"""
 
     # Configure the root logger for our needs
@@ -152,7 +152,11 @@ def setup_logging(level, verbose, file):
         lhandler = logging.FileHandler(file)
 
     set_level = None
-    if level is not None:
+
+    if verbose:
+        set_level = logging.DEBUG
+
+    if arg_level is not None:
         levels = {
             'DEBUG': logging.DEBUG,
             'INFO': logging.INFO,
@@ -160,22 +164,26 @@ def setup_logging(level, verbose, file):
             'ERROR': logging.ERROR,
             'CRITICAL': logging.CRITICAL,
         }
-        set_level = levels.get(level.upper())
+        set_level = levels.get(arg_level.upper())
+
+        if set_level is None:
+            print("Invalid value for --log-level. Expected one of {levels}",
+                  levels=", ".join(levels.keys()))
+            sys.exit(-1)
+
+    # Show/store time if any of the following is used:
+    # --verbose
+    # --log-level DEBUG
+    # --log-file FILE
+    if verbose or file is not None or (set_level is not None and set_level <= logging.DEBUG):
+        lformat = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        lhandler.setFormatter(lformat)
 
     if set_level is None:
-        print("Invalid value for --log-level. Expected one of {levels}",
-              levels=", ".join(levels.keys()))
-        sys.exit(-1)
-
-    if verbose:
-        logger.setLevel(logging.INFO)
-        lformat = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        lhandler.setFormatter(lformat)
-
-    if set_level == logging.DEBUG:
-        logger.setLevel(logging.DEBUG)
-        lformat = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        lhandler.setFormatter(lformat)
+        # By default, use INFO for TorizonCore itself, and WARNING for libraries
+        torizoncore_logger = logging.getLogger("torizon")
+        torizoncore_logger.setLevel(logging.INFO)
+        logger.setLevel(logging.WARNING)
     else:
         logger.setLevel(set_level)
 
@@ -187,8 +195,7 @@ parser.add_argument("--verbose", dest="verbose",
                     help="Show more output")
 
 parser.add_argument("--log-level", dest="log_level",
-                    help="--log-level Set log level (debug, info, warning, error, critical)",
-                    default="info")
+                    help="--log-level Set global log level (debug, info, warning, error, critical)")
 
 parser.add_argument("--log-file", dest="log_file",
                     help="write logs to a file instead of console",
