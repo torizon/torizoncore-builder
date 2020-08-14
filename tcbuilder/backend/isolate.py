@@ -52,36 +52,29 @@ def check_path(p):
 
 
 def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
-    try:
-        # check if deleted file/dir was in subdirectory of /etc --> '/' for file/dir at /etc
-        path = check_path(deleted_f_d)
-        if path != '/':  # file/dir was in subdirectory of of /etc
-            # check if any file exists other than file/dir deleted in same subdirectory of /etc
-            d_list = sftp_channel.listdir('/etc' + path)
-            if not d_list:  # entire content(s) deleted
-                deleted_file_dir_to_tar = 'etc' + path + '.wh..wh..opq'
-            else:
-                deleted_file_dir_to_tar = 'etc' + path + '.wh.' \
-                                          + deleted_f_d.rsplit('/', 1)[1]
+    # check if deleted file/dir was in subdirectory of /etc --> '/' for file/dir at /etc
+    path = check_path(deleted_f_d)
+    if path != '/':  # file/dir was in subdirectory of of /etc
+        # check if any file exists other than file/dir deleted in same subdirectory of /etc
+        d_list = sftp_channel.listdir('/etc' + path)
+        if not d_list:  # entire content(s) deleted
+            deleted_file_dir_to_tar = 'etc' + path + '.wh..wh..opq'
         else:
             deleted_file_dir_to_tar = 'etc' + path + '.wh.' \
-                                      + deleted_f_d
+                                        + deleted_f_d.rsplit('/', 1)[1]
+    else:
+        deleted_file_dir_to_tar = 'etc' + path + '.wh.' \
+                                    + deleted_f_d
 
-        # create deleted files/dir in torizonbuilder tmp directory with whiteout format
-        create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(tmp_dir_name,
-                                                                             deleted_file_dir_to_tar.rsplit(
-                                                                                 '/', 1)[0],
-                                                                             deleted_file_dir_to_tar)
-        status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
-        if status > 0:
-            raise OperationFailureError('could not create dir in /tmp',  stdout.read().decode(
-                'utf-8').strip())
-    except Exception as ex:
-        # create additional variables of exception to be coherent with our custom exception layout
-        ex.msg = "issue occured during handling of deleted stuff"
-        ex.det = ""
-        raise
-
+    # create deleted files/dir in torizonbuilder tmp directory with whiteout format
+    create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(tmp_dir_name,
+                                                                            deleted_file_dir_to_tar.rsplit(
+                                                                                '/', 1)[0],
+                                                                            deleted_file_dir_to_tar)
+    status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
+    if status > 0:
+        raise OperationFailureError('could not create dir in /tmp',  stdout.read().decode(
+            'utf-8').strip())
 
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
     try:
