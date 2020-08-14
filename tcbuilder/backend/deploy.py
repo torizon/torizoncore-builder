@@ -10,6 +10,8 @@ from gi.repository import Gio, OSTree
 
 from tcbuilder.backend.common import get_rootfs_tarball
 from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.backend import ostree
+import re
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -105,3 +107,51 @@ def copy_home_from_old_sysroot(src_sysroot, dst_sysroot):
     dst_var = get_var_path(dst_sysroot)
     shutil.copytree(os.path.join(src_var, "rootdirs"),
         os.path.join(dst_var, "rootdirs"), symlinks=True)
+
+def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
+                      output_dir, dst_sysroot_dir, ref=None):
+    """Deploys a Toradex Easy Installer image with given OSTree reference
+
+    Creates a new Toradex Easy Installer image with a OSTree deployment of the
+    given OSTree reference.
+    """
+    # Currently we use the sysroot from the unpacked Tezi rootfs as source
+    # for kargs, /home directories
+    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
+    csum, kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
+    metadata, _subject, _body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
+
+    log.info("Using unpacked Toradex Easy Installer image as base:")
+    log.info(f"  Commit checksum: {csum}")
+    log.info(f"  TorizonCore Version: {metadata['version']}")
+    log.info(f"  Kernel arguments: {kargs}\n")
+
+    # It seems the customer did not pass a reference, deploy the original commit
+    # (probably not that useful in practise, but useful to test the workflow)
+    if ref is None:
+        ref = ostree.OSTREE_BASE_REF
+    print(f"Deploying commit ref: {ref}")
+
+    # Create a new sysroot for our deployment
+    sysroot = create_sysroot(dst_sysroot_dir)
+
+    repo = sysroot.repo()
+
+    log.info(f"Pulling OSTree with ref {ref} from local archive repository...")
+    ostree.pull_local_ref(repo, src_ostree_archive_dir, ref, remote="torizon")
+    log.info("Pulling done.")
+
+    log.info(f"Deploying OSTree with ref {ref}")
+
+    # Remove old ostree= kernel argument
+    newkargs = re.sub(r"ostree=[^\s]*", "", kargs)
+    deploy_rootfs(sysroot, ref, "torizon", newkargs)
+    log.info("Deploying done.")
+
+    log.info("Copy rootdirs such as /home from original deployment.")
+    copy_home_from_old_sysroot(src_sysroot, sysroot)
+
+    log.info("Packing rootfs...")
+    copy_tezi_image(tezi_dir, output_dir)
+    pack_rootfs_for_tezi(dst_sysroot_dir, output_dir)
+    log.info("Packing rootfs done.")
