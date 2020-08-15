@@ -1,18 +1,17 @@
-import os
-import sys
-import subprocess
-import shutil
 import logging
-import gi
-gi.require_version('OSTree', '1.0')
-from gi.repository import GLib, Gio, OSTree
-from tcbuilder.errors import TorizonCoreBuilderError
+import os
+import shutil
+import subprocess
+
+from gi.repository import Gio
+
 from tcbuilder.backend import ostree
+from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
 
-def create_splash_initramfs(work_dir, image, sysroot_dir, src_ostree_archive_dir):
+def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
     try:
         splash_initramfs = "initramfs.splash"
         splash_initramfs_dir = "usr/share/plymouth/themes/spinner/"
@@ -26,8 +25,8 @@ def create_splash_initramfs(work_dir, image, sysroot_dir, src_ostree_archive_dir
         os.makedirs(rel_splash_initramfs_dir)
         shutil.copy(image, os.path.join(rel_splash_initramfs_dir, "watermark.png"))
 
-        '''Currently there is no official library for python 3 and above to create 
-        cpio archive. So bash commands are to be used'''
+        # Currently there is no official library for python 3+ to create 
+        # cpio archive. So bash commands are to be used
 
         # create splash image only initramfs
         create_initramfs_cmd = "echo {0} | cpio -H newc -D {1} -o | gzip > {2}".format(

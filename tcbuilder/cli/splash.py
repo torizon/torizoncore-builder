@@ -1,9 +1,7 @@
 import os
-import sys
 import shutil
 import logging
 import traceback
-from tcbuilder.errors import OperationFailureError
 from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import splash
 
@@ -27,15 +25,10 @@ def splash_subcommand(args):
         log.error("unable to find splash image")
         return
 
-    if args.sysroot_directory is None:
-        sysroot_dir = os.path.join(storage_dir, "sysroot")
-    else:
-        sysroot_dir = os.path.abspath(args.sysroot_directory)
-
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     try:
-        splash.create_splash_initramfs(work_dir, image, sysroot_dir, src_ostree_archive_dir)
+        splash.create_splash_initramfs(work_dir, image, src_ostree_archive_dir)
         log.info("splash screen merged to initramfs")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -53,7 +46,5 @@ def init_parser(subparsers):
                            required=True)
     subparser.add_argument("--work-dir", dest="work_dir",
                            help="""Working directory""")
-    subparser.add_argument("--sysroot-directory", dest="sysroot_directory",
-                           help="""Path to source sysroot storage.""")
 
     subparser.set_defaults(func=splash_subcommand)
