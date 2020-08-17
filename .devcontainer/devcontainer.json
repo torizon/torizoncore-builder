@@ -36,7 +36,7 @@
 	[
 		"source=${localWorkspaceFolder}/workdir,target=/workdir,type=bind",
 		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-		"source=storage,target=/storage,type=volume",
+		"source=storage-vscode,target=/storage,type=volume",
 		"target=/deploy,type=volume",
 	],
 
