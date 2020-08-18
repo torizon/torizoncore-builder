@@ -31,8 +31,9 @@ def push_subcommand(args):
         return
 
     try:
-        print(args.hardwareids)
-        hardwareids = ",".join(args.hardwareids)
+        hardwareids = None
+        if args.hardwareids is not None:
+            hardwareids = ",".join(args.hardwareids)
         push.push_ref(src_ostree_archive_dir, tuf_repo, credentials, args.ref, hardwareids)
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
