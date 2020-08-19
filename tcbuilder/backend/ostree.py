@@ -195,3 +195,31 @@ def get_kernel_version(repo, commit):
             break
 
     return kernel_version
+
+def copy_file(repo, commit, input_file, output_file):
+    """ copy a file within a OSTree repo to somewhere else
+
+        args:
+            repo(OSTree.Repo) - repo object
+            commit(str) - the ostree commit hash or name
+            input_file - the input file path in the OSTree
+            output_file - the output file paht where we want to copy to
+        raises:
+            TorizonCoreBuilderError - if commit does not exist
+    """
+
+    # Make sure we don't end the path with / because this confuses ostree
+    ret, root, _commit = repo.read_commit(commit)
+    if not ret:
+        raise TorizonCoreBuilderError(f"Can not read commit: {commit}")
+
+    input_stream = root.resolve_relative_path(input_file).read()
+
+    output_stream = Gio.File.new_for_path(output_file).create(
+        Gio.FileCreateFlags.NONE, None)
+    if not output_stream:
+        raise TorizonCoreBuilderError(f"Can not create file {output_file}")
+
+    # Move input to output stream
+    output_stream.splice(input_stream, Gio.OutputStreamSpliceFlags.CLOSE_SOURCE,
+                      None)
