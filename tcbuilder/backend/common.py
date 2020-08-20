@@ -185,7 +185,7 @@ def resolve_hostname(hostname: str) -> (str, bool):
     resolver.nameservers = ["224.0.0.251"]  # mDNS IPv4 link-local multicast address
     resolver.port = 5353  # mDNS port
     try:
-        addr = resolver.query(mdns_hostname, "A")
+        addr = resolver.query(mdns_hostname, "A", lifetime=3)
         if addr is None or len(addr) == 0:
             raise TorizonCoreBuilderError("Resolving mDNS address failed with no answer")
 
