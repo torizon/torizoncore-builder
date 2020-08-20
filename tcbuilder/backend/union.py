@@ -86,13 +86,9 @@ def commit_changes(repo, ref, diff_dir, branch_name):
     return commit
 
 def union_changes(diff_dir, ostree_archive_dir, union_branch):
-    try:
-        repo = ostree.open_ostree(ostree_archive_dir)
+    repo = ostree.open_ostree(ostree_archive_dir)
 
-        # Create new commit with the changes overlayed in a single transaction
-        final_commit = commit_changes(repo, ostree.OSTREE_BASE_REF, diff_dir, union_branch)
+    # Create new commit with the changes overlayed in a single transaction
+    final_commit = commit_changes(repo, ostree.OSTREE_BASE_REF, diff_dir, union_branch)
 
-        return final_commit
-    except Exception as ex:
-        raise TorizonCoreBuilderError("issue occurred during creating a commit for changes. Contact Developer") \
-             from ex
+    return final_commit
