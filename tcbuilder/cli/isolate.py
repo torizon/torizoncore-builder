@@ -4,7 +4,7 @@ import traceback
 import shutil
 from tcbuilder.backend import isolate
 from tcbuilder.errors import TorizonCoreBuilderError
-from tcbuilder.backend.common import resolve_remote_address
+from tcbuilder.backend.common import resolve_remote_host
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -34,7 +34,7 @@ def isolate_subcommand(args):
     r_host = args.remote_host
 
     try:
-        r_ip = resolve_remote_address(r_host)
+        r_ip = resolve_remote_host(r_host)
         ret = isolate.isolate_user_changes(diff_dir, r_ip, r_username, r_password)
         if ret == isolate.NO_CHANGES:
             log.info("no change is made in /etc by user")

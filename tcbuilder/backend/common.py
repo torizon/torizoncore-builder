@@ -153,7 +153,8 @@ def get_additional_size(output_dir_containers, files_to_add):
 
 def resolve_hostname(hostname: str) -> (str, bool):
     """
-    Convert a hostname to ip using DNS first and then mDNS.
+    Convert a hostname to ip using operating system's name resolution service
+    first and fallback to mDNS if the hostname is (or can be) a mDNS host name.
     If it does not resolve it, returns the original value (in
     case this may be parsed in some smarter ways down the line)
 
@@ -168,38 +169,38 @@ def resolve_hostname(hostname: str) -> (str, bool):
     try:
         ip_addr = socket.gethostbyname(hostname)
         return ip_addr, False
-    except socket.gaierror:
-        # Ignore regular resolve issues and try mDNS next
-        pass
+    except socket.gaierror as sgex:
+        # If its a mDNS compatible hostname, ignore regular resolve issues
+        # and try mDNS next
+        if not hostname.endswith(".local") and "." in hostname:
+            raise TorizonCoreBuilderError(f'Resolving hostname "{hostname}" failed.') from sgex
 
     if hostname.endswith(".local"):
         mdns_hostname = hostname
     else:
         mdns_hostname = hostname + ".local"
 
-    resolver = dns.resolver.Resolver()
+    # Configure Resolver manually for mDNS operation
+    resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = ["224.0.0.251"]  # mDNS IPv4 link-local multicast address
     resolver.port = 5353  # mDNS port
-    addr = resolver.query(mdns_hostname, "A")
-    if addr is not None and len(addr) > 0:
+    try:
+        addr = resolver.query(mdns_hostname, "A")
+        if addr is None or len(addr) == 0:
+            raise TorizonCoreBuilderError("Resolving mDNS address failed with no answer")
+
         ip_addr = addr[0].to_text()
         return ip_addr, True
+    except dns.exception.Timeout as dnsex:
+        raise TorizonCoreBuilderError(
+            f'Resolving hostname "{mdns_hostname}" using mDNS failed.') from dnsex
 
-    # Return hostname by default
-    return hostname, False
-
-
-def resolve_remote_address(remote_host):
-    ip = ""
+def resolve_remote_host(remote_host):
+    """Resolve given host to IP address if host is not an IP address already"""
     try:
         _ip_obj = ipaddress.ip_address(remote_host)
-        ip = remote_host ## valid ip string
+        return remote_host
     except ValueError:
-        try:
-            ip, _mdns = resolve_hostname(remote_host)
-        except Exception as ex:
-            raise TorizonCoreBuilderError("unable to resolve address") from ex
-    except Exception as ex:
-        raise TorizonCoreBuilderError("unable to resolve address") from ex
-
-    return ip
+        # This seems to be a host name, let's try to resolve it
+        ip_addr, _mdns = resolve_hostname(remote_host)
+        return ip_addr
