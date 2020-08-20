@@ -29,13 +29,11 @@ def isolate_subcommand(args):
         shutil.rmtree(diff_dir)
         os.mkdir(diff_dir)
 
-    r_username = args.remote_username
-    r_password = args.remote_password
-    r_host = args.remote_host
 
     try:
-        r_ip = resolve_remote_host(r_host)
-        ret = isolate.isolate_user_changes(diff_dir, r_ip, r_username, r_password)
+        r_ip = resolve_remote_host(args.remote_host, args.mdns_source)
+        ret = isolate.isolate_user_changes(diff_dir, r_ip, args.remote_username,
+                                           args.remote_password)
         if ret == isolate.NO_CHANGES:
             log.info("no change is made in /etc by user")
 
@@ -64,5 +62,10 @@ def init_parser(subparsers):
     subparser.add_argument("--remote-password", dest="remote_password",
                            help="""password of remote machine""",
                            required=True)
+    subparser.add_argument("--mdns-source", dest="mdns_source",
+                           help="""Use the given IP address as mDNS source.
+                           This is useful when multiple interfaces are used, and
+                           mDNS multicast requests are sent out the wrong
+                           network interface.""")
 
     subparser.set_defaults(func=isolate_subcommand)

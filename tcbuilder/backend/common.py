@@ -7,6 +7,7 @@ import subprocess
 import dns.resolver
 import socket
 import ipaddress
+from typing import Optional
 import tezi.utils
 from tcbuilder.errors import TorizonCoreBuilderError, FileContentMissing, OperationFailureError, PathNotExistError
 
@@ -151,7 +152,7 @@ def get_additional_size(output_dir_containers, files_to_add):
     return additional_size
 
 
-def resolve_hostname(hostname: str) -> (str, bool):
+def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, bool):
     """
     Convert a hostname to ip using operating system's name resolution service
     first and fallback to mDNS if the hostname is (or can be) a mDNS host name.
@@ -160,6 +161,7 @@ def resolve_hostname(hostname: str) -> (str, bool):
 
     Arguments:
         hostname {str} -- mnemonic name
+        mdns_source {Optional[str]} -- source interface used for mDNS multicasts
 
     Returns:
         str -- IP address as string
@@ -185,7 +187,7 @@ def resolve_hostname(hostname: str) -> (str, bool):
     resolver.nameservers = ["224.0.0.251"]  # mDNS IPv4 link-local multicast address
     resolver.port = 5353  # mDNS port
     try:
-        addr = resolver.query(mdns_hostname, "A", lifetime=3)
+        addr = resolver.query(mdns_hostname, "A", lifetime=3, source=mdns_source)
         if addr is None or len(addr) == 0:
             raise TorizonCoreBuilderError("Resolving mDNS address failed with no answer")
 
@@ -195,12 +197,12 @@ def resolve_hostname(hostname: str) -> (str, bool):
         raise TorizonCoreBuilderError(
             f'Resolving hostname "{mdns_hostname}" using mDNS failed.') from dnsex
 
-def resolve_remote_host(remote_host):
+def resolve_remote_host(remote_host, mdns_source = None):
     """Resolve given host to IP address if host is not an IP address already"""
     try:
         _ip_obj = ipaddress.ip_address(remote_host)
         return remote_host
     except ValueError:
         # This seems to be a host name, let's try to resolve it
-        ip_addr, _mdns = resolve_hostname(remote_host)
+        ip_addr, _mdns = resolve_hostname(remote_host, mdns_source)
         return ip_addr
