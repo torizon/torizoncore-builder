@@ -275,7 +275,13 @@ if __name__ == "__main__":
     mainargs = parser.parse_args()
     setup_logging(mainargs.log_level, mainargs.verbose, mainargs.log_file)
 
-    if hasattr(mainargs, 'func'):
-        mainargs.func(mainargs)
-    else:
-        print("Try --help for options")
+    try:
+        if hasattr(mainargs, 'func'):
+            mainargs.func(mainargs)
+        else:
+            print("Try --help for options")
+    except Exception as ex:
+        logging.fatal(
+            "An unexpected Exception occured. Please provide the following stack trace to\n"
+            "the Toradex TorizonCore support team:\n\n")
+        raise ex
