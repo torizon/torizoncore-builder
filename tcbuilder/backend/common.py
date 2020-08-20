@@ -177,10 +177,10 @@ def resolve_hostname(hostname: str) -> (str, bool):
     except socket.gaierror:
         if not hostname.endswith(".local"):
             hostname += ".local"
-            addr = resolver.query(hostname, "A")
-            if addr is not None and len(addr) > 0:
-                ip = addr[0].to_text()
-                mdns = True
+        addr = resolver.query(hostname, "A")
+        if addr is not None and len(addr) > 0:
+            ip = addr[0].to_text()
+            mdns = True
 
     return ip, mdns
 
