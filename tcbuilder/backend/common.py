@@ -1,15 +1,18 @@
 import datetime
 import glob
+import ipaddress
 import json
 import os
 import shutil
-import subprocess
-import dns.resolver
 import socket
-import ipaddress
+import subprocess
 from typing import Optional
+
+import dns.resolver
+
 import tezi.utils
-from tcbuilder.errors import TorizonCoreBuilderError, FileContentMissing, OperationFailureError, PathNotExistError
+from tcbuilder.errors import (FileContentMissing, OperationFailureError,
+                              PathNotExistError, TorizonCoreBuilderError)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
