@@ -77,87 +77,82 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
             'utf-8').strip())
 
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
-    try:
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        client.connect(hostname=r_name_ip,
-                       username=r_username,
-                       password=r_password)
-        # get config diff
-        status, _stdin, stdout = run_command_with_sudo(client, 'sudo ostree admin config-diff', r_password)
+    client.connect(hostname=r_name_ip,
+                   username=r_username,
+                   password=r_password)
+    # get config diff
+    status, _stdin, stdout = run_command_with_sudo(client, 'sudo ostree admin config-diff', r_password)
+    if status > 0:
+        client.close()
+        raise OperationFailureError('Unable to get user changes',
+                                    stdout.read().decode('utf-8').strip())
+
+    output = stdout.read().decode("utf-8").strip().split("\r\n")
+    # remove upto password keyword
+    indx = output.index("Password: ")
+    output = output[(indx + 1):]
+
+    # filter out files
+    changed_itr = filter(ignore_changes_deletion, output)
+    changes = list(changed_itr)
+    if not changes:
+        return NO_CHANGES
+
+
+    sftp = client.open_sftp()
+    if sftp is not None:
+        # perform all operations in /tmp
+        tmp_dir_name = '/tmp/torizon-builder-' + str(datetime.datetime.now().date()) + '_' + str(
+            datetime.datetime.now().time()).replace(':', '-')
+        sftp.mkdir(tmp_dir_name)
+
+        files_dir_to_tar = ''
+        f_delete_exists = False
+        # append /etc because ostree config provides file/dir names relative to /etc
+        for item in changes:
+            if item.split()[0] != 'D':
+                files_dir_to_tar += '/etc/' + item.split()[1] + ' '
+            else:
+                f_delete_exists = True
+                whiteouts(client, sftp, tmp_dir_name, item.split()[1])
+
+        if f_delete_exists:
+            tar_command = "sudo tar --exclude={0} --xattrs --acls -cf {1}/{0} -C {1} . {2}". \
+                format(TAR_NAME, tmp_dir_name, files_dir_to_tar)
+        else:  # don't include current directory i.e. '.' --> whiteout files does not exist in /tmp/toriozn-builder/
+            tar_command = "sudo tar --xattrs --acls -cf {1}/{0} {2}".format(TAR_NAME,
+                                                                            tmp_dir_name,
+                                                                            files_dir_to_tar)
+        # make tar
+        status, _stdin, stdout = run_command_with_sudo(client, tar_command, r_password)
         if status > 0:
-            client.close()
-            raise OperationFailureError('Unable to get user changes',
-                                                 stdout.read().decode('utf-8').strip())
-
-        output = stdout.read().decode("utf-8").strip().split("\r\n")
-        # remove upto password keyword
-        indx = output.index("Password: ")
-        output = output[(indx + 1):]
-
-        # filter out files
-        changed_itr = filter(ignore_changes_deletion, output)
-        changes = list(changed_itr)
-        if not changes:
-            return NO_CHANGES
-
-
-        sftp = client.open_sftp()
-        if sftp is not None:
-            # perform all operations in /tmp
-            tmp_dir_name = '/tmp/torizon-builder-' + str(datetime.datetime.now().date()) + '_' + str(
-                datetime.datetime.now().time()).replace(':', '-')
-            sftp.mkdir(tmp_dir_name)
-
-            files_dir_to_tar = ''
-            f_delete_exists = False
-            # append /etc because ostree config provides file/dir names relative to /etc
-            for item in changes:
-                if item.split()[0] != 'D':
-                    files_dir_to_tar += '/etc/' + item.split()[1] + ' '
-                else:
-                    f_delete_exists = True
-                    whiteouts(client, sftp, tmp_dir_name, item.split()[1])
-
-            if f_delete_exists:
-                tar_command = "sudo tar --exclude={0} --xattrs --acls -cf {1}/{0} -C {1} . {2}". \
-                    format(TAR_NAME, tmp_dir_name, files_dir_to_tar)
-            else:  # don't include current directory i.e. '.' --> whiteout files does not exist in /tmp/toriozn-builder/
-                tar_command = "sudo tar --xattrs --acls -cf {1}/{0} {2}".format(TAR_NAME,
-                                                                                tmp_dir_name,
-                                                                                files_dir_to_tar)
-            # make tar
-            status, _stdin, stdout = run_command_with_sudo(client, tar_command, r_password)
-            if status > 0:
-                remove_tmp_dir(client, tmp_dir_name)
-                sftp.close()
-                client.close()
-                raise OperationFailureError('Unable to bundle up changes at target',
-                                                   stdout.read().decode('utf-8').strip())
-
-            # get the tar
-            sftp.get(tmp_dir_name + '/' + TAR_NAME, diff_dir
-                     + '/' + TAR_NAME, None)
             remove_tmp_dir(client, tmp_dir_name)
             sftp.close()
-        else:
             client.close()
-            raise TorizonCoreBuilderError('Unable to create SSH connection for transferring of files')
+            raise OperationFailureError('Unable to bundle up changes at target',
+                                        stdout.read().decode('utf-8').strip())
 
+        # get the tar
+        sftp.get(tmp_dir_name + '/' + TAR_NAME, diff_dir + '/' + TAR_NAME, None)
+        remove_tmp_dir(client, tmp_dir_name)
+        sftp.close()
+    else:
         client.close()
+        raise TorizonCoreBuilderError('Unable to create SSH connection for transferring of files')
 
-        # Extract tar to diff_dir/usr/ so that at time of union
-        # they can be committed to /usr/etc of unpacked image as it is
-        os.mkdir(diff_dir + "/usr")
-        extract_tar_cmd = "tar --acls --xattrs --overwrite --preserve-permissions " \
-                          "-xf {0}/{1} -C {2}/".format(
-            diff_dir, TAR_NAME, diff_dir + "/usr")
-        subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
-        subprocess.check_output('rm {}/{}'.format(diff_dir,
-                                                  TAR_NAME), shell=True, stderr=subprocess.STDOUT)
+    client.close()
 
-        return CHANGES_CAPTURED
-    except Exception as ex:
-        raise TorizonCoreBuilderError("issue occurred during handling of isolated changes. Contact Developer") \
-            from ex
+    # Extract tar to diff_dir/usr/ so that at time of union
+    # they can be committed to /usr/etc of unpacked image as it is
+    os.mkdir(diff_dir + "/usr")
+    extract_tar_cmd = "tar --acls --xattrs --overwrite --preserve-permissions " \
+                        "-xf {0}/{1} -C {2}/".format(
+        diff_dir, TAR_NAME, diff_dir + "/usr")
+    subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
+    subprocess.check_output('rm {}/{}'.format(diff_dir,
+                                              TAR_NAME), shell=True, stderr=subprocess.STDOUT)
+
+    return CHANGES_CAPTURED
