@@ -15,21 +15,21 @@ def union_subcommand(args):
     """Run \"union\" subcommand"""
     log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
-    if args.diff_dir is None:
+    if args.changes_dir is None:
         ans = input("is this change for splash image? [y/N] ")
         if ans.lower() == "y":
-            diff_dir = "/storage/splash"
+            changes_dir = "/storage/splash"
         else:
-            diff_dir = "/storage/changes"
+            changes_dir = "/storage/changes"
     else:
-        diff_dir = os.path.abspath(args.diff_dir)
+        changes_dir = os.path.abspath(args.changes_dir)
 
     union_branch = args.union_branch
 
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    if not os.path.exists(diff_dir):
-        log.error(f"{diff_dir} does not exist")
+    if not os.path.exists(changes_dir):
+        log.error(f"{changes_dir} does not exist")
         return
 
     if not os.path.exists(storage_dir):
@@ -37,7 +37,7 @@ def union_subcommand(args):
         return
 
     try:
-        commit = union.union_changes(diff_dir, src_ostree_archive_dir, union_branch)
+        commit = union.union_changes(changes_dir, src_ostree_archive_dir, union_branch)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -49,7 +49,7 @@ def init_parser(subparsers):
     """Initialize argument parser"""
     subparser = subparsers.add_parser("union", help="""\
     Create a commit out of isolated changes for unpacked Tezi Image""")
-    subparser.add_argument("--diff-directory", dest="diff_dir",
+    subparser.add_argument("--changes-directory", dest="changes_dir",
                            help="""Path to the directory containing user changes
                            (must be same as provided for isolate).
                            Must be a file system capable of carrying Linux file system
