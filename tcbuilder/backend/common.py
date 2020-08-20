@@ -153,7 +153,7 @@ def get_additional_size(output_dir_containers, files_to_add):
 
 def resolve_hostname(hostname: str) -> (str, bool):
     """
-    Convert a hostname to ip using dns first and then mdnsself.
+    Convert a hostname to ip using DNS first and then mDNS.
     If it does not resolve it, returns the original value (in
     case this may be parsed in some smarter ways down the line)
 
@@ -161,28 +161,32 @@ def resolve_hostname(hostname: str) -> (str, bool):
         hostname {str} -- mnemonic name
 
     Returns:
-        str -- ip address as string
+        str -- IP address as string
         bool - true id mdns has been used
     """
+
+    try:
+        ip_addr = socket.gethostbyname(hostname)
+        return ip_addr, False
+    except socket.gaierror:
+        # Ignore regular resolve issues and try mDNS next
+        pass
+
+    if hostname.endswith(".local"):
+        mdns_hostname = hostname
+    else:
+        mdns_hostname = hostname + ".local"
 
     resolver = dns.resolver.Resolver()
     resolver.nameservers = ["224.0.0.251"]  # mDNS IPv4 link-local multicast address
     resolver.port = 5353  # mDNS port
+    addr = resolver.query(mdns_hostname, "A")
+    if addr is not None and len(addr) > 0:
+        ip_addr = addr[0].to_text()
+        return ip_addr, True
 
-    ip = hostname
-    mdns = False
-
-    try:
-        ip = socket.gethostbyname(hostname)
-    except socket.gaierror:
-        if not hostname.endswith(".local"):
-            hostname += ".local"
-        addr = resolver.query(hostname, "A")
-        if addr is not None and len(addr) > 0:
-            ip = addr[0].to_text()
-            mdns = True
-
-    return ip, mdns
+    # Return hostname by default
+    return hostname, False
 
 
 def resolve_remote_address(remote_host):
