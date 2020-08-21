@@ -11,9 +11,22 @@ import traceback
 from tcbuilder.backend import union
 from tcbuilder.errors import TorizonCoreBuilderError
 
+log = logging.getLogger("torizon." + __name__)
+
+def check_and_append_dirs(changes_dirs, new_changes_dirs):
+    """Check and append additional directories with changes"""
+
+    for changes_dir in new_changes_dirs:
+        if not os.path.exists(changes_dir):
+            log.error(f'Changes directory "{changes_dir}" does not exist')
+            return False
+
+        changes_dirs.append(os.path.abspath(changes_dir))
+
+    return True
+
 def union_subcommand(args):
     """Run \"union\" subcommand"""
-    log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
 
     if not os.path.exists(storage_dir):
@@ -28,11 +41,12 @@ def union_subcommand(args):
         if os.path.isdir("/storage/splash"):
             changes_dirs.append("/storage/splash")
     else:
-        for changes_dir in args.changes_dirs:
-            changes_dirs.append(os.path.abspath(changes_dir))
-            if not os.path.exists(changes_dir):
-                log.error(f'Changes directory "{changes_dir}" does not exist')
-                return
+        if not check_and_append_dirs(changes_dirs, args.changes_dirs):
+            return
+
+    if args.extra_changes_dirs is not None:
+        if not check_and_append_dirs(changes_dirs, args.extra_changes_dirs):
+            return
 
     union_branch = args.union_branch
 
@@ -53,6 +67,9 @@ def init_parser(subparsers):
     Create a commit out of isolated changes for unpacked Tezi Image""")
     subparser.add_argument("--changes-directory", dest="changes_dirs", action='append',
                            help="""Path to the directory containing user changes.
+                           Can be specified multiple times!""")
+    subparser.add_argument("--extra-changes-directory", dest="extra_changes_dirs", action='append',
+                           help="""Additional path with user changes to be committed.
                            Can be specified multiple times!""")
     subparser.add_argument("--union-branch", dest="union_branch",
                            help="""Name of branch containing the changes committed to
