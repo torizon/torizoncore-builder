@@ -11,9 +11,9 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
-def commit_changes(repo, ref, changes_dir, branch_name):
+def commit_changes(repo, ref, changes_dirs, branch_name):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
-    log.debug(f"Committing changes from {changes_dir} to {branch_name}")
+    log.debug(f"Committing changes from {changes_dirs} to {branch_name}")
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
 
@@ -29,13 +29,14 @@ def commit_changes(repo, ref, changes_dir, branch_name):
         raise TorizonCoreBuilderError("Write base tree failed.")
 
     # --tree=dir=my-changes
-    changesdir_fd = os.open(changes_dir, os.O_DIRECTORY)
-    if not repo.write_dfd_to_mtree(changesdir_fd, ".", mt):
-        raise TorizonCoreBuilderError("Adding directory to commit failed.")
+    for changes_dir in changes_dirs:
+        changesdir_fd = os.open(changes_dir, os.O_DIRECTORY)
+        if not repo.write_dfd_to_mtree(changesdir_fd, ".", mt):
+            raise TorizonCoreBuilderError("Adding directory to commit failed.")
 
-    result, root = repo.write_mtree(mt)
-    if not result:
-        raise TorizonCoreBuilderError("Write mtree failed.")
+        result, root = repo.write_mtree(mt)
+        if not result:
+            raise TorizonCoreBuilderError("Write mtree failed.")
 
     result, commitvar, _state = repo.load_commit(csum)
     if not result:

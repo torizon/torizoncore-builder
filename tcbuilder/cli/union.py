@@ -15,29 +15,31 @@ def union_subcommand(args):
     """Run \"union\" subcommand"""
     log = logging.getLogger("torizon." + __name__)
     storage_dir = os.path.abspath(args.storage_directory)
-    if args.changes_dir is None:
-        ans = input("is this change for splash image? [y/N] ")
-        if ans.lower() == "y":
-            changes_dir = "/storage/splash"
-        else:
-            changes_dir = "/storage/changes"
+
+    if not os.path.exists(storage_dir):
+        log.error(f'Storage directory "{storage_dir}" does not exist.')
+        return
+
+    changes_dirs = []
+    if args.changes_dirs is None:
+        # Automatically add the ones present...
+        if os.path.isdir("/storage/changes"):
+            changes_dirs.append("/storage/changes")
+        if os.path.isdir("/storage/splash"):
+            changes_dirs.append("/storage/splash")
     else:
-        changes_dir = os.path.abspath(args.changes_dir)
+        for changes_dir in args.changes_dirs:
+            changes_dirs.append(os.path.abspath(changes_dir))
+            if not os.path.exists(changes_dir):
+                log.error(f'Changes directory "{changes_dir}" does not exist')
+                return
 
     union_branch = args.union_branch
 
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    if not os.path.exists(changes_dir):
-        log.error(f"{changes_dir} does not exist")
-        return
-
-    if not os.path.exists(storage_dir):
-        log.error(f"{storage_dir} does not exist")
-        return
-
     try:
-        commit = union.union_changes(changes_dir, src_ostree_archive_dir, union_branch)
+        commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -49,12 +51,9 @@ def init_parser(subparsers):
     """Initialize argument parser"""
     subparser = subparsers.add_parser("union", help="""\
     Create a commit out of isolated changes for unpacked Tezi Image""")
-    subparser.add_argument("--changes-directory", dest="changes_dir",
-                           help="""Path to the directory containing user changes
-                           (must be same as provided for isolate).
-                           Must be a file system capable of carrying Linux file system
-                           metadata (Unix file permissions and xattr).""",
-                           default="/storage/changes")
+    subparser.add_argument("--changes-directory", dest="changes_dirs", action='append',
+                           help="""Path to the directory containing user changes.
+                           Can be specified multiple times!""")
     subparser.add_argument("--union-branch", dest="union_branch",
                            help="""Name of branch containing the changes committed to
                            the unpacked repo.
