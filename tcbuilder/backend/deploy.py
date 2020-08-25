@@ -192,7 +192,7 @@ def run_command_with_sudo(client, command, password):
             log.debug(stderr_str)
 
 def deploy_ostree_remote(remote_host, remote_username, remote_password,
-                         src_ostree_archive_dir, ref):
+                         src_ostree_archive_dir, ref, reboot=False):
     """Implementation to deploy OSTree on remote device"""
 
     # It seems the customer did not pass a reference, deploy the original commit
@@ -208,7 +208,7 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
     if not ret:
         raise TorizonCoreBuilderError(f"Error resolving {ref}.")
 
-    log.info(f"Pulling OSTree with ref {ref} (checksum {csumdeploy})"
+    log.info(f"Pulling OSTree with ref {ref} (checksum {csumdeploy}) "
              "from local archive repository...")
 
     # Start http server...
@@ -239,8 +239,16 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
     run_command_with_sudo(
         client, f"ostree admin deploy --stage tcbuilder:{csumdeploy}", remote_password)
 
-    log.info("Deploying successfully finished. "
-             "Please reboot the device to boot into the new deployment.")
+    log.info("Deploying successfully finished.")
+
+    if reboot:
+        # If reboot is started in foreground it leads to exit code <> 0 sometimes
+        # which leads to a stack trace in torizoncore-builder. Start in background
+        # to make the command run successfully always.
+        run_command_with_sudo(client, "sh -c 'reboot &'", remote_password)
+        log.info("Device reboot initiated...")
+    else:
+        log.info("Please reboot the device to boot into the new deployment.")
 
     client.close()
 
