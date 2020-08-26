@@ -110,6 +110,20 @@ def combine_single_image(source_dir_containers, files_to_add, additional_size,
                   image_name, image_description, licence_file,
                   release_notes_file)
 
+def get_unpack_command(filename):
+    """Get shell command to unpack a given file format"""
+    if filename.endswith(".gz"):
+        return "gzip -dc"
+    elif filename.endswith(".xz"):
+        return "xz -dc"
+    elif filename.endswith(".lzo"):
+        return "lzop -dc"
+    elif filename.endswith(".zst"):
+        return "zstd -dc"
+    elif filename.endswith(".lz4"):
+        return "lz4 -dc"
+    else:
+        return "cat"
 
 def get_additional_size(output_dir_containers, files_to_add):
     additional_size = 0
@@ -128,14 +142,7 @@ def get_additional_size(output_dir_containers, files_to_add):
             unpack = rest[0].lower() == "true"
 
         if unpack:
-            if filename.endswith(".gz"):
-                command = "gzip -dc"
-            elif filename.endswith(".xz"):
-                command = "xz -dc"
-            elif filename.endswith(".lzo"):
-                command = "lzop -dc"
-            elif filename.endswith(".zst"):
-                command = "zstd -dc"
+            command = get_unpack_command(filename)
 
             # Unpack similar to how Tezi does the size check
             size_proc = subprocess.run(

@@ -32,6 +32,9 @@ def get_compression_command(output_file):
     elif output_file.endswith(".lzo"):
         output_file_tar = output_file[:-4]
         command = ["lzop", "-U", "-o", output_file, output_file_tar]
+    elif output_file.endswith(".lz4"):
+        output_file_tar = output_file[:-4]
+        command = ["lz4", "-1", "-z", output_file, output_file_tar]
     elif output_file.endswith(".zst"):
         output_file_tar = output_file[:-4]
         command = ["zstd", "--rm", output_file_tar, "-o", output_file]
