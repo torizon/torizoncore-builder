@@ -27,7 +27,9 @@ def update_targets(targets_file_path, packagename, commit, subject, body):
     data["targets"][target_name]["custom"]["commitSubject"] = subject
     data["targets"][target_name]["custom"]["commitBody"] = body
 
-    log.debug("targets.json for this commit: \"{}\"", data["targets"][target_name])
+    if log.isEnabledFor(logging.DEBUG):
+        formatted_json_string = json.dumps(data["targets"][target_name], indent=2)
+        log.debug(f"targets.json for this commit: \"{formatted_json_string}\"")
 
     with open(targets_file_path, 'w') as targets_file:
         json.dump(data, targets_file, indent=2)
