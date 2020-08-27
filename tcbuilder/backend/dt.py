@@ -21,21 +21,24 @@ def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
         raise TorizonCoreBuilderError("Missing input devicetree")
 
     tempdir = tempfile.mkdtemp()
-    dtbos = []
-    for overlay in overlays:
-        dtbo = tempdir + "/" + os.path.basename(overlay) + ".dtbo"
-        build(overlay, dtbo, includepaths)
-        dtbos.append(dtbo)
+    if overlays is not None:
+        dtbos = []
+        for overlay in overlays:
+            dtbo = tempdir + "/" + os.path.basename(overlay) + ".dtbo"
+            build(overlay, dtbo, includepaths)
+            dtbos.append(dtbo)
 
-    apply_overlays(devicetree, dtbos, devicetree_out)
+        apply_overlays(devicetree, dtbos, devicetree_out)
+    else:
+        build(devicetree, devicetree_out, includepaths)
 
     shutil.rmtree(tempdir)
 
-def build(overlay, outputpath=None, includepaths=None):
+def build(source_file, outputpath=None, includepaths=None):
     """ Compile a dtbs file into dtb or dtbo output
 
         Args:
-            overlay (str) - path of source overlay file
+            source_file (str) - path of source device tree/overlay file
             outputpath (str) - output file name/folder, if None then extension
                 is appended to source file name, if it's a folder file with dtb/dtbo
                 extension is created
@@ -43,26 +46,26 @@ def build(overlay, outputpath=None, includepaths=None):
 
         Raises:
             FileNotFoundError: invalid file name or build errors
-            OperationFailureError: failed to build the overlay
+            OperationFailureError: failed to build the source_file
     """
 
-    if not os.path.isfile(overlay):
-        raise FileNotFoundError("Invalid overlay")
+    if not os.path.isfile(source_file):
+        raise FileNotFoundError("Invalid source_file")
 
     ext=".dtb"
 
-    with open(overlay, "r") as f:
+    with open(source_file, "r") as f:
         for line in f:
             if "fragment@0" in line:
                 ext=".dtbo"
                 break
 
     if outputpath is None:
-        outputpath="./"+os.path.basename(overlay)+ext
+        outputpath="./"+os.path.basename(source_file)+ext
 
     if os.path.isdir(outputpath):
         outputpath=os.path.join(
-            outputpath, os.path.basename(overlay)+ext)
+            outputpath, os.path.basename(source_file)+ext)
 
 
     cppcmdline = ["cpp", "-nostdinc", "-undef", "-x", "assembler-with-cpp"]
@@ -78,10 +81,10 @@ def build(overlay, outputpath=None, includepaths=None):
         else:
             raise OperationFailureError("Please provide include paths as list")
 
-    tmppath=overlay+".tmp"
+    tmppath=source_file+".tmp"
 
     dtccmdline += ["-o", outputpath, tmppath]
-    cppcmdline += ["-o", tmppath, overlay]
+    cppcmdline += ["-o", tmppath, source_file]
 
     cppprocess=subprocess.run(
         cppcmdline, stderr=subprocess.PIPE, check=False)
@@ -92,7 +95,7 @@ def build(overlay, outputpath=None, includepaths=None):
 
     dtcprocess=subprocess.run(
         dtccmdline, stderr=subprocess.PIPE, check=False)
-
+    
     if dtcprocess.returncode != 0:
         raise OperationFailureError("Failed to build device tree.\n" +
                         dtcprocess.stderr.decode("utf-8"))
@@ -130,3 +133,4 @@ def apply_overlays(devicetree, overlays, devicetree_out):
         raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")
 
     logging.info("Successfully applied device tree")
+   
