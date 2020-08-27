@@ -14,7 +14,7 @@ from tcbuilder.backend import ostree
 
 log = logging.getLogger("torizon." + __name__)
 
-def update_targets(targets_file_path, packagename, commit, subject, body):
+def update_targets(targets_file_path, packagename, commit, subject, body, metadata):
     """Add Toradex specific metadata in targets.json"""
 
     with open(targets_file_path, 'r') as targets_file:
@@ -26,6 +26,7 @@ def update_targets(targets_file_path, packagename, commit, subject, body):
 
     data["targets"][target_name]["custom"]["commitSubject"] = subject
     data["targets"][target_name]["custom"]["commitBody"] = body
+    data["targets"][target_name]["custom"]["ostreeMetadata"] = metadata
 
     if log.isEnabledFor(logging.DEBUG):
         formatted_json_string = json.dumps(data["targets"][target_name], indent=2)
@@ -107,8 +108,13 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
                         "--hardwareids", module])
 
     # Extend target info with OSTree commit metadata
+    # Remove some metadata keys which are already used otherwise or ar rather
+    # large and blow up targets.json unnecessary
+    for key in [ "oe.garage-target-name", "oe.garage-target-version", "oe.sota-hardware-id",
+                 "oe.layers", "oe.kargs-default" ]:
+        metadata.pop(key, None)
     targets_file_path = os.path.join(tuf_repo, "roles/unsigned/targets.json")
-    update_targets(targets_file_path, packagename, commit, subject, body)
+    update_targets(targets_file_path, packagename, commit, subject, body, metadata)
 
     run_garage_command(["garage-sign", "targets", "sign",
                         "--repo", tuf_repo,
