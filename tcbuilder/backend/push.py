@@ -43,7 +43,7 @@ def run_garage_command(command):
         raise TorizonCoreBuilderError("Error running garage command \"{}\" with arguments \"{}\""
                                       .format(command[0], command[1:]))
 
-    stdoutstr = garage_command.stdout.decode()
+    stdoutstr = garage_command.stdout.decode().strip()
     if len(stdoutstr) > 0:
         log.debug(stdoutstr)
 
