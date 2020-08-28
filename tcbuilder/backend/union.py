@@ -11,7 +11,7 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
-def commit_changes(repo, ref, changes_dirs, branch_name):
+def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
     log.debug(f"Committing changes from {changes_dirs} to {branch_name}")
     if not repo.prepare_transaction():
@@ -49,24 +49,29 @@ def commit_changes(repo, ref, changes_dirs, branch_name):
     # the whole GLib.Variant's structure, which we do not know (e.g. future
     # OSTree commits might add structured data we do not know about today).
     metadata = commitvar.get_child_value(0)
-    subject = commitvar.get_child_value(3).get_string()
-    body = commitvar.get_child_value(4).get_string()
+    _orig_subject = commitvar.get_child_value(3).get_string()
+    _orig_body = commitvar.get_child_value(4).get_string()
 
     # Append something to the version object
     newmetadata = []
+    timestamp = datetime.datetime.now()
     for i in range(metadata.n_children()):
         kv = metadata.get_child_value(i)
         # Adjust the "verison" metadata, and pass everyting else transparently
         if kv.get_child_value(0).get_string() == 'version':
             # Version itself is a Variant, which just contains a string...
             version = kv.get_child_value(1).get_child_value(0).get_string()
-            version += "-tcbuilder." + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            version += "-tcbuilder." + timestamp.strftime("%Y%m%d%H%M%S")
             newmetadata.append(
                     GLib.Variant.new_dict_entry(GLib.Variant("s", "version"),
                         GLib.Variant('v', GLib.Variant("s", version)))
                     )
         else:
             newmetadata.append(kv)
+
+    if subject is None:
+        isodatetime = timestamp.replace(microsecond=0).isoformat()
+        subject = f"TorizonCore Builder union commit created at {isodatetime}"
 
     # GLib.Variant of type "a{sv}" (array of dictionaries), which is the
     # metadata obeject
@@ -86,10 +91,11 @@ def commit_changes(repo, ref, changes_dirs, branch_name):
 
     return commit
 
-def union_changes(changes_dir, ostree_archive_dir, union_branch):
+def union_changes(changes_dir, ostree_archive_dir, union_branch, subject, body):
     repo = ostree.open_ostree(ostree_archive_dir)
 
     # Create new commit with the changes overlayed in a single transaction
-    final_commit = commit_changes(repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch)
+    final_commit = commit_changes(repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch,
+                                  subject, body)
 
     return final_commit

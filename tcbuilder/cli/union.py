@@ -53,7 +53,8 @@ def union_subcommand(args):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     try:
-        commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch)
+        commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch,
+                                     args.subject, args.body)
         log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -76,5 +77,11 @@ def init_parser(subparsers):
                            the unpacked repo.
                            """,
                            required=True)
+    subparser.add_argument("--subject", dest="subject",
+                           help="""OSTree commit subject. Defaults to
+                           "TorzionCore Builder [timestamp]"
+                           """)
+    subparser.add_argument("--body", dest="body",
+                           help="""OSTree commit body message""")
 
     subparser.set_defaults(func=union_subcommand)
