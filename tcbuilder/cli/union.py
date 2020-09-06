@@ -41,7 +41,7 @@ def union_subcommand(args):
         if os.path.isdir("/storage/splash"):
             changes_dirs.append("/storage/splash")
         if os.path.isdir("/storage/dt"):
-            changes_dirs.append("/storage/dt")    
+            changes_dirs.append("/storage/dt")
     else:
         if not check_and_append_dirs(changes_dirs, args.changes_dirs):
             return

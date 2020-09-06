@@ -11,7 +11,7 @@ def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
         Args:
             devicetree (str) - input devicetree
             overlays (str) - list of devicetree overlays to apply
-            devicetree_out (str) - the output devicetree with overlays applied
+            devicetree_out (str) - the output devicetree(with overlays) applied
             includepaths (list) - list of additional include paths
 
         Raises:
@@ -52,20 +52,19 @@ def build(source_file, outputpath=None, includepaths=None):
     if not os.path.isfile(source_file):
         raise FileNotFoundError("Invalid source_file")
 
-    ext=".dtb"
+    ext = ".dtb"
 
     with open(source_file, "r") as f:
         for line in f:
             if "fragment@0" in line:
-                ext=".dtbo"
+                ext = ".dtbo"
                 break
-
     if outputpath is None:
-        outputpath="./"+os.path.basename(source_file)+ext
+        outputpath = "./" + os.path.basename(source_file) + ext
 
     if os.path.isdir(outputpath):
-        outputpath=os.path.join(
-            outputpath, os.path.basename(source_file)+ext)
+        outputpath = os.path.join(
+            outputpath, os.path.basename(source_file) + ext)
 
 
     cppcmdline = ["cpp", "-nostdinc", "-undef", "-x", "assembler-with-cpp"]
@@ -81,28 +80,26 @@ def build(source_file, outputpath=None, includepaths=None):
         else:
             raise OperationFailureError("Please provide include paths as list")
 
-    tmppath=source_file+".tmp"
+    tmppath = source_file+".tmp"
 
     dtccmdline += ["-o", outputpath, tmppath]
     cppcmdline += ["-o", tmppath, source_file]
 
-    cppprocess=subprocess.run(
+    cppprocess = subprocess.run(
         cppcmdline, stderr=subprocess.PIPE, check=False)
 
     if cppprocess.returncode != 0:
         raise OperationFailureError("Failed to preprocess device tree.\n" +
                         cppprocess.stderr.decode("utf-8"))
 
-    dtcprocess=subprocess.run(
+    dtcprocess = subprocess.run(
         dtccmdline, stderr=subprocess.PIPE, check=False)
-    
+
     if dtcprocess.returncode != 0:
         raise OperationFailureError("Failed to build device tree.\n" +
-                        dtcprocess.stderr.decode("utf-8"))
+                    dtcprocess.stderr.decode("utf-8"))
 
     os.remove(tmppath)
-
-    logging.info("Successfully built device tree")
 
 def apply_overlays(devicetree, overlays, devicetree_out):
     """ Verifies that a compiled overlay is valid for the base device tree
@@ -132,5 +129,4 @@ def apply_overlays(devicetree, overlays, devicetree_out):
     if fdtoverlay.stderr != b'':
         raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")
 
-    logging.info("Successfully applied device tree")
-   
+    logging.info("Successfully applied device tree overlay")
