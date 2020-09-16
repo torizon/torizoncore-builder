@@ -3,8 +3,11 @@ import os
 import shutil
 import gi
 gi.require_version("OSTree", "1.0")
+import traceback
+from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import dt
 from tcbuilder.backend import ostree
+from tcbuilder.backend.common import checkout_git_repo
 
 # If OSTree finds a file named `devicetree` it will consider it as the only relevant
 # device tree to deploy.
@@ -101,6 +104,41 @@ def dt_custom_subcommand(args):
 
     log.info(f"Device tree {args.devicetree} built successfully")
 
+def dt_checkout_subcommand(args):
+    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+
+    storage_dir = os.path.abspath(args.storage_directory)
+
+    if args.git_repo is None:
+        if args.git_branch is not None:
+            log.error("git repo is not provided")
+            return
+        elif os.path.exists(os.path.abspath("device-tree-overlays")):
+            log.error("'device-tree-overlays' directory already exists")
+            return
+    elif args.git_repo is not None:
+        if args.git_branch is None:
+            log.error("git branch is not provided")
+            return
+        elif (args.git_repo.startswith("https://") or
+            args.git_repo.startswith("git://")):
+            repo_name = args.git_repo.rsplit('/', 1)[1].rsplit('.', 1)[0]
+            if os.path.exists(os.path.abspath(repo_name)):
+                log.error(f"directory '{repo_name}' named as repo name should not exist")
+                return
+        elif not os.path.exists(os.path.abspath(args.git_repo)):
+            log.error(f"{args.git_repo} directory does not exist")
+            return
+
+    try:
+        checkout_git_repo(storage_dir, args.git_repo, args.git_branch)
+        log.info("dt checkout completed successfully")
+    except TorizonCoreBuilderError as ex:
+        log.error(ex.msg)  # msg from all kinds of Exceptions
+        if ex.det is not None:
+            log.info(ex.det)  # more elaborative message
+        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
+
 def add_overlay_parser(parser):
     subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
     subparser = subparsers.add_parser("overlay", help="Apply an overlay")
@@ -129,8 +167,18 @@ def add_overlay_parser(parser):
                            help="""Directory with device tree include (.dtsi) or
                            header files. Can be passed multiple times.""",
                            required=True)
-    
+
     subparser.set_defaults(func=dt_custom_subcommand)
+
+    subparser = subparsers.add_parser("checkout", help="checkout a git branch from remote repository")
+    subparser.add_argument("--repository", dest="git_repo",
+                           help="""Remote repository URL. Default repo is
+                           https://github.com/toradex/device-tree-overlays""")
+    subparser.add_argument("--branch", dest="git_branch",
+                           help="""Branch to be checked out. Default branch with default repo is
+                           toradex_<kmajor>.<kminor>.<x>""")
+
+    subparser.set_defaults(func=dt_checkout_subcommand)
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("dt", help="""\

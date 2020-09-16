@@ -6,13 +6,15 @@ import os
 import shutil
 import socket
 import subprocess
+import git
+from tcbuilder.backend import ostree
 from typing import Optional
 
 import dns.resolver
 
 import tezi.utils
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
-                              PathNotExistError, TorizonCoreBuilderError)
+                              PathNotExistError, TorizonCoreBuilderError, GitRepoError)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
@@ -216,3 +218,49 @@ def resolve_remote_host(remote_host, mdns_source = None):
         # This seems to be a host name, let's try to resolve it
         ip_addr, _mdns = resolve_hostname(remote_host, mdns_source)
         return ip_addr
+
+def find_branch(git_repo, storage_dir):
+    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
+    csum, _kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
+    metadata, _subject, _body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
+    kernel_source = metadata["oe.kernel-source"]
+    kernel_version = kernel_source.split(",")[1]
+    
+    ref = None
+    for branch in git_repo.remotes["origin"].refs:
+        if branch.name.startswith(kernel_version):
+            if len(branch.name) == len(kernel_version) or not branch.name[len(kernel_version)].isnumeric():
+                if ref is not None:
+                    raise GitRepoError(
+                "Multiple branches match running kernel version (" + kernel_version + ")")
+            ref = branch
+    return ref
+
+def checkout_git_repo(storage_dir, git_repo = None, git_branch = None):
+    if git_repo is None:
+        repo_obj = git.Repo.clone_from("https://github.com/toradex/device-tree-overlays", "device-tree-overlays")
+    elif git_repo.startswith("https://") or git_repo.startswith("git://"):
+        repo_obj = git.Repo.clone_from(git_repo,
+                    git_repo.rsplit('/', 1)[1].rsplit('.', 1)[0]) # second arg is directory name,same as repo name
+    else:
+        repo_obj = git.Repo(git_repo)
+
+    if repo_obj.bare:
+        raise GitRepoError("git repo seem to be empty.")
+
+    ref = None
+
+    if git_branch is not None:
+        ref = next((h for h in repo_obj.remotes["origin"].refs if h.name == ("origin/" + git_branch)), None)
+        if ref is None:
+            raise GitRepoError(
+                "Required branch does not exist")
+    else:
+        ref = find_branch(repo_obj, storage_dir)
+        if ref is None:
+            raise GitRepoError(
+                        "No default branch found")
+
+    ref.checkout()
+    repo_obj.close()

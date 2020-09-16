@@ -17,3 +17,6 @@ class OperationFailureError(TorizonCoreBuilderError):
 
 class FileContentMissing(TorizonCoreBuilderError):
     pass
+
+class GitRepoError(TorizonCoreBuilderError):
+    pass
