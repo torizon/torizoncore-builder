@@ -9,6 +9,7 @@ from tcbuilder.backend import dt
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import checkout_git_repo
 from tcbuilder.errors import PathNotExistError, InvalidStateError
+from tcbuilder.backend.overlay_parser import CompatibleOverlayParser
 
 # If OSTree finds a file named `devicetree` it will consider it as the only relevant
 # device tree to deploy.
@@ -133,6 +134,57 @@ def dt_checkout_subcommand(args):
             log.info(ex.det)  # more elaborative message
         log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
+def dt_list_overlays_subcommand(args):
+    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+
+    if not os.path.exists(os.path.abspath(args.overlays_dir)):
+        log.error(f"{args.overlays_dir} does not exist")
+        return
+
+    if args.devicetree is None and args.devicetree_bin is None:
+        log.error("no devicetree file is provided")
+        return
+
+    if args.devicetree is not None and args.devicetree_bin is not None:
+        log.error("provide either device tree source file or binary file")
+        return
+
+    if args.devicetree is not None and \
+            not os.path.exists(os.path.abspath(args.devicetree)):
+        log.error(f"{args.devicetree} does not exist")
+        return
+
+    if args.devicetree_bin is not None and \
+        not os.path.exists(os.path.abspath(args.devicetree_bin)):
+        log.error(f"{args.devicetree_bin} does not exist")
+        return
+
+    overlays_path = os.path.abspath(args.overlays_dir)
+
+    parser = CompatibleOverlayParser()
+    compatibilities = []
+    if args.devicetree_bin is not None:
+        compatibilities = parser.get_compatibilities_binary(args.devicetree_bin)
+    else:
+        compatibilities = parser.get_compatibilities_source(args.devicetree)
+
+    compatible_overlays = []
+    for path in sorted(os.listdir(overlays_path)):
+        if path.endswith(".dts"):
+            overlay_path = os.path.join(overlays_path, path)
+            if os.path.isfile(overlay_path):
+                if parser.check_compatibility(compatibilities, overlay_path):
+                    compatible_overlays.append(path)
+
+    if compatible_overlays:
+        log.info("Available overlays are:")
+        for compatible_overlay in compatible_overlays:
+            log.info(f"\t {compatible_overlay}")
+
+        log.info(parser.parse(overlay_path))
+    else:
+        log.info("no compatible overlay found")
+
 def add_overlay_parser(parser):
     subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
     subparser = subparsers.add_parser("overlay", help="Apply an overlay")
@@ -173,6 +225,17 @@ def add_overlay_parser(parser):
                            toradex_<kmajor>.<kminor>.<x>""")
 
     subparser.set_defaults(func=dt_checkout_subcommand)
+
+    subparser = subparsers.add_parser("list-overlays", help="list overlays")
+    subparser.add_argument("--devicetree", dest="devicetree",
+                           help="Device tree source file")
+    subparser.add_argument("--devicetree-bin", dest="devicetree_bin",
+                           help="Device tree binary file")
+    subparser.add_argument("--overlays-dir", dest="overlays_dir",
+                           help="Path to overlays directory",
+                           required=True)
+
+    subparser.set_defaults(func=dt_list_overlays_subcommand)
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("dt", help="""\
