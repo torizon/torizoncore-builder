@@ -279,12 +279,11 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
 
         logging.info("Save Docker Compose file")
         f = open(os.path.join(manager.output_dir, "docker-compose.yml"), "w")
-        
-        #Serialization need to escape dollar sign and requires no env varibales interpolation.
-        s_cfg = compose.config.load(config, interpolate=False)
-        f.write(compose.config.serialize.serialize_config(s_cfg, escape_dollar=False))
+
+        # Serialization need to escape dollar sign and requires no env varibales interpolation.
+        f.write(compose.config.serialize.serialize_config(cfg, escape_dollar=False))
         f.close()
-       
+
         logging.info("Exporting storage")
         manager.save_tar(output_filename)
 
