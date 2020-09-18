@@ -208,6 +208,13 @@ class DindManager(DockerManager):
                           },
                 command = self.get_tar_command(os.path.join(output_mount_dir, output_file_tar)),
                 auto_remove=True)
+        logging.debug(f"tar container output: \n{_tar_container}")
+
+        output_filepath_tar = os.path.join(self.output_dir, output_file_tar)
+        if not os.path.exists(output_filepath_tar):
+            logging.error(f"Output tarball \"{output_file_tar}\" does not exist.")
+            logging.error("Check if the host working directory is correctly passed.")
+            return
 
         output_filepath = os.path.join(self.output_dir, output_file)
         if os.path.exists(output_filepath):
