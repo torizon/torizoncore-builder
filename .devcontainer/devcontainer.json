@@ -32,6 +32,10 @@
 
 	"runArgs": [ "--net=host" ],
 
+	"containerEnv": {
+		"HOST_WORKDIR": "${localWorkspaceFolder}/workdir"
+	},
+
 	// We need this for the bundle command. See https://aka.ms/vscode-remote/samples/docker-in-docker.
 	"mounts":
 	[

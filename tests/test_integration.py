@@ -46,22 +46,6 @@ def fixture_deploy_dir():
     logging.info(f"Cleaning up {str(deploy_dir)}...")
     deploy_dir.join("sysroot").remove(rec=1)
 
-@pytest.fixture(name="work_dir", scope="module")
-def fixture_work_dir():
-    """Initialize work directory for pytest"""
-    work_dir = py.path.local("/workdir")
-
-    # Make sure a Tezi image is available in /workdir/tezi
-    # Ideally we should automatically download a test image here...
-    assert work_dir.join("tezi").isdir()
-
-    yield work_dir
-
-    # Delete output
-    logging.info("Cleaning up /workdir/output...")
-    if work_dir.join("output").isdir():
-        work_dir.join("output").remove(rec=1)
-
 
 def test_unpack(storage_dir, work_dir):
     """"Test unpack sub-command"""
