@@ -223,7 +223,24 @@ class DindManager(DockerManager):
 
 def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         use_host_docker=False, platform="linux/arm/v7", output_filename="docker-storage.tar"):
+    """
+    Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
+    :param output_dir: Relative output directory to host_workdir
+    :param compose_file: Docker Compose YAML file or path
+    :param host_workdir: Working directory location on the Docker Host (the
+                            system where dockerd we are accessing is running)
+    :param use_host_docker: Use host docker (instead of Docker in Docker)
+                            Note: This only really works if the Host Docker
+                            Engine is not used by anything else than this
+                            script. Otherwise all images stored in the
+                            Host Docker storage is going to end up in the
+                            Bundle.
+    :param platform: Container Platform to fetch (if an image is multi-arch
+                        capable)
+    :param output_filename: Output filename of the processed Docker Compose
+                            YAML.
+    """
     # Open Docker Compose file
     if not os.path.isabs(compose_file):
         base_dir = os.path.dirname(os.path.abspath(compose_file))
