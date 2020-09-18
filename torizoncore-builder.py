@@ -225,10 +225,10 @@ subparser.add_argument("--repo", dest="repo",
                        help="""Toradex Easy Installer source repository""",
                        default="torizoncore-oe-nightly-horw")
 subparser.add_argument("--branch", dest="branch",
-                       help="""ToroizonCore OpenEmbedded branch""",
+                       help="""TorizonCore OpenEmbedded branch""",
                        default="zeus")
 subparser.add_argument("--distro", dest="distro", nargs='+',
-                       help="""ToroizonCore OpenEmbedded distro""",
+                       help="""TorizonCore OpenEmbedded distro""",
                        default=["torizon"])
 subparser.add_argument("--release-type", dest="release_type",
                        help="""TorizonCore release type (nightly/monthly/release)""",

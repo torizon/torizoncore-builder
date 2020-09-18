@@ -33,11 +33,11 @@ def download_file(filename, baseurl, destdir):
     urllib.request.urlretrieve(url, filename=targetfile)
 
 def download_tezi_filename(filename, baseurl, destdir):
-    """ Download a single file entry from the Tezi image filename or filelist
+    """ Download a single file entry from the Toradex Easy Installer image filename or filelist
     tag.
         args:
             filename(str) : filename string (may contain target/unpack information)
-            baseurl(str) : base url of tezi image
+            baseurl(str) : base url of easy installer image
             destdir(str) : destination directory
     """
     # Image format 3 supports "scrfile:destdir:unpack" format to control
@@ -47,10 +47,10 @@ def download_tezi_filename(filename, baseurl, destdir):
     download_file(filename, baseurl, destdir)
 
 def download(image_url, destdir):
-    """Downloads a Tezi image from a given URL to the a given directory
+    """Downloads a Toradex Easy Installer image from a given URL to the a given directory
 
     Parameters:
-        image_url (string): Source URL of the Tezi image (image.json location).
+        image_url (string): Source URL of the Toradex Easy Installer image (image.json location).
         destdir (string): Destination directory, must already exist.
     """
     ROOT_FILE_TAGS = ["u_boot_env", "prepare_script",

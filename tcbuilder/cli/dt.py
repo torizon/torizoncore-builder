@@ -114,7 +114,7 @@ def add_overlay_parser(parser):
                            header files. Can be passed multiple times.""",
                            required=True)
     subparser.add_argument(metavar="overlays", dest="overlays", nargs="+",
-                           help="The overlay to apply")
+                           help="The overlay(s) to apply")
 
     subparser.set_defaults(func=dt_overlay_subcommand)
 

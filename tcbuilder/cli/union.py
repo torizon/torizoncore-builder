@@ -67,7 +67,7 @@ def union_subcommand(args):
 def init_parser(subparsers):
     """Initialize argument parser"""
     subparser = subparsers.add_parser("union", help="""\
-    Create a commit out of isolated changes for unpacked Tezi Image""")
+    Create a commit out of isolated changes for unpacked Toradex Easy Installer Image""")
     subparser.add_argument("--changes-directory", dest="changes_dirs", action='append',
                            help="""Path to the directory containing user changes.
                            Can be specified multiple times!""")
@@ -81,7 +81,7 @@ def init_parser(subparsers):
                            required=True)
     subparser.add_argument("--subject", dest="subject",
                            help="""OSTree commit subject. Defaults to
-                           "TorzionCore Builder [timestamp]"
+                           "TorizonCore Builder [timestamp]"
                            """)
     subparser.add_argument("--body", dest="body",
                            help="""OSTree commit body message""")
