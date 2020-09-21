@@ -113,7 +113,7 @@ RUN pip3 install -r /tmp/requirements_dev.txt \
      && rm -rf /tmp/requirements_dev.txt
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
-    git strace procps \
+    git strace procps vim ssh\
     && rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=vscode
