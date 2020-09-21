@@ -1,10 +1,9 @@
 import os
 import logging
-import traceback
 import shutil
 from tcbuilder.backend import isolate
-from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend.common import resolve_remote_host
+from tcbuilder.errors import PathNotExistError, UserAbortError
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -18,30 +17,25 @@ def isolate_subcommand(args):
     else:
         changes_dir = os.path.abspath(args.changes_dir)
         if not os.path.exists(changes_dir):
-            log.error(f'Changes directory "{args.changes_dir}" does not exist.')
-            return
+            raise PathNotExistError(f'Changes directory "{args.changes_dir}" does not exist.')
+            
 
     if os.listdir(changes_dir):
         ans = input(f"{changes_dir} is not empty. Delete contents before continuing? [y/N] ")
         if ans.lower() != "y":
-            return
+            raise UserAbortError()
 
         shutil.rmtree(changes_dir)
         os.mkdir(changes_dir)
 
-    try:
-        r_ip = resolve_remote_host(args.remote_host, args.mdns_source)
-        ret = isolate.isolate_user_changes(changes_dir, r_ip, args.remote_username,
-                                           args.remote_password)
-        if ret == isolate.NO_CHANGES:
-            log.info("no change is made in /etc by user")
+    r_ip = resolve_remote_host(args.remote_host, args.mdns_source)
+    ret = isolate.isolate_user_changes(changes_dir, r_ip, args.remote_username,
+                                        args.remote_password)
+    if ret == isolate.NO_CHANGES:
+        log.info("no change is made in /etc by user")
 
-        log.info("isolation command completed")
-    except TorizonCoreBuilderError as ex:
-        log.error(ex.msg)  # msg from all kinds of Exceptions
-        if ex.det is not None:
-            log.info(ex.det)  # more elaborative message
-        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
+    log.info("isolation command completed")
+
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("isolate", help="""\

@@ -6,11 +6,13 @@ import json
 import logging
 import os
 import subprocess
-import sys
 import urllib
 
 from tcbuilder.backend import common
 from tezi import downloader
+
+from tcbuilder.errors import InvalidArgumentError, OperationFailureError
+
 
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
 
@@ -51,9 +53,8 @@ def batch_process(args):
     output_dir_containers = os.path.abspath(args.bundle_directory)
     additional_size = common.get_additional_size(output_dir_containers, common.DOCKER_FILES_TO_ADD)
     if additional_size is None:
-        logging.error("Docker Container bundle missing, use bundle sub-command.")
-        return
-
+        raise InvalidArgumentError("Docker Container bundle missing, use bundle sub-command.")
+        
     image_dir = os.path.abspath(args.output_directory)
 
     if not os.path.exists(image_dir):
@@ -93,10 +94,10 @@ def batch_process(args):
                                             check=False)
 
                 if cp_process.returncode != 0:
-                    logging.error(
+                    raise OperationFailureError(
                         f"""Executing post image generation script was unsuccessful.
                         Exit code {cp_process.returncode}.""")
-                    sys.exit(1)
+                    
 
     logging.info("Finished")
 

@@ -1,8 +1,7 @@
 import os
-import sys
 
 from tcbuilder.backend import deploy
-import argparse
+from tcbuilder.errors import PathNotExistError, InvalidArgumentError
 
 
 def progress_update(asyncprogress, _user_data=None):
@@ -28,12 +27,10 @@ def deploy_tezi_image(args):
     dst_sysroot_dir = os.path.abspath(args.deploy_sysroot_directory)
 
     if os.path.exists(output_dir):
-        print("Output directory must not exist!", file=sys.stderr)
-        return
+        raise PathNotExistError(f"Output directory {output_dir} does not exist.")
 
     if not os.path.exists(dst_sysroot_dir):
-        print("Deploy sysroot directory does not exist", file=sys.stderr)
-        return
+        raise PathNotExistError(f"Deploy sysroot directory {dst_sysroot_dir} does not exist.")
 
     deploy.deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                              output_dir, dst_sysroot_dir, args.ref)
@@ -52,8 +49,8 @@ def deploy_image(args):
     elif args.remote_host is not None:
         deploy_ostree_remote(args)
     else:
-        raise argparse.ArgumentTypeError(
-            "one of the following arguments is required: --output-directory, --remote-host")
+        raise InvalidArgumentError(
+            "One of the following arguments is required: --output-directory, --remote-host")
 
 
 def init_parser(subparsers):

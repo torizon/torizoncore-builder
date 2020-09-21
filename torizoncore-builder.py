@@ -18,9 +18,12 @@ if sys.version_info < MIN_PYTHON:
 import argparse
 import logging
 import os
+import traceback
 
 from tcbuilder.cli import batch, bundle, combine, deploy, dt, isolate, push, \
                           serve, splash, union, unpack
+
+from tcbuilder.errors import TorizonCoreBuilderError
 
 #pylint: enable=wrong-import-position
 
@@ -117,6 +120,8 @@ push.init_parser(subparsers)
 splash.init_parser(subparsers)
 serve.init_parser(subparsers)
 
+#pylint: disable=broad-except
+
 if __name__ == "__main__":
     mainargs = parser.parse_args()
     setup_logging(mainargs.log_level, mainargs.verbose, mainargs.log_file)
@@ -126,8 +131,16 @@ if __name__ == "__main__":
             mainargs.func(mainargs)
         else:
             print("Try --help for options")
+    except TorizonCoreBuilderError as ex:
+        logging.error(ex.msg)  # msg from all kinds of Exceptions
+        if ex.det is not None:
+            logging.info(ex.det)  # more elaborative message
+        logging.debug(traceback.format_exc())  # full traceback to be shown for debugging only    
+        sys.exit(-1)
     except Exception as ex:
         logging.fatal(
             "An unexpected Exception occured. Please provide the following stack trace to\n"
             "the Toradex TorizonCore support team:\n\n")
-        raise ex
+        logging.error(traceback.format_exc())     
+        sys.exit(-2)
+

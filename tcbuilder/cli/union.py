@@ -7,9 +7,8 @@ sub-command).
 
 import os
 import logging
-import traceback
 from tcbuilder.backend import union
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import PathNotExistError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -18,20 +17,16 @@ def check_and_append_dirs(changes_dirs, new_changes_dirs):
 
     for changes_dir in new_changes_dirs:
         if not os.path.exists(changes_dir):
-            log.error(f'Changes directory "{changes_dir}" does not exist')
-            return False
+            raise PathNotExistError(f'Changes directory "{changes_dir}" does not exist')
 
-        changes_dirs.append(os.path.abspath(changes_dir))
-
-    return True
+        changes_dirs.append(os.path.abspath(changes_dir))    
 
 def union_subcommand(args):
     """Run \"union\" subcommand"""
     storage_dir = os.path.abspath(args.storage_directory)
 
     if not os.path.exists(storage_dir):
-        log.error(f'Storage directory "{storage_dir}" does not exist.')
-        return
+        raise PathNotExistError(f'Storage directory "{storage_dir}" does not exist.')
 
     changes_dirs = []
     if args.changes_dirs is None:
@@ -43,26 +38,18 @@ def union_subcommand(args):
         if os.path.isdir("/storage/dt"):
             changes_dirs.append("/storage/dt")
     else:
-        if not check_and_append_dirs(changes_dirs, args.changes_dirs):
-            return
+        check_and_append_dirs(changes_dirs, args.changes_dirs)
 
     if args.extra_changes_dirs is not None:
-        if not check_and_append_dirs(changes_dirs, args.extra_changes_dirs):
-            return
+        check_and_append_dirs(changes_dirs, args.extra_changes_dirs)
 
     union_branch = args.union_branch
 
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    try:
-        commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch,
-                                     args.subject, args.body)
-        log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
-    except TorizonCoreBuilderError as ex:
-        log.error(ex.msg)  # msg from all kinds of Exceptions
-        if ex.det is not None:
-            log.info(ex.det)  # more elaborative message
-        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
+    commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch,
+                                    args.subject, args.body)
+    log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
 
 def init_parser(subparsers):
     """Initialize argument parser"""

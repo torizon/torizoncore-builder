@@ -8,6 +8,7 @@ from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import dt
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import checkout_git_repo
+from tcbuilder.errors import PathNotExistError, InvalidStateError
 
 # If OSTree finds a file named `devicetree` it will consider it as the only relevant
 # device tree to deploy.
@@ -49,8 +50,7 @@ def dt_overlay_subcommand(args):
         # if device tree is not provided, it should be the already created one
         devicetree_bin = get_dt_changes_dir(None, args.storage_directory)
         if not os.path.exists(devicetree_bin):
-            log.error(f"{devicetree_bin} does not exist")
-            return
+            raise PathNotExistError(f"{devicetree_bin} does not exist")
 
         # if devicetree binary and devicetree_out is not provided, these files are to be used
         # from /{storage_dir}/dt/usr/lib/modules/<kver>. So copy already created devicetree from
@@ -68,11 +68,10 @@ def dt_overlay_subcommand(args):
     if args.devicetree_out is not None:
         devicetree_out = os.path.abspath(args.devicetree_out)
         if not os.path.exists(devicetree_out):
-            log.error(f"{args.devicetree_out} does not exist")
-            return
+            raise PathNotExistError(f"{args.devicetree_out} does not exist")
+            
         if os.path.exists(os.path.join(devicetree_out, "usr")):
-            log.error(f"{args.devicetree_out} is not empty")
-            return
+            raise InvalidStateError(f"{args.devicetree_out} is not empty")
 
     devicetree_out = create_dt_changes_dir(args.devicetree_out, args.storage_directory)
 
@@ -91,11 +90,9 @@ def dt_custom_subcommand(args):
     if args.devicetree_out is not None:
         devicetree_out = os.path.abspath(args.devicetree_out)
         if not os.path.exists(devicetree_out):
-            log.error(f"{args.devicetree_out} does not exist")
-            return
+            raise PathNotExistError(f"{args.devicetree_out} does not exist")
         if os.path.exists(os.path.join(devicetree_out, "usr")):
-            log.error(f"{args.devicetree_out} is not empty")
-            return
+            raise InvalidStateError(f"{args.devicetree_out} is not empty")
 
     devicetree_out = create_dt_changes_dir(args.devicetree_out, args.storage_directory)
 

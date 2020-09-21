@@ -6,18 +6,17 @@ can customize the image. This gives access to the rootfs' OSTree
 sysroot (deployment) and OSTree repository.
 """
 
-import logging
 import os
 import shutil
-import traceback
 
 from tcbuilder.backend import unpack
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import UserAbortError
+
+
 
 
 def unpack_subcommand(args):
     """Run \"unpack\" subcommand"""
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
     image_dir = os.path.abspath(args.image_directory)
     storage_dir = os.path.abspath(args.storage_directory)
@@ -25,28 +24,22 @@ def unpack_subcommand(args):
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    try:
-        if not os.path.exists(storage_dir):
-            os.mkdir(storage_dir)
+    if not os.path.exists(storage_dir):
+        os.mkdir(storage_dir)
 
-        if os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir):
-            ans = input("Storage not empty. Delete current image before continuing? [y/N] ")
-            if ans.lower() != "y":
-                return
-            if os.path.exists(tezi_dir):
-                shutil.rmtree(tezi_dir)
+    if os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir):
+        ans = input("Storage not empty. Delete current image before continuing? [y/N] ")
+        if ans.lower() != "y":
+            raise UserAbortError()
+        if os.path.exists(tezi_dir):
+            shutil.rmtree(tezi_dir)
 
-            if os.path.exists(src_sysroot_dir):
-                shutil.rmtree(src_sysroot_dir)
+        if os.path.exists(src_sysroot_dir):
+            shutil.rmtree(src_sysroot_dir)
 
-        unpack.import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir)
+    unpack.import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir)
 
 
-    except TorizonCoreBuilderError as ex:
-        log.error(ex.msg)  # msg from all kinds of Exceptions
-        if ex.det is not None:
-            log.info(ex.det)  # more elaborative message
-        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
 def init_parser(subparsers):
     """Initialize argument parser"""

@@ -14,7 +14,8 @@ import dns.resolver
 
 import tezi.utils
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
-                              PathNotExistError, TorizonCoreBuilderError, GitRepoError)
+                              PathNotExistError, TorizonCoreBuilderError, GitRepoError,
+                              InvalidDataError)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
@@ -83,7 +84,7 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
     # Find root file system content
     content = tezi.utils.find_rootfs_content(jsondata)
     if content is None:
-        raise Exception("No root file system content section found")
+        raise InvalidDataError("No root file system content section found in Easy Installer image.")
 
     content["filelist"] = filelist
     content["uncompressed_size"] += float(additional_size) / 1024 / 1024

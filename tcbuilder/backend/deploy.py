@@ -25,13 +25,13 @@ def create_sysroot(deploy_sysroot_dir):
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(deploy_sysroot_dir))
 
     if not sysroot.ensure_initialized():
-        raise TorizonCoreBuilderError("Error initializing sysroot.")
+        raise TorizonCoreBuilderError("Error initializing OSTree sysroot.")
 
     if not sysroot.init_osname(OSNAME):
-        raise TorizonCoreBuilderError("Error initializing osname.")
+        raise TorizonCoreBuilderError("Error initializing OSTree osname.")
 
     if not sysroot.load():
-        raise TorizonCoreBuilderError("Error loading sysroot.")
+        raise TorizonCoreBuilderError("Error loading OSTree sysroot.")
 
     return sysroot
 

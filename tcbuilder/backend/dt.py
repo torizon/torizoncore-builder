@@ -50,7 +50,7 @@ def build(source_file, outputpath=None, includepaths=None):
     """
 
     if not os.path.isfile(source_file):
-        raise FileNotFoundError("Invalid source_file")
+        raise PathNotExistError(f"Invalid device tree source file {source_file}")
 
     ext = ".dtb"
 
@@ -78,7 +78,7 @@ def build(source_file, outputpath=None, includepaths=None):
                 cppcmdline.append("-I")
                 cppcmdline.append(path)
         else:
-            raise OperationFailureError("Please provide include paths as list")
+            raise OperationFailureError("Please provide device tree include paths as list")
 
     tmppath = source_file+".tmp"
 

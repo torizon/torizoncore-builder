@@ -73,7 +73,7 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
                                                                             deleted_file_dir_to_tar)
     status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
     if status > 0:
-        raise OperationFailureError('could not create dir in /tmp',  stdout.read().decode(
+        raise OperationFailureError(f'could not create dir in {tmp_dir_name}',  stdout.read().decode(
             'utf-8').strip())
 
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):

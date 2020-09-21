@@ -51,7 +51,7 @@ def get_deployment_info_from_sysroot(sysroot):
 def get_metadata_from_ref(repo, ref):
     result, commitvar, _state = repo.load_commit(ref)
     if not result:
-        raise TorizonCoreBuilderError("Error loading commit {}.".format(ref))
+        raise TorizonCoreBuilderError(f"Error loading commit {ref}.")
 
     # commitvar is GLib.Variant, use unpack to get a Python dictionary
     commit = commitvar.unpack()
@@ -66,10 +66,10 @@ def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
         "gpg-verify": GLib.Variant("b", False)
     })
 
-    log.debug("Pulling remote {} reference {}", uri, ref)
+    log.debug(f"Pulling remote {uri} reference {ref}")
 
     if not repo.remote_add("origin", remote, options=options):
-        raise TorizonCoreBuilderError("Error adding remote.")
+        raise TorizonCoreBuilderError(f"Error adding remote {remote}.")
 
     # ostree --repo=toradex-os-tree pull origin torizon/torizon-core-docker --depth=0
 
@@ -101,7 +101,7 @@ def pull_local_ref(repo, repopath, csum, remote=None):
         raises:
             Exception - for failure to perform operations
     """
-    log.debug("Pulling from local repository {} commit checksum {}", repopath, csum)
+    log.debug(f"Pulling from local repository {repopath} commit checksum {csum}")
 
     # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref} --depth=0
     options = GLib.Variant("a{sv}", {
@@ -111,7 +111,7 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     })
 
     if not repo.pull_with_options("file://" + repopath, options):
-        raise TorizonCoreBuilderError("Error pulling contents from local repository.")
+        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.")
 
     # Note: In theory we can do this with two options in one go, but that seems
     # to validate ref-bindings... (has probably something to do with Collection IDs etc..)

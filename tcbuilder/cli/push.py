@@ -6,16 +6,13 @@ to the devices.
 """
 
 import os
-import logging
-import traceback
 from tcbuilder.backend import push
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import PathNotExistError
+
 
 
 def push_subcommand(args):
     """Run \"push\" subcommand"""
-    log = logging.getLogger("torizon." + __name__)
-
     storage_dir = os.path.abspath(args.storage_directory)
     credentials = os.path.abspath(args.credentials)
 
@@ -27,19 +24,12 @@ def push_subcommand(args):
     tuf_repo = os.path.join("/deploy", "tuf-repo")
 
     if not os.path.exists(storage_dir):
-        log.error(f"{storage_dir} does not exist")
-        return
+        raise PathNotExistError(f"{storage_dir} does not exist")
 
-    try:
-        hardwareids = None
-        if args.hardwareids is not None:
-            hardwareids = ",".join(args.hardwareids)
-        push.push_ref(src_ostree_archive_dir, tuf_repo, credentials, args.ref, hardwareids)
-    except TorizonCoreBuilderError as ex:
-        log.error(ex.msg)  # msg from all kinds of Exceptions
-        if ex.det is not None:
-            log.info(ex.det)  # more elaborative message
-        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
+    hardwareids = None
+    if args.hardwareids is not None:
+        hardwareids = ",".join(args.hardwareids)
+    push.push_ref(src_ostree_archive_dir, tuf_repo, credentials, args.ref, hardwareids)
 
 def init_parser(subparsers):
     """Initialize argument parser"""
