@@ -26,10 +26,10 @@ def combine_image(args):
             return
 
         combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
-                                    args.image_description, args.licence_file,
-                                    args.release_notes_file)
+                              args.image_description, args.licence_file,
+                              args.release_notes_file)
         log.info("Successfully created a TorizonCore image with Docker Containers "
-                 "preprovisioned in {}", args.output_directory)
+                 f"preprovisioned in {args.output_directory}")
     except TorizonCoreBuilderError as ex:
         if hasattr(ex, "msg"):
             log.error(ex.msg)  # msg from all kinds of Exceptions
