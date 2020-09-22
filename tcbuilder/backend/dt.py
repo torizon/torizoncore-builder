@@ -3,7 +3,12 @@ import subprocess
 import shutil
 import tempfile
 import logging
+from tcbuilder.backend import ostree
 from tcbuilder.errors import OperationFailureError, PathNotExistError, TorizonCoreBuilderError
+
+# If OSTree finds a file named `devicetree` it will consider it as the only relevant
+# device tree to deploy.
+DT_OUTPUT_NAME = "devicetree"
 
 def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
     """ Compile and apply several overlays to an input devicetree
@@ -24,6 +29,9 @@ def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
     if overlays is not None:
         dtbos = []
         for overlay in overlays:
+            if not os.path.exists(os.path.abspath(overlay)):
+                raise PathNotExistError(f"{overlay} does not exist")
+
             dtbo = tempdir + "/" + os.path.basename(overlay) + ".dtbo"
             build(overlay, dtbo, includepaths)
             dtbos.append(dtbo)
@@ -130,3 +138,64 @@ def apply_overlays(devicetree, overlays, devicetree_out):
         raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")
 
     logging.info("Successfully applied device tree overlay")
+
+def get_ostree_dtb_list(storage_directory):
+    repo = ostree.open_ostree(storage_directory)
+    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+
+    dt_list = []
+    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
+        f"/usr/lib/modules/{kernel_version}", "devicetree"):
+        dt_list.append({'path': f"/usr/lib/modules/{kernel_version}", 'name': "devicetree"})
+
+    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
+                            f"/usr/lib/modules/{kernel_version}", "dtb"):
+        dir_contents = ostree.ls(repo, os.path.join("/usr/lib/modules",
+                                kernel_version, "dtb"), ostree.OSTREE_BASE_REF)
+        for dtb in dir_contents:
+            if dtb["name"].endswith(".dtb"):  # get only *.dtb
+                path = os.path.join("/usr/lib/modules", kernel_version, "dtb")
+                dt_list.append({'path': path, 'name': dtb["name"]})
+
+    return dt_list
+
+def get_dt_changes_dir(devicetree_out, arg_storage_dir):
+    dt_out = ""
+    storage_dir = os.path.abspath(arg_storage_dir)
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
+    repo = ostree.open_ostree(src_ostree_archive_dir)
+    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+
+    if devicetree_out is None:
+        dt_out = os.path.join(storage_dir, "dt")
+        dt_out = os.path.join(dt_out, "usr/lib/modules", kernel_version, DT_OUTPUT_NAME)
+    else:
+        dt_out = os.path.join(devicetree_out, "usr/lib/modules", kernel_version, DT_OUTPUT_NAME)
+
+    return dt_out
+
+def create_dt_changes_dir(devicetree_out, arg_storage_dir):
+    dt_out = ""
+    dt_out = get_dt_changes_dir(devicetree_out, arg_storage_dir)
+
+    if devicetree_out is None:
+        storage_dir = os.path.abspath(arg_storage_dir)
+        if os.path.exists(os.path.join(storage_dir, "dt")):
+            shutil.rmtree(os.path.join(storage_dir, "dt"))
+
+    os.makedirs(dt_out.rsplit('/', 1)[0])
+    return dt_out
+
+def create_copy_devicetree_bin(storage_dir, devicetree_bin):
+    #copy user selected to /storage for further processing
+    if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
+        os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
+
+    dt_copied_path = os.path.join(storage_dir, "tmp_devicetree.dtb")
+
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    repo = ostree.open_ostree(src_ostree_archive_dir)
+    ostree.copy_file(repo, ostree.OSTREE_BASE_REF, devicetree_bin, dt_copied_path)
+
+    return dt_copied_path

@@ -137,6 +137,11 @@ def _convert_gio_file_type(gio_file_type):
     else:
         raise TorizonCoreBuilderError(f"Unknown gio filetype {gio_file_type}")
 
+def check_existance(repo, commit, path, name):
+    dir_contents = []
+    dir_contents = ls(repo, path, commit)
+    return any(content for content in dir_contents if content["name"] == name)
+
 def ls(repo, path, commit):
     """ return a list of files and directories in a ostree repo under path
 

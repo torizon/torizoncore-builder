@@ -1,86 +1,69 @@
 import logging
 import os
-import shutil
 import gi
 gi.require_version("OSTree", "1.0")
 import traceback
 from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import dt
-from tcbuilder.backend import ostree
 from tcbuilder.backend.common import checkout_git_repo
 from tcbuilder.errors import PathNotExistError, InvalidStateError
 from tcbuilder.backend.overlay_parser import CompatibleOverlayParser
 
-# If OSTree finds a file named `devicetree` it will consider it as the only relevant
-# device tree to deploy.
-DT_OUTPUT_NAME = "devicetree"
-
-def get_dt_changes_dir(devicetree_out, arg_storage_dir):
-    dt_out = ""
-    storage_dir = os.path.abspath(arg_storage_dir)
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-
-    if devicetree_out is None:
-        dt_out = os.path.join(storage_dir, "dt")
-        dt_out = os.path.join(dt_out, "usr/lib/modules", kernel_version, DT_OUTPUT_NAME)
-    else:
-        dt_out = os.path.join(devicetree_out, "usr/lib/modules", kernel_version, DT_OUTPUT_NAME)
-
-    return dt_out
-
-def create_dt_changes_dir(devicetree_out, arg_storage_dir):
-    dt_out = ""
-    dt_out = get_dt_changes_dir(devicetree_out, arg_storage_dir)
-
-    if devicetree_out is None:
-        storage_dir = os.path.abspath(arg_storage_dir)
-        if os.path.exists(os.path.join(storage_dir, "dt")):
-            shutil.rmtree(os.path.join(storage_dir, "dt"))
-
-    os.makedirs(dt_out.rsplit('/', 1)[0])
-    return dt_out
-
 def dt_overlay_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
+    if args.overlays is None:
+        log.error("no overlay is provided")
+        return
+
     devicetree_bin = ""
     if args.devicetree_bin is None:
-        # if device tree is not provided, it should be the already created one
-        devicetree_bin = get_dt_changes_dir(None, args.storage_directory)
-        if not os.path.exists(devicetree_bin):
-            raise PathNotExistError(f"{devicetree_bin} does not exist")
+        # create list of available device trees in OSTree
+        storage_dir = os.path.abspath(args.storage_directory)
+        src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-        # if devicetree binary and devicetree_out is not provided, these files are to be used
-        # from /{storage_dir}/dt/usr/lib/modules/<kver>. So copy already created devicetree from
-        # volume to workdir, becuase internal volume dt/ directory is deleted before proceeding
-        # further to be able to handle all cases for user provided files
-        if args.devicetree_out is None:
-            shutil.copyfile(devicetree_bin, "devicetree_tmp")
-            devicetree_bin = "devicetree_tmp"
+        dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
 
-        log.info("Device tree from internal volume is to be used")
+        # check volume storage for devicetree
+        storage_dt = dt.get_dt_changes_dir(None, storage_dir)
+        if os.path.exists(storage_dt):
+            dt_list.append({'path': storage_dt.rsplit("/", 1)[0],
+                            'name': storage_dt.rsplit("/", 1)[1]})
+
+        # ask user to select one
+        print("Which one of the above available device tree is to be overlaid? [Number]:", end=" ")
+        for item in enumerate(dt_list):
+            if item[1]['name'] == storage_dt.rsplit("/", 1)[1]:
+                log.info(f"{item[0]}. Volume: {item[1]['name']}")
+            else:
+                log.info(f"{item[0]}. OSTree: {item[1]['name']}")
+
+        selection = int(input())
+        selected_dt = os.path.join(dt_list[selection]['path'], dt_list[selection]['name'])
+
+        log.info(f"Device tree {dt_list[selection]['name']} is to be overlaid")
+
+        devicetree_bin = dt.create_copy_devicetree_bin(storage_dir, selected_dt)
     else:
         devicetree_bin = os.path.abspath(args.devicetree_bin)
 
     devicetree_out = ""
     if args.devicetree_out is not None:
-        devicetree_out = os.path.abspath(args.devicetree_out)
-        if not os.path.exists(devicetree_out):
-            raise PathNotExistError(f"{args.devicetree_out} does not exist")
-            
-        if os.path.exists(os.path.join(devicetree_out, "usr")):
-            raise InvalidStateError(f"{args.devicetree_out} is not empty")
+        dt_out = os.path.abspath(args.devicetree_out)
+        if not os.path.exists(dt_out):
+            log.error(f"{args.devicetree_out} does not exist")
+            return
+        if os.path.exists(os.path.join(dt_out, "usr")):
+            log.error(f"{args.devicetree_out} is not empty")
+            return
 
-    devicetree_out = create_dt_changes_dir(args.devicetree_out, args.storage_directory)
+    devicetree_out = dt.create_dt_changes_dir(args.devicetree_out, args.storage_directory)
 
     dt.build_and_apply(devicetree_bin, args.overlays, devicetree_out,
                        args.include_dir)
 
-    if os.path.exists("devicetree_tmp"):
-        os.remove("devicetree_tmp")
+    if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
+        os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
 
     log.info(f"Overlays {args.overlays} successfully applied")
 
@@ -95,7 +78,7 @@ def dt_custom_subcommand(args):
         if os.path.exists(os.path.join(devicetree_out, "usr")):
             raise InvalidStateError(f"{args.devicetree_out} is not empty")
 
-    devicetree_out = create_dt_changes_dir(args.devicetree_out, args.storage_directory)
+    devicetree_out = dt.create_dt_changes_dir(args.devicetree_out, args.storage_directory)
 
     dt.build_and_apply(args.devicetree, None, devicetree_out,
                        args.include_dir)
