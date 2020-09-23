@@ -29,7 +29,7 @@ def download_file(filename, baseurl, destdir):
     url = os.path.join(baseurl, filename)
     targetfile = os.path.join(destdir, filename)
 
-    logging.debug("Downloading {}", filename)
+    logging.debug(f"Downloading {filename}")
     urllib.request.urlretrieve(url, filename=targetfile)
 
 def download_tezi_filename(filename, baseurl, destdir):
@@ -57,7 +57,7 @@ def download(image_url, destdir):
             "wrapup_script", "error_script", "license", "releasenotes",
             "marketing", "icon"]
     image_json_filename = os.path.basename(image_url)
-    logging.debug("Downloading image json {}", image_json_filename)
+    logging.debug(f"Downloading image json {image_json_filename}")
     req = urllib.request.urlopen(image_url)
     content =  req.read().decode(req.headers.get_content_charset() or "utf-8")
 
@@ -66,7 +66,7 @@ def download(image_url, destdir):
     f.close()
 
     # Parse image json file to find all required files for this image
-    logging.debug("Parsing configuration file {}...", image_json_filename)
+    logging.debug(f"Parsing configuration file {image_json_filename}...")
     imagejson = json.loads(content)
 
     image_base_url = os.path.dirname(image_url)
