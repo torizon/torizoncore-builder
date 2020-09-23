@@ -79,17 +79,17 @@ def batch_process(args):
                 logging.info(f"Downloading from {url}")
                 downloader.download(url, output_dir)
 
-            common.combine_single_image(output_dir_containers, common.DOCKER_FILES_TO_ADD,
-                                        additional_size, output_dir, args.image_name,
-                                        args.image_description, args.licence_file,
-                                        args.release_notes_file)
+            version = common.combine_single_image(output_dir_containers, common.DOCKER_FILES_TO_ADD,
+                                                  additional_size, output_dir, args.image_name,
+                                                  args.image_description, args.licence_file,
+                                                  args.release_notes_file)
 
             # Start Artifactory upload with a empty environment
             if args.post_script is not None:
                 logging.info(f"Executing post image generation script {args.post_script}.")
 
                 cp_process = subprocess.run([args.post_script, machine, distro,
-                                             args.image_directory],
+                                             args.image_directory, version],
                                             cwd=output_dir,
                                             check=False)
 

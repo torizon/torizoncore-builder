@@ -78,6 +78,7 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
     if release_notes_file is not None:
         jsondata["releasenotes"] = release_notes_file
 
+    # Rather ad-hoc for now, we probably want to give the user more control
     jsondata["version"] = jsondata["version"] + ".container"
     jsondata["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
 
@@ -91,6 +92,8 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
 
     with open(image_json_filepath, "w") as jsonfile:
         json.dump(jsondata, jsonfile, indent=4)
+
+    return jsondata["version"]
 
 
 def combine_single_image(source_dir_containers, files_to_add, additional_size,
@@ -108,10 +111,13 @@ def combine_single_image(source_dir_containers, files_to_add, additional_size,
     if release_notes_file is not None:
         shutil.copy(release_notes_file, os.path.join(output_dir, release_notes_file))
 
+    version = None
     for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        add_files(output_dir, image_file, files_to_add, additional_size,
-                  image_name, image_description, licence_file,
-                  release_notes_file)
+        version = add_files(output_dir, image_file, files_to_add, additional_size,
+                            image_name, image_description, licence_file,
+                            release_notes_file)
+
+    return version
 
 def get_unpack_command(filename):
     """Get shell command to unpack a given file format"""
