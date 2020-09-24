@@ -107,10 +107,7 @@ def dt_checkout_subcommand(args):
     storage_dir = os.path.abspath(args.storage_directory)
 
     if args.git_repo is None:
-        if args.git_branch is not None:
-            log.error("git repo is not provided")
-            return
-        elif os.path.exists(os.path.abspath("device-tree-overlays")):
+        if os.path.exists(os.path.abspath("device-tree-overlays")):
             log.error("'device-tree-overlays' directory already exists")
             return
     elif args.git_repo is not None:
