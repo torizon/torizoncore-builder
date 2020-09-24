@@ -1,4 +1,6 @@
-FROM debian:buster-slim AS common-base
+ARG IMAGE_ARCH=linux/amd64
+ARG IMAGE_TAG=buster-slim
+FROM --platform=$IMAGE_ARCH debian:$IMAGE_TAG AS common-base
 
 ARG APT_PROXY
 

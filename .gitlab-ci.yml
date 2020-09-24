@@ -1,6 +1,12 @@
 image: docker:latest
 
 variables:
+  DEBIAN_RELEASE: "buster-slim"
+  # container version
+  TORIZONCORE_BUILDER_MAJOR: "1"
+  TORIZONCORE_BUILDER_MINOR: "1"
+  TORIZONCORE_BUILDER_PATCH: "0"
+
   # This should be set by docker image already, just to be sure...
   DOCKER_HOST: tcp://docker:2375
   # Use overlayfs driver for better performance
@@ -15,27 +21,39 @@ services:
 
 stages:
   - build
+  - build-multiarch
   - deploy
+  - deploy-multiarch
 
 # Docker image builds
 #
 # Build the Docker images  specificd in DOCKERFILE_FOLDER/IMAGE_NAME and push
 # it to Gitlab's internal Docker registry
 .docker-build:
+  variables:
+    IMAGE_TAG: ${DEBIAN_RELEASE}
   before_script:
+    - export DATE=$(date +%Y%m%d)
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     # Try to download latest image for cache, but don't fail if it does not exist
     # Download tag for ostree-builder stage first.
     - docker build -f ${DOCKERFILE_NAME} --target ostree-builder --build-arg BUILDKIT_INLINE_CACHE=1
+                     --build-arg IMAGE_ARCH=${IMAGE_ARCH} --build-arg IMAGE_TAG=${IMAGE_TAG}
                      --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
                      -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
                      .
     - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
     # Try to download latest image for cache, but don't fail if it does not exist
     - docker build -f ${DOCKERFILE_NAME} --build-arg BUILDKIT_INLINE_CACHE=1
+                     --build-arg IMAGE_ARCH=${IMAGE_ARCH} --build-arg IMAGE_TAG=${IMAGE_TAG}
                      --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:ostree-builder-latest
                      --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+                     --label container.name=${IMAGE_NAME}
+                     --label container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}
+                     --label git.branch=${CI_COMMIT_BRANCH}
+                     --label git.hash=${CI_COMMIT_SHA}
+                     --label pipeline.id=${CI_PIPELINE_ID}
                      -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
                      -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
                      .
@@ -53,28 +71,129 @@ pylint:
     - exit ${exit_code}
   stage: build
 
-docker-build-torizoncore-builder:
+docker-build-torizoncore-builder-amd64:
   extends: .docker-build
   variables:
-    IMAGE_NAME: torizoncore-builder
+    IMAGE_ARCH: linux/amd64
+    IMAGE_NAME: torizoncore-builder-amd64
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
+
+docker-build-torizoncore-builder-arm64:
+  extends: .docker-build
+  variables:
+    IMAGE_ARCH: linux/arm64/v8
+    IMAGE_NAME: torizoncore-builder-arm64
+    DOCKERFILE_NAME: torizoncore-builder.Dockerfile
+
+# Enable experimental features in Docker client (experimental feature are needed for manifest)
+.do_docker_experimental: &do_docker_experimental
+    - mkdir -p $HOME/.docker
+    - "echo -e '{\n  \"experimental\": \"enabled\"\n}' | tee $HOME/.docker/config.json"
+    - docker version
+
+.docker-build-multiarch:
+  before_script:
+    - *do_docker_experimental
+    - rm -rf ~/.docker/manifests/*
+  script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+  - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_ARM64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+  - docker manifest create ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_ARM64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+  - docker manifest annotate ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}  --os linux --arch amd64
+  - docker manifest annotate ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_ARM64}:${GITLAB_DOCKERREGISTRY_SUFFIX}  --os linux --arch arm64
+  - docker manifest inspect -v ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+  - docker manifest push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+
+docker-build-torizoncore-builder-multiarch:
+  extends: .docker-build-multiarch
+  variables:
+    IMAGE_NAME: torizoncore-builder
+    IMAGE_NAME_AMD64: torizoncore-builder-amd64
+    IMAGE_NAME_ARM64: torizoncore-builder-arm64
+  stage: build-multiarch
 
 # Docker deploy jobs
 #
 # Make sure DOCKER_HUB_USER/DOCKER_HUB_PW is properly set in the project
 # specific Gitlab CI settings.
 .docker-deploy:
+  when: manual
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   when: manual
   script:
-    - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG}
-    - docker tag ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_TAG} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:latest
-    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
-    - docker push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:latest
+    - *do_docker_experimental
+    - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW;
+    - for tag in ${DOCKER_TAGS_CHECK};
+        do
+          docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
+          (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && exit 1 ; fi);
+        done
+    - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
+        do
+          docker tag ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
+        done
+    - docker push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}
+
+docker-deploy-torizoncore-builder-amd64:
+  extends: .docker-deploy
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export DOCKER_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH} ${MAJOR}.${MINOR}.${PATCH}-${DATE}"
+    - export DOCKER_TAGS="${MAJOR} ${MAJOR}.${MINOR}"
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
   stage: deploy
 
-docker-deploy-torizoncore-builder:
+docker-deploy-torizoncore-builder-arm64:
   extends: .docker-deploy
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export DOCKER_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH} ${MAJOR}.${MINOR}.${PATCH}-${DATE}"
+    - export DOCKER_TAGS="${MAJOR} ${MAJOR}.${MINOR}"
+  variables:
+    IMAGE_NAME: torizoncore-builder-arm64
+  stage: deploy
+
+.docker-deploy-multiarch:
+  when: manual
+  script:
+  - *do_docker_experimental
+  - rm -rf ~/.docker/manifests/*
+  - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
+  - for tag in ${DOCKER_TAGS_CHECKS};
+      do
+        docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
+        (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && exit 1 ; fi);
+      done
+  - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
+      do
+        docker manifest create ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_ARM64}:${tag};
+        docker manifest annotate ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag} --os linux --arch amd64;
+        docker manifest annotate ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_ARM64}:${tag} --os linux --arch arm64;
+        docker manifest inspect -v ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
+        docker manifest push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
+      done
+
+docker-deploy-torizoncore-builder-multiarch:
+  extends: .docker-deploy-multiarch
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export DOCKER_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH} ${MAJOR}.${MINOR}.${PATCH}-${DATE}"
+    - export DOCKER_TAGS="${MAJOR} ${MAJOR}.${MINOR}"
   variables:
     IMAGE_NAME: torizoncore-builder
+    IMAGE_NAME_AMD64: torizoncore-builder-amd64
+    IMAGE_NAME_ARM64: torizoncore-builder-arm64
+  stage: deploy-multiarch
