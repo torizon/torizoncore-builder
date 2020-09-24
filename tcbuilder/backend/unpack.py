@@ -16,7 +16,7 @@ def unpack_local_image(image_dir, sysroot_dir):
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     tarcmd = "cat '{0}' | {1} | tar --xattrs --xattrs-include='*' -xhf - -C {2}".format(
                 tarfile, get_unpack_command(tarfile), sysroot_dir)
-    log.info(f"Running tar command: {tarcmd}")
+    log.debug(f"Running tar command: {tarcmd}")
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
 
     # Remove the tarball since we have it unpacked now
