@@ -168,6 +168,18 @@ def dt_list_overlays_subcommand(args):
     else:
         log.info("no compatible overlay found")
 
+def dt_list_devicetrees_subcommand(args):
+    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+
+    storage_dir = os.path.abspath(args.storage_directory)
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
+    dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
+
+    log.info("Available device trees are")
+    for item in dt_list:
+        log.info(f"\t {item['name']}")
+
 def add_overlay_parser(parser):
     subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
     subparser = subparsers.add_parser("overlay", help="Apply an overlay")
@@ -219,6 +231,10 @@ def add_overlay_parser(parser):
                            required=True)
 
     subparser.set_defaults(func=dt_list_overlays_subcommand)
+    subparser = subparsers.add_parser("list-devicetrees", 
+                            help="list available device trees binary in image")
+
+    subparser.set_defaults(func=dt_list_devicetrees_subcommand)
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("dt", help="""\
