@@ -18,7 +18,7 @@ class TCBuilderHTTPRequestHandler(SimpleHTTPRequestHandler):
 
 class HTTPThread(threading.Thread):
     """HTTP Server thread"""
-    def __init__(self, directory):
+    def __init__(self, directory, host="", port=8080):
         threading.Thread.__init__(self, daemon=True)
 
         self.log = logging.getLogger("torizon." + __name__)
@@ -27,7 +27,7 @@ class HTTPThread(threading.Thread):
         # From what I understand, this creates a __init__ funciton with the
         # directory argument already set. Nice hack!
         handler_init = partial(TCBuilderHTTPRequestHandler, directory=directory)
-        self.http_server = HTTPServer(("", 8080), handler_init)
+        self.http_server = HTTPServer((host, port), handler_init)
 
     def run(self):
         self.http_server.serve_forever()
@@ -37,9 +37,9 @@ class HTTPThread(threading.Thread):
         self.log.debug("Shutting down http server.")
         self.http_server.shutdown()
 
-def serve_ostree_start(ostree_dir):
+def serve_ostree_start(ostree_dir, host=""):
     """Serving given path via http"""
-    http_thread = HTTPThread(ostree_dir)
+    http_thread = HTTPThread(ostree_dir, host)
     http_thread.start()
     return http_thread
 

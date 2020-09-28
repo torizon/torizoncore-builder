@@ -212,7 +212,7 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
              "from local archive repository...")
 
     # Start http server...
-    http_server_thread = serve.serve_ostree_start(src_ostree_archive_dir)
+    http_server_thread = serve.serve_ostree_start(src_ostree_archive_dir, "localhost")
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
