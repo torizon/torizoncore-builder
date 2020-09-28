@@ -79,6 +79,7 @@ docker-build-torizoncore-builder-amd64:
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
 
 docker-build-torizoncore-builder-arm64:
+  when: manual
   extends: .docker-build
   variables:
     IMAGE_ARCH: linux/arm64/v8
@@ -92,6 +93,7 @@ docker-build-torizoncore-builder-arm64:
     - docker version
 
 .docker-build-multiarch:
+  when: manual
   before_script:
     - *do_docker_experimental
     - rm -rf ~/.docker/manifests/*
