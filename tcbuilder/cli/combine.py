@@ -17,8 +17,6 @@ def combine_image(args):
         raise PathNotExistError(f"Source image directory {image_dir} does not exist")
 
     output_dir = os.path.abspath(args.output_directory)
-    if not os.path.exists(image_dir):
-        raise PathNotExistError(f"Directory {image_dir} for combined image does not exist")            
 
     combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
                                 args.image_description, args.licence_file,
