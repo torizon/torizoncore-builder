@@ -1,7 +1,7 @@
 import os
 
 from tcbuilder.backend import deploy
-from tcbuilder.errors import PathNotExistError, InvalidArgumentError
+from tcbuilder.errors import InvalidArgumentError, InvalidStateError, PathNotExistError
 
 
 def progress_update(asyncprogress, _user_data=None):
@@ -27,7 +27,7 @@ def deploy_tezi_image(args):
     dst_sysroot_dir = os.path.abspath(args.deploy_sysroot_directory)
 
     if os.path.exists(output_dir):
-        raise PathNotExistError(f"Output directory {output_dir} does not exist.")
+        raise InvalidStateError(f"Output directory {output_dir} must not exist.")
 
     if not os.path.exists(dst_sysroot_dir):
         raise PathNotExistError(f"Deploy sysroot directory {dst_sysroot_dir} does not exist.")
