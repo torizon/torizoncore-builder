@@ -107,8 +107,8 @@ def dt_checkout_subcommand(args):
     storage_dir = os.path.abspath(args.storage_directory)
 
     if args.git_repo is None:
-        if os.path.exists(os.path.abspath("device-tree-overlays")):
-            log.error("'device-tree-overlays' directory already exists")
+        if os.path.exists(os.path.abspath("device-trees")):
+            log.error("'device-trees' directory already exists")
             return
     elif args.git_repo is not None:
         if args.git_branch is None:
@@ -167,7 +167,7 @@ def add_overlay_parser(parser):
     subparser = subparsers.add_parser("checkout", help="checkout a git branch from remote repository")
     subparser.add_argument("--repository", dest="git_repo",
                            help="""Remote repository URL. Default repo is
-                           https://github.com/toradex/device-tree-overlays""")
+                           https://github.com/toradex/device-trees""")
     subparser.add_argument("--branch", dest="git_branch",
                            help="""Branch to be checked out. Default branch with default repo is
                            toradex_<kmajor>.<kminor>.<x>""")

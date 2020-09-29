@@ -238,7 +238,6 @@ def get_branch_from_metadata(storage_dir):
             "--branch to manually specify the kernel branch used by this image.")
 
     _kernel_repo, kernel_branch, _kernel_revision = metadata["oe.kernel-source"]
-    print(_kernel_repo, kernel_branch, _kernel_revision)
     return kernel_branch
 
 def checkout_git_repo(storage_dir, git_repo = None, git_branch = None):
@@ -247,8 +246,8 @@ def checkout_git_repo(storage_dir, git_repo = None, git_branch = None):
         git_branch = get_branch_from_metadata(storage_dir)
 
     if git_repo is None:
-        repo_obj = git.Repo.clone_from("https://github.com/toradex/device-tree-overlays",
-                                       "device-tree-overlays")
+        repo_obj = git.Repo.clone_from("https://github.com/toradex/device-trees",
+                                       "device-trees")
     elif git_repo.startswith("https://") or git_repo.startswith("git://"):
         directory_name = git_repo.rsplit('/', 1)[1].rsplit('.', 1)[0]
         repo_obj = git.Repo.clone_from(git_repo, directory_name)
