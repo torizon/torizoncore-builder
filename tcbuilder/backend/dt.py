@@ -210,3 +210,9 @@ def copy_devicetree_bin_from_workdir(storage_dir, devicetree_bin):
     shutil.copy(devicetree_bin, dt_copied_path)
 
     return dt_copied_path
+
+def get_compatibilities_binary(file):
+    """Get root "compatible" property as list of strings"""
+    std_output = subprocess.check_output(["fdtget", file, "/", "compatible"])
+    compatibility_list = std_output.decode('utf-8').strip().split()
+    return compatibility_list

@@ -1,6 +1,5 @@
 import io
 import re
-import subprocess
 
 class CompatibleOverlayParser:
     def __init__(self):
@@ -37,13 +36,6 @@ class CompatibleOverlayParser:
             self.counter -= 1
 
         return ret
-
-    def get_compatibilities_binary(self, file=None):
-        compatibility_list = ""
-        fdtget_cmd = f"fdtget {file} / compatible"
-        std_output = subprocess.check_output(fdtget_cmd, shell=True)
-        compatibility_list = std_output.decode('utf-8').strip().split()
-        return compatibility_list
 
     def get_compatibilities_source(self, file=None):
         compatibility_list = ""

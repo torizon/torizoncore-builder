@@ -158,7 +158,7 @@ def dt_list_overlays_subcommand(args):
     parser = CompatibleOverlayParser()
     compatibilities = []
     if args.devicetree_bin is not None:
-        compatibilities = parser.get_compatibilities_binary(args.devicetree_bin)
+        compatibilities = dt.get_compatibilities_binary(args.devicetree_bin)
     else:
         compatibilities = parser.get_compatibilities_source(args.devicetree)
 
