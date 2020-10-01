@@ -2,20 +2,22 @@ import io
 import re
 
 class CompatibleOverlayParser:
-    def __init__(self):
+    def __init__(self, sourcefile):
+        with io.open(sourcefile, "r") as f:
+            self.file_content = f.read()
         self.counter = 0
         self.description = ""
 
-    def extract_comments(self, sourcefile):
-        with io.open(sourcefile, "r") as f:
-            file_content = f.read()
-            comments = re.sub(r'// *([^\n]*\n)|/\*(.*)\*/|[^\n]*\n', r'\1\2',
-                              file_content, flags=re.DOTALL)
+    def extract_comments(self):
+        comments = re.sub(r'// *([^\n]*\n)|/\*(.*)\*/|[^\n]*\n', r'\1\2',
+                          self.file_content, flags=re.DOTALL)
 
         return comments
 
-    def parse(self, sourcefile):
-        comments = self.extract_comments(sourcefile)
+    def get_description(self):
+        # By convention, the first (non-SPDX) comment contains a description
+        # of the overlay.
+        comments = self.extract_comments()
         # Remove SPDX License Identifier
         comments = re.sub(r'SPDX-License-Identifier: ([^\n]*)\n', '', comments,
                           flags=re.DOTALL)
@@ -37,13 +39,11 @@ class CompatibleOverlayParser:
 
         return ret
 
-    def get_compatibilities_source(self, file=None):
+    def get_compatibilities_source(self):
         compatibility_list = ""
-        with io.open(file, "r") as f:
-            dts_content = f.read()
 
         # Search for the main part \{ ... };
-        main_content = re.sub(r'.*/ {(.*)} *;', r'\1', dts_content, flags=re.DOTALL)
+        main_content = re.sub(r'.*/ {(.*)} *;', r'\1', self.file_content, flags=re.DOTALL)
         # Remove all innter nodes we only want the root properties
         outer_block = re.sub(r'.*?[{;]', self.block_repl, main_content, flags=re.DOTALL)
         # Get the compatibility props
@@ -55,13 +55,11 @@ class CompatibleOverlayParser:
 
         return compatibility_list
 
-    def check_compatibility(self, compatibilities, overlay):
-        overlay_compatibilities = self.get_compatibilities_source(overlay)
-
+    @staticmethod
+    def check_compatibility(compatibilities, overlay_compatibilities):
         for compatibility in compatibilities:
-            for overlay_compatibility in overlay_compatibilities:
-                # If there is a match
-                if overlay_compatibility == compatibility:
-                    return True
+            # Check if we have a matching compatibility in the overlay...
+            if compatibility in overlay_compatibilities:
+                return True
 
         return False

@@ -155,29 +155,36 @@ def dt_list_overlays_subcommand(args):
 
     overlays_path = os.path.abspath(args.overlays_dir)
 
-    parser = CompatibleOverlayParser()
     compatibilities = []
     if args.devicetree_bin is not None:
         compatibilities = dt.get_compatibilities_binary(args.devicetree_bin)
     else:
-        compatibilities = parser.get_compatibilities_source(args.devicetree)
+        parser = CompatibleOverlayParser(args.devicetree)
+        compatibilities = parser.get_compatibilities_source()
 
     compatible_overlays = []
     for path in sorted(os.listdir(overlays_path)):
-        if path.endswith(".dts"):
-            overlay_path = os.path.join(overlays_path, path)
-            if os.path.isfile(overlay_path):
-                if parser.check_compatibility(compatibilities, overlay_path):
-                    compatible_overlays.append(path)
+        # Only consider device tree overlay source files
+        if not path.endswith(".dts"):
+            continue
+
+        overlay_path = os.path.join(overlays_path, path)
+        if not os.path.isfile(overlay_path):
+            continue
+
+        # Get "compatible" of overlay and check against base device tree
+        parser = CompatibleOverlayParser(overlay_path)
+        overlay_compatibilities = parser.get_compatibilities_source()
+        if CompatibleOverlayParser.check_compatibility(compatibilities, overlay_compatibilities):
+            compatible_overlays.append({ 'path': path, 'description': parser.get_description() } )
 
     if compatible_overlays:
         log.info("Available overlays are:")
         for compatible_overlay in compatible_overlays:
-            log.info(f"\t {compatible_overlay}")
-
-        log.info(parser.parse(overlay_path))
+            log.info(f"\t{compatible_overlay['path']}:")
+            log.info(f"\t\t{compatible_overlay['description']}")
     else:
-        log.info("no compatible overlay found")
+        log.info("No compatible overlay found")
 
 def dt_list_devicetrees_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
