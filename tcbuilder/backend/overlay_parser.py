@@ -1,6 +1,16 @@
 import io
 import re
 
+# Regex for comments
+comments_re = re.compile(r"(?:\/\*((?:.|\n)*?)\*\/)|\/\/(.*$)", re.MULTILINE | re.ASCII)
+comment_spdx_re = re.compile(r'SPDX-License-Identifier: ([^\n]*)\n', re.DOTALL)
+
+# Regex for compatible parsing
+content_re = re.compile(r".*\/\s{(.*)}\s*;", re.MULTILINE | re.ASCII | re.DOTALL)
+find_block_re = re.compile(r'.*?[{;]', re.DOTALL)
+compatible_re = re.compile(r".*?compatible\s*=\s*(.*?);", re.DOTALL)
+strings_re = re.compile(r'"([^"]*)"')
+
 class CompatibleOverlayParser:
     def __init__(self, sourcefile):
         with io.open(sourcefile, "r") as f:
@@ -9,20 +19,24 @@ class CompatibleOverlayParser:
         self.description = ""
 
     def extract_comments(self):
-        comments = re.sub(r'// *([^\n]*\n)|/\*(.*)\*/|[^\n]*\n', r'\1\2',
-                          self.file_content, flags=re.DOTALL)
-
+        groups = comments_re.findall(self.file_content)
+        comments = []
+        for group in groups:
+            for match in group:
+                comment = match.strip()
+                if len(comment) > 0:
+                    comments.append(comment)
         return comments
 
     def get_description(self):
         # By convention, the first (non-SPDX) comment contains a description
         # of the overlay.
         comments = self.extract_comments()
-        # Remove SPDX License Identifier
-        comments = re.sub(r'SPDX-License-Identifier: ([^\n]*)\n', '', comments,
-                          flags=re.DOTALL)
-        self.description = comments.split("\n")[0]
-        return self.description
+
+        # Return first non-SPDX header comment
+        for comment in comments:
+            if not comment_spdx_re.match(comment):
+                return comment
 
     def block_repl(self, matchobj):
         text = matchobj.group(0)
@@ -40,23 +54,33 @@ class CompatibleOverlayParser:
         return ret
 
     def get_compatibilities_source(self):
-        compatibility_list = ""
-
+        """Get list of compatibilities, returns None if not found"""
         # Search for the main part \{ ... };
-        main_content = re.sub(r'.*/ {(.*)} *;', r'\1', self.file_content, flags=re.DOTALL)
-        # Remove all innter nodes we only want the root properties
-        outer_block = re.sub(r'.*?[{;]', self.block_repl, main_content, flags=re.DOTALL)
-        # Get the compatibility props
-        compatible = re.sub(r'.*?compatible *= *(.*?);', r'\1,', outer_block, flags=re.DOTALL)
-        compatible = re.sub(r'[\n\r]', '', compatible)
+        match = content_re.match(self.file_content)
+        if not match:
+            return None
 
-        #compatible_list = re.split(r'" *, *"?', compatible)
-        compatibility_list = re.findall(r'.*?"(.*?)" *, *', compatible)
+        main_content = match.group(1)
+
+        # Remove all inner nodes we only want the root properties
+        outer_block = find_block_re.sub(self.block_repl, main_content)
+
+        # Get the compatibility props
+        match = compatible_re.match(outer_block)
+        if not match:
+            return None
+
+        compatible_value = match.group(1)
+
+        compatibility_list = strings_re.findall(compatible_value)
 
         return compatibility_list
 
     @staticmethod
     def check_compatibility(compatibilities, overlay_compatibilities):
+        if compatibilities is None:
+            return False
+
         for compatibility in compatibilities:
             # Check if we have a matching compatibility in the overlay...
             if compatibility in overlay_compatibilities:
