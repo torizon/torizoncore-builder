@@ -187,7 +187,7 @@ def create_dt_changes_dir(devicetree_out, arg_storage_dir):
     os.makedirs(dt_out.rsplit('/', 1)[0])
     return dt_out
 
-def create_copy_devicetree_bin(storage_dir, devicetree_bin):
+def copy_devicetree_bin_from_ostree(storage_dir, devicetree_bin):
     #copy user selected to /storage for further processing
     if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
         os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
@@ -197,5 +197,16 @@ def create_copy_devicetree_bin(storage_dir, devicetree_bin):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
     repo = ostree.open_ostree(src_ostree_archive_dir)
     ostree.copy_file(repo, ostree.OSTREE_BASE_REF, devicetree_bin, dt_copied_path)
+
+    return dt_copied_path
+
+def copy_devicetree_bin_from_workdir(storage_dir, devicetree_bin):
+    #copy user selected to /storage for further processing
+    if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
+        os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
+
+    dt_copied_path = os.path.join(storage_dir, "tmp_devicetree.dtb")
+
+    shutil.copy(devicetree_bin, dt_copied_path)
 
     return dt_copied_path

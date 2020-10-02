@@ -9,6 +9,15 @@ from tcbuilder.backend.common import checkout_git_repo
 from tcbuilder.errors import PathNotExistError, InvalidStateError
 from tcbuilder.backend.overlay_parser import CompatibleOverlayParser
 
+def get_dt_from_list(dt_to_search, dt_list):
+    devicetree_bin = None
+    for device_tree in dt_list:
+        if device_tree["name"] == dt_to_search:
+            devicetree_bin = os.path.join(device_tree["path"], device_tree["name"])
+            break
+
+    return devicetree_bin
+
 def dt_overlay_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -16,36 +25,38 @@ def dt_overlay_subcommand(args):
         log.error("no overlay is provided")
         return
 
-    devicetree_bin = ""
+    # create list of available device trees in OSTree
+    storage_dir = os.path.abspath(args.storage_directory)
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
+    dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
+
+    devicetree_bin = None
     if args.devicetree_bin is None:
-        # create list of available device trees in OSTree
-        storage_dir = os.path.abspath(args.storage_directory)
-        src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-        dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
-
-        # check volume storage for devicetree
-        storage_dt = dt.get_dt_changes_dir(None, storage_dir)
-        if os.path.exists(storage_dt):
-            dt_list.append({'path': storage_dt.rsplit("/", 1)[0],
-                            'name': storage_dt.rsplit("/", 1)[1]})
-
-        # ask user to select one
-        print("Which one of the above available device tree is to be overlaid? [Number]:", end=" ")
-        for item in enumerate(dt_list):
-            if item[1]['name'] == storage_dt.rsplit("/", 1)[1]:
-                log.info(f"{item[0]}. Volume: {item[1]['name']}")
-            else:
-                log.info(f"{item[0]}. OSTree: {item[1]['name']}")
-
-        selection = int(input())
-        selected_dt = os.path.join(dt_list[selection]['path'], dt_list[selection]['name'])
-
-        log.info(f"Device tree {dt_list[selection]['name']} is to be overlaid")
-
-        devicetree_bin = dt.create_copy_devicetree_bin(storage_dir, selected_dt)
+        # get default 'devicetree' from OSTree
+        dt_path = get_dt_from_list("devicetree", dt_list)
+        if dt_path:
+            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+    elif os.path.sep in args.devicetree_bin:
+        # search in working dir
+        if os.path.exists(os.path.abspath(args.devicetree_bin)):
+            devicetree_bin = os.path.abspath(args.devicetree_bin)
+            dt.copy_devicetree_bin_from_workdir(storage_dir, args.devicetree_bin)
+        else:
+            #search in OSTree
+            user_provided_dt = args.devicetree_bin.rsplit('/', 1)[1]
+            dt_path = get_dt_from_list(user_provided_dt, dt_list)
+            if dt_path:
+                devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
     else:
-        devicetree_bin = os.path.abspath(args.devicetree_bin)
+        # only name is provided
+        dt_path = get_dt_from_list(args.devicetree_bin, dt_list)
+        if dt_path:
+            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+
+    if devicetree_bin is None:
+        log.error(f'No devicetree "{args.devicetree_bin}" binary found.')
+        return
 
     devicetree_out = ""
     if args.devicetree_out is not None:
