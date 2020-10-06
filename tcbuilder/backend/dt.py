@@ -141,8 +141,8 @@ def apply_overlays(devicetree, overlays, devicetree_out):
 
     log.info("Successfully applied device tree overlay")
 
-def get_ostree_dtb_list(storage_directory):
-    repo = ostree.open_ostree(storage_directory)
+def get_ostree_dtb_list(ostree_archive_dir):
+    repo = ostree.open_ostree(ostree_archive_dir)
     kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
 
     dt_list = []
