@@ -218,3 +218,21 @@ def get_compatibilities_binary(file):
     std_output = subprocess.check_output(["fdtget", file, "/", "compatible"])
     compatibility_list = std_output.decode('utf-8').strip().split()
     return compatibility_list
+
+
+def get_default_include_dir(ostree_archive_dir):
+    """Get default include directory"""
+    repo = ostree.open_ostree(ostree_archive_dir)
+    metadata, _, _ = ostree.get_metadata_from_ref(repo, ostree.OSTREE_BASE_REF)
+
+    include_dirs = ["device-trees/include/"]
+    if "oe.arch" in metadata:
+        oearch = metadata["oe.arch"]
+        if oearch == "aarch64":
+            include_dirs.append("device-trees/dts-arm64/")
+        elif oearch == "arm":
+            include_dirs.append("device-trees/dts-arm32/")
+        else:
+            raise OperationFailureError(f"Unknown architecture {oearch}.")
+
+    return include_dirs

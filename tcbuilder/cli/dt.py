@@ -73,8 +73,13 @@ def dt_overlay_subcommand(args):
 
     devicetree_out = dt.create_dt_changes_dir(args.devicetree_out, args.storage_directory)
 
+    if args.include_dir:
+        include_dir = args.include_dir
+    else:
+        include_dir = dt.get_default_include_dir(src_ostree_archive_dir)
+
     dt.build_and_apply(devicetree_bin, args.overlays, devicetree_out,
-                       args.include_dir)
+                       include_dir)
 
     if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
         os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
@@ -94,8 +99,15 @@ def dt_custom_subcommand(args):
 
     devicetree_out = dt.create_dt_changes_dir(args.devicetree_out, args.storage_directory)
 
+    if args.include_dir:
+        include_dir = args.include_dir
+    else:
+        storage_dir = os.path.abspath(args.storage_directory)
+        src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+        include_dir = dt.get_default_include_dir(src_ostree_archive_dir)
+
     dt.build_and_apply(args.devicetree, None, devicetree_out,
-                       args.include_dir)
+                       include_dir)
 
     log.info(f"Device tree {args.devicetree} built successfully")
 
@@ -207,12 +219,12 @@ def add_overlay_parser(parser):
     subparser.add_argument("--devicetree", dest="devicetree_bin",
                            help="Path to the devicetree binary")
     subparser.add_argument("--devicetree-out", dest="devicetree_out",
-                           help="""Path to the devicetree output directory. 
-                           Device tree file is stored with name 'devicetree'.""")
+                           help="""Path to the devicetree output directory. Defaults to internal
+                           storage directory. Device tree file is stored with name 'devicetree'.""")
     subparser.add_argument("--include-dir", dest="include_dir", action='append',
                            help="""Directory with device tree include (.dtsi) or
-                           header files. Can be passed multiple times.""",
-                           required=True)
+                           header files. Can be passed multiple times. Defaults to
+                           device-trees/include/ and device-trees/dts-[arch]/.""")
     subparser.add_argument(metavar="OVERLAY", dest="overlays", nargs="+",
                            help="The overlay(s) to apply")
 
@@ -227,8 +239,8 @@ def add_overlay_parser(parser):
                            Device tree file is stored with name 'devicetree'.""")
     subparser.add_argument("--include-dir", dest="include_dir", action='append',
                            help="""Directory with device tree include (.dtsi) or
-                           header files. Can be passed multiple times.""",
-                           required=True)
+                           header files. Can be passed multiple times. Defaults to
+                           device-trees/include/ and device-trees/dts-[arch]/.""")
 
     subparser.set_defaults(func=dt_custom_subcommand)
 
