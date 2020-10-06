@@ -232,7 +232,9 @@ def add_overlay_parser(parser):
 
     subparser.set_defaults(func=dt_custom_subcommand)
 
-    subparser = subparsers.add_parser("checkout", help="checkout a git branch from remote repository")
+    subparser = subparsers.add_parser("checkout",
+                                      help="""Checkout device tree source, overlays and include
+                                      files.""")
     subparser.add_argument("--repository", dest="git_repo",
                            help="""Remote repository URL. Default repo is
                            https://github.com/toradex/device-trees""")
@@ -242,7 +244,7 @@ def add_overlay_parser(parser):
 
     subparser.set_defaults(func=dt_checkout_subcommand)
 
-    subparser = subparsers.add_parser("list-overlays", help="list overlays")
+    subparser = subparsers.add_parser("list-overlays", help="List compatible device tree overlays")
     subparser.add_argument("--devicetree-source", dest="devicetree_source",
                            help="Device tree source file")
     subparser.add_argument("--devicetree", dest="devicetree_bin",
@@ -252,8 +254,8 @@ def add_overlay_parser(parser):
                            required=True)
 
     subparser.set_defaults(func=dt_list_overlays_subcommand)
-    subparser = subparsers.add_parser("list-devicetrees", 
-                            help="list available device trees binary in image")
+    subparser = subparsers.add_parser("list-devicetrees",
+                                      help="List available device trees binaries in OSTree image")
 
     subparser.set_defaults(func=dt_list_devicetrees_subcommand)
 
