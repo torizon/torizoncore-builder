@@ -139,7 +139,7 @@ def apply_overlays(devicetree, overlays, devicetree_out):
     if fdtoverlay.stderr != b'':
         raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")
 
-    log.info("Successfully applied device tree overlay")
+    log.debug("Successfully applied device tree overlay(s)")
 
 def get_ostree_dtb_list(ostree_archive_dir):
     repo = ostree.open_ostree(ostree_archive_dir)
