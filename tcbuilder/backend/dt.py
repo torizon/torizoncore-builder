@@ -10,6 +10,8 @@ from tcbuilder.errors import OperationFailureError, PathNotExistError, TorizonCo
 # device tree to deploy.
 DT_OUTPUT_NAME = "devicetree"
 
+log = logging.getLogger("torizon." + __name__)
+
 def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
     """ Compile and apply several overlays to an input devicetree
 
@@ -137,7 +139,7 @@ def apply_overlays(devicetree, overlays, devicetree_out):
     if fdtoverlay.stderr != b'':
         raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")
 
-    logging.info("Successfully applied device tree overlay")
+    log.info("Successfully applied device tree overlay")
 
 def get_ostree_dtb_list(storage_directory):
     repo = ostree.open_ostree(storage_directory)
