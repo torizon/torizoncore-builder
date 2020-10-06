@@ -138,17 +138,17 @@ def dt_list_overlays_subcommand(args):
         log.error(f"{args.overlays_dir} does not exist")
         return
 
-    if args.devicetree is None and args.devicetree_bin is None:
+    if args.devicetree_source is None and args.devicetree_bin is None:
         log.error("no devicetree file is provided")
         return
 
-    if args.devicetree is not None and args.devicetree_bin is not None:
+    if args.devicetree_source is not None and args.devicetree_bin is not None:
         log.error("provide either device tree source file or binary file")
         return
 
-    if args.devicetree is not None and \
-            not os.path.exists(os.path.abspath(args.devicetree)):
-        log.error(f"{args.devicetree} does not exist")
+    if args.devicetree_source is not None and \
+            not os.path.exists(os.path.abspath(args.devicetree_source)):
+        log.error(f"{args.devicetree_source} does not exist")
         return
 
     if args.devicetree_bin is not None and \
@@ -162,7 +162,7 @@ def dt_list_overlays_subcommand(args):
     if args.devicetree_bin is not None:
         compatibilities = dt.get_compatibilities_binary(args.devicetree_bin)
     else:
-        parser = CompatibleOverlayParser(args.devicetree)
+        parser = CompatibleOverlayParser(args.devicetree_source)
         compatibilities = parser.get_compatibilities_source()
 
     compatible_overlays = []
@@ -219,8 +219,8 @@ def add_overlay_parser(parser):
     subparser.set_defaults(func=dt_overlay_subcommand)
 
     subparser = subparsers.add_parser("custom", help="Compile device tree")
-    subparser.add_argument("--devicetree", dest="devicetree",
-                           help="Path to the devicetree file",
+    subparser.add_argument("--devicetree-source", dest="devicetree",
+                           help="Path to the device tree source file",
                            required=True)
     subparser.add_argument("--devicetree-out", dest="devicetree_out",
                            help="""Path to the devicetree output directory.
@@ -243,9 +243,9 @@ def add_overlay_parser(parser):
     subparser.set_defaults(func=dt_checkout_subcommand)
 
     subparser = subparsers.add_parser("list-overlays", help="list overlays")
-    subparser.add_argument("--devicetree", dest="devicetree",
+    subparser.add_argument("--devicetree-source", dest="devicetree_source",
                            help="Device tree source file")
-    subparser.add_argument("--devicetree-bin", dest="devicetree_bin",
+    subparser.add_argument("--devicetree", dest="devicetree_bin",
                            help="Device tree binary file")
     subparser.add_argument("--overlays-dir", dest="overlays_dir",
                            help="Path to overlays directory",
