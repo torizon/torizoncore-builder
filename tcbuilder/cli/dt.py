@@ -35,8 +35,11 @@ def dt_overlay_subcommand(args):
     if args.devicetree_bin is None:
         # get default 'devicetree' from OSTree
         dt_path = get_dt_from_list("devicetree", dt_list)
-        if dt_path:
-            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+        if dt_path is None:
+            log.error('No default device tree in OSTree found. Please specify the device tree.')
+            return
+
+        devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
     elif os.path.sep in args.devicetree_bin:
         # search in working dir
         if os.path.exists(os.path.abspath(args.devicetree_bin)):
