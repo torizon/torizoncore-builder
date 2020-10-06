@@ -43,7 +43,7 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
     repo = ostree.create_ostree(src_ostree_archive_dir)
     src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
     ostree.pull_local_ref(repo, src_ostree_dir, csum, remote="torizon")
-    metadata, _, _ = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
+    metadata, _, _ = ostree.get_metadata_from_checksum(src_sysroot.repo(), csum)
 
     log.info("Unpacked OSTree from Toradex Easy Installer image:")
     log.info(f"  Commit checksum: {csum}".format(csum))

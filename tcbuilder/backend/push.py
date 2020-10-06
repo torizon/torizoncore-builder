@@ -63,7 +63,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
     repo = ostree.open_ostree(ostree_dir)
     commit = repo.read_commit(ref).out_commit
 
-    metadata, subject, body = ostree.get_metadata_from_ref(repo, commit)
+    metadata, subject, body = ostree.get_metadata_from_checksum(repo, commit)
 
     # Try to find harware id to use from OSTree metadata
     module = None

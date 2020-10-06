@@ -48,10 +48,11 @@ def get_deployment_info_from_sysroot(sysroot):
 
     return csum, kargs
 
-def get_metadata_from_ref(repo, ref):
-    result, commitvar, _state = repo.load_commit(ref)
+
+def get_metadata_from_checksum(repo, csum):
+    result, commitvar, _state = repo.load_commit(csum)
     if not result:
-        raise TorizonCoreBuilderError(f"Error loading commit {ref}.")
+        raise TorizonCoreBuilderError(f"Error loading commit {csum}.")
 
     # commitvar is GLib.Variant, use unpack to get a Python dictionary
     commit = commitvar.unpack()
@@ -60,6 +61,14 @@ def get_metadata_from_ref(repo, ref):
     metadata, _parent, _, subject, body, _time, _content_csum, _metadata_csum = commit
 
     return metadata, subject, body
+
+def get_metadata_from_ref(repo, ref):
+    result, _, csum = repo.read_commit(ref)
+    if not result:
+        raise TorizonCoreBuilderError(f"Error loading commit {ref}.")
+
+    return get_metadata_from_checksum(repo, csum)
+
 
 def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
     options = GLib.Variant("a{sv}", {

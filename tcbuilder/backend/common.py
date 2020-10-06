@@ -230,7 +230,7 @@ def get_branch_from_metadata(storage_dir):
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, _kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
-    metadata, _subject, _body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
+    metadata, _subject, _body = ostree.get_metadata_from_checksum(src_sysroot.repo(), csum)
 
     if "oe.kernel-source" not in metadata or not isinstance(metadata["oe.kernel-source"], tuple):
         raise TorizonCoreBuilderError(
