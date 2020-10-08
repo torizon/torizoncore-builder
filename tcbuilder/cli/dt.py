@@ -86,6 +86,8 @@ def dt_overlay_subcommand(args):
     dt.build_and_apply(devicetree_bin, args.overlays, devicetree_out,
                        include_dir)
 
+    dt.store_overlay_files(args.overlays, storage_dir, args.devicetree_out)
+
     if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
         os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
 
@@ -113,6 +115,8 @@ def dt_custom_subcommand(args):
 
     dt.build_and_apply(args.devicetree, None, devicetree_out,
                        include_dir)
+
+    dt.clear_applied_overlays(args.storage_directory)
 
     log.info(f"Device tree {args.devicetree} built successfully")
 
@@ -210,6 +214,17 @@ def dt_list_overlays_subcommand(args):
     else:
         log.info("No compatible overlay found")
 
+def dt_list_applied_dto_subcommand(args):
+    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+
+    dto_list = dt.get_list_applied_dtbo_in_repo(args.storage_directory)
+    if dto_list:
+        log.info("Applied overlays are:")
+        for dto in dto_list:
+            log.info(dto["name"])
+    else:
+        log.info("No device tree overlay is applied yet.")
+
 def dt_list_devicetrees_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -278,6 +293,12 @@ def add_overlay_parser(parser):
                                       help="List available device trees binaries in OSTree image")
 
     subparser.set_defaults(func=dt_list_devicetrees_subcommand)
+
+    subparser = subparsers.add_parser("list-applied-overlays",
+                            help="list applied device tree overlays in image")
+
+    subparser.set_defaults(func=dt_list_applied_dto_subcommand)
+
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("dt", help="""\

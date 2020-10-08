@@ -12,6 +12,51 @@ DT_OUTPUT_NAME = "devicetree"
 
 log = logging.getLogger("torizon." + __name__)
 
+def store_overlay_files(overlays, storage_dir, devicetree_out):
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    repo = ostree.open_ostree(src_ostree_archive_dir)
+    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+
+    if devicetree_out is None:
+        if os.path.exists(os.path.join(storage_dir, "dt")):
+            store_overlay_dts_dir = os.path.join(storage_dir, "dt",
+                "usr/lib/modules", kernel_version, "overlays")
+        else:
+            raise PathNotExistError("No device tree storage directory created inside Volume")
+    else:
+        if os.path.exists(os.path.abspath(devicetree_out)):
+            store_overlay_dts_dir = os.path.join(devicetree_out, "usr/lib/modules",
+                kernel_version, "overlays")
+        else:
+            raise PathNotExistError(f"Directory {devicetree_out} not found.")
+
+    if os.path.exists(store_overlay_dts_dir):
+        shutil.rmtree(store_overlay_dts_dir)
+
+    os.makedirs(store_overlay_dts_dir)
+
+    for overlay in overlays:
+        shutil.copy(overlay, store_overlay_dts_dir)
+
+    return store_overlay_dts_dir
+
+def clear_applied_overlays(storage_dir):
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    repo = ostree.open_ostree(src_ostree_archive_dir)
+    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+
+    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
+        os.path.join("/usr/lib/modules", kernel_version, "overlays")):
+        # create whiteout for "overlays" directory,so it gets removed upon merging
+        kernel_dir = os.path.join(storage_dir, "dt",
+                "usr/lib/modules", kernel_version)
+        if os.path.exists(kernel_dir):
+            overlay_dts_dir =  os.path.join(kernel_dir, ".wh.overlays")
+            with open(overlay_dts_dir, 'w'):
+                pass
+        else:
+            raise PathNotExistError("No device tree storage directory created inside Volume")
+
 def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
     """ Compile and apply several overlays to an input devicetree
 
@@ -147,11 +192,11 @@ def get_ostree_dtb_list(ostree_archive_dir):
 
     dt_list = []
     if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
-        f"/usr/lib/modules/{kernel_version}", "devicetree"):
-        dt_list.append({'path': f"/usr/lib/modules/{kernel_version}", 'name': "devicetree"})
+        os.path.join("/usr/lib/modules", kernel_version, "devicetree")):
+        dt_list.append({'path': os.path.join("/usr/lib/modules", kernel_version), 'name': "devicetree"})
 
     if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
-                            f"/usr/lib/modules/{kernel_version}", "dtb"):
+                            os.path.join("/usr/lib/modules", kernel_version, "dtb")):
         dir_contents = ostree.ls(repo, os.path.join("/usr/lib/modules",
                                 kernel_version, "dtb"), ostree.OSTREE_BASE_REF)
         for dtb in dir_contents:
@@ -219,7 +264,6 @@ def get_compatibilities_binary(file):
     compatibility_list = std_output.decode('utf-8').strip().split()
     return compatibility_list
 
-
 def get_default_include_dir(ostree_archive_dir):
     """Get default include directory"""
     repo = ostree.open_ostree(ostree_archive_dir)
@@ -236,3 +280,18 @@ def get_default_include_dir(ostree_archive_dir):
             raise OperationFailureError(f"Unknown architecture {oearch}.")
 
     return include_dirs
+
+def get_list_applied_dtbo_in_repo(storage_directory):
+    storage_dir = os.path.abspath(storage_directory)
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
+    repo = ostree.open_ostree(src_ostree_archive_dir)
+    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+    dir_contents = []
+    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
+            os.path.join("/usr/lib/modules", kernel_version, "overlays")):
+        dir_contents = ostree.ls(repo,
+                os.path.join("/usr/lib/modules", kernel_version, "overlays"),
+                ostree.OSTREE_BASE_REF)
+
+    return dir_contents

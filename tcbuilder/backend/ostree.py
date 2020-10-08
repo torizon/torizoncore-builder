@@ -10,7 +10,7 @@ import gi
 gi.require_version("OSTree", "1.0")
 from gi.repository import Gio, GLib, OSTree
 
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError, PathNotExistError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -152,10 +152,15 @@ def _convert_gio_file_type(gio_file_type):
     else:
         raise TorizonCoreBuilderError(f"Unknown gio filetype {gio_file_type}")
 
-def check_existance(repo, commit, path, name):
-    dir_contents = []
-    dir_contents = ls(repo, path, commit)
-    return any(content for content in dir_contents if content["name"] == name)
+def check_existance(repo, commit, path):
+    path = os.path.realpath(path)
+
+    ret, root, _commit = repo.read_commit(commit)
+    if not ret:
+        raise TorizonCoreBuilderError(f"Error couldn't reat commit: {commit}")
+
+    sub_path = root.resolve_relative_path(path)
+    return sub_path.query_exists()
 
 def ls(repo, path, commit):
     """ return a list of files and directories in a ostree repo under path
@@ -170,21 +175,25 @@ def ls(repo, path, commit):
 
         raises:
             TorizonCoreBuilderError - if commit does not exist
+            PathNotExistError - if path does not exist
     """
     # Make sure we don't end the path with / because this confuses ostree
     path = os.path.realpath(path)
+
     ret, root, _commit = repo.read_commit(commit)
     if not ret:
         raise TorizonCoreBuilderError(f"Error couldn't reat commit: {commit}")
 
     sub_path = root.resolve_relative_path(path)
+    if sub_path.query_exists():
+        file_list = sub_path.enumerate_children(
+            "*", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
 
-    file_list = sub_path.enumerate_children(
-        "*", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
-
-    return list(map(lambda f: {"name": f.get_name(),
-                               "type": _convert_gio_file_type(f.get_file_type())
-                               }, file_list))
+        return list(map(lambda f: {"name": f.get_name(),
+                                "type": _convert_gio_file_type(f.get_file_type())
+                                }, file_list))
+    else:
+        raise PathNotExistError(f"path {path} does not exist")
 
 def get_kernel_version(repo, commit):
     """ return the kernel version used in the commit
@@ -196,6 +205,8 @@ def get_kernel_version(repo, commit):
         return:
             version(str) - The kernel version used in this OSTree commit
     """
+
+    kernel_version = ""
 
     module_files = ls(repo, "/usr/lib/modules", commit)
     module_dirs = filter(lambda file: file["type"] == "directory",
