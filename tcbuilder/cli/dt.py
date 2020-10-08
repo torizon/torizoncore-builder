@@ -147,10 +147,6 @@ def dt_checkout_subcommand(args):
 def dt_list_overlays_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
-    if not os.path.exists(os.path.abspath(args.overlays_dir)):
-        log.error(f"{args.overlays_dir} does not exist")
-        return
-
     if args.devicetree_source is None and args.devicetree_bin is None:
         log.error("no devicetree file is provided")
         return
@@ -169,7 +165,15 @@ def dt_list_overlays_subcommand(args):
         log.error(f"{args.devicetree_bin} does not exist")
         return
 
-    overlays_path = os.path.abspath(args.overlays_dir)
+    if args.overlays_dir is None:
+        overlays_path = os.path.abspath("device-trees/overlays")
+    else:
+        overlays_path = os.path.abspath(args.overlays_dir)
+
+    if not os.path.exists(overlays_path):
+        log.error(f"overlays-dir ({overlays_path}) does not exist.\
+                  Do a dt checkout or provide a valid overlays-dir.")
+        return
 
     compatibilities = []
     if args.devicetree_bin is not None:
@@ -263,8 +267,7 @@ def add_overlay_parser(parser):
     subparser.add_argument("--devicetree", dest="devicetree_bin",
                            help="Device tree binary file")
     subparser.add_argument("--overlays-dir", dest="overlays_dir",
-                           help="Path to overlays directory",
-                           required=True)
+                           help="Path to overlays directory")
 
     subparser.set_defaults(func=dt_list_overlays_subcommand)
     subparser = subparsers.add_parser("list-devicetrees",
