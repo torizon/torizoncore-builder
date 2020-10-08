@@ -18,48 +18,52 @@ def get_dt_from_list(dt_to_search, dt_list):
 
     return devicetree_bin
 
+def get_devicetree_bin(devicetree_in, storage_dir, src_ostree_archive_dir):
+    dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
+
+    devicetree_bin = None
+    if devicetree_in is None:
+        # get default 'devicetree' from OSTree
+        dt_path = get_dt_from_list("devicetree", dt_list)
+        if dt_path is not None:
+            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+
+    elif os.path.sep in devicetree_in:
+        # search in working dir
+        if os.path.exists(os.path.abspath(devicetree_in)):
+            devicetree_bin = dt.copy_devicetree_bin_from_workdir(storage_dir,
+                                                                 os.path.abspath(devicetree_bin))
+        else:
+            #search in OSTree
+            user_provided_dt = devicetree_in.rsplit('/', 1)[1]
+            dt_path = get_dt_from_list(user_provided_dt, dt_list)
+            if dt_path:
+                devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+    else:
+        # only name is provided
+        dt_path = get_dt_from_list(devicetree_in, dt_list)
+        if dt_path:
+            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+
+    return devicetree_bin
+
 def dt_overlay_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
     if args.overlays is None:
-        log.error("no overlay is provided")
+        log.error('No overlay is provided.')
         return
 
     # create list of available device trees in OSTree
     storage_dir = os.path.abspath(args.storage_directory)
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
-
-    devicetree_bin = None
-    if args.devicetree_bin is None:
-        # get default 'devicetree' from OSTree
-        dt_path = get_dt_from_list("devicetree", dt_list)
-        if dt_path is None:
-            log.error('No default device tree in OSTree found. Please specify a device tree.')
-            dt_list_devicetrees_subcommand(args)
-            return
-
-        devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
-    elif os.path.sep in args.devicetree_bin:
-        # search in working dir
-        if os.path.exists(os.path.abspath(args.devicetree_bin)):
-            devicetree_bin = os.path.abspath(args.devicetree_bin)
-            dt.copy_devicetree_bin_from_workdir(storage_dir, args.devicetree_bin)
-        else:
-            #search in OSTree
-            user_provided_dt = args.devicetree_bin.rsplit('/', 1)[1]
-            dt_path = get_dt_from_list(user_provided_dt, dt_list)
-            if dt_path:
-                devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
-    else:
-        # only name is provided
-        dt_path = get_dt_from_list(args.devicetree_bin, dt_list)
-        if dt_path:
-            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
-
+    devicetree_bin = get_devicetree_bin(args.devicetree_bin,
+                                        storage_dir,
+                                        src_ostree_archive_dir)
     if devicetree_bin is None:
-        log.error(f'No devicetree "{args.devicetree_bin}" binary found.')
+        log.error(f'No devicetree binary found and the provided device tree {args.devicetree_bin} does not exist. Please specify a device tree.')
+        dt_list_devicetrees_subcommand(args)
         return
 
     devicetree_out = ""
