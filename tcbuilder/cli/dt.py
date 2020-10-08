@@ -151,23 +151,22 @@ def dt_checkout_subcommand(args):
 def dt_list_overlays_subcommand(args):
     log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
-    if args.devicetree_source is None and args.devicetree_bin is None:
-        log.error("no devicetree file is provided")
-        return
-
-    if args.devicetree_source is not None and args.devicetree_bin is not None:
-        log.error("provide either device tree source file or binary file")
-        return
-
-    if args.devicetree_source is not None and \
-            not os.path.exists(os.path.abspath(args.devicetree_source)):
-        log.error(f"{args.devicetree_source} does not exist")
-        return
-
-    if args.devicetree_bin is not None and \
-        not os.path.exists(os.path.abspath(args.devicetree_bin)):
-        log.error(f"{args.devicetree_bin} does not exist")
-        return
+    devicetree_bin = None
+    if args.devicetree_source is None:
+        # Try to detect a default devicetree binary
+        storage_dir = os.path.abspath(args.storage_directory)
+        src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+        devicetree_bin = get_devicetree_bin(args.devicetree_bin,
+                                            storage_dir,
+                                            src_ostree_archive_dir)
+        if devicetree_bin is None:
+            log.error(f'No devicetree binary found and the provided device tree {args.devicetree_bin} does not exist. Please specify a device tree.')
+            dt_list_devicetrees_subcommand(args)
+            return
+    else:
+        if not os.path.exists(os.path.abspath(args.devicetree_source)):
+            log.error(f"{args.devicetree_source} does not exist")
+            return
 
     if args.overlays_dir is None:
         overlays_path = os.path.abspath("device-trees/overlays")
@@ -180,8 +179,8 @@ def dt_list_overlays_subcommand(args):
         return
 
     compatibilities = []
-    if args.devicetree_bin is not None:
-        compatibilities = dt.get_compatibilities_binary(args.devicetree_bin)
+    if devicetree_bin is not None:
+        compatibilities = dt.get_compatibilities_binary(devicetree_bin)
     else:
         parser = CompatibleOverlayParser(args.devicetree_source)
         compatibilities = parser.get_compatibilities_source()
