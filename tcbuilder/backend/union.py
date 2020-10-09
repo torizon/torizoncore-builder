@@ -7,9 +7,29 @@ gi.require_version("OSTree", "1.0")
 from gi.repository import GLib, OSTree
 
 from tcbuilder.backend import ostree
+from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
+
+def process_whiteouts(mt, path="/"):
+    # Check for opaque whiteouts
+    if any(name == OSTREE_OPAQUE_WHITEOUT_NAME for name in mt.get_files().keys()):
+        log.debug(f"Removing all contents from {path}.")
+        for name in mt.get_files().keys():
+            mt.remove(name, False)
+        return
+
+    for name in mt.get_files().keys():
+        if name.startswith(OSTREE_WHITEOUT_PREFIX):
+            mt.remove(name, False)
+            name_to_remove = name[4:]
+            log.debug(f"Removing file {path}/{name_to_remove}.")
+            result = mt.remove(name_to_remove, False)
+            log.debug(f"Removing file {name_to_remove}, {result}.")
+
+    for dirname, submt in mt.get_subdirs().items():
+        process_whiteouts(submt, os.path.join(path, dirname))
 
 def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
@@ -33,6 +53,9 @@ def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
         changesdir_fd = os.open(changes_dir, os.O_DIRECTORY)
         if not repo.write_dfd_to_mtree(changesdir_fd, ".", mt):
             raise TorizonCoreBuilderError("Adding directory to commit failed.")
+
+        log.debug("Processing whiteouts.")
+        process_whiteouts(mt)
 
         result, root = repo.write_mtree(mt)
         if not result:
