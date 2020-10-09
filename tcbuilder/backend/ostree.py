@@ -16,6 +16,12 @@ log = logging.getLogger("torizon." + __name__)
 
 OSTREE_BASE_REF = "base"
 
+# Whiteout defines match what Containers are using:
+# https://github.com/opencontainers/image-spec/blob/v1.0.1/layer.md#whiteouts
+# this is from src/libostree/ostree-repo-checkout.c
+OSTREE_WHITEOUT_PREFIX = ".wh."
+OSTREE_OPAQUE_WHITEOUT_NAME = ".wh..wh..opq"
+
 def open_ostree(ostree_dir):
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
     if not repo.open(None):

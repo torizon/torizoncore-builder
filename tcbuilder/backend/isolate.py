@@ -5,6 +5,7 @@ import subprocess
 import paramiko
 
 from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
+from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
 
 ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysinit.target.wants/run-postinsts.service',
                 'ostree/remotes.d/toradex-nightly.conf', 'docker/key.json', '.updated', '.pwd.lock', 'group-',
@@ -58,12 +59,12 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
         # check if any file exists other than file/dir deleted in same subdirectory of /etc
         d_list = sftp_channel.listdir('/etc' + path)
         if not d_list:  # entire content(s) deleted
-            deleted_file_dir_to_tar = 'etc' + path + '.wh..wh..opq'
+            deleted_file_dir_to_tar = 'etc' + path + OSTREE_OPAQUE_WHITEOUT_NAME
         else:
-            deleted_file_dir_to_tar = 'etc' + path + '.wh.' \
+            deleted_file_dir_to_tar = 'etc' + path + OSTREE_WHITEOUT_PREFIX \
                                         + deleted_f_d.rsplit('/', 1)[1]
     else:
-        deleted_file_dir_to_tar = 'etc' + path + '.wh.' \
+        deleted_file_dir_to_tar = 'etc' + path + OSTREE_WHITEOUT_PREFIX \
                                     + deleted_f_d
 
     # create deleted files/dir in torizonbuilder tmp directory with whiteout format
