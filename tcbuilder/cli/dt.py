@@ -199,7 +199,8 @@ def dt_list_overlays_subcommand(args):
         parser = CompatibleOverlayParser(overlay_path)
         overlay_compatibilities = parser.get_compatibilities_source()
         if CompatibleOverlayParser.check_compatibility(compatibilities, overlay_compatibilities):
-            compatible_overlays.append({ 'path': path, 'description': parser.get_description() } )
+            compatible_overlays.append({ 'path': os.path.relpath(overlay_path),
+                                        'description': parser.get_description() } )
 
     if compatible_overlays:
         log.info("Available overlays are:")
