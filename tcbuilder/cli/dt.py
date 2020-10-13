@@ -32,7 +32,7 @@ def get_devicetree_bin(devicetree_in, storage_dir, src_ostree_archive_dir):
         # search in working dir
         if os.path.exists(os.path.abspath(devicetree_in)):
             devicetree_bin = dt.copy_devicetree_bin_from_workdir(storage_dir,
-                                                                 os.path.abspath(devicetree_bin))
+                                                                 os.path.abspath(devicetree_in))
         else:
             #search in OSTree
             user_provided_dt = devicetree_in.rsplit('/', 1)[1]
