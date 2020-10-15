@@ -21,19 +21,19 @@ def combine_image(args):
     combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
                                 args.image_description, args.licence_file,
                                 args.release_notes_file)
-    log.info("Successfully created a TorizonCore image with Docker Containers "
-                "preprovisioned in {}", args.output_directory)
+    log.info(f"Successfully created a TorizonCore image with Docker Containers"
+             f" preprovisioned in {args.output_directory}")
 
 def init_parser(subparsers):
     subparser = subparsers.add_parser("combine", help="""\
     Combines a container bundle with a specified Toradex Easy Installer image.
     """)
     subparser.add_argument("--image-directory", dest="image_directory",
-                           help="""Path to TorizonCore Toradex Easy Installer source image, 
+                           help="""Path to TorizonCore Toradex Easy Installer source image,
                         which needs to be updated with docker bundle.""",
                            required=True)
     subparser.add_argument("--output-directory", dest="output_directory",
-                           help="""Path to combined TorizonCore Toradex Easy Installer image, 
+                           help="""Path to combined TorizonCore Toradex Easy Installer image,
                             which needs to be updated with docker bundle.""",
                            required=True)
     add_common_image_arguments(subparser)
