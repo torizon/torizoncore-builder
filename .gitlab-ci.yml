@@ -79,6 +79,7 @@ docker-build-torizoncore-builder-amd64:
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
 
 docker-build-torizoncore-builder-arm64:
+  timeout: 5h
   when: manual
   extends: .docker-build
   variables:
