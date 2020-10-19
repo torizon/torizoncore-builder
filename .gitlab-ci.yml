@@ -101,10 +101,8 @@ docker-build-torizoncore-builder-arm64:
   script:
   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-  - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_ARM64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-  - docker manifest create ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_ARM64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+  - docker manifest create ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
   - docker manifest annotate ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}  --os linux --arch amd64
-  - docker manifest annotate ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_ARM64}:${GITLAB_DOCKERREGISTRY_SUFFIX}  --os linux --arch arm64
   - docker manifest inspect -v ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
   - docker manifest push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
@@ -113,7 +111,6 @@ docker-build-torizoncore-builder-multiarch:
   variables:
     IMAGE_NAME: torizoncore-builder
     IMAGE_NAME_AMD64: torizoncore-builder-amd64
-    IMAGE_NAME_ARM64: torizoncore-builder-arm64
   stage: build-multiarch
 
 # Docker deploy jobs
@@ -179,9 +176,8 @@ docker-deploy-torizoncore-builder-arm64:
       done
   - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
       do
-        docker manifest create ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_ARM64}:${tag};
+        docker manifest create ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag}
         docker manifest annotate ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag} --os linux --arch amd64;
-        docker manifest annotate ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_ARM64}:${tag} --os linux --arch arm64;
         docker manifest inspect -v ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
         docker manifest push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
       done
@@ -198,5 +194,4 @@ docker-deploy-torizoncore-builder-multiarch:
   variables:
     IMAGE_NAME: torizoncore-builder
     IMAGE_NAME_AMD64: torizoncore-builder-amd64
-    IMAGE_NAME_ARM64: torizoncore-builder-arm64
   stage: deploy-multiarch
