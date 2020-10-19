@@ -176,7 +176,7 @@ docker-deploy-torizoncore-builder-arm64:
       done
   - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
       do
-        docker manifest create ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag}
+        docker manifest create ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag};
         docker manifest annotate ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag} --os linux --arch amd64;
         docker manifest inspect -v ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
         docker manifest push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
