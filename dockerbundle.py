@@ -281,7 +281,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
         f = open(os.path.join(manager.output_dir, "docker-compose.yml"), "w")
 
         # Serialization need to escape dollar sign and requires no env varibales interpolation.
-        f.write(compose.config.serialize.serialize_config(cfg, escape_dollar=False))
+        f.write(compose.config.serialize.serialize_config(cfg, escape_dollar=False).replace("@@MACHINE@@", "$MACHINE", 1))
         f.close()
 
         logging.info("Exporting storage")
