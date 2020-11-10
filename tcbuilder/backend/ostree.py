@@ -5,6 +5,8 @@ Helper functions for commonly used OSTree functions.
 
 import logging
 import os
+import subprocess
+import traceback
 
 import gi
 gi.require_version("OSTree", "1.0")
@@ -118,15 +120,32 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     """
     log.debug(f"Pulling from local repository {repopath} commit checksum {csum}")
 
-    # ostree --repo=toradex-os-tree pull-local --remote=${branch} ${repopath} ${ref} --depth=0
-    options = GLib.Variant("a{sv}", {
-        "refs": GLib.Variant.new_strv([csum]),
-        "depth": GLib.Variant("i", 0),
-        "override-remote-name": GLib.Variant('s', remote),
-    })
-
-    if not repo.pull_with_options("file://" + repopath, options):
-        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.")
+    # With Bullseye's ostree version 2020.7, the following snippet fails with:
+    # gi.repository.GLib.GError: g-io-error-quark: Remote "torizon" not found (1)
+    #
+    #    options = GLib.Variant("a{sv}", {
+    #        "refs": GLib.Variant.new_strv([csum]),
+    #        "depth": GLib.Variant("i", 0),
+    #        "override-remote-name": GLib.Variant('s', remote),
+    #    })
+    #    if not repo.pull_with_options("file://" + repopath, options):
+    #        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.")
+    #
+    # Work around by employing the ostree CLI instead.
+    try:
+        subprocess.run(
+            [arg for arg in [
+                "ostree",
+                "pull-local",
+                "--repo={}".format(os.readlink("/proc/self/fd/{}".format(repo.get_dfd()))),
+                "--remote={}".format(remote) if remote else None,
+                repopath,
+                csum] if arg],
+            check=True)
+        repo.reload_config()
+    except subprocess.CalledProcessError as e:
+        logging.error(traceback.format_exc())
+        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.") from e
 
     # Note: In theory we can do this with two options in one go, but that seems
     # to validate ref-bindings... (has probably something to do with Collection IDs etc..)
