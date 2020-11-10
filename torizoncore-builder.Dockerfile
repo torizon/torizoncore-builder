@@ -1,5 +1,5 @@
 ARG IMAGE_ARCH=linux/amd64
-ARG IMAGE_TAG=buster-slim
+ARG IMAGE_TAG=bullseye-slim
 FROM --platform=$IMAGE_ARCH debian:$IMAGE_TAG AS common-base
 
 ARG APT_PROXY
@@ -13,14 +13,8 @@ RUN if [ "$APT_PROXY" != "" ]; then \
     echo "no squid-deb-proxy configured"; \
     fi
 
-# Enable buster backports to get a newer OSTree version 2019.6
-# buster's original OSTree version 2019.1 has a buggy bare repo -> bare repo
-# import. We anyway build OSTree ourselfs, but using the backports repo as base
-# makes sure we use build dependencies of the correct version.
-RUN echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
-
-# Install runtime dependencies. Install them in the common part so we can safe
-# having to install them twice (build-dep would install them too)
+# Install runtime dependencies. Install them in the common part in order to refrain
+# installing them twice (build-dep would install them too)
 # This are all dependencies from the regular Debian OSTree packages except
 # AVAHI.
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
@@ -28,52 +22,36 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     liblzma5 libmount1 libselinux1 libsoup2.4-1 libsystemd0 zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Build OSTree from source so we can patch it with device tree deployment
-# capabilities.
-FROM common-base AS ostree-builder
+# Build SOTA tools (garage-push/garage-sign)
+FROM common-base AS sota-builder
 
-COPY sources.list /etc/apt/sources.list
+# Enable access to source packages for all feeds.
+RUN sed -i '/^deb /{p;s/ /-src /}' /etc/apt/sources.list
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
-    build-essential git && \
-    apt-get -q -y build-dep ostree \
+    build-essential git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
 
-# Clone the same version we have from Debian buster backports
-RUN git clone https://github.com/ostreedev/ostree.git && cd ostree && \
-    git checkout v2019.6
-
-COPY 0001-deploy-support-devicetree-directory.patch /root/ostree
-
-RUN cd ostree && patch -p1 < 0001-deploy-support-devicetree-directory.patch && \
-    ./autogen.sh && ./configure --without-avahi && make && \
-    make install DESTDIR=/ostree-build
-
-# Build SOTA tools (garage-push/garage-sign)
-
 # Dependencies according to README.adoc + glibc and file
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     asn1c build-essential cmake curl libarchive-dev \
-    libboost-dev libboost-filesystem-dev libboost-log-dev libboost-program-options-dev \
+    libboost-dev libboost-log-dev libboost-program-options-dev \
     libcurl4-openssl-dev libpthread-stubs0-dev libsodium-dev libsqlite3-dev \
-    libssl-dev python3 libglib2.0-dev file && \
-    apt-get -q -y build-dep ostree \
+    libssl-dev python3 libglib2.0-dev file \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
 
 RUN git clone --recursive https://github.com/advancedtelematic/aktualizr && cd aktualizr && \
-    git checkout 2020.8
+    git checkout 2020.9
 
-COPY 0001-Allow-custom-Debian-package-dependencies.patch /root/aktualizr
-
-RUN cd aktualizr && patch -p1 < 0001-Allow-custom-Debian-package-dependencies.patch && \
-    mkdir build/ && cd build/ && \
+RUN cd aktualizr && mkdir build/ && cd build/ && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DEB=ON -DBUILD_SOTA_TOOLS=ON \
-          -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless .. && \
-    make package
+          -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless \
+          -DWARNING_AS_ERROR=OFF .. && \
+    make -j$(nproc) package
 
 FROM common-base AS tcbuilder-base
 
@@ -81,16 +59,16 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
     curl gzip xz-utils lz4 lzop zstd cpio jq \
     device-tree-compiler cpp \
-    && apt-get -t buster-backports -q -y --no-install-recommends install python3-paramiko \
+    && apt-get -q -y --no-install-recommends install python3-paramiko \
     python3-dnspython python3-git && rm -rf /var/lib/apt/lists/*
 
-# Copy OSTree (including gir support) from build stage
-COPY --from=ostree-builder /ostree-build/ /
-RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf && ldconfig
-ENV GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0/
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
+    ostree \
+    gir1.2-ostree-1.0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy and install SOTA tools from build stage
-COPY --from=ostree-builder /root/aktualizr/build/garage_deploy.deb /
+COPY --from=sota-builder /root/aktualizr/build/garage_deploy.deb /
 
 # Try to install garage deploy, and then use apt-get to install actual dependencies
 # (the mkdir -p /usr/share/man/man1 is required to make JRE installation happy)

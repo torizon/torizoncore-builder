@@ -201,7 +201,7 @@ class DindManager(DockerManager):
 
         # Use a container to tar the Docker storage backend instead of the
         # built-in save_tar() is more flexible...
-        _tar_container = self.host_client.containers.run("debian:buster",
+        _tar_container = self.host_client.containers.run("debian:bullseye-slim",
                 volumes = {
                             self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'ro'},
                             self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
