@@ -132,13 +132,15 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     #        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.")
     #
     # Work around by employing the ostree CLI instead.
+    repo_fd = repo.get_dfd()
+    repo_str = os.readlink(f"/proc/self/fd/{repo_fd}")
     try:
         subprocess.run(
             [arg for arg in [
                 "ostree",
                 "pull-local",
-                "--repo={}".format(os.readlink("/proc/self/fd/{}".format(repo.get_dfd()))),
-                "--remote={}".format(remote) if remote else None,
+                f"--repo={repo_str}",
+                f"--remote={remote}" if remote else None,
                 repopath,
                 csum] if arg],
             check=True)
