@@ -109,8 +109,9 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
 def copy_home_from_old_sysroot(src_sysroot, dst_sysroot):
     src_var = get_var_path(src_sysroot)
     dst_var = get_var_path(dst_sysroot)
-    shutil.copytree(os.path.join(src_var, "rootdirs"),
-        os.path.join(dst_var, "rootdirs"), symlinks=True)
+    # shutil.copytree does not preserve ownership
+    if subprocess.Popen(['cp', '-a', '-t', dst_var, os.path.join(src_var, 'rootdirs')]).wait():
+        raise TorizonCoreBuilderError("Cannot deploy home directories.")
 
 def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                       output_dir, dst_sysroot_dir, ref=None):
