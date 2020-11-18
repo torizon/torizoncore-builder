@@ -6,4 +6,8 @@ __pycache__/
 # Ignore cache of mypy static checker
 .mypy_cache/
 
+# Code indexing
 tags
+GPATH
+GRTAGS
+GTAGS
