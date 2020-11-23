@@ -31,12 +31,10 @@ def union_subcommand(args):
     changes_dirs = []
     if args.changes_dirs is None:
         # Automatically add the ones present...
-        if os.path.isdir("/storage/changes"):
-            changes_dirs.append("/storage/changes")
-        if os.path.isdir("/storage/splash"):
-            changes_dirs.append("/storage/splash")
-        if os.path.isdir("/storage/dt"):
-            changes_dirs.append("/storage/dt")
+        for subdir in ["changes", "splash", "dt"]:
+            changed_dir = os.path.join(storage_dir, subdir)
+            if os.path.isdir(changed_dir):
+                changes_dirs.append(changed_dir)
     else:
         check_and_append_dirs(changes_dirs, args.changes_dirs)
 
