@@ -122,9 +122,41 @@ serve.init_parser(subparsers)
 
 #pylint: disable=broad-except
 
+def am_i_under_docker():
+    '''Tells whether the OS is inside the Matrix.
+    '''
+    # Detect if the init process has Docker control groups; see
+    # https://stackoverflow.com/questions/20010199/how-to-determine-if-a-process-runs-inside-lxc-docker
+    with open('/proc/1/cgroup', 'rt') as f:
+        return 'docker' in f.read()
+
+def assert_operational_directory(path, label):
+    '''Assert that a given directory looks ok to be used as a data storage
+       between executions of torizoncore-builder.
+    '''
+    if not os.path.isabs(path):
+        logging.error(f"error: {label} directory '{path}' is not absolute.")
+        sys.exit(1)
+    if not os.path.exists(path):
+        logging.error(f"error: {label} directory '{path}' does not exist.")
+        sys.exit(1)
+    if not os.path.isdir(path):
+        logging.error(f"error: {label} directory '{path}' is not a directory.")
+        sys.exit(1)
+    if not am_i_under_docker():
+        return
+    if os.stat(path).st_dev == os.stat('/').st_dev:
+        # We're under Docker and the directory is part of the container's root mount.
+        # When the container vanishes, so will the contents of the directory.
+        # This is probably not what the user desires.
+        logging.warning(f"warning: {label} directory '{path}' is local to a Docker container, and its contents will be lost if the container vanishes.")
+        logging.warning(f"You may want to bind '{path}' to a host directory with Docker's --volume option.")
+    return
+
 if __name__ == "__main__":
     mainargs = parser.parse_args()
     setup_logging(mainargs.log_level, mainargs.verbose, mainargs.log_file)
+    assert_operational_directory(mainargs.storage_directory, 'storage')
 
     try:
         if hasattr(mainargs, 'func'):
