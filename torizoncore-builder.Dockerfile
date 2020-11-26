@@ -57,7 +57,7 @@ FROM common-base AS tcbuilder-base
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
-    curl gzip xz-utils lz4 lzop zstd cpio jq \
+    file curl gzip xz-utils lz4 lzop zstd cpio jq \
     device-tree-compiler cpp \
     && apt-get -q -y --no-install-recommends install python3-paramiko \
     python3-dnspython python3-git && rm -rf /var/lib/apt/lists/*
@@ -66,6 +66,13 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     ostree \
     gir1.2-ostree-1.0 \
     && rm -rf /var/lib/apt/lists/*
+
+# Refrain dash from taking over the /bin/sh symlink.
+# This allows Python 'subprocess' shell enabled commands to employ bashisms such as pipefail.
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install bash \
+    && echo 'dash dash/sh boolean false' | debconf-set-selections \
+    && DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true dpkg-reconfigure dash \
+    ; test $(realpath /bin/sh) = '/bin/bash'
 
 # Copy and install SOTA tools from build stage
 COPY --from=sota-builder /root/aktualizr/build/garage_deploy.deb /

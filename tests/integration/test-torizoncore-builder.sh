@@ -61,12 +61,17 @@ tar -C teziimage -xf $TEZI_TAR_FILE
 docker volume rm storage
 tcb unpack --image-directory teziimage/torizon-core-docker-evaluation-*
 
+echo "error: not yet implemented" 1>&2
+exit 1
+
 # DT
 tcb dt checkout
-setting DEVICE_TREE imx8qm-apalis-v1.1-ixora-v1.1.dtb
-tcb dt list-devicetrees | grep -q "\<${DEVICE_TREE}\>"
+setting DEVICE_TREE device-trees/dts-arm64/imx8qm-apalis-v1.1-ixora-v1.1.dtb
+tcb dt apply $DEVICE_TREE
 setting OVERLAYS apalis-imx8_atmel-mxt_overlay.dts,apalis-imx8_lvds_overlay.dts
-test -z "$OVERLAYS" || tcb dt overlay --devicetree $DEVICE_TREE $(sed -e 's/^/,/' -e 's|,| device-trees/overlays/|g' <<<$OVERLAYS)
+for OVERLAY in $(sed 's/,/ /g' <<<$OVERLAYS) ; do
+    echo $OVERLAY
+done
 
 # ISOLATE
 echo "hello world" | $RSH 'cat >hello.txt'

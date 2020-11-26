@@ -1,308 +1,90 @@
 import logging
 import os
-import gi
-gi.require_version("OSTree", "1.0")
-import traceback
-from tcbuilder.errors import TorizonCoreBuilderError
+import shutil
+import subprocess
+import sys
+import tempfile
+
 from tcbuilder.backend import dt
-from tcbuilder.backend.common import checkout_git_repo
-from tcbuilder.errors import PathNotExistError, InvalidStateError
-from tcbuilder.backend.overlay_parser import CompatibleOverlayParser
 
-def get_dt_from_list(dt_to_search, dt_list):
-    devicetree_bin = None
-    for device_tree in dt_list:
-        if device_tree["name"] == dt_to_search:
-            devicetree_bin = os.path.join(device_tree["path"], device_tree["name"])
-            break
+log = logging.getLogger("torizon." + __name__)
 
-    return devicetree_bin
 
-def get_devicetree_bin(devicetree_in, storage_dir, src_ostree_archive_dir):
-    dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
+def do_dt_status(args):
+    '''Perform the 'dt status' command.'''
 
-    devicetree_bin = None
-    if devicetree_in is None:
-        # get default 'devicetree' from OSTree
-        dt_path = get_dt_from_list("devicetree", dt_list)
-        if dt_path is not None:
-            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+    dtb_basename = dt.get_current_dtb_basename(args.storage_directory)
+    if not dtb_basename:
+        log.error("error: cannot identify the enabled device tree (the device tree is selected at runtime)")
+        sys.exit(1)
 
-    elif os.path.sep in devicetree_in:
-        # search in working dir
-        if os.path.exists(os.path.abspath(devicetree_in)):
-            devicetree_bin = dt.copy_devicetree_bin_from_workdir(storage_dir,
-                                                                 os.path.abspath(devicetree_in))
-        else:
-            #search in OSTree
-            user_provided_dt = devicetree_in.rsplit('/', 1)[1]
-            dt_path = get_dt_from_list(user_provided_dt, dt_list)
-            if dt_path:
-                devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
-    else:
-        # only name is provided
-        dt_path = get_dt_from_list(devicetree_in, dt_list)
-        if dt_path:
-            devicetree_bin = dt.copy_devicetree_bin_from_ostree(storage_dir, dt_path)
+    log.info(f"Current device tree is: {dtb_basename}")
 
-    return devicetree_bin
 
-def dt_overlay_subcommand(args):
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
+def do_dt_checkout(_):
+    '''Perform the 'dt checkout' command.'''
 
-    if args.overlays is None:
-        log.error('No overlay is provided.')
-        return
+    # Retrieve the Toradex device-tree repository, if not already retrieved.
+    os.execlp("git", "git", "clone", "https://github.com/toradex/device-trees")
 
-    # create list of available device trees in OSTree
-    storage_dir = os.path.abspath(args.storage_directory)
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    devicetree_bin = get_devicetree_bin(args.devicetree_bin,
-                                        storage_dir,
-                                        src_ostree_archive_dir)
-    if devicetree_bin is None:
-        log.error(f'No devicetree binary found and the provided device tree {args.devicetree_bin} does not exist. Please specify a device tree.')
-        dt_list_devicetrees_subcommand(args)
-        return
+def do_dt_apply(args):
+    '''Perform the 'dt apply' command.'''
 
-    devicetree_out = ""
-    if args.devicetree_out is not None:
-        dt_out = os.path.abspath(args.devicetree_out)
-        if not os.path.exists(dt_out):
-            log.error(f"{args.devicetree_out} does not exist")
-            return
-        if os.path.exists(os.path.join(dt_out, "usr")):
-            log.error(f"{args.devicetree_out} is not empty")
-            return
+    # Sanity check parameters.
+    assert args.dts_path, "panic: missing device tree source parameter"
+    if not args.include_dirs:
+        args.include_dirs = ["device-trees/include"]
 
-    devicetree_out = dt.create_dt_changes_dir(args.devicetree_out, args.storage_directory)
+    # Compile the device tree.
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        dtb_tmp_path = f.name
+    if not dt.build_dts(args.dts_path, args.include_dirs, dtb_tmp_path):
+        log.error(f"error: cannot apply {args.dts_path}.")
+        sys.exit(1)
 
-    if args.include_dir:
-        include_dir = args.include_dir
-    else:
-        include_dir = dt.get_default_include_dir(src_ostree_archive_dir)
+    # Deploy the device tree blob.
+    dt_changes_dir = dt.get_dt_changes_dir(args.storage_directory)
+    subprocess.check_call(f"rm -rf {dt_changes_dir}", shell=True)  # Erase device tree and overlays of the current session
+    dtb_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory))
+    os.makedirs(dtb_target_dir, exist_ok=True)
+    dtb_target_basename = os.path.splitext(os.path.basename(args.dts_path))[0] + ".dtb"
+    dtb_target_path = os.path.join(dtb_target_dir, dtb_target_basename)
+    shutil.move(dtb_tmp_path, dtb_target_path)
 
-    dt.build_and_apply(devicetree_bin, args.overlays, devicetree_out,
-                       include_dir)
+    # Deploy the enablement of the device tree blob.
+    uenv_target_dir = os.path.join(dt_changes_dir, "usr", "lib", "ostree-boot")
+    os.makedirs(uenv_target_dir, exist_ok=True)
+    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
+    with open(uenv_target_path, "w") as f:
+        f.write(f"fdtfile={dtb_target_basename}\n")
+    subprocess.check_call(f"set -o pipefail && ostree --repo={args.storage_directory}/ostree-archive cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d >>{uenv_target_path}", shell=True)
 
-    dt.store_overlay_files(args.overlays, storage_dir, args.devicetree_out)
+    # Deploy an empty overlays config file, so any overlays from the base image are disabled.
+    with open(os.path.join(dtb_target_dir, "overlays.txt"), "w") as f:
+        f.write("fdt_overlays=\n")
 
-    if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
-        os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
-
-    log.info(f"Overlays {args.overlays} successfully applied")
-
-def dt_custom_subcommand(args):
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
-
-    devicetree_out = ""
-    if args.devicetree_out is not None:
-        devicetree_out = os.path.abspath(args.devicetree_out)
-        if not os.path.exists(devicetree_out):
-            raise PathNotExistError(f"{args.devicetree_out} does not exist")
-        if os.path.exists(os.path.join(devicetree_out, "usr")):
-            raise InvalidStateError(f"{args.devicetree_out} is not empty")
-
-    devicetree_out = dt.create_dt_changes_dir(args.devicetree_out, args.storage_directory)
-
-    if args.include_dir:
-        include_dir = args.include_dir
-    else:
-        storage_dir = os.path.abspath(args.storage_directory)
-        src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-        include_dir = dt.get_default_include_dir(src_ostree_archive_dir)
-
-    dt.build_and_apply(args.devicetree, None, devicetree_out,
-                       include_dir)
-
-    dt.clear_applied_overlays(args.storage_directory)
-
-    log.info(f"Device tree {args.devicetree} built successfully")
-
-def dt_checkout_subcommand(args):
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
-
-    storage_dir = os.path.abspath(args.storage_directory)
-
-    if args.git_repo is None:
-        if os.path.exists(os.path.abspath("device-trees")):
-            log.error("'device-trees' directory already exists")
-            return
-    elif args.git_repo is not None:
-        if args.git_branch is None:
-            log.error("git branch is not provided")
-            return
-        elif (args.git_repo.startswith("https://") or
-            args.git_repo.startswith("git://")):
-            repo_name = args.git_repo.rsplit('/', 1)[1].rsplit('.', 1)[0]
-            if os.path.exists(os.path.abspath(repo_name)):
-                log.error(f"directory '{repo_name}' named as repo name should not exist")
-                return
-        elif not os.path.exists(os.path.abspath(args.git_repo)):
-            log.error(f"{args.git_repo} directory does not exist")
-            return
-
-    try:
-        checkout_git_repo(storage_dir, args.git_repo, args.git_branch)
-        log.info("dt checkout completed successfully")
-    except TorizonCoreBuilderError as ex:
-        log.error(ex.msg)  # msg from all kinds of Exceptions
-        if ex.det is not None:
-            log.info(ex.det)  # more elaborative message
-        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
-
-def dt_list_overlays_subcommand(args):
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
-
-    devicetree_bin = None
-    if args.devicetree_source is None:
-        # Try to detect a default devicetree binary
-        storage_dir = os.path.abspath(args.storage_directory)
-        src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-        devicetree_bin = get_devicetree_bin(args.devicetree_bin,
-                                            storage_dir,
-                                            src_ostree_archive_dir)
-        if devicetree_bin is None:
-            log.error(f'No devicetree binary found and the provided device tree {args.devicetree_bin} does not exist. Please specify a device tree.')
-            dt_list_devicetrees_subcommand(args)
-            return
-    else:
-        if not os.path.exists(os.path.abspath(args.devicetree_source)):
-            log.error(f"{args.devicetree_source} does not exist")
-            return
-
-    if args.overlays_dir is None:
-        overlays_path = os.path.abspath("device-trees/overlays")
-    else:
-        overlays_path = os.path.abspath(args.overlays_dir)
-
-    if not os.path.exists(overlays_path):
-        log.error(f"overlays-dir ({overlays_path}) does not exist.\
-                  Do a dt checkout or provide a valid overlays-dir.")
-        return
-
-    compatibilities = []
-    if devicetree_bin is not None:
-        compatibilities = dt.get_compatibilities_binary(devicetree_bin)
-    else:
-        parser = CompatibleOverlayParser(args.devicetree_source)
-        compatibilities = parser.get_compatibilities_source()
-
-    compatible_overlays = []
-    for path in sorted(os.listdir(overlays_path)):
-        # Only consider device tree overlay source files
-        if not path.endswith(".dts"):
-            continue
-
-        overlay_path = os.path.join(overlays_path, path)
-        if not os.path.isfile(overlay_path):
-            continue
-
-        # Get "compatible" of overlay and check against base device tree
-        parser = CompatibleOverlayParser(overlay_path)
-        overlay_compatibilities = parser.get_compatibilities_source()
-        if CompatibleOverlayParser.check_compatibility(compatibilities, overlay_compatibilities):
-            compatible_overlays.append({ 'path': os.path.relpath(overlay_path),
-                                        'description': parser.get_description() } )
-
-    if compatible_overlays:
-        log.info("Available overlays are:")
-        for compatible_overlay in compatible_overlays:
-            log.info(f"\t{compatible_overlay['path']}:")
-            log.info(f"\t\t{compatible_overlay['description']}")
-    else:
-        log.info("No compatible overlay found")
-
-def dt_list_applied_dto_subcommand(args):
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
-
-    dto_list = dt.get_list_applied_dtbo_in_repo(args.storage_directory)
-    if dto_list:
-        log.info("Applied overlays are:")
-        for dto in dto_list:
-            log.info(dto["name"])
-    else:
-        log.info("No device tree overlay is applied yet.")
-
-def dt_list_devicetrees_subcommand(args):
-    log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
-
-    storage_dir = os.path.abspath(args.storage_directory)
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-    dt_list = dt.get_ostree_dtb_list(src_ostree_archive_dir)
-
-    log.info("Available device trees in the OSTree are:")
-    for item in dt_list:
-        log.info(f"\t {item['name']}")
-
-def add_overlay_parser(parser):
-    subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
-    subparser = subparsers.add_parser("overlay", help="Apply an overlay")
-    subparser.add_argument("--devicetree", dest="devicetree_bin",
-                           help="Path to the devicetree binary")
-    subparser.add_argument("--devicetree-out", dest="devicetree_out",
-                           help="""Path to the devicetree output directory. Defaults to internal
-                           storage directory. Device tree file is stored with name 'devicetree'.""")
-    subparser.add_argument("--include-dir", dest="include_dir", action='append',
-                           help="""Directory with device tree include (.dtsi) or
-                           header files. Can be passed multiple times. Defaults to
-                           device-trees/include/ and device-trees/dts-[arch]/.""")
-    subparser.add_argument(metavar="OVERLAY", dest="overlays", nargs="+",
-                           help="The overlay(s) to apply")
-
-    subparser.set_defaults(func=dt_overlay_subcommand)
-
-    subparser = subparsers.add_parser("custom", help="Compile device tree")
-    subparser.add_argument("--devicetree-source", dest="devicetree",
-                           help="Path to the device tree source file",
-                           required=True)
-    subparser.add_argument("--devicetree-out", dest="devicetree_out",
-                           help="""Path to the devicetree output directory.
-                           Device tree file is stored with name 'devicetree'.""")
-    subparser.add_argument("--include-dir", dest="include_dir", action='append',
-                           help="""Directory with device tree include (.dtsi) or
-                           header files. Can be passed multiple times. Defaults to
-                           device-trees/include/ and device-trees/dts-[arch]/.""")
-
-    subparser.set_defaults(func=dt_custom_subcommand)
-
-    subparser = subparsers.add_parser("checkout",
-                                      help="""Checkout device tree source, overlays and include
-                                      files.""")
-    subparser.add_argument("--repository", dest="git_repo",
-                           help="""Remote repository URL. Default repo is
-                           https://github.com/toradex/device-trees""")
-    subparser.add_argument("--branch", dest="git_branch",
-                           help="""Branch to be checked out. Default branch with default repo is
-                           toradex_<kmajor>.<kminor>.<x>""")
-
-    subparser.set_defaults(func=dt_checkout_subcommand)
-
-    subparser = subparsers.add_parser("list-overlays", help="List compatible device tree overlays")
-    subparser.add_argument("--devicetree-source", dest="devicetree_source",
-                           help="Device tree source file")
-    subparser.add_argument("--devicetree", dest="devicetree_bin",
-                           help="Device tree binary file")
-    subparser.add_argument("--overlays-dir", dest="overlays_dir",
-                           help="Path to overlays directory")
-
-    subparser.set_defaults(func=dt_list_overlays_subcommand)
-    subparser = subparsers.add_parser("list-devicetrees",
-                                      help="List available device trees binaries in OSTree image")
-
-    subparser.set_defaults(func=dt_list_devicetrees_subcommand)
-
-    subparser = subparsers.add_parser("list-applied-overlays",
-                            help="list applied device tree overlays in image")
-
-    subparser.set_defaults(func=dt_list_applied_dto_subcommand)
+    # All set.
+    log.info(f"Device tree {dtb_target_basename} successfully applied.")
 
 
 def init_parser(subparsers):
-    subparser = subparsers.add_parser("dt", help="""\
-    Compile and apply device trees and device tree overlays.
-    """)
+    '''Initializes the 'dt' subcommands command line interface.'''
 
-    add_overlay_parser(subparser)
+    parser = subparsers.add_parser("dt", description="Manage application of device trees.", help="Manage application of device trees.")
+    subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
+
+    # dt status
+    subparser = subparsers.add_parser("status", description="Show the current device tree", help="Show the current device tree")
+    subparser.set_defaults(func=do_dt_status)
+
+    # dt checkout
+    subparser = subparsers.add_parser("checkout", description="Checkout the Toradex device tree and overlays repository", help="Checkout the Toradex device tree and overlays repository")
+    subparser.set_defaults(func=do_dt_checkout)
+
+    # dt apply DEVICE_TREE
+    subparser = subparsers.add_parser("apply", description="Compile and enable a device tree", help="Compile and enable a device tree")
+    subparser.add_argument(metavar="DEVICE_TREE", dest="dts_path", help="Path to the device tree source file")
+    subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during device tree compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'.")
+    subparser.set_defaults(func=do_dt_apply)
+

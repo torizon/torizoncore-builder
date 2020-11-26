@@ -1,297 +1,120 @@
+import logging
 import os
 import subprocess
-import shutil
-import tempfile
-import logging
-from tcbuilder.backend import ostree
-from tcbuilder.errors import OperationFailureError, PathNotExistError, TorizonCoreBuilderError
-
-# If OSTree finds a file named `devicetree` it will consider it as the only relevant
-# device tree to deploy.
-DT_OUTPUT_NAME = "devicetree"
+import sys
 
 log = logging.getLogger("torizon." + __name__)
 
-def store_overlay_files(overlays, storage_dir, devicetree_out):
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-
-    if devicetree_out is None:
-        if os.path.exists(os.path.join(storage_dir, "dt")):
-            store_overlay_dts_dir = os.path.join(storage_dir, "dt",
-                "usr/lib/modules", kernel_version, "overlays")
-        else:
-            raise PathNotExistError("No device tree storage directory created inside Volume")
-    else:
-        if os.path.exists(os.path.abspath(devicetree_out)):
-            store_overlay_dts_dir = os.path.join(devicetree_out, "usr/lib/modules",
-                kernel_version, "overlays")
-        else:
-            raise PathNotExistError(f"Directory {devicetree_out} not found.")
-
-    if os.path.exists(store_overlay_dts_dir):
-        shutil.rmtree(store_overlay_dts_dir)
-
-    os.makedirs(store_overlay_dts_dir)
-
-    for overlay in overlays:
-        shutil.copy(overlay, store_overlay_dts_dir)
-
-    return store_overlay_dts_dir
-
-def clear_applied_overlays(storage_dir):
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-
-    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
-        os.path.join("/usr/lib/modules", kernel_version, "overlays")):
-        # create whiteout for "overlays" directory,so it gets removed upon merging
-        kernel_dir = os.path.join(storage_dir, "dt",
-                "usr/lib/modules", kernel_version)
-        if os.path.exists(kernel_dir):
-            overlay_dts_dir =  os.path.join(kernel_dir, ".wh.overlays")
-            with open(overlay_dts_dir, 'w'):
-                pass
-        else:
-            raise PathNotExistError("No device tree storage directory created inside Volume")
-
-def build_and_apply(devicetree, overlays, devicetree_out, includepaths):
-    """ Compile and apply several overlays to an input devicetree
-
-        Args:
-            devicetree (str) - input devicetree
-            overlays (str) - list of devicetree overlays to apply
-            devicetree_out (str) - the output devicetree(with overlays) applied
-            includepaths (list) - list of additional include paths
-
-        Raises:
-            FileNotFoundError: invalid file name or build errors
-    """
-    if not os.path.isfile(devicetree):
-        raise TorizonCoreBuilderError("Missing input devicetree")
-
-    tempdir = tempfile.mkdtemp()
-    if overlays is not None:
-        dtbos = []
-        for overlay in overlays:
-            if not os.path.exists(os.path.abspath(overlay)):
-                raise PathNotExistError(f"{overlay} does not exist")
-
-            dtbo = tempdir + "/" + os.path.basename(overlay) + ".dtbo"
-            build(overlay, dtbo, includepaths)
-            dtbos.append(dtbo)
-
-        apply_overlays(devicetree, dtbos, devicetree_out)
-    else:
-        build(devicetree, devicetree_out, includepaths)
-
-    shutil.rmtree(tempdir)
-
-def build(source_file, outputpath=None, includepaths=None):
-    """ Compile a dtbs file into dtb or dtbo output
-
-        Args:
-            source_file (str) - path of source device tree/overlay file
-            outputpath (str) - output file name/folder, if None then extension
-                is appended to source file name, if it's a folder file with dtb/dtbo
-                extension is created
-            includepaths (list) - list of additional include paths
-
-        Raises:
-            FileNotFoundError: invalid file name or build errors
-            OperationFailureError: failed to build the source_file
-    """
-
-    if not os.path.isfile(source_file):
-        raise PathNotExistError(f"Invalid device tree source file {source_file}")
-
-    ext = ".dtb"
-
-    with open(source_file, "r") as f:
-        for line in f:
-            if "fragment@0" in line:
-                ext = ".dtbo"
-                break
-    if outputpath is None:
-        outputpath = "./" + os.path.basename(source_file) + ext
-
-    if os.path.isdir(outputpath):
-        outputpath = os.path.join(
-            outputpath, os.path.basename(source_file) + ext)
-
-
-    cppcmdline = ["cpp", "-nostdinc", "-undef", "-x", "assembler-with-cpp"]
-    dtccmdline = ["dtc", "-@", "-I", "dts", "-O", "dtb"]
-
-    if includepaths is not None:
-        if type(includepaths) is list:
-            for path in includepaths:
-                dtccmdline.append("-i")
-                dtccmdline.append(path)
-                cppcmdline.append("-I")
-                cppcmdline.append(path)
-        else:
-            raise OperationFailureError("Please provide device tree include paths as list")
-
-    tmppath = source_file+".tmp"
-
-    dtccmdline += ["-o", outputpath, tmppath]
-    cppcmdline += ["-o", tmppath, source_file]
-
-    cppprocess = subprocess.run(
-        cppcmdline, stderr=subprocess.PIPE, check=False)
-
-    if cppprocess.returncode != 0:
-        raise OperationFailureError("Failed to preprocess device tree.\n" +
-                        cppprocess.stderr.decode("utf-8"))
-
-    dtcprocess = subprocess.run(
-        dtccmdline, stderr=subprocess.PIPE, check=False)
-
-    if dtcprocess.returncode != 0:
-        raise OperationFailureError("Failed to build device tree.\n" +
-                    dtcprocess.stderr.decode("utf-8"))
-
-    os.remove(tmppath)
 
-def apply_overlays(devicetree, overlays, devicetree_out):
-    """ Verifies that a compiled overlay is valid for the base device tree
-
-        Args:
-            devicetree (str) - path to the binary input device tree
-            overlays (str,list) - list of overlays to apply
-            devicetree_out (str) - input device tree with overlays applied
-
-        Raises:
-            OperationFailureError - fdtoverlay returned an error
-    """
-
-    if not os.path.exists(devicetree):
-        raise PathNotExistError("Invalid input devicetree")
-
-    fdtoverlay_args = ["fdtoverlay", "-i", devicetree, "-o", devicetree_out]
-    if type(overlays) == list:
-        fdtoverlay_args.extend(overlays)
-    else:
-        fdtoverlay_args.append(overlays)
-
-    fdtoverlay = subprocess.run(fdtoverlay_args,
-                                stderr=subprocess.PIPE,
-                                check=False)
-    # For some reason fdtoverlay returns 0 even if it fails
-    if fdtoverlay.stderr != b'':
-        raise OperationFailureError(f"fdtoverlay failed with: {fdtoverlay.stderr.decode()}")
-
-    log.debug("Successfully applied device tree overlay(s)")
-
-def get_ostree_dtb_list(ostree_archive_dir):
-    repo = ostree.open_ostree(ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-
-    dt_list = []
-    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
-        os.path.join("/usr/lib/modules", kernel_version, "devicetree")):
-        dt_list.append({'path': os.path.join("/usr/lib/modules", kernel_version), 'name': "devicetree"})
-
-    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
-                            os.path.join("/usr/lib/modules", kernel_version, "dtb")):
-        dir_contents = ostree.ls(repo, os.path.join("/usr/lib/modules",
-                                kernel_version, "dtb"), ostree.OSTREE_BASE_REF)
-        for dtb in dir_contents:
-            if dtb["name"].endswith(".dtb"):  # get only *.dtb
-                path = os.path.join("/usr/lib/modules", kernel_version, "dtb")
-                dt_list.append({'path': path, 'name': dtb["name"]})
-
-    return dt_list
-
-def get_dt_changes_dir(devicetree_out, arg_storage_dir):
-    dt_out = ""
-    storage_dir = os.path.abspath(arg_storage_dir)
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-
-    if devicetree_out is None:
-        dt_out = os.path.join(storage_dir, "dt")
-        dt_out = os.path.join(dt_out, "usr/lib/modules", kernel_version, DT_OUTPUT_NAME)
-    else:
-        dt_out = os.path.join(devicetree_out, "usr/lib/modules", kernel_version, DT_OUTPUT_NAME)
-
-    return dt_out
-
-def create_dt_changes_dir(devicetree_out, arg_storage_dir):
-    dt_out = ""
-    dt_out = get_dt_changes_dir(devicetree_out, arg_storage_dir)
-
-    if devicetree_out is None:
-        storage_dir = os.path.abspath(arg_storage_dir)
-        if os.path.exists(os.path.join(storage_dir, "dt")):
-            shutil.rmtree(os.path.join(storage_dir, "dt"))
-
-    os.makedirs(dt_out.rsplit('/', 1)[0])
-    return dt_out
-
-def copy_devicetree_bin_from_ostree(storage_dir, devicetree_bin):
-    #copy user selected to /storage for further processing
-    if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
-        os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
-
-    dt_copied_path = os.path.join(storage_dir, "tmp_devicetree.dtb")
-
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    ostree.copy_file(repo, ostree.OSTREE_BASE_REF, devicetree_bin, dt_copied_path)
-
-    return dt_copied_path
-
-def copy_devicetree_bin_from_workdir(storage_dir, devicetree_bin):
-    #copy user selected to /storage for further processing
-    if os.path.exists(os.path.join(storage_dir, "tmp_devicetree.dtb")):
-        os.remove(os.path.join(storage_dir, "tmp_devicetree.dtb"))
-
-    dt_copied_path = os.path.join(storage_dir, "tmp_devicetree.dtb")
-
-    shutil.copy(devicetree_bin, dt_copied_path)
-
-    return dt_copied_path
-
-def get_compatibilities_binary(file):
-    """Get root "compatible" property as list of strings"""
-    std_output = subprocess.check_output(["fdtget", file, "/", "compatible"])
-    compatibility_list = std_output.decode('utf-8').strip().split()
-    return compatibility_list
-
-def get_default_include_dir(ostree_archive_dir):
-    """Get default include directory"""
-    repo = ostree.open_ostree(ostree_archive_dir)
-    metadata, _, _ = ostree.get_metadata_from_ref(repo, ostree.OSTREE_BASE_REF)
-
-    include_dirs = ["device-trees/include/"]
-    if "oe.arch" in metadata:
-        oearch = metadata["oe.arch"]
-        if oearch == "aarch64":
-            include_dirs.append("device-trees/dts-arm64/")
-        elif oearch == "arm":
-            include_dirs.append("device-trees/dts-arm32/")
-        else:
-            raise OperationFailureError(f"Unknown architecture {oearch}.")
-
-    return include_dirs
-
-def get_list_applied_dtbo_in_repo(storage_directory):
-    storage_dir = os.path.abspath(storage_directory)
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-    dir_contents = []
-    if ostree.check_existance(repo, ostree.OSTREE_BASE_REF,
-            os.path.join("/usr/lib/modules", kernel_version, "overlays")):
-        dir_contents = ostree.ls(repo,
-                os.path.join("/usr/lib/modules", kernel_version, "overlays"),
-                ostree.OSTREE_BASE_REF)
-
-    return dir_contents
+def get_dt_changes_dir(storage_dir):
+    '''Returns the directory that contains external device tree related changes.'''
+    return os.path.join(storage_dir, "dt")
+
+
+def get_current_uenv_txt_path(storage_dir):
+    '''Get the path to the currently applied uEnv.txt, the bootloader environment file.'''
+
+    path = os.path.join(get_dt_changes_dir(storage_dir), "usr", "lib", "ostree-boot", "uEnv.txt")
+    if os.path.exists(path):
+        # Found a recently applied (but not yet deployed) uEnv.txt.
+        return path
+    # Fallback to uEnv.txt from the base image.
+    path = os.path.join(storage_dir, "sysroot", "boot", "loader", "uEnv.txt")
+    assert os.path.exists(path), "panic: missing uEnv.txt in base image!"
+    return path
+
+
+def get_uboot_initial_env_path(storage_dir):
+    '''Get the path to u-boot-initial-env-sd, the initial bootloader environment provided by Tezi.'''
+    path = os.path.join(storage_dir, "tezi", "u-boot-initial-env-sd")
+    assert os.path.exists(path), "panic: missing u-boot-initial-env-sd in Tezi directory!"
+    return path
+
+
+def query_variable_in_config_file(name, path):
+    '''Query the value of variable 'name' in configuration file 'path'.
+       Returns an empty string if the variable does not exist in the file.'''
+    p = subprocess.run(["sed", "-e", f"/^{name}=/!d", "-e", "s/^[^=]*=//", "-e", "q", path], check=False, capture_output=True, text=True)
+    if p.returncode != 0:
+        # This Should Never Happen (TM)
+        log.error(p.stderr)
+        log.error(f"error: cannot search file '{os.path.basename(path)}'! -- missing 'unpack'?")
+        sys.exit(1)
+    return p.stdout.strip()
+
+
+def get_current_dtb_basename(storage_dir):
+    '''Query the base name of the currently applied device tree blob.'''
+
+    # Find the value of fdtfile in uEnv.txt
+    dtb_basename = query_variable_in_config_file("fdtfile", get_current_uenv_txt_path(storage_dir))
+    if dtb_basename:
+        return dtb_basename
+
+    # fdtfile is not defined in uEnv.txt.
+    # Find the value of fdtfile in u-boot-initial-env-sd instead.
+    dtb_basename = query_variable_in_config_file("fdtfile", get_uboot_initial_env_path(storage_dir))
+    if dtb_basename:
+        return dtb_basename
+
+    # Cannot identify the applied device tree.
+    return None
+
+
+def get_dtb_kernel_subdir(storage_dir):
+    '''Returns "usr/lib/modules/<kernel_version/dtb".'''
+
+    answer = subprocess.check_output(f"set -o pipefail && find {storage_dir}/sysroot/ostree/deploy -type d -name dtb -print -quit | sed -r -e 's|.*/(usr/lib/modules/)|\\1|'", shell=True, text=True).strip()
+    assert answer, "panic: missing kernel device tree directory!"
+    return answer
+
+
+def get_current_dtb_path(storage_dir):
+    '''Query the path to the currently applied device tree blob.
+    Returns a tuple (path, ensured) where:
+        - 'path' is the path to a device tree blob in the filesystem (ensured to exist).
+        - 'ensured' is True if 'path' was detected as the current device tree in the boot loader configuration.
+          False means that the current device tree cannot be retrieved from configs (e.g. decided at runtime),
+          and an arbitrary device tree blob of the base image was chosen instead.
+    '''
+    dtb_basename = get_current_dtb_basename(storage_dir)
+    if dtb_basename:
+        # Found a real definition of the device tree in boot loader configuration.
+        # Find the path to this device tree, or die trying.
+        answer = os.path.join(get_dt_changes_dir(storage_dir), get_dtb_kernel_subdir(storage_dir), dtb_basename)
+        if os.path.exists(answer):
+            # This is a recently applied device tree.
+            return (answer, True)
+        # This is a device tree from the base image.
+        answer = subprocess.check_output(f"find {storage_dir}/sysroot/ostree/deploy -type f -name {dtb_basename} -print -quit", shell=True, text=True).strip()
+        assert os.path.exists(answer), f"panic: missing device tree blob file for {dtb_basename}!"
+        return (answer, True)
+
+    # Cannot identify the device tree by peeking the boot loader configuration.
+    # Hint by returning the first device tree blob found in the base image.
+    answer = subprocess.check_output(f"find {storage_dir}/sysroot/ostree/deploy -type f -name '*.dtb' -print -quit", shell=True, text=True).strip()
+    assert os.path.exists(answer), "panic: missing device tree blobs in base image!"
+    return (answer, False)
+
+
+def build_dts(source_dts_path, include_dirs, target_dtb_path):
+    '''Compile the device tree source file 'source_dts_path' to 'target_dtb_path'.
+       Returns True on successful compilation, False otherwise.
+   '''
+    opt_includes = []
+    for include_dir in include_dirs:
+        opt_includes.append("-I")
+        opt_includes.append(include_dir)
+    opt_includes = " ".join(opt_includes)
+    try:
+        subprocess.check_output(f"set -o pipefail && cpp -nostdinc -undef -x assembler-with-cpp {opt_includes} {source_dts_path} | dtc -I dts -O dtb -@ -o {target_dtb_path}", shell=True, text=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        log.error(e.output.strip())
+        return False
+    dtb_check = subprocess.check_output(f"file {target_dtb_path}", shell=True, text=True).strip()
+    log.info(dtb_check)
+    if not "Device Tree Blob" in dtb_check:
+        log.error(f"error: compilation of '{source_dts_path}' did not produce a Device Tree Blob.")
+        return False
+    log.info(f"'{os.path.basename(source_dts_path)}' compiles successfully.")
+    return True

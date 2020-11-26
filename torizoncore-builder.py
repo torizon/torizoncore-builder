@@ -20,8 +20,8 @@ import logging
 import os
 import traceback
 
-from tcbuilder.cli import batch, bundle, combine, deploy, dt, isolate, push, \
-                          serve, splash, union, unpack
+from tcbuilder.cli import batch, bundle, combine, deploy, dt, dto, isolate, push, \
+        serve, splash, union, unpack
 
 from tcbuilder.errors import TorizonCoreBuilderError
 
@@ -116,6 +116,7 @@ deploy.init_parser(subparsers)
 union.init_parser(subparsers)
 combine.init_parser(subparsers)
 dt.init_parser(subparsers)
+dto.init_parser(subparsers)
 push.init_parser(subparsers)
 splash.init_parser(subparsers)
 serve.init_parser(subparsers)
