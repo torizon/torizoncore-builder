@@ -75,9 +75,6 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
             OSTree.SysrootSimpleWriteDeploymentFlags.NO_CLEAN):
         raise TorizonCoreBuilderError("Error writing deployment.")
 
-def get_var_path(sysroot):
-    return os.path.join(sysroot.get_path().get_path(), "ostree/deploy", OSNAME, "var")
-
 def create_installed_versions(path, ref, branch):
     with open(os.path.join(path, "installed_versions"), "w") as versionfile:
         versioninfo = {}
@@ -106,12 +103,21 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT,
                             env={ "XZ_OPT": "-1" })
 
-def copy_home_from_old_sysroot(src_sysroot, dst_sysroot):
-    src_var = get_var_path(src_sysroot)
-    dst_var = get_var_path(dst_sysroot)
-    # shutil.copytree does not preserve ownership
-    if subprocess.Popen(['cp', '-a', '-t', dst_var, os.path.join(src_var, 'rootdirs')]).wait():
-        raise TorizonCoreBuilderError("Cannot deploy home directories.")
+def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
+    # Call get_path twice to receive the local path instead of an
+    # OSTree object
+    src_path = src_sysroot.get_path().get_path()
+    dst_path = dst_sysroot.get_path().get_path()
+    var_path = os.path.join("ostree/deploy", OSNAME, "var")
+    copy_list = [
+        {"src": os.path.join(src_path, var_path, "rootdirs"), "dst": os.path.join(dst_path, var_path)},
+        {"src": os.path.join(src_path, "boot.scr"), "dst": dst_path}
+    ]
+
+    for copy_file in copy_list:
+        # shutil.copytree does not preserve ownership
+        if subprocess.Popen(['cp', '-a', '-t', copy_file['dst'], copy_file['src']]).wait():
+            raise TorizonCoreBuilderError("Cannot deploy home directories.")
 
 def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                       output_dir, dst_sysroot_dir, ref=None):
@@ -163,8 +169,8 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     deploy_rootfs(sysroot, csumdeploy, "torizon", newkargs)
     log.info("Deploying done.")
 
-    log.info("Copy rootdirs such as /home from original deployment.")
-    copy_home_from_old_sysroot(src_sysroot, sysroot)
+    log.info("Copy files not under OSTree control from original deployment.")
+    copy_files_from_old_sysroot(src_sysroot, sysroot)
 
     log.info("Packing rootfs...")
     copy_tezi_image(tezi_dir, output_dir)
