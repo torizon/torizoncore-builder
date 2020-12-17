@@ -1,4 +1,5 @@
 import logging
+import json
 import os
 import subprocess
 import sys
@@ -13,7 +14,6 @@ def get_dt_changes_dir(storage_dir):
 
 def get_current_uenv_txt_path(storage_dir):
     '''Get the path to the currently applied uEnv.txt, the bootloader environment file.'''
-
     path = os.path.join(get_dt_changes_dir(storage_dir), "usr", "lib", "ostree-boot", "uEnv.txt")
     if os.path.exists(path):
         # Found a recently applied (but not yet deployed) uEnv.txt.
@@ -26,9 +26,18 @@ def get_current_uenv_txt_path(storage_dir):
 
 def get_uboot_initial_env_path(storage_dir):
     '''Get the path to u-boot-initial-env-sd, the initial bootloader environment provided by Tezi.'''
-    path = os.path.join(storage_dir, "tezi", "u-boot-initial-env-sd")
-    assert os.path.exists(path), "panic: missing u-boot-initial-env-sd in Tezi directory!"
-    return path
+    image_json_path = os.path.join(storage_dir, "tezi", "image.json")
+    assert os.path.exists(image_json_path), "panic: missing image.json in Tezi directory!"
+    with open(image_json_path, "r") as f:
+        image_json = json.load(f)
+    try:
+        initial_env_basename = image_json["u_boot_env"]
+    except KeyError:
+        initial_env_basename = None
+    assert initial_env_basename, "panic: missing 'u_boot-env' key in image.json in Tezi directory!"
+    initial_env_path = os.path.join(storage_dir, "tezi", initial_env_basename)
+    assert os.path.exists(initial_env_path), f"panic: missing {initial_env_basename} in Tezi directory!"
+    return initial_env_path
 
 
 def query_variable_in_config_file(name, path):
