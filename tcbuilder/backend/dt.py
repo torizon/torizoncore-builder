@@ -34,7 +34,7 @@ def get_uboot_initial_env_path(storage_dir):
         initial_env_basename = image_json["u_boot_env"]
     except KeyError:
         initial_env_basename = None
-    assert initial_env_basename, "panic: missing 'u_boot-env' key in image.json in Tezi directory!"
+    assert initial_env_basename, "panic: missing 'u_boot_env' key in image.json in Tezi directory!"
     initial_env_path = os.path.join(storage_dir, "tezi", initial_env_basename)
     assert os.path.exists(initial_env_path), f"panic: missing {initial_env_basename} in Tezi directory!"
     return initial_env_path
