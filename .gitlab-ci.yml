@@ -134,8 +134,8 @@ docker-build-torizoncore-builder-multiarch:
     - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
         do
           docker tag ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
+          docker push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
         done
-    - docker push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}
 
 docker-deploy-torizoncore-builder-amd64:
   extends: .docker-deploy
