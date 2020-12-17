@@ -61,15 +61,15 @@ stages:
     - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
   stage: build
 
-pylint:
-  # Image built using --target tcbuilder-dev -f torizoncore-builder.Dockerfile
-  image: gitlab.int.toradex.com:4567/rd/torizon-core-containers/torizoncore-builder/tcbuilder-dev:latest
-  script:
-    # Run without C(onvention)/R(efactoring) levels, use this run as exit code
-    - pylint --output-format=colorized --disable=C,R $(find -type f -name "*.py") || exit_code=$?
-    - pylint --output-format=colorized --disable=W,E,F $(find -type f -name "*.py") || true
-    - exit ${exit_code}
-  stage: build
+#pylint:
+#  # Image built using --target tcbuilder-dev -f torizoncore-builder.Dockerfile
+#  image: gitlab.int.toradex.com:4567/rd/torizon-core-containers/torizoncore-builder/torizoncore-builder:bullseye-latest
+#  script:
+#    # Run without C(onvention)/R(efactoring) levels, use this run as exit code
+#    - pylint --output-format=colorized --disable=C,R $(find -type f -name "*.py") || exit_code=$?
+#    - pylint --output-format=colorized --disable=W,E,F $(find -type f -name "*.py") || true
+#    - exit ${exit_code}
+#  stage: build
 
 docker-build-torizoncore-builder-amd64:
   extends: .docker-build
