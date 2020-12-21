@@ -171,7 +171,7 @@ def get_additional_size(output_dir_containers, files_to_add):
     return additional_size
 
 
-def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, bool):
+def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, bool):  # pylint: disable=E1136
     """
     Convert a hostname to ip using operating system's name resolution service
     first and fallback to mDNS if the hostname is (or can be) a mDNS host name.
