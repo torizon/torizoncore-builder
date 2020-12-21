@@ -61,15 +61,18 @@ stages:
     - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
   stage: build
 
-#pylint:
-#  # Image built using --target tcbuilder-dev -f torizoncore-builder.Dockerfile
-#  image: gitlab.int.toradex.com:4567/rd/torizon-core-containers/torizoncore-builder/torizoncore-builder:bullseye-latest
-#  script:
-#    # Run without C(onvention)/R(efactoring) levels, use this run as exit code
-#    - pylint --output-format=colorized --disable=C,R $(find -type f -name "*.py") || exit_code=$?
-#    - pylint --output-format=colorized --disable=W,E,F $(find -type f -name "*.py") || true
-#    - exit ${exit_code}
-#  stage: build
+pylint:
+  script:
+    # Refresh a cached image with pylint and all employed libraries.
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --tag tcbuilder-dev-amd64 -f torizoncore-builder.Dockerfile --target tcbuilder-dev --build-arg IMAGE_ARCH=linux/amd64 --cache-from ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest .
+    - docker tag tcbuilder-dev-amd64 ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
+    - docker push ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
+    # Run the code linter without C(onvention)/R(efactoring) levels, use this run as exit code
+    - docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest pylint --output-format=colorized --disable=C,R $(find -type f -name "*.py") || exit_code=$?
+    - docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest pylint --output-format=colorized --disable=W,E,F $(find -type f -name "*.py") || true
+    - exit ${exit_code}
+  stage: build
 
 docker-build-torizoncore-builder-amd64:
   extends: .docker-build
