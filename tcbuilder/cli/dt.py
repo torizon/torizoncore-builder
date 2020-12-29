@@ -4,8 +4,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 
 from tcbuilder.backend import dt
+from tcbuilder.backend.common import checkout_git_repo
+from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -21,11 +24,21 @@ def do_dt_status(args):
     log.info(f"Current device tree is: {dtb_basename}")
 
 
-def do_dt_checkout(_):
+def do_dt_checkout(args):
     '''Perform the 'dt checkout' command.'''
+    storage_dir = os.path.abspath(args.storage_directory)
 
     # Retrieve the Toradex device-tree repository, if not already retrieved.
-    os.execlp("git", "git", "clone", "https://github.com/toradex/device-trees")
+    if os.path.exists(os.path.abspath("device-trees")):
+        log.error("'device-trees' directory already exists")
+        return
+    try:
+        checkout_git_repo(storage_dir, None, None)
+    except TorizonCoreBuilderError as ex:
+        log.error(ex.msg)  # msg from all kinds of Exceptions
+        if ex.det is not None:
+            log.info(ex.det)  # more elaborative message
+        log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
 
 
 def do_dt_apply(args):
