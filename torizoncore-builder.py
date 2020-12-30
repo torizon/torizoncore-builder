@@ -31,9 +31,9 @@ __version_info__ = ('2', '1', '1')
 __version__ = '.'.join(__version_info__)
 
 parser = argparse.ArgumentParser(description="""\
-Utility to create TorizonCore images with containers pre-provisioned. Requires a
-TorizonCore base image and a Docker Compose YAML file as input and creates a
-Toradex Easy Installer image with TorizonCore and the containers combined.
+TorizonCore Builder is an utility that allows to create customized TorizonCore
+OSTree commits and Toradex Easy Installer images without rebuilding the complete
+operating system.
 """)
 
 
@@ -90,28 +90,28 @@ def setup_logging(arg_level, verbose, file):
 
 parser.add_argument("--verbose", dest="verbose",
                     action='store_true',
-                    help="Show more output")
+                    help="show more output")
 
 parser.add_argument("--log-level", dest="log_level",
-                    help="--log-level Set global log level (debug, info, warning, error, critical)")
+                    help="set global log level (debug, info, warning, error, critical)")
 
 parser.add_argument("--log-file", dest="log_file",
                     help="write logs to a file instead of console",
                     default=None)
 
 parser.add_argument("--bundle-directory", dest="bundle_directory",
-                    help="Container bundle directory",
+                    help="container bundle directory",
                     default="bundle")
 
 parser.add_argument("--storage-directory", dest="storage_directory",
-                    help="""Path to internal storage. Must be a file system
+                    help="""path to internal storage. Must be a file system
                     capable of carrying Linux file system metadata (Unix
-                    file permissions and xattr).""",
+                    file permissions and xattr)""",
                     default="/storage")
 
 parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
 
-subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
+subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
 batch.init_parser(subparsers)
 bundle.init_parser(subparsers)

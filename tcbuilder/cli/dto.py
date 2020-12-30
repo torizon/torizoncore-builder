@@ -45,7 +45,7 @@ def do_dto_apply(args):
 
     # Test apply the overlay against the current device tree and other applied overlays.
     if args.force:
-        log.info("warning: --force issued; bypassing checking overlays against the device tree.")
+        log.info("warning: --force was used, bypassing checking overlays against the device tree.")
     else:
         dtb_path = args.device_tree
         if dtb_path:
@@ -169,7 +169,7 @@ def do_dto_status(args):
     if is_dtb_exact:
         log.info(f"Enabled overlays over device tree {dtb_basename}:")
     else:
-        log.info("Enabled overlays over unknown device tree (selected at runtime):")
+        log.info("Enabled overlays over unknown device tree:")
 
     # Show the enabled overlays.
     for overlay_basename in dto.get_applied_overlays_base_names(args.storage_directory):
@@ -237,29 +237,29 @@ def do_dto_remove(args):
 def init_parser(subparsers):
     '''Initializes the 'dto' subcommands command line interface.'''
 
-    parser = subparsers.add_parser("dto", description="Manage application of device tree overlays.", help="Manage application of device tree overlays")
-    subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
+    parser = subparsers.add_parser("dto", description="Manage device tree overlays", help="Manage device tree overlays")
+    subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # dto apply
-    subparser = subparsers.add_parser("apply", description="Apply a further overlay to the current device tree.", help="Apply a further overlay to the current device tree")
-    subparser.add_argument(metavar="OVERLAY", dest="dtos_path", help="Path to the overlay source file")
-    subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during overlay compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'.")
-    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Test overlay application over this device tree blob instead of the current device tree.")
-    subparser.add_argument("--force", action="store_true", help="Apply the overlay even on failure checking it against the current device tree.")
+    subparser = subparsers.add_parser("apply", description="Apply a device tree overlay", help="Apply a device tree overlay")
+    subparser.add_argument(metavar="OVERLAY", dest="dtos_path", help="Path to the device tree overlay source file")
+    subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during overlay compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'")
+    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Test the overlay against an specific device tree.")
+    subparser.add_argument("--force", action="store_true", help="Apply the overlay even on failure checking it against a device tree.")
     subparser.set_defaults(func=do_dto_apply)
 
     # dto list
-    subparser = subparsers.add_parser("list", description="List overlays compatible to the current device tree.", help="List overlays compatible to the current device tree")
+    subparser = subparsers.add_parser("list", description="List the device tree overlays compatible with the current device tree", help="List the device tree overlays compatible with the current device tree")
     subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Check for overlay compatibility against this device tree source file instead.")
     subparser.set_defaults(func=do_dto_list)
 
     # dto status
-    subparser = subparsers.add_parser("status", description="List the applied overlays.", help="List the applied overlays")
+    subparser = subparsers.add_parser("status", description="List the applied device tree overlays", help="List the applied device tree overlays")
     subparser.set_defaults(func=do_dto_status)
 
     # dto remove
-    subparser = subparsers.add_parser("remove", description="Remove an overlay.", help="Remove an overlay")
-    subparser.add_argument(metavar="OVERLAY", dest="dtob_basename", nargs='?', help="Name of the device tree overlay blob")
-    subparser.add_argument("--all", action="store_true", help="Remove all overlays instead.")
+    subparser = subparsers.add_parser("remove", description="Remove a device tree overlay", help="Remove a device tree overlay")
+    subparser.add_argument(metavar="OVERLAY", dest="dtob_basename", nargs='?', help="Name of the device tree overlay")
+    subparser.add_argument("--all", action="store_true", help="Remove all device tree overlays")
     subparser.set_defaults(func=do_dto_remove)
 

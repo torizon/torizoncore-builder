@@ -18,7 +18,7 @@ def do_dt_status(args):
 
     dtb_basename = dt.get_current_dtb_basename(args.storage_directory)
     if not dtb_basename:
-        log.error("error: cannot identify the enabled device tree (the device tree is selected at runtime)")
+        log.error("error: cannot identify the enabled device tree in the image because it is dynamically selected at runtime.")
         sys.exit(1)
 
     log.info(f"Current device tree is: {dtb_basename}")
@@ -84,15 +84,15 @@ def do_dt_apply(args):
 def init_parser(subparsers):
     '''Initializes the 'dt' subcommands command line interface.'''
 
-    parser = subparsers.add_parser("dt", description="Manage application of device trees.", help="Manage application of device trees.")
-    subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
+    parser = subparsers.add_parser("dt", description="Manage device trees", help="Manage device trees")
+    subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # dt status
-    subparser = subparsers.add_parser("status", description="Show the current device tree", help="Show the current device tree")
+    subparser = subparsers.add_parser("status", description="Show the currently enabled device tree", help="Show the currently enabled device tree")
     subparser.set_defaults(func=do_dt_status)
 
     # dt checkout
-    subparser = subparsers.add_parser("checkout", description="Checkout the Toradex device tree and overlays repository", help="Checkout the Toradex device tree and overlays repository")
+    subparser = subparsers.add_parser("checkout", description="Checkout Toradex device tree and overlays repository", help="Checkout Toradex device tree and overlays repository")
     subparser.set_defaults(func=do_dt_checkout)
 
     # dt apply DEVICE_TREE
