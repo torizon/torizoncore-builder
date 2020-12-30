@@ -74,6 +74,7 @@ def do_dt_apply(args):
     subprocess.check_call(f"set -o pipefail && ostree --repo={args.storage_directory}/ostree-archive cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d >>{uenv_target_path}", shell=True)
 
     # Deploy an empty overlays config file, so any overlays from the base image are disabled.
+    log.info("warning: removing currently applied device tree overlays")
     with open(os.path.join(dtb_target_dir, "overlays.txt"), "w") as f:
         f.write("fdt_overlays=\n")
 
