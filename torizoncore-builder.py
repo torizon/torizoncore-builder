@@ -27,6 +27,9 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 #pylint: enable=wrong-import-position
 
+__version_info__ = ('2', '1', '1')
+__version__ = '.'.join(__version_info__)
+
 parser = argparse.ArgumentParser(description="""\
 Utility to create TorizonCore images with containers pre-provisioned. Requires a
 TorizonCore base image and a Docker Compose YAML file as input and creates a
@@ -96,15 +99,17 @@ parser.add_argument("--log-file", dest="log_file",
                     help="write logs to a file instead of console",
                     default=None)
 
-
 parser.add_argument("--bundle-directory", dest="bundle_directory",
                     help="Container bundle directory",
                     default="bundle")
+
 parser.add_argument("--storage-directory", dest="storage_directory",
                     help="""Path to internal storage. Must be a file system
                     capable of carrying Linux file system metadata (Unix
                     file permissions and xattr).""",
                     default="/storage")
+
+parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
 
 subparsers = parser.add_subparsers(title='Commands:', required=True, dest='cmd')
 
