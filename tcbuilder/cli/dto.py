@@ -145,7 +145,7 @@ def do_dto_list(args):
             # About the 'sed' programs below:
             #  -e 's/$/\"/' appends '"' to each line
             #  -e 's/^/^[[:blank:]]*compatible *= *\"/' prepends '^[[:blank:]]*compatible *= *"' to each line
-            subprocess.check_output(f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' | sed -e 's/$/\"/' -e 's/^/^[[:blank:]]*compatible *= *\"/' >{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
+            subprocess.check_output(f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' | sed -e 's/$/\"/' -e 's/^/^[[:blank:]]*compatible *=.*\"/' >{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             log.error(e.output.strip())
             if "FDT_ERR_BADMAGIC" in e.output:
