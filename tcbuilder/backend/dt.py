@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import io
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -120,10 +121,13 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
     except subprocess.CalledProcessError as e:
         log.error(e.output.strip())
         return False
-    dtb_check = subprocess.check_output(f"file {target_dtb_path}", shell=True, text=True).strip()
-    log.info(dtb_check)
-    if not "Device Tree Blob" in dtb_check:
-        log.error(f"error: compilation of '{source_dts_path}' did not produce a Device Tree Blob.")
-        return False
+    # file does not necessarly return Device tree blob as file type. Therfore,
+    # check Device tree blob magic. See:
+    # https://github.com/devicetree-org/devicetree-specification/releases/download/v0.3/devicetree-specification-v0.3.pdf
+    with io.open(target_dtb_path, 'rb') as f:
+        dtb_check = int.from_bytes(f.read(4), 'big')
+        if not dtb_check == 0xd00dfeed:
+            log.error(f"error: compilation of '{source_dts_path}' did not produce a Device Tree Blob.")
+            return False
     log.info(f"'{os.path.basename(source_dts_path)}' compiles successfully.")
     return True
