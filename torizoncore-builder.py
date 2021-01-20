@@ -33,7 +33,10 @@ __version__ = '.'.join(__version_info__)
 parser = argparse.ArgumentParser(description="""\
 TorizonCore Builder is an utility that allows to create customized TorizonCore
 OSTree commits and Toradex Easy Installer images without rebuilding the complete
-operating system.
+operating system.""",
+epilog="""\
+Learn more on
+https://developer.toradex.com/knowledge-base/torizoncore-builder-tool
 """)
 
 
