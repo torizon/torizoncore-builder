@@ -243,8 +243,25 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
         client, f"ostree pull tcbuilder:{csumdeploy}", remote_password)
 
     log.info("Deploying new OSTree on the device...")
+    # Do the final staging after we set upgrade_available, therefore option --stage
     run_command_with_sudo(
         client, f"ostree admin deploy --stage tcbuilder:{csumdeploy}", remote_password)
+
+    # Make sure we set bootcount to 0, it can be > 1 from previous runs
+    run_command_with_sudo(
+        client, f"fw_setenv bootcount 0", remote_password)
+
+    # Make sure we remove the rollback flag from previous runs
+    run_command_with_sudo(
+        client, f"fw_setenv rollback 0", remote_password)
+
+    # Set upgrade_available for U-Boot
+    run_command_with_sudo(
+        client, f"fw_setenv upgrade_available 1", remote_password)
+
+    # Finalize the update after we set upgrade_available for U-Boot
+    run_command_with_sudo(
+        client, f"ostree admin finalize-staged", remote_password)
 
     log.info("Deploying successfully finished.")
 
