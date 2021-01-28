@@ -322,7 +322,7 @@ def main():
                         default="linux/arm/v7")
     parser.add_argument("--docker-username", dest="docker_username",
                         help="Optional username to be used to access container image.")
-    parser.add_arugment("--docker-password", dest="docker_password",
+    parser.add_argument("--docker-password", dest="docker_password",
                         help="Password to be used to access container image.")
     args = parser.parse_args()
 
