@@ -11,6 +11,7 @@ from tcbuilder.backend import ostree
 from typing import Optional
 
 import dns.resolver
+import ifaddr
 
 import tezi.utils
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
@@ -170,6 +171,24 @@ def get_additional_size(output_dir_containers, files_to_add):
 
     return additional_size
 
+def get_all_local_ip_addresses():
+    """
+    Get all local IP addresses on this host except the ones assigned to the
+    "lo" and "docker0" intefaces.
+
+    Returns:
+        list -- List of IP addresses.
+    """
+
+    local_ip_addresses = []
+    for adapter in ifaddr.get_adapters():
+        if not adapter.nice_name in ('lo', 'docker0'):
+            for ip in adapter.ips:
+                if type(ip.ip) == str: # If it's an str it's an IPv4.
+                    local_ip_addresses.append(ip.ip)
+                else:
+                    local_ip_addresses.append(ip.ip[0])
+    return local_ip_addresses
 
 def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, bool):  # pylint: disable=E1136
     """
@@ -205,16 +224,32 @@ def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, 
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = ["224.0.0.251"]  # mDNS IPv4 link-local multicast address
     resolver.port = 5353  # mDNS port
-    try:
-        addr = resolver.query(mdns_hostname, "A", lifetime=3, source=mdns_source)
-        if addr is None or len(addr) == 0:
-            raise TorizonCoreBuilderError("Resolving mDNS address failed with no answer")
+    if mdns_source:
+        try:
+            addr = resolver.query(mdns_hostname, "A", lifetime=3, source=mdns_source)
+            if addr is None or len(addr) == 0:
+                raise TorizonCoreBuilderError("Resolving mDNS address failed with no answer")
 
-        ip_addr = addr[0].to_text()
-        return ip_addr, True
-    except dns.exception.Timeout as dnsex:
-        raise TorizonCoreBuilderError(
-            f'Resolving hostname "{mdns_hostname}" using mDNS failed.') from dnsex
+            ip_addr = addr[0].to_text()
+            return ip_addr, True
+        except dns.exception.Timeout as dnsex:
+            raise TorizonCoreBuilderError(
+                f'Resolving hostname "{mdns_hostname}" using mDNS failed.') from dnsex
+    else:
+        mdns_addr = None
+        for local_ip in get_all_local_ip_addresses():
+            try:
+                mdns_addr = resolver.query(mdns_hostname, "A", lifetime=3, source=local_ip)
+            except dns.exception.Timeout:
+                pass
+            else:
+                break
+        if mdns_addr:
+            return mdns_addr[0].to_text(), True
+        else:
+            raise TorizonCoreBuilderError(
+                f'Resolving hostname "{mdns_hostname}" using mDNS on all interfaces failed.')
+
 
 def resolve_remote_host(remote_host, mdns_source = None):
     """Resolve given host to IP address if host is not an IP address already"""
