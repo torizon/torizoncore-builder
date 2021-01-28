@@ -221,7 +221,7 @@ class DindManager(DockerManager):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
-def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
+def download_containers_by_compose_file(output_dir, compose_file, host_workdir, docker_username, docker_password,
         use_host_docker=False, platform="linux/arm/v7", output_filename="docker-storage.tar"):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
@@ -230,6 +230,8 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
     :param compose_file: Docker Compose YAML file or path
     :param host_workdir: Working directory location on the Docker Host (the
                             system where dockerd we are accessing is running)
+    :param docker_username: Username to be used to access docker images
+    :param docker_password: Password to be used to access docker images
     :param use_host_docker: Use host docker (instead of Docker in Docker)
                             Note: This only really works if the Host Docker
                             Engine is not used by anything else than this
@@ -267,6 +269,8 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir,
             return
 
         # Now we can fetch the containers...
+        if docker_username is not None:
+            dind_client.login(docker_username, docker_password)
         for service in cfg.services:
             image = service['image']
             logging.info(f"Fetching container image {image}")
@@ -316,6 +320,10 @@ def main():
                         help="""Specify platform to make sure fetching the correct
                         image when multi-platform images are specified""",
                         default="linux/arm/v7")
+    parser.add_argument("--docker-username", dest="docker_username",
+                        help="Optional username to be used to access container image.")
+    parser.add_arugment("--docker-password", dest="docker_password",
+                        help="Password to be used to access container image.")
     args = parser.parse_args()
 
     # This is required to share a bind mounted location (for the TLS
@@ -329,7 +337,8 @@ def main():
 
     download_containers_by_compose_file(
         args.output_directory, args.compose_file,
-        host_workdir, args.host_docker, args.platform)
+        host_workdir, args.docker_username, args.docker_password, 
+        args.host_docker, args.platform)
 
 if __name__ == "__main__":
     main()

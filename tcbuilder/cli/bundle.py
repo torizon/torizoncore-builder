@@ -20,8 +20,8 @@ def bundle_containers(args):
 
     logging.info("Creating Docker Container bundle.")
     dockerbundle.download_containers_by_compose_file(
-                args.bundle_directory, args.compose_file, host_workdir,
-                platform=args.platform, output_filename=common.DOCKER_BUNDLE_FILENAME)
+                args.bundle_directory, args.compose_file, host_workdir, args.docker_username,
+                args.docker_password, platform=args.platform, output_filename=common.DOCKER_BUNDLE_FILENAME)
     logging.info(f"Successfully created Docker Container bundle in {args.bundle_directory}.")
 
 
@@ -42,4 +42,8 @@ def init_parser(subparsers):
     subparser.add_argument("--host-workdir", dest="host_workdir",
                            help="""Location where Docker needs to bind mount to to
                            share data between this script and the DIND instance.""")
+    subparser.add_argument("--docker-username", dest="docker_username",
+                           help="Optional username to be used to access container image.")
+    subparser.add_argument("--docker-password", dest="docker_password",
+                           help="Password to be used to access container image.")
     subparser.set_defaults(func=bundle_containers)
