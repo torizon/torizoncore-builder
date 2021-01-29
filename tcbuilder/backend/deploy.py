@@ -249,19 +249,19 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
 
     # Make sure we set bootcount to 0, it can be > 1 from previous runs
     run_command_with_sudo(
-        client, f"fw_setenv bootcount 0", remote_password)
+        client, "fw_setenv bootcount 0", remote_password)
 
     # Make sure we remove the rollback flag from previous runs
     run_command_with_sudo(
-        client, f"fw_setenv rollback 0", remote_password)
+        client, "fw_setenv rollback 0", remote_password)
 
     # Set upgrade_available for U-Boot
     run_command_with_sudo(
-        client, f"fw_setenv upgrade_available 1", remote_password)
+        client, "fw_setenv upgrade_available 1", remote_password)
 
     # Finalize the update after we set upgrade_available for U-Boot
     run_command_with_sudo(
-        client, f"ostree admin finalize-staged", remote_password)
+        client, "ostree admin finalize-staged", remote_password)
 
     log.info("Deploying successfully finished.")
 
