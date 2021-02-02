@@ -6,6 +6,7 @@ import paramiko
 
 from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
+from tcbuilder.backend.common import resolve_remote_host
 
 ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysinit.target.wants/run-postinsts.service',
                 'ostree/remotes.d/toradex-nightly.conf', 'docker/key.json', '.updated', '.pwd.lock', 'group-',
@@ -77,11 +78,12 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
         raise OperationFailureError(f'could not create dir in {tmp_dir_name}',  stdout.read().decode(
             'utf-8').strip())
 
-def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password):
+def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    client.connect(hostname=r_name_ip,
+    resolved_remote_host = resolve_remote_host(r_name_ip, r_mdns)
+    client.connect(hostname=resolved_remote_host,
                    username=r_username,
                    password=r_password)
     # get config diff

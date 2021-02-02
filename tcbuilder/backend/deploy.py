@@ -13,7 +13,7 @@ from gi.repository import Gio, OSTree
 import paramiko
 
 from tcbuilder.backend import ostree, serve
-from tcbuilder.backend.common import get_rootfs_tarball
+from tcbuilder.backend.common import get_rootfs_tarball, resolve_remote_host
 from tcbuilder.backend.rforward import reverse_forward_tunnel
 from tcbuilder.errors import TorizonCoreBuilderError
 
@@ -224,7 +224,8 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    client.connect(hostname=remote_host,
+    resolved_remote_host = resolve_remote_host(remote_host)
+    client.connect(hostname=resolved_remote_host,
                    username=remote_username,
                    password=remote_password)
 

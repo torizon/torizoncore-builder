@@ -2,7 +2,6 @@ import os
 import logging
 import shutil
 from tcbuilder.backend import isolate
-from tcbuilder.backend.common import resolve_remote_host
 from tcbuilder.errors import PathNotExistError, UserAbortError
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
@@ -28,9 +27,9 @@ def isolate_subcommand(args):
         shutil.rmtree(changes_dir)
         os.mkdir(changes_dir)
 
-    r_ip = resolve_remote_host(args.remote_host, args.mdns_source)
-    ret = isolate.isolate_user_changes(changes_dir, r_ip, args.remote_username,
-                                        args.remote_password)
+    ret = isolate.isolate_user_changes(changes_dir, args.remote_host,
+                                       args.remote_username, args.remote_password,
+                                       args.mdns_source)
     if ret == isolate.NO_CHANGES:
         log.info("no change is made in /etc by user")
 
