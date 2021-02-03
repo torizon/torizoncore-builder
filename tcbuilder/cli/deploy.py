@@ -40,8 +40,8 @@ def deploy_ostree_remote(args):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     deploy.deploy_ostree_remote(args.remote_host, args.remote_username,
-                                args.remote_password, src_ostree_archive_dir,
-                                args.ref, args.reboot)
+                                args.remote_password, args.mdns_source,
+                                src_ostree_archive_dir, args.ref, args.reboot)
 
 def deploy_image(args):
     if args.output_directory is not None:
@@ -66,6 +66,11 @@ def init_parser(subparsers):
                            default="torizon")
     subparser.add_argument("--remote-password", dest="remote_password",
                            help="""password of remote machine""")
+    subparser.add_argument("--mdns-source", dest="mdns_source",
+                           help="""Use the given IP address as mDNS source.
+                           This is useful when multiple interfaces are used, and
+                           mDNS multicast requests are sent out the wrong
+                           network interface.""")
     subparser.add_argument("--reboot", dest="reboot", action='store_true',
                            help="""Reboot machine after deploying""",
                            default=False)

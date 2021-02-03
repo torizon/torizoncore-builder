@@ -199,7 +199,7 @@ def run_command_with_sudo(client, command, password):
             log.debug(stderr_str)
 
 def deploy_ostree_remote(remote_host, remote_username, remote_password,
-                         src_ostree_archive_dir, ref, reboot=False):
+                         remote_mdns, src_ostree_archive_dir, ref, reboot=False):
     """Implementation to deploy OSTree on remote device"""
 
     # It seems the customer did not pass a reference, deploy the original commit
@@ -224,7 +224,7 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    resolved_remote_host = resolve_remote_host(remote_host)
+    resolved_remote_host = resolve_remote_host(remote_host, remote_mdns)
     client.connect(hostname=resolved_remote_host,
                    username=remote_username,
                    password=remote_password)
