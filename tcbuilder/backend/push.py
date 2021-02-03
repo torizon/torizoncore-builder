@@ -35,25 +35,30 @@ def update_targets(targets_file_path, packagename, commit, subject, body, metada
     with open(targets_file_path, 'w') as targets_file:
         json.dump(data, targets_file, indent=2)
 
-def run_garage_command(command):
+def run_garage_command(command, verbose):
+    if verbose:
+        command.append("--verbose")
     """Run a single command using garage-sign/garage-push"""
-    garage_command = subprocess.run(command, check=False,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if garage_command.returncode != 0:
-        raise TorizonCoreBuilderError("Error running garage command \"{}\" with arguments \"{}\""
-                                      .format(command[0], command[1:]))
-
-    stdoutstr = garage_command.stdout.decode().strip()
-    if len(stdoutstr) > 0:
-        log.debug(stdoutstr)
+    garage_command = subprocess.run(command, check=False, capture_output=True)
+    
+    if verbose:
+        stdoutstr = garage_command.stdout.decode().strip()
+        if len(stdoutstr) > 0:
+            print("== garage-sign stdout:")
+            log.debug(stdoutstr)
 
     # Show warnings to user by default.
     stderrstr = garage_command.stderr.decode()
     if len(stderrstr) > 0:
+        print("== garage-sign stderr:")
         log.warning(stderrstr)
+    
+    if garage_command.returncode != 0:
+        raise TorizonCoreBuilderError("Error ("+str(garage_command.returncode)+") running garage command \"{}\" with arguments \"{}\""
+                                      .format(command[0], command[1:]))
 
 
-def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
+def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=False):
     """Push OSTree reference to OTA server.
 
     Push given reference of a given archive OSTree repository to the OTA server
@@ -82,7 +87,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
     run_garage_command(["garage-push",
                         "--credentials", credentials,
                         "--repo", ostree_dir,
-                        "--ref", commit])
+                        "--ref", commit], verbose)
 
     log.info(f"Pushed {ref} successfully.")
 
@@ -93,10 +98,10 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
 
     run_garage_command(["garage-sign", "init",
                         "--credentials", credentials,
-                        "--repo", tuf_repo])
+                        "--repo", tuf_repo], verbose)
 
     run_garage_command(["garage-sign", "targets", "pull",
-                        "--repo", tuf_repo])
+                        "--repo", tuf_repo], verbose)
 
     run_garage_command(["garage-sign", "targets", "add",
                         "--repo", tuf_repo,
@@ -105,7 +110,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
                         "--version", commit,
                         "--length", "0",
                         "--sha256", commit,
-                        "--hardwareids", module])
+                        "--hardwareids", module], verbose)
 
     # Extend target info with OSTree commit metadata
     # Remove some metadata keys which are already used otherwise or ar rather
@@ -118,9 +123,9 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None):
 
     run_garage_command(["garage-sign", "targets", "sign",
                         "--repo", tuf_repo,
-                        "--key-name", "targets"])
+                        "--key-name", "targets"], verbose)
 
     run_garage_command(["garage-sign", "targets", "push",
-                        "--repo", tuf_repo])
+                        "--repo", tuf_repo], verbose)
 
     log.info(f"Signed and pushed OSTree package {packagename} successfully.")

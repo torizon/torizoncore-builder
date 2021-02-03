@@ -29,7 +29,8 @@ def push_subcommand(args):
     hardwareids = None
     if args.hardwareids is not None:
         hardwareids = ",".join(args.hardwareids)
-    push.push_ref(src_ostree_archive_dir, tuf_repo, credentials, args.ref, hardwareids)
+    push.push_ref(src_ostree_archive_dir, tuf_repo, credentials,
+                  args.ref, hardwareids, args.verbose)
 
 def init_parser(subparsers):
     """Initialize argument parser"""
@@ -46,5 +47,8 @@ def init_parser(subparsers):
                            required=False, default=None)
     subparser.add_argument(metavar="REF", nargs="?", dest="ref",
                            help="""OSTree reference to deploy.""")
+    subparser.add_argument("--verbose", dest="verbose",
+                    action='store_true', help="show more output",
+                    required=False)
 
     subparser.set_defaults(func=push_subcommand)
