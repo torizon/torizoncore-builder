@@ -36,9 +36,9 @@ def update_targets(targets_file_path, packagename, commit, subject, body, metada
         json.dump(data, targets_file, indent=2)
 
 def run_garage_command(command, verbose):
+    """Run a single command using garage-sign/garage-push"""
     if verbose:
         command.append("--verbose")
-    """Run a single command using garage-sign/garage-push"""
     garage_command = subprocess.run(command, check=False, capture_output=True)
     
     if verbose:
