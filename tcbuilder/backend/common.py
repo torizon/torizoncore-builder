@@ -122,7 +122,7 @@ def combine_single_image(source_dir_containers, files_to_add, additional_size,
 
 def get_unpack_command(filename):
     """Get shell command to unpack a given file format"""
-    if filename.endswith(".gz"):
+    if filename.endswith(".gz") or filename.endswith(".tgz"):
         return "gzip -dc"
     elif filename.endswith(".xz"):
         return "xz -dc"

@@ -21,7 +21,7 @@ import os
 import traceback
 
 from tcbuilder.cli import batch, bundle, combine, deploy, dt, dto, isolate, push, \
-        serve, splash, union, unpack
+        serve, splash, union, images
 
 from tcbuilder.errors import TorizonCoreBuilderError
 
@@ -118,7 +118,7 @@ subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
 batch.init_parser(subparsers)
 bundle.init_parser(subparsers)
-unpack.init_parser(subparsers)
+images.init_parser(subparsers)
 isolate.init_parser(subparsers)
 deploy.init_parser(subparsers)
 union.init_parser(subparsers)

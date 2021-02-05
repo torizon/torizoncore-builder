@@ -11,7 +11,7 @@ import logging
 import py
 import pytest
 
-from tcbuilder.backend import deploy, ostree, splash, unpack
+from tcbuilder.backend import deploy, ostree, splash, images
 
 
 @pytest.fixture(name="storage_dir", scope="module")
@@ -56,7 +56,7 @@ def test_unpack(storage_dir, work_dir):
 
     tezi_src = work_dir.join("tezi")
 
-    unpack.import_local_image(
+    images.import_local_image(
         str(tezi_src), str(tezi), str(sysroot_dir), str(ostree_archive))
 
     sysroot = ostree.load_sysroot(str(sysroot_dir))
