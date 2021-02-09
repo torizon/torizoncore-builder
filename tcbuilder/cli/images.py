@@ -12,22 +12,22 @@ def prepare_storage(storage_directory, remove_storage):
     tezi_dir = os.path.join(storage_dir, "tezi")
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    src_dt_dir = os.path.join(storage_dir, "dt")
 
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
 
-    if os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir):
+    if os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir) or os.path.exists(src_dt_dir):
         if not remove_storage:
             ans = input("Storage not empty. Delete current image before continuing? [y/N] ")
         else:
             ans = "n"
         if ans.lower() != "y" and not remove_storage:
             raise UserAbortError()
-        if os.path.exists(tezi_dir):
-            shutil.rmtree(tezi_dir)
 
-        if os.path.exists(src_sysroot_dir):
-            shutil.rmtree(src_sysroot_dir)
+        for src_dir in tezi_dir, src_sysroot_dir, src_dt_dir:
+            if os.path.exists(src_dir):
+                shutil.rmtree(src_dir)
 
     return [tezi_dir, src_sysroot_dir, src_ostree_archive_dir]
 

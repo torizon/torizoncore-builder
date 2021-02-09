@@ -7,6 +7,11 @@ import tempfile
 
 from tcbuilder.backend import dt, dto
 
+from tcbuilder.cli import images as images_cli
+from tcbuilder.cli import dt as dt_cli
+from tcbuilder.cli import union as union_cli
+from tcbuilder.cli import deploy as deploy_cli
+
 log = logging.getLogger("torizon." + __name__)
 
 # Dear maintainer, the following code employs these abbreviations as pieces of variable names:
@@ -200,38 +205,71 @@ def do_dto_remove(args):
         # Sanity check.
         assert not dto.get_applied_overlays_base_names(args.storage_directory), "panic: all overlays removal failed; please contact the maintainers of this tool."
 
-        # All overlays are removed.
-        sys.exit(0)
+    else:
+        # The user wants to remove a single overlay.
+        if not args.dtob_basename:
+            log.error("error: no overlay was specified in the command line.")
+            sys.exit(1)
+        dtob_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
+        if not args.dtob_basename in dtob_basenames:
+            log.error(f"error: overlay '{args.dtob_basename}' is already not applied.")
+            sys.exit(1)
+        dtob_basenames.remove(args.dtob_basename)
 
-    # The user wants to remove a single overlay.
-    if not args.dtob_basename:
-        log.error("error: no overlay was specified in the command line.")
-        sys.exit(1)
-    dtob_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
-    if not args.dtob_basename in dtob_basenames:
-        log.error(f"error: overlay '{args.dtob_basename}' is already not applied.")
-        sys.exit(1)
-    dtob_basenames.remove(args.dtob_basename)
+        # Deploy a new overlays.txt file without the reference to the removed overlay.
+        dt_changes_dir = dt.get_dt_changes_dir(args.storage_directory)
+        overlays_txt_target_path = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays.txt")
+        os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
+        with open(overlays_txt_target_path, "w") as f:
+            f.write("fdt_overlays=")
+            first = True
+            for name in dtob_basenames:
+                if first:
+                    first = False
+                else:
+                    f.write(" ")
+                f.write(name)
+            f.write("\n")
 
-    # Deploy a new overlays.txt file without the reference to the removed overlay.
-    dt_changes_dir = dt.get_dt_changes_dir(args.storage_directory)
-    overlays_txt_target_path = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays.txt")
-    os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
-    with open(overlays_txt_target_path, "w") as f:
-        f.write("fdt_overlays=")
-        first = True
-        for name in dtob_basenames:
-            if first:
-                first = False
-            else:
-                f.write(" ")
-            f.write(name)
-        f.write("\n")
+        # Remove the overlay blob if it's not deployed.
+        dtob_path = dto.find_path_to_overlay(args.storage_directory, args.dtob_basename)
+        if dtob_path.startswith(dt_changes_dir):
+            os.remove(dtob_path)
 
-    # Remove the overlay blob if it's not deployed.
-    dtob_path = dto.find_path_to_overlay(args.storage_directory, args.dtob_basename)
-    if dtob_path.startswith(dt_changes_dir):
-        os.remove(dtob_path)
+
+def do_dto_deploy(args):
+    """
+    Run just one command to deploy an overlay in the device, so it is easier
+    and less error-prone to the user.
+    """
+
+    # Download TEZI image and checkout Device Tree files.
+    args.remove_storage = True
+    images_cli.do_images_download(args)
+    dt_cli.do_dt_checkout(args)
+
+    # Remove all applied overlays
+    if args.clear:
+        args.all = True
+        args.dtob_basename = None
+        do_dto_remove(args)
+
+    # Apply all Device Tree overlay file(s) passed in the command line.
+    for dtos_path in args.dtos_paths:
+        args.dtos_path = dtos_path
+        do_dto_apply(args)
+
+    # Create an ostree overlay.
+    args.union_branch = "dto_deploy"
+    args.changes_dirs = None
+    args.extra_changes_dirs = None
+    args.subject = "dto_deploy_subject"
+    args.body = "dto_deploy_body"
+    union_cli.union_subcommand(args)
+
+    # Deploy an ostree overlay in the device.
+    args.ref = args.union_branch
+    deploy_cli.deploy_ostree_remote(args)
 
 
 def init_parser(subparsers):
@@ -263,3 +301,16 @@ def init_parser(subparsers):
     subparser.add_argument("--all", action="store_true", help="Remove all device tree overlays")
     subparser.set_defaults(func=do_dto_remove)
 
+    # dto deploy
+    subparser = subparsers.add_parser("deploy", description="Deploy a device tree overlay in the device", help="Deploy a device tree overlay in the device")
+    subparser.add_argument("--remote-host", dest="remote_host", help="Name/IP of remote machine", required=True)
+    subparser.add_argument("--remote-username", dest="remote_username", help="User name of remote machine", required=True)
+    subparser.add_argument("--remote-password", dest="remote_password", help="Password of remote machine", required=True)
+    subparser.add_argument("--reboot", dest="reboot", action='store_true', help="Reboot device after deploying device tree overlay(s)", default=False)
+    subparser.add_argument("--mdns-source", dest="mdns_source", help="Use the given IP address as mDNS source. This is useful when multiple interfaces are used, and mDNS multicast requests are sent out the wrong network interface.")
+    subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during overlay compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'")
+    subparser.add_argument("--force", action="store_true", help="Apply the overlay even on failure checking it against a device tree.")
+    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Test the overlay against an specific device tree.")
+    subparser.add_argument("--clear", dest="clear", action="store_true", help="Remove all currently applied device tree overlays.", default=False)
+    subparser.add_argument(metavar="OVERLAY", dest="dtos_paths", help="Path to the device tree overlay source file(s)", nargs='+')
+    subparser.set_defaults(func=do_dto_deploy)
