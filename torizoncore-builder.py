@@ -21,7 +21,7 @@ import os
 import traceback
 
 from tcbuilder.cli import batch, bundle, combine, deploy, dt, dto, isolate, push, \
-        serve, splash, union, images
+        serve, splash, union, images, kernel
 
 from tcbuilder.errors import TorizonCoreBuilderError
 
@@ -128,6 +128,7 @@ dto.init_parser(subparsers)
 push.init_parser(subparsers)
 splash.init_parser(subparsers)
 serve.init_parser(subparsers)
+kernel.init_parser(subparsers)
 
 #pylint: disable=broad-except
 
