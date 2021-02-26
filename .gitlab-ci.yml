@@ -36,19 +36,8 @@ stages:
     - export DATE=$(date +%Y%m%d)
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    # Try to download latest image for cache, but don't fail if it does not exist
-    # Download tag for sota-builder stage first.
-    - docker build -f ${DOCKERFILE_NAME} --target sota-builder --build-arg BUILDKIT_INLINE_CACHE=1
+    - docker build -f ${DOCKERFILE_NAME}
                      --build-arg IMAGE_ARCH=${IMAGE_ARCH} --build-arg IMAGE_TAG=${IMAGE_TAG}
-                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:sota-builder-latest
-                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:sota-builder-latest
-                     .
-    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:sota-builder-latest
-    # Try to download latest image for cache, but don't fail if it does not exist
-    - docker build -f ${DOCKERFILE_NAME} --build-arg BUILDKIT_INLINE_CACHE=1
-                     --build-arg IMAGE_ARCH=${IMAGE_ARCH} --build-arg IMAGE_TAG=${IMAGE_TAG}
-                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:sota-builder-latest
-                     --cache-from ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
                      --label container.name=${IMAGE_NAME}
                      --label container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}
                      --label git.branch=${CI_COMMIT_BRANCH}
