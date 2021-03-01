@@ -5,22 +5,24 @@ CLI handling for kernel subcommand
 import os
 import re
 import sys
-import subprocess
 import logging
 import tempfile
+import subprocess
 
 from tcbuilder.errors import PathNotExistError
 from tcbuilder.errors import FileContentMissing
 from tcbuilder.backend.common import get_unpack_command
-from tcbuilder.backend import kernel, dt
+from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
 
 log = logging.getLogger("torizon." + __name__)
+
 
 # Name of the custom args overlay file (this should match the name used by the
 # boot script uEnv.txt.
 KERNEL_SET_CUSTOM_ARGS_DTS_NAME = 'custom-kargs_overlay.dts'
 
+# Contents of the custom args overlay source file.
 KERNEL_SET_CUSTOM_ARGS_DTS = """
 /dts-v1/;
 /plugin/;
@@ -29,6 +31,10 @@ KERNEL_SET_CUSTOM_ARGS_DTS = """
     bootargs_custom = "{kernel_args}";
 }};
 """
+
+# Name of the property defining the kernel args (ALWAYS keep in sync with
+# `KERNEL_SET_CUSTOM_ARGS_DTS`)
+KERNEL_SET_CUSTOM_ARGS_PROPERTY = 'bootargs_custom'
 
 
 def do_kernel_build_module(args):
@@ -114,6 +120,39 @@ def do_kernel_set_custom_args(args):
                               storage_dir=args.storage_directory,
                               allow_reapply=True, test_apply=False)
 
+    # Confirm application of arguments.
+    print(f"Kernel custom arguments successfully configured with \"{kargs}\".")
+
+
+def do_kernel_get_custom_args(args):
+    """Run 'kernel get_custom_args" subcommand"""
+
+    # Check if the custom kernel args overlays is being applied.
+    applied_overlay_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
+    dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
+    if dtob_basename not in applied_overlay_basenames:
+        # No arguments set: nothing wrong with that.
+        log.info('No custom kernel arguments configured.')
+        return
+
+    # Determine full path of the overlay of interest only.
+    applied_overlay_paths = \
+        dto.get_applied_overlay_paths(args.storage_directory, base_names=[dtob_basename])
+
+    log.debug(f"Custom arguments overlay is applied: path='{applied_overlay_paths[0]}'")
+
+    dtob_path = applied_overlay_paths[0]
+
+    # XXX: Following command might break if DTC command changes in the future.
+    # Run external program from 'device-tree-compiler' package.
+    fdtget_output = \
+        subprocess.check_output(
+            f"fdtget '{dtob_path}' '/fragment@0/__overlay__/' {KERNEL_SET_CUSTOM_ARGS_PROPERTY}",
+            shell=True, text=True).rstrip()
+
+    # Send output to stdout always.
+    print(f"Currently configured custom kernel arguments: \"{fdtget_output}\".")
+
 
 def init_parser(subparsers):
     """Initialize 'kernel' subcommands command line interface."""
@@ -133,7 +172,13 @@ def init_parser(subparsers):
 
     # kernel set_custom_args
     subparser = subparsers.add_parser("set_custom_args",
-                                      help="Modify the TorizonCore kernel arguments.")
+                                      help="Set the TorizonCore kernel arguments.")
     subparser.add_argument(metavar="KERNEL_ARGS", dest="kernel_args", nargs='+',
                            help="Kernel arguments to be added.")
     subparser.set_defaults(func=do_kernel_set_custom_args)
+
+    # kernel get_custom_args
+    subparser = subparsers.add_parser("get_custom_args",
+                                      help="Get the TorizonCore kernel arguments.")
+    subparser.set_defaults(func=do_kernel_get_custom_args)
+
