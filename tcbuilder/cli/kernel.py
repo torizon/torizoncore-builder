@@ -4,15 +4,32 @@ CLI handling for kernel subcommand
 
 import os
 import re
+import sys
 import subprocess
 import logging
+import tempfile
 
-from tcbuilder.backend import kernel, dt
 from tcbuilder.errors import PathNotExistError
 from tcbuilder.errors import FileContentMissing
 from tcbuilder.backend.common import get_unpack_command
+from tcbuilder.backend import kernel, dt
+from tcbuilder.cli import dto as dto_cli
 
 log = logging.getLogger("torizon." + __name__)
+
+# Name of the custom args overlay file (this should match the name used by the
+# boot script uEnv.txt.
+KERNEL_SET_CUSTOM_ARGS_DTS_NAME = 'custom-kargs_overlay.dts'
+
+KERNEL_SET_CUSTOM_ARGS_DTS = """
+/dts-v1/;
+/plugin/;
+
+&{{/chosen}} {{
+    bootargs_custom = "{kernel_args}";
+}};
+"""
+
 
 def do_kernel_build_module(args):
     """"Run 'kernel build_module' subcommand"""
@@ -69,10 +86,33 @@ def do_kernel_build_module(args):
 
     log.info("All kernel module(s) have been built and prepared.")
 
+
 def do_kernel_set_custom_args(args):
     """Run 'kernel set_custom_args" subcommand"""
 
-    kernel.set_custom_args()
+    kargs = " ".join(args.kernel_args)
+    if not kargs.rstrip():
+        log.error('error: please pass a valid string for the custom kernel arguments.')
+        sys.exit(1)
+
+    # Format string to become file contents.
+    dts_contents = KERNEL_SET_CUSTOM_ARGS_DTS.format(kernel_args=kargs)
+
+    # Generate the DTS file with desired contents inside a temporary directory.
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        dtos_path = os.path.join(tmpdirname, KERNEL_SET_CUSTOM_ARGS_DTS_NAME)
+        with open(dtos_path, 'w') as f:
+            f.write(dts_contents)
+
+        # The present command is simply a wrapper around `dto apply` - since we are setting
+        # test_apply as False the parameters `dtb_path` is not required as the function being
+        # invoked will not try to apply the overlay for assurance purposes. Also, the include
+        # directory is not needed either because we know the file being compiled includes no
+        # other files.
+        dto_cli.dto_apply_cmd(dtos_path=dtos_path,
+                              dtb_path=None, include_dirs=[],
+                              storage_dir=args.storage_directory,
+                              allow_reapply=True, test_apply=False)
 
 
 def init_parser(subparsers):
@@ -94,5 +134,6 @@ def init_parser(subparsers):
     # kernel set_custom_args
     subparser = subparsers.add_parser("set_custom_args",
                                       help="Modify the TorizonCore kernel arguments.")
-    subparser.add_argument(metavar="KERNEL_ARGS", dest="kernel_args", nargs='?',
+    subparser.add_argument(metavar="KERNEL_ARGS", dest="kernel_args", nargs='+',
                            help="Kernel arguments to be added.")
+    subparser.set_defaults(func=do_kernel_set_custom_args)

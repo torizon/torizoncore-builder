@@ -90,9 +90,3 @@ def autoload_module(module, kernel_changes_dir):
     conf_file = os.path.join(conf_dir, "tcb.conf")
     with open(conf_file, 'a') as file:
         file.write(f"{module_name} \n")
-
-
-def set_custom_args():
-    """Apply new kernel arguments"""
-
-    pass
