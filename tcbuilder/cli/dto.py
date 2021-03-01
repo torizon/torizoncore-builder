@@ -26,6 +26,89 @@ log = logging.getLogger("torizon." + __name__)
 # - target: functional output artifact in filesystem
 
 
+def dto_apply_cmd(dtos_path, dtb_path, include_dirs, storage_dir,
+                  allow_reapply=False, test_apply=True):
+    '''Execute most of the work of 'dto apply' command.
+
+    :param dtos_path: the full path to the source device-tree overlay file to be applied.
+    :param dtb_path: the full path to the blob file where to test apply the overlay (required
+                     only if `test_apply` is True).
+    :param include_dirs: list of directories where to search include files when building the
+                         overlay file.
+    :param storage_dir: path to root directory where most operations will be performed.
+    :param allow_reapply: whether or not to allow an overlay to be applied another time.
+    :param test_apply: whether or not to apply the overlay over the device tree to check for
+                       errors.
+    '''
+
+    applied_overlay_basenames = dto.get_applied_overlays_base_names(storage_dir)
+    dtob_target_basename = os.path.splitext(os.path.basename(dtos_path))[0] + ".dtbo"
+
+    # Detect a redundant overlay application.
+    if not allow_reapply:
+        if dtob_target_basename in applied_overlay_basenames:
+            log.error(f"error: overlay {dtob_target_basename} is already applied.")
+            sys.exit(1)
+
+    # In case the user is reapplying an overlay we remove it from the current list
+    # to ensure only the last application will take effect.
+    if dtob_target_basename in applied_overlay_basenames:
+        applied_overlay_basenames.remove(dtob_target_basename)
+
+    # Compile the overlay.
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        dtob_tmp_path = f.name
+    if not dt.build_dts(dtos_path, include_dirs, dtob_tmp_path):
+        log.error(f"error: cannot apply {dtos_path}.")
+        sys.exit(1)
+
+    # Test apply the overlay against the current device tree and other applied overlays.
+    if test_apply:
+        if dtb_path:
+            # User has provided the basename of a device tree blob of the base image.
+            (any_dtb_path, _) = dt.get_current_dtb_path(storage_dir)
+            dtb_path = os.path.join(os.path.dirname(any_dtb_path), dtb_path)
+        else:
+            # Use the current device tree blob.
+            (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(storage_dir)
+            if not is_dtb_exact:
+                log.error("error: could not find the device tree to check the overlay against.")
+                log.error("Please use --device-tree to pass one of the device trees below or use "
+                          "--force to bypass checking:")
+                dtb_list = subprocess.check_output(
+                    f"find {os.path.dirname(dtb_path)} -maxdepth 1 -type f -name '*.dtb' -printf '- %f\\n'",
+                    shell=True, text=True).rstrip()
+                log.error(dtb_list)
+                sys.exit(1)
+
+        applied_overlay_paths = \
+            dto.get_applied_overlay_paths(storage_dir, base_names=applied_overlay_basenames)
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            dtb_tmp_path = f.name
+        if not dto.modify_dtb_by_overlays(dtb_path,
+                                          applied_overlay_paths + [dtob_tmp_path], dtb_tmp_path):
+            log.error(f"error: overlay '{dtos_path}' is not applicable.")
+            sys.exit(1)
+        log.info(f"'{dtob_target_basename}' can successfully modify the device tree '{os.path.basename(dtb_path)}'.")
+
+    # Deploy the device tree overlay blob.
+    dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
+    dtob_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays")
+    os.makedirs(dtob_target_dir, exist_ok=True)
+    dtob_target_path = os.path.join(dtob_target_dir, dtob_target_basename)
+    shutil.move(dtob_tmp_path, dtob_target_path)
+
+    # Deploy the enablement of the device tree overlay blob.
+    new_overlay_basenames = applied_overlay_basenames + [dtob_target_basename]
+    overlays_txt_target_path = \
+        os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays.txt")
+    with open(overlays_txt_target_path, "w") as f:
+        f.write("fdt_overlays=" + " ".join(new_overlay_basenames) + "\n")
+
+    # All set :-)
+    log.info(f"Overlay {dtob_target_basename} successfully applied.")
+
+
 def do_dto_apply(args):
     '''Perform the 'dto apply' command.'''
 
@@ -34,67 +117,15 @@ def do_dto_apply(args):
         args.include_dirs = ["device-trees/include"]
     assert args.dtos_path, "panic: missing overlay source parameter"
 
-    # Detect a redundant overlay application.
-    applied_overlay_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
-    dtob_target_basename = os.path.splitext(os.path.basename(args.dtos_path))[0] + ".dtbo"
-    if dtob_target_basename in applied_overlay_basenames:
-        log.error(f"error: overlay {dtob_target_basename} is already applied.")
-        sys.exit(1)
-
-    # Compile the overlay.
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        dtob_tmp_path = f.name
-    if not dt.build_dts(args.dtos_path, args.include_dirs, dtob_tmp_path):
-        log.error(f"error: cannot apply {args.dtos_path}.")
-        sys.exit(1)
-
-    # Test apply the overlay against the current device tree and other applied overlays.
     if args.force:
         log.info("warning: --force was used, bypassing checking overlays against the device tree.")
-    else:
-        dtb_path = args.device_tree
-        if dtb_path:
-            # User has provided the basename of a device tree blob of the base image.
-            (any_dtb_path, _) = dt.get_current_dtb_path(args.storage_directory)
-            dtb_path = os.path.join(os.path.dirname(any_dtb_path), dtb_path)
-        else:
-            # Use the current device tree blob.
-            (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(args.storage_directory)
-            if not is_dtb_exact:
-                log.error("error: could not find the device tree to check the overlay against.")
-                log.error("Please use --device-tree to pass one of the device trees below or use --force to bypass checking:")
-                log.error(subprocess.check_output(f"find {os.path.dirname(dtb_path)} -maxdepth 1 -type f -name '*.dtb' -printf '- %f\\n'", shell=True, text=True).rstrip())
-                sys.exit(1)
-        applied_overlay_paths = dto.get_applied_overlay_paths(args.storage_directory)
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            dtb_tmp_path = f.name
-        if not dto.modify_dtb_by_overlays(dtb_path, applied_overlay_paths + [dtob_tmp_path], dtb_tmp_path):
-            log.error(f"error: overlay '{args.dtos_path}' is not applicable.")
-            sys.exit(1)
-        log.info(f"'{dtob_target_basename}' can successfully modify the device tree '{os.path.basename(dtb_path)}'.")
 
-    # Deploy the device tree overlay blob.
-    dt_changes_dir = dt.get_dt_changes_dir(args.storage_directory)
-    dtob_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays")
-    os.makedirs(dtob_target_dir, exist_ok=True)
-    dtob_target_path = os.path.join(dtob_target_dir, dtob_target_basename)
-    shutil.move(dtob_tmp_path, dtob_target_path)
-
-    # Deploy the enablement of the device tree overlay blob.
-    overlays_txt_target_path = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays.txt")
-    with open(overlays_txt_target_path, "w") as f:
-        f.write("fdt_overlays=")
-        first = True
-        for name in applied_overlay_basenames + [dtob_target_basename]:
-            if first:
-                first = False
-            else:
-                f.write(" ")
-            f.write(name)
-        f.write("\n")
-
-    # All set :-)
-    log.info(f"Overlay {dtob_target_basename} successfully applied.")
+    dto_apply_cmd(dtos_path=args.dtos_path,
+                  dtb_path=args.device_tree,
+                  include_dirs=args.include_dirs,
+                  storage_dir=args.storage_directory,
+                  allow_reapply=False,
+                  test_apply=not args.force)
 
 
 def do_dto_list(args):
@@ -221,15 +252,7 @@ def do_dto_remove(args):
         overlays_txt_target_path = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays.txt")
         os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
         with open(overlays_txt_target_path, "w") as f:
-            f.write("fdt_overlays=")
-            first = True
-            for name in dtob_basenames:
-                if first:
-                    first = False
-                else:
-                    f.write(" ")
-                f.write(name)
-            f.write("\n")
+            f.write("fdt_overlays=" + " ".join(dtob_basenames) + "\n")
 
         # Remove the overlay blob if it's not deployed.
         dtob_path = dto.find_path_to_overlay(args.storage_directory, args.dtob_basename)

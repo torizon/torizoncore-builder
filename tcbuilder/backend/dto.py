@@ -44,9 +44,11 @@ def find_path_to_overlay(storage_dir, basename):
     return path
 
 
-def get_applied_overlay_paths(storage_dir):
+def get_applied_overlay_paths(storage_dir, base_names=None):
     '''Query the paths to the currently applied overlays.'''
-    return [ find_path_to_overlay(storage_dir, basename) for basename in get_applied_overlays_base_names(storage_dir) ]
+    if base_names is None:
+        base_names = get_applied_overlays_base_names(storage_dir)
+    return [ find_path_to_overlay(storage_dir, basename) for basename in base_names ]
 
 
 def modify_dtb_by_overlays(source_dtb_path, source_dtob_paths, target_dtb_path):
