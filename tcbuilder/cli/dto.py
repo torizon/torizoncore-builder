@@ -212,6 +212,35 @@ def do_dto_status(args):
         log.info(f"- {overlay_basename}")
 
 
+def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
+    '''Remove a single overlay.'''
+
+    dtob_basenames = dto.get_applied_overlays_base_names(storage_dir)
+    if not dtob_basename in dtob_basenames:
+        if presence_required:
+            log.error(f"error: overlay '{dtob_basename}' is already not applied.")
+            sys.exit(1)
+        else:
+            return False
+
+    dtob_basenames.remove(dtob_basename)
+
+    # Deploy a new overlays.txt file without the reference to the removed overlay.
+    dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
+    overlays_txt_target_path = \
+        os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays.txt")
+    os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
+    with open(overlays_txt_target_path, "w") as f:
+        f.write("fdt_overlays=" + " ".join(dtob_basenames) + "\n")
+
+    # Remove the overlay blob if it's not deployed.
+    dtob_path = dto.find_path_to_overlay(storage_dir, dtob_basename)
+    if dtob_path.startswith(dt_changes_dir):
+        os.remove(dtob_path)
+
+    return True
+
+
 def do_dto_remove(args):
     '''Perform the 'dto status' command.'''
 
@@ -241,23 +270,8 @@ def do_dto_remove(args):
         if not args.dtob_basename:
             log.error("error: no overlay was specified in the command line.")
             sys.exit(1)
-        dtob_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
-        if not args.dtob_basename in dtob_basenames:
-            log.error(f"error: overlay '{args.dtob_basename}' is already not applied.")
-            sys.exit(1)
-        dtob_basenames.remove(args.dtob_basename)
 
-        # Deploy a new overlays.txt file without the reference to the removed overlay.
-        dt_changes_dir = dt.get_dt_changes_dir(args.storage_directory)
-        overlays_txt_target_path = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays.txt")
-        os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
-        with open(overlays_txt_target_path, "w") as f:
-            f.write("fdt_overlays=" + " ".join(dtob_basenames) + "\n")
-
-        # Remove the overlay blob if it's not deployed.
-        dtob_path = dto.find_path_to_overlay(args.storage_directory, args.dtob_basename)
-        if dtob_path.startswith(dt_changes_dir):
-            os.remove(dtob_path)
+        dto_remove_single(args.dtob_basename, args.storage_directory, presence_required=True)
 
 
 def do_dto_deploy(args):
