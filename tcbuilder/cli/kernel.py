@@ -132,7 +132,7 @@ def do_kernel_get_custom_args(args):
     dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
     if dtob_basename not in applied_overlay_basenames:
         # No arguments set: nothing wrong with that.
-        log.info('No custom kernel arguments configured.')
+        log.info("No custom kernel arguments configured.")
         return
 
     # Determine full path of the overlay of interest only.
@@ -152,6 +152,21 @@ def do_kernel_get_custom_args(args):
 
     # Send output to stdout always.
     print(f"Currently configured custom kernel arguments: \"{fdtget_output}\".")
+
+
+def do_kernel_clear_custom_args(args):
+    """Run 'kernel clear_custom_args" subcommand"""
+
+    dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
+
+    res = dto_cli.dto_remove_single(
+        dtob_basename, args.storage_directory, presence_required=False)
+    if res:
+        print("Custom kernel arguments successfully cleared.")
+    else:
+        # No arguments set: nothing wrong with that.
+        log.info("No custom kernel arguments configured.")
+        return
 
 
 def init_parser(subparsers):
@@ -181,4 +196,9 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser("get_custom_args",
                                       help="Get the TorizonCore kernel arguments.")
     subparser.set_defaults(func=do_kernel_get_custom_args)
+
+    # kernel clear_custom_args
+    subparser = subparsers.add_parser("clear_custom_args",
+                                      help="Clear the TorizonCore kernel arguments.")
+    subparser.set_defaults(func=do_kernel_clear_custom_args)
 
