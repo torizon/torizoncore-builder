@@ -17,9 +17,11 @@ from tcbuilder.cli import dto as dto_cli
 
 log = logging.getLogger("torizon." + __name__)
 
+# pylint: disable=fixme
 
 # Name of the custom args overlay file (this should match the name used by the
 # boot script uEnv.txt.
+# XXX: Always keep in sync with uEnv.txt.in in recipe `u-boot-distro-boot`.
 KERNEL_SET_CUSTOM_ARGS_DTS_NAME = 'custom-kargs_overlay.dts'
 
 # Contents of the custom args overlay source file.
@@ -32,9 +34,14 @@ KERNEL_SET_CUSTOM_ARGS_DTS = """
 }};
 """
 
-# Name of the property defining the kernel args (ALWAYS keep in sync with
-# `KERNEL_SET_CUSTOM_ARGS_DTS`)
+# Name of the property defining the kernel args.
+# XXX: Always keep in sync with `KERNEL_SET_CUSTOM_ARGS_DTS`.
+# XXX: Always keep in sync with uEnv.txt.in in recipe `u-boot-distro-boot`.
 KERNEL_SET_CUSTOM_ARGS_PROPERTY = 'bootargs_custom'
+
+# Regex to find the "function" responsible for handling the bootargs in uEnv.txt.
+# XXX: Always keep in sync with uEnv.txt.in in recipe `u-boot-distro-boot`.
+UENV_SET_CUSTOM_ARGS_FUNCTION_RE = r'^\s*set_bootargs_custom='
 
 
 def do_kernel_build_module(args):
@@ -101,14 +108,17 @@ def do_kernel_set_custom_args(args):
         log.error('error: please pass a valid string for the custom kernel arguments.')
         sys.exit(1)
 
+    # Make sure image can handle kernel arguments.
+    assert_custom_kargs_compat_image(args.storage_directory)
+
     # Format string to become file contents.
     dts_contents = KERNEL_SET_CUSTOM_ARGS_DTS.format(kernel_args=kargs)
 
     # Generate the DTS file with desired contents inside a temporary directory.
     with tempfile.TemporaryDirectory() as tmpdirname:
         dtos_path = os.path.join(tmpdirname, KERNEL_SET_CUSTOM_ARGS_DTS_NAME)
-        with open(dtos_path, 'w') as f:
-            f.write(dts_contents)
+        with open(dtos_path, 'w') as file:
+            file.write(dts_contents)
 
         # The present command is simply a wrapper around `dto apply` - since we are setting
         # test_apply as False the parameters `dtb_path` is not required as the function being
@@ -126,6 +136,9 @@ def do_kernel_set_custom_args(args):
 
 def do_kernel_get_custom_args(args):
     """Run 'kernel get_custom_args" subcommand"""
+
+    # Make sure image can handle kernel arguments.
+    assert_custom_kargs_compat_image(args.storage_directory)
 
     # Check if the custom kernel args overlays is being applied.
     applied_overlay_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
@@ -157,6 +170,9 @@ def do_kernel_get_custom_args(args):
 def do_kernel_clear_custom_args(args):
     """Run 'kernel clear_custom_args" subcommand"""
 
+    # Make sure image can handle kernel arguments.
+    assert_custom_kargs_compat_image(args.storage_directory)
+
     dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
 
     res = dto_cli.dto_remove_single(
@@ -167,6 +183,31 @@ def do_kernel_clear_custom_args(args):
         # No arguments set: nothing wrong with that.
         log.info("No custom kernel arguments configured.")
         return
+
+
+def assert_custom_kargs_compat_image(storage_dir):
+    """Ensure image is capable of handling custom kernel argument.
+
+    On return, caller can assume reference image does contain the code to handle
+    custom kernel argument. If it does not, the program will exit.
+    """
+
+    uenv_txt_path = dt.get_current_uenv_txt_path(storage_dir)
+    handling_code_found = False
+
+    re_searched = re.compile(UENV_SET_CUSTOM_ARGS_FUNCTION_RE)
+
+    with open(uenv_txt_path, 'r') as file:
+        for line in file:
+            if re_searched.match(line):
+                handling_code_found = True
+                break
+
+    if not handling_code_found:
+        log.error("The TorizonCore image you are customizing doesn't support "
+                  "custom kernel arguments. Please update it to the latest "
+                  "TorizonCore version.")
+        sys.exit(1)
 
 
 def init_parser(subparsers):
@@ -201,4 +242,3 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser("clear_custom_args",
                                       help="Clear the TorizonCore kernel arguments.")
     subparser.set_defaults(func=do_kernel_clear_custom_args)
-
