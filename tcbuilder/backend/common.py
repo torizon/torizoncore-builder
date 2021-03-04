@@ -132,6 +132,8 @@ def get_unpack_command(filename):
         return "zstd -dc"
     elif filename.endswith(".lz4"):
         return "lz4 -dc"
+    elif filename.endswith(".bz2"):
+        return "bzip2 -dc"
     else:
         return "cat"
 

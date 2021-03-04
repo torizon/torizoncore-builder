@@ -19,7 +19,8 @@ RUN if [ "$APT_PROXY" != "" ]; then \
 # AVAHI.
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     libarchive13 libassuan0 libfuse2 libglib2.0-0  libgpg-error0  libgpgme11 \
-    liblzma5 libmount1 libselinux1 libsoup2.4-1 libsystemd0 zlib1g \
+    liblzma5 libmount1 libselinux1 libsoup2.4-1 libsystemd0 zlib1g  build-essential \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build SOTA tools (garage-push/garage-sign)
@@ -29,7 +30,7 @@ FROM common-base AS sota-builder
 RUN sed -i '/^deb /{p;s/ /-src /}' /etc/apt/sources.list
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
-    build-essential git ca-certificates \
+    git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -39,7 +40,7 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     asn1c build-essential cmake curl libarchive-dev \
     libboost-dev libboost-log-dev libboost-program-options-dev \
     libcurl4-openssl-dev libpthread-stubs0-dev libsodium-dev libsqlite3-dev \
-    libssl-dev python3 libglib2.0-dev file \
+    python3 libglib2.0-dev file \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -58,7 +59,7 @@ FROM common-base AS tcbuilder-base
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
     file curl gzip xz-utils lz4 lzop zstd cpio jq \
-    device-tree-compiler cpp \
+    device-tree-compiler cpp  bzip2 flex bison kmod wget \
     && apt-get -q -y --no-install-recommends install python3-paramiko \
     python3-dnspython python3-ifaddr python3-git && rm -rf /var/lib/apt/lists/*
 
@@ -93,6 +94,12 @@ RUN pip3 install -r /tmp/requirements_debian.txt \
 
 RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 
+# Get Linaro toolchains
+RUN wget -O gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz "http://artifactory-horw.int.toradex.com/artifactory/list/torizoncore-oe-dev-horw/gcc-arm/gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz"
+RUN wget -O gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz "http://artifactory-horw.int.toradex.com/artifactory/list/torizoncore-oe-dev-horw/gcc-arm/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz"
+RUN tar xf gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz
+RUN tar xf gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz
+
 FROM tcbuilder-base AS tcbuilder-dev
 
 COPY requirements_dev.txt /tmp
@@ -122,6 +129,8 @@ FROM tcbuilder-base
 # put all the tools in the /builder directory 
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
+COPY --from=tcbuilder-base gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf /builder/gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf
+COPY --from=tcbuilder-base gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu /builder/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu
 ADD tezi /builder/tezi/
 ADD tcbuilder /builder/tcbuilder/
 ADD dockerbundle.py /builder/
