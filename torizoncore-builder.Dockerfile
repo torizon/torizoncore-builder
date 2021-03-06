@@ -97,8 +97,6 @@ RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 # Get Linaro toolchains
 RUN wget -O gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz "http://artifactory-horw.int.toradex.com/artifactory/list/torizoncore-oe-dev-horw/gcc-arm/gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz"
 RUN wget -O gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz "http://artifactory-horw.int.toradex.com/artifactory/list/torizoncore-oe-dev-horw/gcc-arm/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz"
-RUN tar xf gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz
-RUN tar xf gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz
 
 FROM tcbuilder-base AS tcbuilder-dev
 
@@ -129,8 +127,9 @@ FROM tcbuilder-base
 # put all the tools in the /builder directory 
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
-COPY --from=tcbuilder-base gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf /builder/gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf
-COPY --from=tcbuilder-base gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu /builder/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu
+RUN tar xf gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz -C /builder
+RUN tar xf gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz -C /builder
+RUN rm -rf gcc-arm-9.2-2019.12-x86_64* 
 ADD tezi /builder/tezi/
 ADD tcbuilder /builder/tcbuilder/
 ADD dockerbundle.py /builder/
