@@ -59,7 +59,7 @@ FROM common-base AS tcbuilder-base
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
     file curl gzip xz-utils lz4 lzop zstd cpio jq \
-    device-tree-compiler cpp  bzip2 flex bison kmod wget \
+    device-tree-compiler cpp  bzip2 flex bison kmod \
     && apt-get -q -y --no-install-recommends install python3-paramiko \
     python3-dnspython python3-ifaddr python3-git && rm -rf /var/lib/apt/lists/*
 
@@ -94,10 +94,6 @@ RUN pip3 install -r /tmp/requirements_debian.txt \
 
 RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 
-# Get Linaro toolchains
-RUN wget -O gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz "http://artifactory-horw.int.toradex.com/artifactory/list/torizoncore-oe-dev-horw/gcc-arm/gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz"
-RUN wget -O gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz "http://artifactory-horw.int.toradex.com/artifactory/list/torizoncore-oe-dev-horw/gcc-arm/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz"
-
 FROM tcbuilder-base AS tcbuilder-dev
 
 COPY requirements_dev.txt /tmp
@@ -127,9 +123,6 @@ FROM tcbuilder-base
 # put all the tools in the /builder directory 
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
-RUN tar xf gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz -C /builder
-RUN tar xf gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz -C /builder
-RUN rm -rf gcc-arm-9.2-2019.12-x86_64* 
 ADD tezi /builder/tezi/
 ADD tcbuilder /builder/tcbuilder/
 ADD dockerbundle.py /builder/

@@ -8,9 +8,13 @@ import re
 import shutil
 import logging
 import traceback
+import urllib.request
 
 from tcbuilder.backend import ostree
+from tcbuilder.backend.common import get_unpack_command, progress
 from tcbuilder.errors import TorizonCoreBuilderError
+
+log = logging.getLogger("torizon." + __name__)
 
 def get_kernel_changes_dir(storage_dir):
     """Return directory containing kernel related changes"""
@@ -34,12 +38,19 @@ def build_module(src_dir, linux_src, src_mod_dir,
             break
 
     # Set CROSS_COMPILE and toolchain based on ARCH
+    toolchain_path = os.path.join(os.path.dirname(linux_src), "toolchain")
     if arch == "arm":
         c_c = "arm-none-linux-gnueabihf-"
-        toolchain = "/builder/gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf/bin"
+        toolchain = os.path.join(toolchain_path,
+                                 "gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf/bin")
     if arch == "arm64":
         c_c = "aarch64-none-linux-gnu-"
-        toolchain = "/builder/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu/bin"
+        toolchain = os.path.join(toolchain_path,
+                                 "gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu/bin")
+
+    # Download toolchain if needed
+    if not os.path.exists(toolchain):
+        download_toolchain(c_c, toolchain_path)
 
     # Run modules_prepare on kernel source
     subprocess.check_output(f"""PATH=$PATH:{toolchain} make -C {linux_src} ARCH={arch} \
@@ -90,3 +101,31 @@ def autoload_module(module, kernel_changes_dir):
     conf_file = os.path.join(conf_dir, "tcb.conf")
     with open(conf_file, 'a') as file:
         file.write(f"{module_name} \n")
+
+def download_toolchain(toolchain, toolchain_path):
+    """Download toolchain from online if it doesn't already exist"""
+
+    url_prefix = "http://sources.toradex.com/tcb/toolchains/"
+    if toolchain == "arm-none-linux-gnueabihf-":
+        tarball = "gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz"
+    if toolchain == "aarch64-none-linux-gnu-":
+        tarball = "gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz"
+    url = url_prefix + tarball
+
+    log.info("A toolchain is required to build the module.\n"
+             f"Downloading toolchain from {url}.\n"
+             "Please wait this could take a while...")
+
+    try:
+        urllib.request.urlretrieve(url, filename=tarball, reporthook=progress)
+        log.info("\nDownload Complete!\n")
+    except:
+        raise TorizonCoreBuilderError("The requested toolchain could not be downloaded")
+
+    log.info("Unpacking downloaded toolchain into storage")
+    os.makedirs(toolchain_path, exist_ok=True)
+    tarcmd = "cat '{0}' | {1} | tar -xf - -C {2}".format(
+                tarball, get_unpack_command(tarball), toolchain_path)
+    subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
+    os.remove(tarball)
+    log.info("Toolchain successfully unpacked.\n")

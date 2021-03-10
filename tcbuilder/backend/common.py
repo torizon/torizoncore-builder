@@ -7,6 +7,7 @@ import shutil
 import socket
 import subprocess
 import git
+import sys
 from tcbuilder.backend import ostree
 from typing import Optional
 
@@ -303,3 +304,13 @@ def checkout_git_repo(storage_dir, git_repo = None, git_branch = None):
         ref.checkout(b=git_branch)
 
     repo_obj.close()
+
+def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
+    if totsiz == -1:
+        totread = (blocknum * blocksiz) // (1024*1024)
+        sys.stdout.write(f"\rDownloading file: {totread} MB...")
+        sys.stdout.flush()
+    else:
+        barsiz = int(min((blocknum * blocksiz) / (totsiz), 1.0) * totbarsiz)
+        sys.stdout.write("\r[" + ("=" * barsiz) + ("." * (totbarsiz - barsiz)) +  "] ")
+        sys.stdout.flush()
