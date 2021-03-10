@@ -169,8 +169,8 @@ def do_dto_list(args):
             # 3. The final 'sed' prepends '^[[:blank:]]*compatible *= *' to the compatibility values.
             subprocess.check_output("set -o pipefail && "
                 f"sed -r -e '/^[[:blank:]]*compatible *=/,/;/!d' -e '/;/q' {dtb_path} | tr -d '\n' | "
-                "sed -r -e 's/.*\\<compatible *= *//' -e 's/[[:blank:]]*//g' -e 's/\";.*/\"\\n/' -e 's/\",\"/\"\\n\"/g' | "
-                f"sed 's/^/^[[:blank:]]*compatible *= */' >{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
+                "sed -r -e 's/.*\\<compatible *= *//' -e 's/[[:blank:]]*//g' -e 's/\";.*/\"\\n/' -e 's/\",\"/\"\\n\"/g'"
+                f">{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             log.error(e.output.strip())
             log.error(f"error: cannot extract compatibility labels from device tree source '{dtb_path}'")
@@ -180,8 +180,7 @@ def do_dto_list(args):
         try:
             # About the 'sed' programs below:
             #  -e 's/$/\"/' appends '"' to each line
-            #  -e 's/^/^[[:blank:]]*compatible *= *\"/' prepends '^[[:blank:]]*compatible *= *"' to each line
-            subprocess.check_output(f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' | sed -e 's/$/\"/' -e 's/^/^[[:blank:]]*compatible *=.*\"/' >{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
+            subprocess.check_output(f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' | sed -e 's/$/\"/' >{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             log.error(e.output.strip())
             if "FDT_ERR_BADMAGIC" in e.output:
