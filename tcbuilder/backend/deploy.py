@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import threading
@@ -126,29 +125,17 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     Creates a new Toradex Easy Installer image with a OSTree deployment of the
     given OSTree reference.
     """
-    # Currently we use the sysroot from the unpacked Tezi rootfs as source
-    # for kargs, /home directories
-    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-    csum, kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
-    metadata, _subject, _body = ostree.get_metadata_from_ref(src_sysroot.repo(), csum)
-
-    log.info("Using unpacked Toradex Easy Installer image as base:")
-    log.info(f"  Commit checksum: {csum}")
-    log.info(f"  TorizonCore Version: {metadata['version']}")
-    log.info(f"  Kernel arguments: {kargs}\n")
-
     # It seems the customer did not pass a reference, deploy the original commit
-    # (probably not that useful in practise, but useful to test the workflow)
+    # (probably not that useful in practice, but useful to test the workflow)
     if ref is None:
         ref = ostree.OSTREE_BASE_REF
     print(f"Deploying commit ref: {ref}")
 
     # Create a new sysroot for our deployment
     sysroot = create_sysroot(dst_sysroot_dir)
-
     repo = sysroot.repo()
 
-    # We need to resolve the reference to a checksum again, otherwise we
+    # We need to resolve the reference to a checksum again, otherwise
     # pull_local_ref complains with:
     # "Commit has no requested ref ‘base’ in ref binding metadata"
     srcrepo = ostree.open_ostree(src_ostree_archive_dir)
@@ -156,20 +143,28 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     if not ret:
         raise TorizonCoreBuilderError(f"Error resolving {ref}.")
 
-    log.info(f"Pulling OSTree with ref {ref} (checksum {csumdeploy})"
-             "from local archive repository...")
+    # Get metadata from the commit being requested.
+    srcmeta, _subject, _body = ostree.get_metadata_from_ref(srcrepo, csumdeploy)
+    srckargs = srcmeta['oe.kargs-default']
+
+    log.info(f"Pulling OSTree with ref {ref} from local archive repository...")
+    log.info(f"  Commit checksum: {csumdeploy}")
+    log.info(f"  TorizonCore Version: {srcmeta['version']}")
+    log.info(f"  Default kernel arguments: {srckargs}\n")
 
     ostree.pull_local_ref(repo, src_ostree_archive_dir, csumdeploy, remote="torizon")
     log.info("Pulling done.")
 
     log.info(f"Deploying OSTree with checksum {csumdeploy}")
 
-    # Remove old ostree= kernel argument
-    newkargs = re.sub(r"ostree=[^\s]*", "", kargs)
-    deploy_rootfs(sysroot, csumdeploy, "torizon", newkargs)
+    # Deploy commit with default kernel arguments.
+    deploy_rootfs(sysroot, csumdeploy, "torizon", srckargs)
     log.info("Deploying done.")
 
+    # Currently we use the sysroot from the unpacked Tezi rootfs as source for
+    # /home directories
     log.info("Copy files not under OSTree control from original deployment.")
+    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     copy_files_from_old_sysroot(src_sysroot, sysroot)
 
     log.info("Packing rootfs...")
