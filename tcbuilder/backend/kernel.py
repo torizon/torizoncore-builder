@@ -82,6 +82,7 @@ def build_module(src_dir, linux_src, src_mod_dir,
     install_path = os.path.join(kernel_changes_dir, "usr")
     subprocess.check_output(f"cp -r {src_mod_dir}/* {mod_path}",
                             shell=True, stderr=subprocess.STDOUT)
+    shutil.rmtree(os.path.join(mod_path, "dtb"))
 
     # Install modules with modules_install
     subprocess.check_output(f"""PATH=$PATH:{toolchain} make -C {linux_src} ARCH={arch} \
