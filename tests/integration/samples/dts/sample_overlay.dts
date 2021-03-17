@@ -1,0 +1,6 @@
+/dts-v1/;
+/plugin/;
+
+&{/} {
+    tcb_prop_test = "tcb_prop_value";
+};

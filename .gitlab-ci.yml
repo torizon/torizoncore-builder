@@ -21,6 +21,7 @@ services:
 
 stages:
   - build
+  - test
   - build-multiarch
   - deploy
   - deploy-multiarch
@@ -78,6 +79,32 @@ docker-build-torizoncore-builder-arm64:
     IMAGE_ARCH: linux/arm64/v8
     IMAGE_NAME: torizoncore-builder-arm64
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
+
+integration-tests:
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
+  script:
+    # setup environment for the tests
+    - apk update && apk add git sshpass zstd wget bash tar
+    - cd tests/integration/
+    - mkdir -p workdir/reports && rm -Rf workdir/reports/*
+    - TCB_SKIP_PULL=1 ./setup.sh
+    # pull latest build of TorizonCore Builder
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    # prepare images
+    - mkdir -p workdir/images
+    - 'wget --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_APALIS_IMX6} -O workdir/images/${TEST_IMAGE_APALIS_IMX6}'
+    - 'wget --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_VERDIN_IMX8MM} -O workdir/images/${TEST_IMAGE_VERDIN_IMX8MM}'
+    - touch workdir/images/.images_downloaded
+    # run tests with Apalis iMX6 image
+    - TCB_REPORT=1 TCB_MACHINE=apalis-imx6 ./run.sh
+    # run tests with Verdin iMX8MM image
+    - TCB_REPORT=1 TCB_MACHINE=verdin-imx8mm ./run.sh
+    # check results
+    - (! grep "^not ok" workdir/reports/*)
+  stage: test
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental

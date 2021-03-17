@@ -1,0 +1,105 @@
+How to run the integration tests
+================================
+
+There are 4 main steps do run TorizonCore integration tests:
+
+1. Configure the development machine
+2. Download TorizonCore images
+3. Install a fresh TorizonCore image in a device (optional)
+4. Run the tests
+
+Configure the machine
+=====================
+
+First step is to install some dependencies (you may need to adapt this
+command to other Linux distributions):
+
+$ sudo apt install sshpass zstd
+
+And then source the setup script:
+
+$ source setup.sh
+
+Download TorizonCore images
+===========================
+
+You can manually download TorizonCore Tezi images from Toradex's
+Artifactory and save them on $PWD/workdir/images. In this case, the
+images must be in tarball format, as downloaded from Artifactory. Also,
+it is necessary to create a stamp file in the images directory so the
+test scripts know the images were downloaded:
+
+$ touch $PWD/workdir/images/.images_downloaded
+
+Another option is to use get_tezi_images.sh script to automatically
+download the images based on an specific TorizonCore version.
+
+To use the script, open it and set the parameters to download the Tezi
+images (search for CONFIGME in the script).
+
+And then run the script:
+
+$ ./get_tezi_images.sh
+
+Install a fresh TorizonCore image in a device
+=============================================
+
+In case you also want to run test cases that requires device access,
+install a fresh TorizonCore image in the device and set the default
+password to '1' before running the tests.
+
+Run the tests
+=============
+
+There is a script called run.sh that will run the integration tests
+for you.
+
+The script is configurable via environment variables, and the
+following variables are available:
+
+TCB_DEVICE:       IP address of the device used in test cases that
+                  requires device access.
+TCB_TESTCASE:     Test case to be executed, in case you want to run an
+                  specific group of tests.
+TCB_MACHINE:      The test scripts need a TorizonCore image to run the
+                  test cases (apalis-imx6 image is the default). With
+                  this variable, you can select which image will be used
+                  in the test cases, based on the defined MACHINE.
+TCB_CUSTOM_IMAGE: By default, the last TorizonCore Builder version from
+                  Docker Hub will be used to run the test cases. In case
+                  you want to use a custom TorizonCore Builder version,
+                  like a locally installed image, pass the name and tag
+                  to this variable in the following format:
+                  [registry/]<name>:<tag>
+TCB_REPORT:       If set to '1', it will enable the generation of a test
+                  report in $PWD/workdir/reports.
+
+Following are some examples of running the test cases.
+
+The command below will run all test cases that doesn't need a device,
+using a Apalis iMX6 image:
+
+$ ./run.sh
+
+The command below will run all test cases that doesn't need a device,
+using a Verdin iMX8MM image:
+
+$ TCB_MACHINE=verdin-imx8mm ./run.sh
+
+The command below will execute all test cases, including those that
+requires device access (the image used in the tests will be
+automatically selected based on the device):
+
+$ TCB_DEVICE=192.168.1.210 ./run.sh
+
+The command below will execute the test cases defined in
+testcases/dto.bats, using an Apalis iMX6 image, and a test report
+will be available in workdir/reports/:
+
+$ TCB_REPORT=1 TCB_TESTCASE=dto ./run.sh
+
+The command below will execute all test cases, including those that
+require device access, using a local torizoncore-builder container
+tagged with 'v1':
+
+$ TCB_CUSTOM_IMAGE=torizoncore-builder:v1 TCB_DEVICE=192.168.1.210 ./run.sh
