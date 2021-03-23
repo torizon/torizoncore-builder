@@ -7,19 +7,32 @@ sub-command).
 
 import os
 import logging
+import subprocess
 from tcbuilder.backend import union
 from tcbuilder.errors import PathNotExistError
 
 log = logging.getLogger("torizon." + __name__)
 
-def check_and_append_dirs(changes_dirs, new_changes_dirs):
+def check_and_append_dirs(changes_dirs, new_changes_dirs, temp_dir):
     """Check and append additional directories with changes"""
 
     for changes_dir in new_changes_dirs:
         if not os.path.exists(changes_dir):
             raise PathNotExistError(f'Changes directory "{changes_dir}" does not exist')
 
-        changes_dirs.append(os.path.abspath(changes_dir))    
+        subprocess.check_output(f"cp -r {changes_dir} {temp_dir}", shell=True,
+                                stderr=subprocess.STDOUT)
+        temp_change_dir = os.path.join(temp_dir, changes_dir)
+        change_ownership(temp_change_dir, 0, 0)
+        changes_dirs.append(os.path.abspath(temp_change_dir))
+
+def change_ownership(change_dir, uid, gid):
+    """Change ownership of change_dir recursively to the given uid/gid"""
+
+    for dirpath, _, filenames in os.walk(change_dir):
+        os.chown(dirpath, uid, gid)
+        for filename in filenames:
+            os.chown(os.path.join(dirpath, filename), uid, gid)
 
 def union_subcommand(args):
     """Run \"union\" subcommand"""
@@ -36,10 +49,14 @@ def union_subcommand(args):
             if os.path.isdir(changed_dir):
                 changes_dirs.append(changed_dir)
     else:
-        check_and_append_dirs(changes_dirs, args.changes_dirs)
+        temp_dir = os.path.join("/tmp", "changes_dirs")
+        os.mkdir(temp_dir)
+        check_and_append_dirs(changes_dirs, args.changes_dirs, temp_dir)
 
     if args.extra_changes_dirs is not None:
-        check_and_append_dirs(changes_dirs, args.extra_changes_dirs)
+        temp_dir_extra = os.path.join("/tmp", "extra_changes_dirs")
+        os.mkdir(temp_dir_extra)
+        check_and_append_dirs(changes_dirs, args.extra_changes_dirs, temp_dir_extra)
 
     union_branch = args.union_branch
 
