@@ -20,7 +20,8 @@ def check_and_append_dirs(changes_dirs, new_changes_dirs, temp_dir):
         if not os.path.exists(changes_dir):
             raise PathNotExistError(f'Changes directory "{changes_dir}" does not exist')
 
-        subprocess.check_output(f"cp -r {changes_dir} {temp_dir}", shell=True,
+        os.makedirs(f"{temp_dir}/{changes_dir}")
+        subprocess.check_output(f"cp -r {changes_dir}/* {temp_dir}/{changes_dir}/", shell=True,
                                 stderr=subprocess.STDOUT)
         temp_change_dir = os.path.join(temp_dir, changes_dir)
         change_ownership(temp_change_dir, 0, 0)
