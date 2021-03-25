@@ -191,8 +191,12 @@ def do_dto_list(args):
 
     # Show all device tree overlay source files that are compatible with the device tree blob.
     # Given the regexp patterns mentioned above, 'grep' can easily scan for all compatible files under a given subdirectory.
-    log.info(f"Overlays compatible with device tree {os.path.basename(dtb_path)}:")
-    log.info(subprocess.check_output(f"set -o pipefail && grep -rlHEf {compat_regexps_tmp_path} {overlays_subdir} | sort -u | sed -e 's/^/- /'", shell=True, text=True).strip())
+    try:
+        compat_list = subprocess.check_output(f"set -o pipefail && grep -rlHEf {compat_regexps_tmp_path} {overlays_subdir} | sort -u | sed -e 's/^/- /'", shell=True, text=True).strip()
+        log.info(f"Overlays compatible with device tree {os.path.basename(dtb_path)}:")
+        log.info(f"{compat_list}")
+    except:
+        log.info(f"No overlays compatible with device tree {os.path.basename(dtb_path)} were found.")
 
 
 def do_dto_status(args):
