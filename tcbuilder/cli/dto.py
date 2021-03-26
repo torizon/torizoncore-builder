@@ -137,18 +137,35 @@ def do_dto_list(args):
         log.error(f"error: missing device tree overlays directory '{overlays_subdir}' -- see dt checkout")
         sys.exit(1)
 
+    # Sanity check for --device-tree
+    if args.device_tree and not (args.device_tree.endswith(".dtb") or args.device_tree.endswith(".dts")):
+        log.error("Please pass either a device tree source file or device tree binary to --device-tree.")
+        sys.exit(1)
+
     # Find a device tree to check overlay compatibility against.
     dtb_path = args.device_tree
-    if dtb_path and not os.path.isfile(dtb_path):
+    if dtb_path and not os.path.isfile(dtb_path) and dtb_path.endswith(".dts"):
         # The user has passed a wrong device tree blob file with --device-tree
-        log.error(f"error: cannot read device tree blob '{dtb_path}'.")
+        log.error(f"error: cannot read device tree source '{dtb_path}'.")
         sys.exit(1)
     is_dtb_exact = True
-    if not dtb_path:
+    if not dtb_path or dtb_path.endswith(".dtb"):
         # The user has not issued --device-tree; take the applied device tree instead.
         (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(args.storage_directory)
-    if not is_dtb_exact:
-        log.info("warning: device tree is selected at runtime -- hinting on one.")
+    if not is_dtb_exact and not args.device_tree:
+        log.error("Could not determine default device tree.")
+        dtb_list = subprocess.check_output(
+            f"find {os.path.dirname(dtb_path)} -maxdepth 1 -type f -name '*.dtb' -printf '- %f\\n'",
+            shell=True, text=True).rstrip()
+        if dtb_list.count('\n') > 0:
+            log.error("Please use --device-tree to pass one of the device trees below as the assumed default:")
+            log.error(dtb_list)
+            sys.exit(1)
+        else:
+            log.info("Proceeding with the following device tree as the assumed default:")
+            log.info(dtb_list)
+    if args.device_tree and args.device_tree.endswith(".dtb"):
+        dtb_path = os.path.join(os.path.dirname(dtb_path), args.device_tree) 
 
     # Extract compatibility labels from the device tree blob,
     # and use them for building regexp patterns for matching with compatible device tree source files.
@@ -159,7 +176,7 @@ def do_dto_list(args):
     # ^[[:blank:]]*compatible *= *"fsl,imx8qxp"
     with tempfile.NamedTemporaryFile(delete=False) as f:
         compat_regexps_tmp_path = f.name
-    if args.device_tree:
+    if args.device_tree and args.device_tree.endswith(".dts"):
         # The user passed a device tree source file to check compatibility against;
         # parse the textual content of the file.
         try:
@@ -195,7 +212,7 @@ def do_dto_list(args):
         compat_list = subprocess.check_output(f"set -o pipefail && grep -rlHEf {compat_regexps_tmp_path} {overlays_subdir} | sort -u | sed -e 's/^/- /'", shell=True, text=True).strip()
         log.info(f"Overlays compatible with device tree {os.path.basename(dtb_path)}:")
         log.info(f"{compat_list}")
-    except:
+    except: # pylint: disable=W0702
         log.info(f"No overlays compatible with device tree {os.path.basename(dtb_path)} were found.")
 
 
@@ -328,7 +345,7 @@ def init_parser(subparsers):
 
     # dto list
     subparser = subparsers.add_parser("list", description="List the device tree overlays compatible with the current device tree", help="List the device tree overlays compatible with the current device tree")
-    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Check for overlay compatibility against this device tree source file instead.")
+    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Check for overlay compatibility against this device tree source or binary file instead.")
     subparser.set_defaults(func=do_dto_list)
 
     # dto status
