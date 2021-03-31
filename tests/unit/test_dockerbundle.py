@@ -26,7 +26,7 @@ def test_dockerbundle(work_dir):
 
     dockerbundle.download_containers_by_compose_file(
                 output_dir_rel, compose_file_path, host_workdir=os.environ["HOST_WORKDIR"], docker_username=None,
-                docker_password=None, use_host_docker=False, platform="linux/arm/v7", output_filename=output_file)
+                docker_password=None, registry=None, use_host_docker=False, platform="linux/arm/v7", output_filename=output_file)
 
     with open(os.path.join(output_dir_rel, compose_file), "r") as f:
         compose = yaml.load(f, Loader=yaml.FullLoader)
