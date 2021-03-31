@@ -222,7 +222,7 @@ class DindManager(DockerManager):
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
 def download_containers_by_compose_file(output_dir, compose_file, host_workdir, docker_username, docker_password,
-        use_host_docker=False, platform="linux/arm/v7", output_filename="docker-storage.tar"):
+        registry, use_host_docker=False, platform="linux/arm/v7", output_filename="docker-storage.tar"):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -232,6 +232,7 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir, 
                             system where dockerd we are accessing is running)
     :param docker_username: Username to be used to access docker images
     :param docker_password: Password to be used to access docker images
+    :param registry: Alternative container registry used to images
     :param use_host_docker: Use host docker (instead of Docker in Docker)
                             Note: This only really works if the Host Docker
                             Engine is not used by anything else than this
@@ -270,7 +271,10 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir, 
 
         # Now we can fetch the containers...
         if docker_username is not None:
-            dind_client.login(docker_username, docker_password)
+            if registry is not None:
+                dind_client.login(docker_username, docker_password, registry=registry)
+            else:
+                dind_client.login(docker_username, docker_password)
         for service in cfg.services:
             image = service['image']
             logging.info(f"Fetching container image {image}")
@@ -324,6 +328,8 @@ def main():
                         help="Optional username to be used to access container image.")
     parser.add_argument("--docker-password", dest="docker_password",
                         help="Password to be used to access container image.")
+    parser.add_argument("--registry", dest="registry",
+                        help="Alternative container registry used to access container image.")
     args = parser.parse_args()
 
     # This is required to share a bind mounted location (for the TLS
@@ -338,7 +344,7 @@ def main():
     download_containers_by_compose_file(
         args.output_directory, args.compose_file,
         host_workdir, args.docker_username, args.docker_password, 
-        args.host_docker, args.platform)
+        args.registry, args.host_docker, args.platform)
 
 if __name__ == "__main__":
     main()
