@@ -34,4 +34,6 @@ class UserAbortError(TorizonCoreBuilderError):
     def __init__(self, deb_details=None, status_code=None, payload=None):
         super().__init__("User aborted operation.",
                          deb_details=deb_details,status_code=status_code, payload=payload)
-    
+
+class InvalidAssignmentError(TorizonCoreBuilderError):
+    pass
