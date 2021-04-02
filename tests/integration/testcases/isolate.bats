@@ -24,6 +24,7 @@ load 'bats/bats-file/load.bash'
     local TMPFILE=$(mktemp tmp.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX)
     local ISOLATE_FILE=/etc/$TMPFILE
     device-shell-root "touch $ISOLATE_FILE"
+    device-shell-root "touch $ISOLATE_FILE\ with\ spaces"
 
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR --remote-host $DEVICE_ADDR \
@@ -31,9 +32,10 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --partial "isolation command completed"
 
-    run ls $ISOLATE_DIR/usr/$ISOLATE_FILE
+    run ls $ISOLATE_DIR/usr/$ISOLATE_FILE $ISOLATE_DIR/usr/$ISOLATE_FILE\ with\ spaces
     assert_success
     assert_output --partial "$ISOLATE_FILE"
+    assert_output --partial "$ISOLATE_FILE with spaces"
 }
 
 @test "isolate: isolate changes using storage" {

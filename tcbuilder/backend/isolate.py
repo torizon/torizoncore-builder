@@ -130,7 +130,7 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
         # append /etc because ostree config provides file/dir names relative to /etc
         for item in changes:
             if item.split()[0] != 'D':
-                files_dir_to_tar += '/etc/' + item.split()[1] + ' '
+                files_dir_to_tar += '/etc/' + r'\ '.join(item.split()[1:]) + ' '
             else:
                 f_delete_exists = True
                 whiteouts(client, sftp, tmp_dir_name, item.split()[1])
