@@ -8,13 +8,26 @@ from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
 from tcbuilder.backend.common import resolve_remote_host
 
-ignore_files = ['gshadow', 'machine-id', 'group', 'shadow', 'systemd/system/sysinit.target.wants/run-postinsts.service',
-                'ostree/remotes.d/toradex-nightly.conf', 'docker/key.json', '.updated', '.pwd.lock', 'group-',
-                'gshadow-', 'hostname', 'ssh/ssh_host_rsa_key', 'ssh/ssh_host_rsa_key.pub', 'ssh/ssh_host_ecdsa_key',
-                'ssh/ssh_host_ecdsa_key.pub',
-                'ssh/ssh_host_ed25519_key',
-                'ssh/ssh_host_ed25519_key.pub',
-                'ipk-postinsts', 'fw_env.conf' ]
+ignore_files = [
+        'group-',
+        'shadow-',
+        'gshadow-',
+        'hostname',
+        'machine-id',
+        'ipk-postinsts',
+        'fw_env.conf',
+        'docker/key.json',
+        '.updated',
+        '.pwd.lock',
+        'ssh/ssh_host_rsa_key',
+        'ssh/ssh_host_rsa_key.pub',
+        'ssh/ssh_host_ecdsa_key',
+        'ssh/ssh_host_ecdsa_key.pub',
+        'ssh/ssh_host_ed25519_key',
+        'ssh/ssh_host_ed25519_key.pub',
+        'systemd/system/sysinit.target.wants/run-postinsts.service',
+        'ostree/remotes.d/toradex-nightly.conf',
+        ]
 TAR_NAME = 'isolated_changes.tar'
 
 NO_CHANGES = 0
