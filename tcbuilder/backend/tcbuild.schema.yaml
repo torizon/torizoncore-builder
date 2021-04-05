@@ -1,0 +1,263 @@
+title: "TorizonCore configuration"
+description: "Schema for TorizonCore configuration project files."
+type: object
+properties:
+  input:
+    type: object
+    description: "source artifact for customization"
+    oneOf:
+      - properties:
+          easy-installer:
+            type: object
+            description: "specify a Toradex Easy Installer image as the source for customization"
+            oneOf:
+              - properties:
+                  local:
+                    type: string
+                    description: "local directory or tarball containing the image"
+                additionalProperties: false
+                required:
+                  - local
+              - properties:
+                  remote:
+                    type: string
+                    description: "URL used to download the image (integrity check supported)"
+                additionalProperties: false
+                required:
+                  - remote
+              - properties:
+                  toradex-feed:
+                    type: object
+                    description: "individual image attributes that will be used by the tool to download a standard image from the official feed server"
+                    properties:
+                      major:
+                        type: integer
+                        description: "major OS release"
+                      release:
+                        type: string
+                        enum:
+                          - nightly
+                          - monthly
+                          - stable
+                        description: "release type"
+                      module:
+                        type: string
+                        enum:
+                          - apalis-imx6
+                          - apalis-imx8
+                          - apalis-imx8x
+                          - colibri-imx6
+                          - colibri-imx6ull
+                          - colibri-imx7
+                          - colibri-imx7-emmc
+                          - colibri-imx8x
+                          - colibri-imx8x-v10b
+                          - verdin-imx8mm
+                        description: "target module type"
+                      distro:
+                        type: string
+                        enum:
+                          - torizon
+                          - torizon-rt
+                          - torizon-upstream
+                          - torizon-upstream-rt
+                        description: "distribution type"
+                      variant:
+                        type: string
+                        enum:
+                          - torizon-core-docker
+                          - torizon-core-docker-evaluation
+                          - torizon-core-podman
+                        description: "variant of the image"
+                        default: torizon-core-docker
+                    required:
+                      - major
+                      - release
+                      - module
+                      - distro
+                      - variant
+                additionalProperties: false
+                required:
+                  - toradex-feed
+        additionalProperties: false
+        required:
+          - easy-installer
+      - properties:
+          ostree:
+            type: object
+            description: "specify an OSTree archive as the source for customization"
+            # TODO: Factor out 'branch' since it is common to both sub-schemas below.
+            oneOf:
+              - properties:
+                  local:
+                    type: string
+                    description: "path to a local OSTree archive"
+                  branch:
+                    type: string
+                    description: "branch to use as base for the customization"
+                additionalProperties: false
+                required:
+                  - local
+              - properties:
+                  remote:
+                    type: string
+                    description: "URL of a remote OSTree archive"
+                  branch:
+                    type: string
+                    description: "branch to use as base for the customization"
+                additionalProperties: false
+                required:
+                  - remote
+        additionalProperties: false
+        required:
+          - ostree
+
+  customization:
+    type: object
+    description: "modifications to be applied to the input to produce the desired output"
+    properties:
+      splash-screen:
+        type: string
+        description: "local file path of a PNG file used to generate the splash screen image"
+      filesystem:
+        type: array
+        description: "directory trees to be applied on top of the ones in the input image"
+        items:
+          type: string
+          description: "path to directory to be applied"
+      device-tree:
+        type: object
+        description: "device tree configuration"
+        properties:
+          include-dirs:
+            type: array
+            description: "list of directories where to look for include files while compiling device tree source files"
+            items:
+              type: string
+              description: "path of a directory with include files"
+          custom:
+            type: string
+            description: "path of a device tree source (dts) file that will be built and integrated with the image"
+          overlays:
+            type: object
+            description: "overlays configuration"
+            properties:
+              clear:
+                type: boolean
+                description: "boolean indicating whether or not to ignore all the binary overlays possibly present in the base image"
+              remove:
+                type: array
+                items:
+                  type: string
+                  description: "list of specific binary overlays (only the base names of the dtbo files) to be ignored or not taken from the base image"
+              add:
+                type: array
+                items:
+                  type: string
+                  description: "list of paths to device tree source files that will be compiled and added to the image"
+            additionalProperties: false
+        additionalProperties: false
+      kernel:
+        type: object
+        description: "kernel-related configuration"
+        properties:
+          arguments:
+            type: array
+            description: "list of custom arguments to be passed to the kernel of the customized image"
+            items:
+              type: string
+          modules:
+            type: array
+            description: "list of kernel modules to be built from source and deployed with the image"
+            items:
+              type: object
+              properties:
+                source-dir:
+                  type: string
+                  description: "path to directory containing the kernel module source code"
+                autoload:
+                  type: boolean
+                  description: "boolean indicating whether the module should be automatically loaded upon system boot"
+              required:
+                - source-dir
+              additionalProperties: false
+        # No extra props inside 'kernel'
+        additionalProperties: false
+    # No extra props inside 'customization'
+    additionalProperties: false
+
+  output:
+    type: object
+    description: "target artifact configuration"
+    properties:
+      ostree:
+        type: object
+        description: "OSTree-related configuration"
+        properties:
+          branch:
+            type: string
+            description: "name of the OSTree repository branch that will contain the commit with the changes"
+          commit-subject:
+            type: string
+            description: "OSTree commit subject"
+          commit-body:
+            type: string
+            description: "OSTree commit body message"
+          # TODO: should 'local' and 'remote' be really mutually exclusive?
+          local:
+            type: string
+            description: "path to directory where to store the resulting OSTree archive"
+          remote:
+            type: string
+            description: "address of a remote OSTree archive"
+        additionalProperties: false
+      easy-installer:
+        type: object
+        description: "configuration items specific to the Toradex Easy Installer image output"
+        properties:
+          local:
+            type: string
+            description: "path to a local directory or a tarball for the generated image"
+          name:
+            type: string
+            description: "name of the image as shown by the installer"
+          description:
+            type: string
+            description: "short description of the image (displayed in the image list screen of the installer)"
+          licence:
+            type: string
+            description: "path of an HTML file with the image licence (displayed before installation when running interactively)"
+          release-notes:
+            type: string
+            description: "path of an HTML file with the image release notes (accessible from the installer UI)"
+          bundle:
+            type: object
+            description: "image bundling configuration"
+            oneOf:
+              - properties:
+                  compose-file:
+                    type: string
+                    description: "path of a docker-compose file that will be included in the final image along with the required container images"
+                  platform:
+                    type: string
+                    description: "platform for fetching multi-platform container images"
+                  username:
+                    type: string
+                    description: "Docker login username to be used if accessing a private registry is required"
+                  password:
+                    type: string
+                    description: "Docker login password to be used if accessing a private registry is required"
+                required: [compose-file]
+                additionalProperties: false
+              - properties:
+                  dir:
+                    type: string
+                    description: "path to directory containing the container images bundle to be combined with the installer image"
+                required: [dir]
+                additionalProperties: false
+        required: [local]
+        additionalProperties: false
+
+# No top-level extra props
+additionalProperties: false
+required: [input, output]
