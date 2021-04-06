@@ -1,3 +1,7 @@
+"""
+CLI handling for images subcommand
+"""
+
 import os
 import shutil
 
@@ -13,12 +17,13 @@ def prepare_storage(storage_directory, remove_storage):
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
     src_dt_dir = os.path.join(storage_dir, "dt")
-    src_kernel_dir = kernel.get_kernel_changes_dir(storage_dir) 
+    src_kernel_dir = kernel.get_kernel_changes_dir(storage_dir)
 
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
 
-    if (os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir) 
+    # pylint: disable=C0330
+    if (os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir)
         or os.path.exists(src_dt_dir) or os.path.exists(src_kernel_dir)):
         if not remove_storage:
             ans = input("Storage not empty. Delete current image before continuing? [y/N] ")
@@ -41,12 +46,20 @@ def do_images_download(args):
     images.download_tezi(r_ip, args.remote_username, args.remote_password,
                          dir_list[0], dir_list[1], dir_list[2])
 
-def do_images_unpack(args):
-    """Run 'images unpack' subcommand"""
+def images_unpack(image_dir, storage_dir, remove_storage=False):
+    """Main handler for the 'images unpack' subcommand"""
 
-    image_dir = os.path.abspath(args.image_directory)
-    dir_list = prepare_storage(args.storage_directory, args.remove_storage)
+    image_dir = os.path.abspath(image_dir)
+    dir_list = prepare_storage(storage_dir, remove_storage)
     images.import_local_image(image_dir, dir_list[0], dir_list[1], dir_list[2])
+
+
+def do_images_unpack(args):
+    """Wrapper for 'images unpack' subcommand"""
+
+    images_unpack(args.image_directory,
+                  args.storage_directory,
+                  args.remove_storage)
 
 
 def init_parser(subparsers):
