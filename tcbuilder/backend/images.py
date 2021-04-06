@@ -1,3 +1,7 @@
+"""
+Backend handling for build subcommand
+"""
+
 import os
 import shutil
 import logging
@@ -9,7 +13,7 @@ import paramiko
 
 from tcbuilder.backend.common import get_rootfs_tarball, get_unpack_command
 from tcbuilder.backend import ostree
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -119,6 +123,14 @@ def unpack_local_image(image_dir, sysroot_dir):
     # Remove the tarball since we have it unpacked now
     os.unlink(tarfile)
 
+def _make_tezi_extract_dir(tezi_dir):
+    """Create target directory where to extract the tezi image"""
+    extract_dir = tezi_dir + '.tmp'
+    if os.path.exists(extract_dir):
+        shutil.rmtree(extract_dir)
+    os.mkdir(extract_dir)
+    return extract_dir
+
 def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
     """Import local Toradex Easy Installer image
 
@@ -128,32 +140,41 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
     os.mkdir(src_sysroot_dir)
 
     # If provided image_dir is archived, extract it first
-    if image_dir.endswith(".tar") or image_dir.endswith(".tar.gz") or image_dir.endswith(".tgz"):
+    # pylint: disable=C0330
+    extract_dir = None
+    if (image_dir.endswith(".tar") or image_dir.endswith(".tar.gz") or
+        image_dir.endswith(".tgz")):
         log.info("Unpacking Toradex Easy Installer image.")
         if "Tezi" in image_dir:
-            extract_dir = os.getcwd()
-            final_dir = os.path.splitext(image_dir)[0]
+            extract_dir = _make_tezi_extract_dir(tezi_dir)
+            final_dir = os.path.join(
+                extract_dir, os.path.splitext(os.path.basename(image_dir))[0])
         elif "teziimage" in image_dir:
-            extract_dir = "teziimage"
-            if not os.path.exists(extract_dir):
-                os.mkdir(extract_dir)
+            extract_dir = _make_tezi_extract_dir(tezi_dir)
             final_dir = extract_dir
+        else:
+            raise InvalidArgumentError(
+                f"Unknown naming pattern for file {image_dir}")
         tarcmd = "cat {0} | {1} | tar -xf - -C {2}".format(
             image_dir, get_unpack_command(image_dir), extract_dir)
         log.debug(f"Running tar command: {tarcmd}")
         subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
         image_dir = final_dir
+
     elif image_dir.endswith(".zip"):
         log.info("Unzipping Toradex Easy Installer image.")
         with ZipFile(image_dir, 'r') as file:
-            extract_dir = "teziimage"
-            if not os.path.exists(extract_dir):
-                os.mkdir(extract_dir)
+            extract_dir = _make_tezi_extract_dir(tezi_dir)
             file.extractall(extract_dir)
             image_dir = extract_dir
 
     log.info("Copying Toradex Easy Installer image.")
+    log.debug(f"Copy directory {image_dir} -> {tezi_dir}.")
     shutil.copytree(image_dir, tezi_dir)
+
+    # Get rid of the extraction directory (if we created one).
+    if extract_dir is not None:
+        shutil.rmtree(extract_dir)
 
     log.info("Unpacking TorizonCore Toradex Easy Installer image.")
     unpack_local_image(tezi_dir, src_sysroot_dir)
