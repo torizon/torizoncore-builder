@@ -18,6 +18,9 @@ class OperationFailureError(TorizonCoreBuilderError):
 class FileContentMissing(TorizonCoreBuilderError):
     pass
 
+class IntegrityCheckFailed(TorizonCoreBuilderError):
+    pass
+
 class GitRepoError(TorizonCoreBuilderError):
     pass
 
@@ -28,6 +31,9 @@ class InvalidStateError(TorizonCoreBuilderError):
     pass
 
 class InvalidDataError(TorizonCoreBuilderError):
+    pass
+
+class FeatureNotImplementedError(TorizonCoreBuilderError):
     pass
 
 class UserAbortError(TorizonCoreBuilderError):        

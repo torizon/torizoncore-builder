@@ -3,6 +3,7 @@ import glob
 import ipaddress
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -314,3 +315,15 @@ def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
         barsiz = int(min((blocknum * blocksiz) / (totsiz), 1.0) * totbarsiz)
         sys.stdout.write("\r[" + ("=" * barsiz) + ("." * (totbarsiz - barsiz)) +  "] ")
         sys.stdout.flush()
+
+def get_file_sha256sum(path):
+    """Get SHA-256 checksum of a file"""
+    # Run external program - output is like this:
+    # c81be3dc13de2bd6e13da015e7822a4719aca3cc7434f24b564e40ff8c632a36 <fname>
+    text = subprocess.check_output(
+        ["sha256sum", path], shell=False, text=True, stderr=subprocess.STDOUT)
+    parts = re.split('\s+', text)
+    # Sanity checks:
+    assert (len(parts) >= 2) and (len(parts[0]) == 64)
+    # Return the SHA-256 checksum
+    return parts[0]

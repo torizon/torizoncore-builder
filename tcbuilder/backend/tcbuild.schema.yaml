@@ -30,17 +30,18 @@ properties:
                     type: object
                     description: "individual image attributes that will be used by the tool to download a standard image from the official feed server"
                     properties:
-                      major:
-                        type: integer
-                        description: "major OS release"
+                      version:
+                        type: string
+                        description: "image version (major.minor.patch)"
+                        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
                       release:
                         type: string
                         enum:
                           - nightly
                           - monthly
-                          - stable
+                          - quarterly
                         description: "release type"
-                      module:
+                      machine:
                         type: string
                         enum:
                           - apalis-imx6
@@ -53,6 +54,7 @@ properties:
                           - colibri-imx8x
                           - colibri-imx8x-v10b
                           - verdin-imx8mm
+                          - verdin-imx8mp
                         description: "target module type"
                       distro:
                         type: string
@@ -66,16 +68,26 @@ properties:
                         type: string
                         enum:
                           - torizon-core-docker
-                          - torizon-core-docker-evaluation
                           - torizon-core-podman
                         description: "variant of the image"
                         default: torizon-core-docker
+                      build-number:
+                        # TODO: Point out this is a string in the docs.
+                        type: string
+                        description: "build number as a string"
+                        pattern: "^[0-9]+$"
+                      build-date:
+                        # TODO: Point out this is a string in the docs.
+                        type: string
+                        description: "build number as a string"
+                        pattern: "^[0-9]+$"
                     required:
-                      - major
+                      - version
                       - release
-                      - module
+                      - machine
                       - distro
                       - variant
+                      - build-number
                 additionalProperties: false
                 required:
                   - toradex-feed
