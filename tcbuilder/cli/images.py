@@ -13,30 +13,41 @@ def prepare_storage(storage_directory, remove_storage):
     """ Prepare Storage directory for unpacking"""
 
     storage_dir = os.path.abspath(storage_directory)
-    tezi_dir = os.path.join(storage_dir, "tezi")
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-    src_dt_dir = os.path.join(storage_dir, "dt")
-    src_kernel_dir = kernel.get_kernel_changes_dir(storage_dir)
+    # Main directories: will be cleared and returned by this function.
+    main_dirs = [
+        os.path.join(storage_dir, "tezi"),
+        os.path.join(storage_dir, "sysroot"),
+        os.path.join(storage_dir, "ostree-archive")
+    ]
+    # Extra directories: will be cleared but not returned.
+    extra_dirs = [
+        os.path.join(storage_dir, "dt"),
+        os.path.join(storage_dir, "changes"),
+        kernel.get_kernel_changes_dir(storage_dir)
+    ]
 
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
 
-    # pylint: disable=C0330
-    if (os.path.exists(tezi_dir) or os.path.exists(src_sysroot_dir)
-        or os.path.exists(src_dt_dir) or os.path.exists(src_kernel_dir)):
-        if not remove_storage:
-            ans = input("Storage not empty. Delete current image before continuing? [y/N] ")
-        else:
-            ans = "n"
-        if ans.lower() != "y" and not remove_storage:
+    all_dirs = main_dirs + extra_dirs
+    need_clearing = False
+    for src_dir in all_dirs:
+        if os.path.exists(src_dir):
+            need_clearing = True
+            break
+
+    if need_clearing and not remove_storage:
+        # Let's ask the user about that:
+        ans = input("Storage not empty. Delete current image before continuing? [y/N] ")
+        if ans.lower() != "y":
             raise UserAbortError()
 
-        for src_dir in tezi_dir, src_sysroot_dir, src_dt_dir, src_kernel_dir:
-            if os.path.exists(src_dir):
-                shutil.rmtree(src_dir)
+    for src_dir in all_dirs:
+        if os.path.exists(src_dir):
+            shutil.rmtree(src_dir)
 
-    return [tezi_dir, src_sysroot_dir, src_ostree_archive_dir]
+    return main_dirs
+
 
 def do_images_download(args):
     """Run 'images download' subcommand"""
