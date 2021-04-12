@@ -8,10 +8,11 @@ sub-command).
 import os
 import logging
 import subprocess
-from tcbuilder.backend import union
+from tcbuilder.backend import union as ub
 from tcbuilder.errors import PathNotExistError
 
 log = logging.getLogger("torizon." + __name__)
+
 
 def check_and_append_dirs(changes_dirs, new_changes_dirs, temp_dir):
     """Check and append additional directories with changes"""
@@ -21,6 +22,7 @@ def check_and_append_dirs(changes_dirs, new_changes_dirs, temp_dir):
             raise PathNotExistError(f'Changes directory "{changes_dir}" does not exist')
 
         os.makedirs(f"{temp_dir}/{changes_dir}")
+        # Review: not appropriately handling especial directory names (FIXME).
         cp_command = f"cp -r {changes_dir}/. {temp_dir}/{changes_dir}"
         subprocess.check_output(cp_command, shell=True,
                                 stderr=subprocess.STDOUT)
@@ -35,6 +37,7 @@ def apply_tcattr_acl(files):
     each ".tcattr" file found in each sub directory of the tree.
     """
 
+    # Review: not appropriately handling especial directory names (FIXME).
     for tcattr_basedir in {tcattr[0] for tcattr in files}:
         setfacl_cmd = f"cd {tcattr_basedir} && \
                         setfacl --restore={tcattr_basedir}/.tcattr"
@@ -64,6 +67,7 @@ def apply_default_acl(files):
             if status.st_mode & 0o777 & 0o111:
                 mode = default_exec_mode
 
+        # Review: not appropriately handling especial directory names (FIXME).
         default_acl_cmd = f'chmod {mode} \'{filename}\' && \
                             chown root.root \'{filename}\''
         subprocess.run(default_acl_cmd, shell=True, check=True)
@@ -93,6 +97,7 @@ def set_acl_attributes(change_dir):
 
     for base_dir, dirnames, filenames in os.walk(change_dir):
         for filename in dirnames + filenames:
+            # Review: Reduce nesting (FIXME).
             if filename != '.tcattr':
                 full_filename = f'{base_dir}/{filename}'
                 if full_filename not in ['/'.join(f)
@@ -103,39 +108,50 @@ def set_acl_attributes(change_dir):
     apply_default_acl(files_to_apply_default_acl)
 
 
-def union_subcommand(args):
-    """Run \"union\" subcommand"""
-    storage_dir = os.path.abspath(args.storage_directory)
 
-    if not os.path.exists(storage_dir):
-        raise PathNotExistError(f'Storage directory "{storage_dir}" does not exist.')
+def union(changes_dirs, extra_changes_dirs, storage_dir,
+          union_branch, commit_subject=None, commit_body=None):
+    """Perform the actual work of the union subcommand"""
 
-    changes_dirs = []
-    if args.changes_dirs is None:
+    storage_dir_ = os.path.abspath(storage_dir)
+    if not os.path.exists(storage_dir_):
+        raise PathNotExistError(f"Storage directory \"{storage_dir_}\""
+                                " does not exist.")
+
+    changes_dirs_ = []
+    if changes_dirs is None:
         # Automatically add the ones present...
         for subdir in ["changes", "splash", "dt", "kernel"]:
-            changed_dir = os.path.join(storage_dir, subdir)
+            changed_dir = os.path.join(storage_dir_, subdir)
             if os.path.isdir(changed_dir):
                 if subdir == "changes":
                     set_acl_attributes(changed_dir)
-                changes_dirs.append(changed_dir)
+                changes_dirs_.append(changed_dir)
     else:
         temp_dir = os.path.join("/tmp", "changes_dirs")
         os.mkdir(temp_dir)
-        check_and_append_dirs(changes_dirs, args.changes_dirs, temp_dir)
+        check_and_append_dirs(changes_dirs_, changes_dirs, temp_dir)
 
-    if args.extra_changes_dirs is not None:
+    if extra_changes_dirs:
         temp_dir_extra = os.path.join("/tmp", "extra_changes_dirs")
         os.mkdir(temp_dir_extra)
-        check_and_append_dirs(changes_dirs, args.extra_changes_dirs, temp_dir_extra)
+        check_and_append_dirs(changes_dirs_, extra_changes_dirs, temp_dir_extra)
 
-    union_branch = args.union_branch
+    src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
 
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    log.debug(f"union: subject='{commit_subject}' body='{commit_body}'")
+    commit = ub.union_changes(changes_dirs_, src_ostree_archive_dir,
+                              union_branch, commit_subject, commit_body)
+    log.info(f"Commit {commit} has been generated for changes and is ready"
+             " to be deployed.")
 
-    commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch,
-                                 args.subject, args.body)
-    log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
+
+def do_union(args):
+    """Run \"union\" subcommand"""
+
+    union(args.changes_dirs, args.extra_changes_dirs, args.storage_directory,
+          args.union_branch, args.subject, args.body)
+
 
 def init_parser(subparsers):
     """Initialize argument parser"""
@@ -159,4 +175,4 @@ def init_parser(subparsers):
     subparser.add_argument("--body", dest="body",
                            help="""OSTree commit body message""")
 
-    subparser.set_defaults(func=union_subcommand)
+    subparser.set_defaults(func=do_union)

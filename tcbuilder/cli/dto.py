@@ -322,7 +322,7 @@ def do_dto_deploy(args):
     args.extra_changes_dirs = None
     args.subject = "dto_deploy_subject"
     args.body = "dto_deploy_body"
-    union_cli.union_subcommand(args)
+    union_cli.do_union(args)
 
     # Deploy an ostree overlay in the device.
     args.ref = args.union_branch
