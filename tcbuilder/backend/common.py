@@ -7,15 +7,16 @@ import re
 import shutil
 import socket
 import subprocess
-import git
 import sys
-from tcbuilder.backend import ostree
+
 from typing import Optional
 
+import git
 import dns.resolver
 import ifaddr
-
 import tezi.utils
+
+from tcbuilder.backend import ostree
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               PathNotExistError, TorizonCoreBuilderError, GitRepoError,
                               InvalidDataError)
@@ -28,12 +29,12 @@ DOCKER_FILES_TO_ADD = [
 
 def get_rootfs_tarball(tezi_image_dir):
     if not os.path.exists(tezi_image_dir):
-        raise PathNotExistError(f"Source image {tezi_image_dir} directory does not exist","")
+        raise PathNotExistError(f"Source image {tezi_image_dir} directory does not exist")
 
     image_files = glob.glob(os.path.join(tezi_image_dir, "image*.json"))
 
     if len(image_files) < 1:
-        raise FileNotFoundError("No image.json file found in image directory","")
+        raise FileNotFoundError("No image.json file found in image directory")
 
     image_json_filepath = os.path.join(tezi_image_dir, image_files[0])
     with open(image_json_filepath, "r") as jsonfile:
@@ -42,7 +43,7 @@ def get_rootfs_tarball(tezi_image_dir):
     # Find root file system content
     content = tezi.utils.find_rootfs_content(jsondata)
     if content is None:
-        raise FileContentMissing(f"No root file system content section found in {jsonfile}","")
+        raise FileContentMissing(f"No root file system content section found in {jsonfile}")
 
     return os.path.join(tezi_image_dir, content["filename"])
 
@@ -60,6 +61,7 @@ def add_common_image_arguments(subparser):
 
 def add_files(tezidir, image_json_filename, filelist, additional_size,
               image_name, image_description, licence_file, release_notes_file):
+
     image_json_filepath = os.path.join(tezidir, image_json_filename)
     with open(image_json_filepath, "r") as jsonfile:
         jsondata = json.load(jsonfile)
@@ -68,7 +70,8 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
     jsondata["config_format"] = 3
 
     if image_name is None:
-        jsondata["name"] = jsondata["name"] + " with Containers"
+        name_extra = ["", " with Containers"][bool(filelist)]
+        jsondata["name"] = jsondata["name"] + name_extra
     else:
         jsondata["name"] = image_name
 
@@ -82,15 +85,25 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
         jsondata["releasenotes"] = release_notes_file
 
     # Rather ad-hoc for now, we probably want to give the user more control
-    jsondata["version"] = jsondata["version"] + ".container"
+    version_extra = [".modified", ".container"][bool(filelist)]
+    jsondata["version"] = jsondata["version"] + version_extra
     jsondata["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
 
     # Find root file system content
     content = tezi.utils.find_rootfs_content(jsondata)
     if content is None:
-        raise InvalidDataError("No root file system content section found in Easy Installer image.")
+        raise InvalidDataError(
+            "No root file system content section found in Easy Installer image.")
 
-    content["filelist"] = filelist
+    # Document this (TODO)
+    if "filelist" in content:
+        raise InvalidDataError(
+            "Currently it is not possible to customize the containers of a base "
+            "image already containing container images")
+
+    if filelist:
+        content["filelist"] = filelist
+
     content["uncompressed_size"] += float(additional_size) / 1024 / 1024
 
     with open(image_json_filepath, "w") as jsonfile:
@@ -102,25 +115,31 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
 def combine_single_image(source_dir_containers, files_to_add, additional_size,
                          output_dir, image_name, image_description,
                          licence_file, release_notes_file):
-    # Copy container to sysroot deployment
+
     for filename in files_to_add:
         filename = filename.split(":")[0]
         shutil.copy(os.path.join(source_dir_containers, filename),
                     os.path.join(output_dir, filename))
 
+    licence_file_bn = None
     if licence_file is not None:
-        shutil.copy(licence_file, os.path.join(output_dir, licence_file))
+        licence_file_bn = os.path.basename(licence_file)
+        shutil.copy(licence_file, os.path.join(output_dir, licence_file_bn))
 
+    release_notes_file_bn = None
     if release_notes_file is not None:
-        shutil.copy(release_notes_file, os.path.join(output_dir, release_notes_file))
+        release_notes_file_bn = os.path.basename(release_notes_file)
+        shutil.copy(release_notes_file,
+                    os.path.join(output_dir, release_notes_file_bn))
 
     version = None
     for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        version = add_files(output_dir, image_file, files_to_add, additional_size,
-                            image_name, image_description, licence_file,
-                            release_notes_file)
+        version = add_files(output_dir, image_file, files_to_add,
+                            additional_size, image_name, image_description,
+                            licence_file_bn, release_notes_file_bn)
 
     return version
+
 
 def get_unpack_command(filename):
     """Get shell command to unpack a given file format"""
@@ -160,13 +179,13 @@ def get_additional_size(output_dir_containers, files_to_add):
 
             # Unpack similar to how Tezi does the size check
             size_proc = subprocess.run(
-                    "cat '{0}' | {1} | wc -c".format(filename, command),
-                    shell=True, capture_output=True, cwd=output_dir_containers,
-                    check=False)
+                "cat '{0}' | {1} | wc -c".format(filename, command),
+                shell=True, capture_output=True, cwd=output_dir_containers,
+                check=False)
 
             if size_proc.returncode != 0:
                 raise OperationFailureError("Size estimation failed. Exit code {0}."
-                              .format(size_proc.returncode),"")
+                                            .format(size_proc.returncode))
 
             additional_size += int(size_proc.stdout.decode('utf-8'))
         else:
@@ -255,7 +274,7 @@ def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, 
                 f'Resolving hostname "{mdns_hostname}" using mDNS on all interfaces failed.')
 
 
-def resolve_remote_host(remote_host, mdns_source = None):
+def resolve_remote_host(remote_host, mdns_source=None):
     """Resolve given host to IP address if host is not an IP address already"""
     try:
         _ip_obj = ipaddress.ip_address(remote_host)
@@ -279,7 +298,7 @@ def get_branch_from_metadata(storage_dir):
     _kernel_repo, kernel_branch, _kernel_revision = metadata["oe.kernel-source"]
     return kernel_branch
 
-def checkout_git_repo(storage_dir, git_repo = None, git_branch = None):
+def checkout_git_repo(storage_dir, git_repo=None, git_branch=None):
 
     if git_branch is None:
         git_branch = get_branch_from_metadata(storage_dir)
@@ -298,8 +317,8 @@ def checkout_git_repo(storage_dir, git_repo = None, git_branch = None):
 
     # Checkout branch if necessary
     if git_branch not in repo_obj.refs:
-        ref = next((rref for rref in repo_obj.remotes["origin"].refs if rref.remote_head == git_branch),
-                None)
+        ref = next((rref for rref in repo_obj.remotes["origin"].refs
+                    if rref.remote_head == git_branch), None)
         if ref is None:
             raise GitRepoError(f"Branch name {git_branch} does not exist in upstream repository.")
         ref.checkout(b=git_branch)
@@ -322,7 +341,7 @@ def get_file_sha256sum(path):
     # c81be3dc13de2bd6e13da015e7822a4719aca3cc7434f24b564e40ff8c632a36 <fname>
     text = subprocess.check_output(
         ["sha256sum", path], shell=False, text=True, stderr=subprocess.STDOUT)
-    parts = re.split('\s+', text)
+    parts = re.split(r"\s+", text)
     # Sanity checks:
     assert (len(parts) >= 2) and (len(parts[0]) == 64)
     # Return the SHA-256 checksum

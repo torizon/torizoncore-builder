@@ -326,7 +326,7 @@ def do_dto_deploy(args):
 
     # Deploy an ostree overlay in the device.
     args.ref = args.union_branch
-    deploy_cli.deploy_ostree_remote(args)
+    deploy_cli.do_deploy_ostree_remote(args)
 
 
 def init_parser(subparsers):
