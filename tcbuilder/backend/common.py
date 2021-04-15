@@ -112,13 +112,13 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
     return jsondata["version"]
 
 
-def combine_single_image(source_dir_containers, files_to_add, additional_size,
+def combine_single_image(bundle_dir, files_to_add, additional_size,
                          output_dir, image_name, image_description,
                          licence_file, release_notes_file):
 
     for filename in files_to_add:
         filename = filename.split(":")[0]
-        shutil.copy(os.path.join(source_dir_containers, filename),
+        shutil.copy(os.path.join(bundle_dir, filename),
                     os.path.join(output_dir, filename))
 
     licence_file_bn = None

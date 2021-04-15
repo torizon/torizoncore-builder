@@ -5,6 +5,8 @@ from tcbuilder.backend.common import add_common_image_arguments
 from tcbuilder.backend import combine as cbe
 from tcbuilder.errors import InvalidArgumentError, InvalidStateError, PathNotExistError
 
+DEFAULT_DEPLOY_DIR = "/deploy"
+
 
 def progress_update(asyncprogress, _user_data=None):
     """ Update progress status
@@ -18,39 +20,51 @@ def progress_update(asyncprogress, _user_data=None):
     print("Pull: %s bytes transferred.\r", str(bytes_transferred))
 
 
-def do_deploy_tezi_image(args):
-    output_dir = os.path.abspath(args.output_directory)
+def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
+                      image_name=None, image_description=None,
+                      licence_file=None, release_notes_file=None):
 
-    storage_dir = os.path.abspath(args.storage_directory)
-    tezi_dir = os.path.join(storage_dir, "tezi")
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    output_dir_ = os.path.abspath(output_dir)
 
-    dst_sysroot_dir = os.path.abspath(args.deploy_sysroot_directory)
+    storage_dir_ = os.path.abspath(storage_dir)
+    tezi_dir = os.path.join(storage_dir_, "tezi")
+    src_sysroot_dir = os.path.join(storage_dir_, "sysroot")
+    src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
 
-    if os.path.exists(output_dir):
-        raise InvalidStateError(f"Output directory {output_dir} must not exist.")
+    dst_sysroot_dir_ = os.path.abspath(deploy_sysroot_dir)
 
-    if not os.path.exists(dst_sysroot_dir):
-        raise PathNotExistError(f"Deploy sysroot directory {dst_sysroot_dir} does not exist.")
+    if os.path.exists(output_dir_):
+        raise InvalidStateError(f"Output directory {output_dir_} must not exist.")
+
+    if not os.path.exists(dst_sysroot_dir_):
+        raise PathNotExistError(f"Deploy sysroot directory {dst_sysroot_dir_} does not exist.")
 
     dbe.deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
-                          output_dir, dst_sysroot_dir, args.ref)
+                          output_dir_, dst_sysroot_dir_, ostree_ref)
 
-    comb_args = [args.image_name,
-                 args.image_description,
-                 args.licence_file,
-                 args.release_notes_file]
+    comb_args = [image_name, image_description, licence_file, release_notes_file]
 
     if any(arg is not None for arg in comb_args):
         # Change output directory in place.
-        cbe.combine_image(image_dir=output_dir,
+        cbe.combine_image(image_dir=output_dir_,
                           bundle_dir=None,
                           output_directory=None,
-                          image_name=args.image_name,
-                          image_description=args.image_description,
-                          licence_file=args.licence_file,
-                          release_notes_file=args.release_notes_file)
+                          image_name=image_name,
+                          image_description=image_description,
+                          licence_file=licence_file,
+                          release_notes_file=release_notes_file)
+
+
+def do_deploy_tezi_image(args):
+
+    deploy_tezi_image(ostree_ref=args.ref,
+                      output_dir=args.output_directory,
+                      storage_dir=args.storage_directory,
+                      deploy_sysroot_dir=args.deploy_sysroot_directory,
+                      image_name=args.image_name,
+                      image_description=args.image_description,
+                      licence_file=args.licence_file,
+                      release_notes_file=args.release_notes_file)
 
 
 def do_deploy_ostree_remote(args):
@@ -101,8 +115,7 @@ def init_parser(subparsers):
                            attributes in this directory. This seems to only
                            reliably work when using a Docker volume!
                            """,
-                           default="/deploy")
+                           default=DEFAULT_DEPLOY_DIR)
     add_common_image_arguments(subparser)
 
     subparser.set_defaults(func=do_deploy)
-

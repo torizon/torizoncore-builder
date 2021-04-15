@@ -30,13 +30,17 @@ def combine_image(image_dir, bundle_dir, output_directory, image_name,
             shutil.rmtree(output_directory)
         shutil.copytree(image_dir, output_directory)
 
-    log.info("Combining TorizonCore image with Docker Container bundle.")
+    # Notice that the present function can be used simply for updating the
+    # metadata and not necessarily to add containers (so the function name
+    # may not fit very well anymore).
+    if files_to_add:
+        log.info("Combining TorizonCore image with Docker Container bundle.")
+
     # log.debug(
     #     f"combine: bundledir={bundle_dir}, "
     #     f"outdir={output_directory}, imgname={image_name}, "
     #     f"imgdesc={image_description}, licfile={licence_file}, "
     #     f"relnotes={release_notes_file}, addsize={additional_size}")
-
     combine_single_image(bundle_dir, files_to_add, additional_size,
                          output_directory, image_name, image_description,
                          licence_file, release_notes_file)

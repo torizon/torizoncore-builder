@@ -269,7 +269,7 @@ properties:
                 additionalProperties: false
         required: [local]
         additionalProperties: false
-
+    required: [easy-installer]
 # No top-level extra props
 additionalProperties: false
 required: [input, output]

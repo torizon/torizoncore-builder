@@ -4,10 +4,18 @@ CLI handling for build subcommand
 
 import logging
 import os
+from datetime import datetime
 
-from tcbuilder.errors import (FileContentMissing, FeatureNotImplementedError)
+# import dockerbundle
+
+from tcbuilder.errors import (FileContentMissing,
+                              FeatureNotImplementedError, InvalidDataError)
+
 from tcbuilder.backend import build as bb
+from tcbuilder.backend import combine as comb_be
 from tcbuilder.cli import images as images_cli
+from tcbuilder.cli import union as union_cli
+from tcbuilder.cli import deploy as deploy_cli
 
 DEFAULT_BUILD_FILE = "tcbuild.yaml"
 
@@ -89,6 +97,83 @@ def handle_ostree_input(props, **kwargs):
         "Processing of ostree archive inputs is not implemented yet.")
 
 
+def handle_output_section(props, storage_dir, extra_changes_dirs=None):
+    """Handle the output section of the configuration file
+
+    :param props: Dictionary holding the data of the section.
+    :param storage_dir: Absolute path of storage directory. This is a required
+                        keyword argument.
+    """
+
+    # ostree data is currently optional.
+    ostree_props = props.get("ostree", {})
+
+    # Parameters to pass to union()
+    union_params = {
+        "changes_dirs": None,
+        "storage_dir": storage_dir,
+        "extra_changes_dirs": extra_changes_dirs
+    }
+
+    if "branch" in ostree_props:
+        union_params["union_branch"] = ostree_props["branch"]
+    else:
+        # Create a default branch name based on date/time.
+        nowstr = datetime.now().strftime("%Y%m%d%H%M%S")
+        union_params["union_branch"] = f"tcbuilder-{nowstr}"
+
+    if "commit-subject" in ostree_props:
+        union_params["commit_subject"] = ostree_props["commit-subject"]
+    if "commit-body" in ostree_props:
+        union_params["commit_body"] = ostree_props["commit-body"]
+
+    union_cli.union(**union_params)
+
+    # Handle the "ostree.local" property (TODO).
+    # Handle the "ostree.remote" property (TODO).
+
+    tezi_props = props.get("easy-installer", {})
+
+    # Note that the following test should never fail (due to schema validation).
+    assert "local" in tezi_props, "'local' property is required"
+
+    output_dir = tezi_props["local"]
+    if os.path.isabs(output_dir):
+        raise InvalidDataError(
+            f"Image output directory '{output_dir}' is not relative")
+    output_dir = os.path.abspath(output_dir)
+
+    deploy_cli.deploy_tezi_image(
+        ostree_ref=union_params["union_branch"],
+        output_dir=output_dir,
+        storage_dir=storage_dir, deploy_sysroot_dir=deploy_cli.DEFAULT_DEPLOY_DIR,
+        image_name=tezi_props.get("name"),
+        image_description=tezi_props.get("description"),
+        licence_file=tezi_props.get("licence"),
+        release_notes_file=tezi_props.get("release-notes"))
+
+    bundle_props = tezi_props.get("bundle", {})
+
+    if "dir" in bundle_props:
+        # Do a combine "in place" to avoid creating another directory.
+        comb_be.combine_image(
+            image_dir=output_dir,
+            bundle_dir=bundle_props["dir"],
+            output_directory=None,
+            image_name=tezi_props.get("name"),
+            image_description=tezi_props.get("description"),
+            licence_file=tezi_props.get("licence"),
+            release_notes_file=tezi_props.get("release-notes"))
+
+    # Implement this (TODO)
+    # elif "compose-file" in bundle_props:
+    #     #####
+    #     dockerbundle.download_containers_by_compose_file(
+    #         output_dir, compose_file, host_workdir,
+    #         docker_username, docker_password, registry,
+    #         use_host_docker, platform, output_filename)
+
+
 def build(config_fname, storage_dir, substs=None, enable_subst=True):
     """Main handler for the normal operating mode of the build subcommand"""
 
@@ -108,11 +193,15 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
         # Raise a parse error instead to allow a better message (TODO)
         raise FileContentMissing("No input specified in configuration file")
 
-    if "customization" in config:
-        pass
-    else:
-        # Customization section is currently optional.
-        pass
+    # Customization section is currently optional.
+    customization_props = config.get("customization", {})
+    # fs_changes = handle_customization_section(customization_props)
+    fs_changes = customization_props.get("filesystem")
+
+    # Output section is currently optional.
+    handle_output_section(config.get("output", {}),
+                          storage_dir=storage_dir,
+                          extra_changes_dirs=fs_changes)
 
     # print(config)
 
