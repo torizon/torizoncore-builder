@@ -21,19 +21,87 @@ def check_and_append_dirs(changes_dirs, new_changes_dirs, temp_dir):
             raise PathNotExistError(f'Changes directory "{changes_dir}" does not exist')
 
         os.makedirs(f"{temp_dir}/{changes_dir}")
-        subprocess.check_output(f"cp -r {changes_dir}/* {temp_dir}/{changes_dir}/", shell=True,
+        cp_command = f"cp -r {changes_dir}/. {temp_dir}/{changes_dir}"
+        subprocess.check_output(cp_command, shell=True,
                                 stderr=subprocess.STDOUT)
         temp_change_dir = os.path.join(temp_dir, changes_dir)
-        change_ownership(temp_change_dir, 0, 0)
+        set_acl_attributes(temp_change_dir)
         changes_dirs.append(os.path.abspath(temp_change_dir))
 
-def change_ownership(change_dir, uid, gid):
-    """Change ownership of change_dir recursively to the given uid/gid"""
 
-    for dirpath, _, filenames in os.walk(change_dir):
-        os.chown(dirpath, uid, gid)
-        for filename in filenames:
-            os.chown(os.path.join(dirpath, filename), uid, gid)
+def apply_tcattr_acl(files):
+    """
+    Apply ACLs based on .tcattr files. It just needs to be done once for
+    each ".tcattr" file found in each sub directory of the tree.
+    """
+
+    for tcattr_basedir in {tcattr[0] for tcattr in files}:
+        setfacl_cmd = f"cd {tcattr_basedir} && \
+                        setfacl --restore={tcattr_basedir}/.tcattr"
+        subprocess.run(setfacl_cmd, shell=True, check=True)
+
+
+def apply_default_acl(files):
+    """
+    Apply default ACL to files and directories.
+      - For executables files: 0770.
+      - For non-executables files: 0660.
+      - For directories: 0755.
+      - For all files and directories the user and group will be "root".
+    """
+
+    default_file_mode = "0660"
+    default_dir_mode = "0755"
+    default_exec_mode = "0770"
+
+    for filename in files:
+        mode = default_file_mode
+        if os.path.isdir(filename):
+            mode = default_dir_mode
+        else:
+            # Check if file is an executable file
+            status = os.stat(filename)
+            if status.st_mode & 0o777 & 0o111:
+                mode = default_exec_mode
+
+        default_acl_cmd = f'chmod {mode} \'{filename}\' && \
+                            chown root.root \'{filename}\''
+        subprocess.run(default_acl_cmd, shell=True, check=True)
+
+
+def set_acl_attributes(change_dir):
+    """
+    From "change_dir" onward, find all ".tcattr" files and create two lists
+    which the contents should be:
+      - Files and/or directories that must have ".tcattr" ACLs
+      - The other files and/or directories that must have "default" ACLs
+    Each ".tcattr" file should be created by the "isolate" command or
+    manually by the user.
+    """
+
+    files_to_apply_tcattr_acl = []
+    files_to_apply_default_acl = []
+
+    for base_dir, _, filenames in os.walk(change_dir):
+        if '.tcattr' not in filenames:
+            continue
+        with open(f'{base_dir}/.tcattr') as fd_tcattr:
+            for line in fd_tcattr:
+                if '# file: ' in line:
+                    line = line.strip().replace('# file: ', '')
+                    files_to_apply_tcattr_acl.append((f'{base_dir}', line))
+
+    for base_dir, dirnames, filenames in os.walk(change_dir):
+        for filename in dirnames + filenames:
+            if filename != '.tcattr':
+                full_filename = f'{base_dir}/{filename}'
+                if full_filename not in ['/'.join(f)
+                                         for f in files_to_apply_tcattr_acl]:
+                    files_to_apply_default_acl.append(full_filename)
+
+    apply_tcattr_acl(files_to_apply_tcattr_acl)
+    apply_default_acl(files_to_apply_default_acl)
+
 
 def union_subcommand(args):
     """Run \"union\" subcommand"""
@@ -48,6 +116,8 @@ def union_subcommand(args):
         for subdir in ["changes", "splash", "dt", "kernel"]:
             changed_dir = os.path.join(storage_dir, subdir)
             if os.path.isdir(changed_dir):
+                if subdir == "changes":
+                    set_acl_attributes(changed_dir)
                 changes_dirs.append(changed_dir)
     else:
         temp_dir = os.path.join("/tmp", "changes_dirs")
@@ -64,7 +134,7 @@ def union_subcommand(args):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     commit = union.union_changes(changes_dirs, src_ostree_archive_dir, union_branch,
-                                    args.subject, args.body)
+                                 args.subject, args.body)
     log.info(f"Commit {commit} has been generated for changes and ready to be deployed.")
 
 def init_parser(subparsers):

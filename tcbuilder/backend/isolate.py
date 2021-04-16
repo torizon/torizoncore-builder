@@ -91,6 +91,44 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
         raise OperationFailureError(f'could not create dir in {tmp_dir_name}',  stdout.read().decode(
             'utf-8').strip())
 
+
+def get_tcattr_file_content(files_dir_to_tar, ssh_client, sftp_client,
+                            remote_password, tmp_dir_name):
+    """
+        Get the content (permission/ownership) for the "/etc/.tcattr"
+        metadata file of all files that will be isolated and will be
+        used later by the "union" command.
+    """
+
+    facl_command = "sudo getfacl -n {0} 2>/dev/null".format(files_dir_to_tar)
+    status, _stdin, stdout = run_command_with_sudo(ssh_client, facl_command,
+                                                   remote_password)
+    if status > 0:
+        remove_tmp_dir(ssh_client, tmp_dir_name)
+        sftp_client.close()
+        ssh_client.close()
+        facl_command_error = 'Unable to save permissions/ownership at target'
+        raise OperationFailureError(facl_command_error,
+                                    stdout.read().decode('utf-8').strip())
+
+    tcattr = stdout.read().decode("utf-8").strip().split("\r\n")
+    # remove upto password keyword
+    indx = tcattr.index("Password: ")
+    tcattr = tcattr[(indx + 1):]
+    tcattr = "\n".join(tcattr) + "\n"
+    return tcattr
+
+
+def create_tcattr_file(diff_dir, tcattr):
+    """
+        Create the {diff_dir}/usr/etc/.tcattr file using the content of
+        tcattr buffer so it can be used later by the "union" command to
+        set file and/or directory permissions and/or ownership.
+    """
+    with open(f"{diff_dir}/usr/etc/.tcattr", "w") as fd_tcattr:
+        fd_tcattr.write(tcattr.replace('# file: etc/', '# file: '))
+
+
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -117,6 +155,8 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
     if not changes:
         return NO_CHANGES
 
+    # Buffer to store the content for the ".tcattr" file
+    tcattr = None
 
     sftp = client.open_sftp()
     if sftp is not None:
@@ -155,6 +195,9 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
         sftp.get(tmp_dir_name + '/' + TAR_NAME, diff_dir + '/' + TAR_NAME, None)
         remove_tmp_dir(client, tmp_dir_name)
         sftp.close()
+
+        tcattr = get_tcattr_file_content(files_dir_to_tar, client, sftp,
+                                         r_password, tmp_dir_name)
     else:
         client.close()
         raise TorizonCoreBuilderError('Unable to create SSH connection for transferring of files')
@@ -168,6 +211,9 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
                         "-xf {0}/{1} -C {2}/".format(
         diff_dir, TAR_NAME, diff_dir + "/usr")
     subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
+
+    create_tcattr_file(diff_dir, tcattr)
+
     subprocess.check_output('rm {}/{}'.format(diff_dir,
                                               TAR_NAME), shell=True, stderr=subprocess.STDOUT)
 

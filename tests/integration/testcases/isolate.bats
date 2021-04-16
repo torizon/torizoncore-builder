@@ -1,6 +1,9 @@
 load 'bats/bats-support/load.bash'
 load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
+load 'lib/common.bash'
+load 'lib/isolate.bash'
+
 
 @test "isolate: run without parameters" {
     run torizoncore-builder isolate
@@ -55,4 +58,41 @@ load 'bats/bats-file/load.bash'
     run torizoncore-builder-shell "ls /storage/changes/usr/$ISOLATE_FILE"
     assert_success
     assert_output --partial "$ISOLATE_FILE"
+}
+
+@test "isolate: isolate changes and save credentials using storage" {
+    requires-device
+
+    local STORAGE_DIR="/storage/changes"
+    torizoncore-builder-shell "rm -rf $STORAGE_DIR"
+
+    create-files-in-device
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    run torizoncore-builder isolate --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS
+    assert_success
+    assert_output --partial "isolation command completed"
+
+    check-tcattr-file "storage" "$STORAGE_DIR"
+    check-isolated-files "storage" "$STORAGE_DIR"
+}
+
+@test "isolate: isolate changes and save credentials using --changes-directory" {
+    requires-device
+
+    local ISOLATE_DIR="isolate_dir"
+    torizoncore-builder-shell "rm -rf /workdir/$ISOLATE_DIR"
+    run mkdir -p $ISOLATE_DIR
+
+    create-files-in-device
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    run torizoncore-builder isolate --changes-directory $ISOLATE_DIR --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER --remote-password $DEVICE_PASS
+    assert_success
+    assert_output --partial "isolation command completed"
+
+    check-tcattr-file "changes-dir" "$ISOLATE_DIR"
+    check-isolated-files "changes-dir" "$ISOLATE_DIR"
 }

@@ -1,0 +1,28 @@
+# file: usr/bin/file1
+# owner: 1000
+# group: 2000
+user::rw-
+group::rw-
+other::r--
+
+# file: usr/bin/dir1
+# owner: 1000
+# group: 2000
+user::rwx
+group::rwx
+other::r-x
+
+# file: usr/bin/dir1/file11
+# owner: 1000
+# group: 1000
+user::rw-
+group::rw-
+other::r--
+
+# file: usr/bin/file with space 1
+# owner: 1000
+# group: 1000
+user::rw-
+group::---
+other::---
+

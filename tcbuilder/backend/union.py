@@ -12,7 +12,21 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
+
+def remove_tcattr_files_from_ostree(mt):
+    """
+        Remove all ".tcattr" (metadata) files before committing to OSTree so
+        they won't end up in the final file system.
+    """
+    for filename in mt.get_files().keys():
+        if filename == '.tcattr':
+            mt.remove(filename, False)
+
+
 def process_whiteouts(mt, path="/"):
+
+    remove_tcattr_files_from_ostree(mt)
+
     # Check for opaque whiteouts
     if any(name == OSTREE_OPAQUE_WHITEOUT_NAME for name in mt.get_files().keys()):
         log.debug(f"Removing all contents from {path}.")

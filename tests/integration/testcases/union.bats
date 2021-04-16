@@ -1,6 +1,8 @@
 load 'bats/bats-support/load.bash'
 load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
+load 'lib/common.bash'
+load 'lib/union.bash'
 
 @test "union: run without parameters" {
     run torizoncore-builder union
@@ -30,7 +32,7 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and ready to be deployed."
 
-    local COMMIT=$(echo $output | cut -d' ' -f 2)
+    local COMMIT=$(echo "$output" | grep '^Commit' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
     torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
     run torizoncore-builder-shell "cat $ROOTFS/usr/etc/myconfig.txt"
@@ -53,7 +55,7 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and ready to be deployed."
 
-    local COMMIT=$(echo $output | cut -d' ' -f 2)
+    local COMMIT=$(echo "$output" | grep '^Commit' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
     torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
     run torizoncore-builder-shell "cat $ROOTFS/usr/etc/myconfig.txt"
@@ -70,4 +72,91 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --partial "integration-tests"
     assert_output --partial "my-customizations"
+}
+
+@test "union: create branch using storage and check credentials" {
+    requires-device
+
+    torizoncore-builder-clean-storage
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+
+    create-files-in-device
+
+    run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS
+
+    make-changes-to-validate-tcattr-acls "/storage/changes"
+
+    add-files-to-check-default-credentials "/storage/changes"
+
+    local COMMIT=tcattr-branch
+    run torizoncore-builder union --union-branch $COMMIT
+    assert_success
+
+    local ROOTFS=/storage/$COMMIT
+    torizoncore-builder-shell "rm -rf $ROOTFS"
+    torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
+
+    check-credentials $ROOTFS
+    check-tcattr-files-removal $ROOTFS
+}
+
+@test "union: create branch using --changes-directory and check credentials" {
+    requires-device
+
+    torizoncore-builder-clean-storage
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+
+    create-files-in-device
+
+    local ISOLATE_DIR="isolate_dir"
+    torizoncore-builder-shell "rm -rf /workdir/$ISOLATE_DIR"
+    mkdir -p $ISOLATE_DIR
+
+    run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
+                                    --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS
+
+    add-files-to-check-default-credentials "/workdir/$ISOLATE_DIR"
+
+    local COMMIT=tcattr-branch
+    run torizoncore-builder union --changes-directory $ISOLATE_DIR \
+                                  --union-branch $COMMIT
+    assert_success
+
+    local ROOTFS=/storage/$COMMIT
+    torizoncore-builder-shell "rm -rf $ROOTFS"
+    torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
+
+    check-credentials $ROOTFS
+    check-tcattr-files-removal $ROOTFS
+}
+
+@test "union: create branch using --extra-changes-dirs and check credentials" {
+    requires-device
+
+    torizoncore-builder-clean-storage
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+
+    create-files-in-device
+
+    local EXTRA_DIR="$SAMPLES_DIR/changes3"
+
+    run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS
+
+    local COMMIT=tcattr-branch
+    run torizoncore-builder union --extra-changes-directory $EXTRA_DIR \
+                                  --union-branch $COMMIT
+    assert_success
+
+    local ROOTFS=/storage/$COMMIT
+    torizoncore-builder-shell "rm -rf $ROOTFS"
+    torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
+
+    check-credentials-extra $ROOTFS
+    check-tcattr-files-removal $ROOTFS
 }
