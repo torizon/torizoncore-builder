@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import argparse
 import logging
 import os
 import re
@@ -222,7 +221,7 @@ class DindManager(DockerManager):
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
 def download_containers_by_compose_file(output_dir, compose_file, host_workdir, docker_username, docker_password,
-        registry, use_host_docker=False, platform="linux/arm/v7", output_filename="docker-storage.tar"):
+        registry, platform, output_filename, use_host_docker=False):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -298,53 +297,3 @@ def download_containers_by_compose_file(output_dir, compose_file, host_workdir, 
     finally:
         logging.info("Stopping DIND container")
         manager.stop()
-
-def main():
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host-docker",
-                        help = """Use host Docker instance (instead of
-                        Docker-in-Docker). Note that this often is not possible
-                        since there are already images in the Docker storage which
-                        should not be part of the bundle.""")
-    parser.add_argument("--output-directory", dest="output_directory",
-                        help="Specify the bundle output directory",
-                        default="output")
-    parser.add_argument("--host-workdir", dest="host_workdir",
-                        help="""Location where Docker needs to bind mount to.
-                        This is useful if this script runs in a container
-                        and accesses a Docker Engine on the host.
-                        """)
-    parser.add_argument("-f", "--file", dest="compose_file",
-                        help="Specify an alternate compose file",
-                        default="docker-compose.yml")
-    parser.add_argument("--platform", dest="platform",
-                        help="""Specify platform to make sure fetching the correct
-                        image when multi-platform images are specified""",
-                        default="linux/arm/v7")
-    parser.add_argument("--docker-username", dest="docker_username",
-                        help="Optional username to be used to access container image.")
-    parser.add_argument("--docker-password", dest="docker_password",
-                        help="Password to be used to access container image.")
-    parser.add_argument("--registry", dest="registry",
-                        help="Alternative container registry used to access container image.")
-    args = parser.parse_args()
-
-    # This is required to share a bind mounted location (for the TLS
-    # certificate) between the DIND instace and the accessing client (this
-    # script). If that accessing client is by itself inside a container, then
-    # the location of host Docker might not match the location this script is
-    # running in.
-    host_workdir = args.host_workdir
-    if host_workdir is None:
-        host_workdir = os.getcwd()
-
-    download_containers_by_compose_file(
-        args.output_directory, args.compose_file,
-        host_workdir, args.docker_username, args.docker_password, 
-        args.registry, args.host_docker, args.platform)
-
-if __name__ == "__main__":
-    main()
