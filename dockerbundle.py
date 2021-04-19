@@ -206,8 +206,7 @@ class DindManager(DockerManager):
                             self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
                           },
                 command = self.get_tar_command(os.path.join(output_mount_dir, output_file_tar)),
-                auto_remove=True,
-                detach=True)
+                auto_remove=True)
 
         output_filepath_tar = os.path.join(self.output_dir, output_file_tar)
         if not os.path.exists(output_filepath_tar):
