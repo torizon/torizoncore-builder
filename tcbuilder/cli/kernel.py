@@ -44,14 +44,14 @@ KERNEL_SET_CUSTOM_ARGS_PROPERTY = 'bootargs_custom'
 UENV_SET_CUSTOM_ARGS_FUNCTION_RE = r'^\s*set_bootargs_custom='
 
 
-def do_kernel_build_module(args):
-    """"Run 'kernel build_module' subcommand"""
+def kernel_build_module(source_dir, storage_dir, autoload):
+    """"Main handler of the 'kernel build_module' subcommand"""
 
     # Check for valid Makefile
-    if not os.path.exists(args.source_directory):
-        raise PathNotExistError(f'Source directory "{args.source_directory}" does not exist')
+    if not os.path.exists(source_dir):
+        raise PathNotExistError(f'Source directory "{source_dir}" does not exist')
 
-    makefile = os.path.join(args.source_directory, "Makefile")
+    makefile = os.path.join(source_dir, "Makefile")
     if not os.path.exists(makefile):
         raise PathNotExistError(f'Makefile "{makefile}" does not exist')
     file = open(makefile, 'r')
@@ -66,32 +66,33 @@ def do_kernel_build_module(args):
         raise FileContentMissing(f'KERNEL_SRC not found in "{makefile}"')
 
     # Find and unpack linux source
-    linux_src = subprocess.check_output(f"""find {args.storage_directory}/sysroot/ostree/deploy \
+    linux_src = subprocess.check_output(f"""find {storage_dir}/sysroot/ostree/deploy \
         -type f -name 'linux.tar.bz2' -print -quit""", shell=True, text=True)
     assert linux_src, "panic: missing Linux kernel source!"
     linux_src = linux_src.rstrip()
     tarcmd = "cat '{0}' | {1} | tar -xf - -C {2}".format(
-                linux_src, get_unpack_command(linux_src), args.storage_directory)
+        linux_src, get_unpack_command(linux_src), storage_dir)
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
-    extracted_src = os.path.join(args.storage_directory, "linux")
+    extracted_src = os.path.join(storage_dir, "linux")
 
     # Build and install Kernel module
-    kernel_changes_dir = kernel.get_kernel_changes_dir(args.storage_directory)
-    kernel_subdir = os.path.dirname(dt.get_dtb_kernel_subdir(args.storage_directory))
+    kernel_changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+    kernel_subdir = os.path.dirname(dt.get_dtb_kernel_subdir(storage_dir))
     mod_path = os.path.join(kernel_changes_dir, kernel_subdir)
     os.makedirs(mod_path, exist_ok=True)
-    usr_dir = subprocess.check_output(f"""find {args.storage_directory}/sysroot/ostree/deploy \
+    usr_dir = subprocess.check_output(f"""find {storage_dir}/sysroot/ostree/deploy \
         -type d -name 'usr' -print -quit""", shell=True, text=True).rstrip()
     src_mod_dir = os.path.join(os.path.dirname(usr_dir), kernel_subdir)
-    src_ostree_archive_dir = os.path.join(args.storage_directory, "ostree-archive")
-    src_dir = os.path.abspath(args.source_directory)
-    kernel.build_module(src_dir, extracted_src,
-                        src_mod_dir, src_ostree_archive_dir, mod_path, kernel_changes_dir)
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    src_dir = os.path.abspath(source_dir)
+    kernel.build_module(
+        src_dir, extracted_src, src_mod_dir, src_ostree_archive_dir, mod_path,
+        kernel_changes_dir)
     log.info("Kernel module(s) successfully built and ready to deploy.")
 
     # Set built kernel modules to be autoloaded on boot
-    if args.autoload:
-        built_modules = subprocess.check_output(f"""find {args.source_directory} -name \
+    if autoload:
+        built_modules = subprocess.check_output(f"""find {source_dir} -name \
             '*.ko' -print""", shell=True, text=True).splitlines()
         for module in built_modules:
             kernel.autoload_module(module, kernel_changes_dir)
@@ -100,16 +101,28 @@ def do_kernel_build_module(args):
     log.info("All kernel module(s) have been built and prepared.")
 
 
-def do_kernel_set_custom_args(args):
-    """Run 'kernel set_custom_args" subcommand"""
+def do_kernel_build_module(args):
+    """"Run 'kernel build_module' subcommand"""
+    kernel_build_module(source_dir=args.source_directory,
+                        storage_dir=args.storage_directory,
+                        autoload=args.autoload)
 
-    kargs = " ".join(args.kernel_args)
+
+def kernel_set_custom_args(kernel_args, storage_dir):
+    """Main handler of the 'kernel set_custom_args" subcommand
+
+    :param kernel_args: List of strings with the kernel arguments.
+    :param storage_dir: Path of the storage directory to be used on the
+                        operations.
+    """
+
+    kargs = " ".join(kernel_args)
     if not kargs.rstrip():
         log.error('error: please pass a valid string for the custom kernel arguments.')
         sys.exit(1)
 
     # Make sure image can handle kernel arguments.
-    assert_custom_kargs_compat_image(args.storage_directory)
+    assert_custom_kargs_compat_image(storage_dir)
 
     # Format string to become file contents.
     dts_contents = KERNEL_SET_CUSTOM_ARGS_DTS.format(kernel_args=kargs)
@@ -127,11 +140,18 @@ def do_kernel_set_custom_args(args):
         # other files.
         dto_cli.dto_apply(dtos_path=dtos_path,
                           dtb_path=None, include_dirs=[],
-                          storage_dir=args.storage_directory,
+                          storage_dir=storage_dir,
                           allow_reapply=True, test_apply=False)
 
     # Confirm application of arguments.
     print(f"Kernel custom arguments successfully configured with \"{kargs}\".")
+
+
+def do_kernel_set_custom_args(args):
+    """Run 'kernel set_custom_args" subcommand"""
+
+    kernel_set_custom_args(kernel_args=args.kernel_args,
+                           storage_dir=args.storage_directory)
 
 
 def do_kernel_get_custom_args(args):

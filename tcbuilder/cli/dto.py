@@ -266,7 +266,7 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
 def dto_remove_all(storage_dir):
     '''Remove all overlays currently applied.'''
 
-    log.debug(f"Removing all overlays")
+    log.debug("Removing all overlays")
 
     # Deploy an empty overlays config file.
     dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
