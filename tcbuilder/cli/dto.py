@@ -26,8 +26,8 @@ log = logging.getLogger("torizon." + __name__)
 # - target: functional output artifact in filesystem
 
 
-def dto_apply_cmd(dtos_path, dtb_path, include_dirs, storage_dir,
-                  allow_reapply=False, test_apply=True):
+def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
+              allow_reapply=False, test_apply=True):
     '''Execute most of the work of 'dto apply' command.
 
     :param dtos_path: the full path to the source device-tree overlay file to be applied.
@@ -120,12 +120,12 @@ def do_dto_apply(args):
     if args.force:
         log.info("warning: --force was used, bypassing checking overlays against the device tree.")
 
-    dto_apply_cmd(dtos_path=args.dtos_path,
-                  dtb_path=args.device_tree,
-                  include_dirs=args.include_dirs,
-                  storage_dir=args.storage_directory,
-                  allow_reapply=False,
-                  test_apply=not args.force)
+    dto_apply(dtos_path=args.dtos_path,
+              dtb_path=args.device_tree,
+              include_dirs=args.include_dirs,
+              storage_dir=args.storage_directory,
+              allow_reapply=False,
+              test_apply=not args.force)
 
 
 def do_dto_list(args):
@@ -241,11 +241,13 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
             log.error(f"error: overlay '{dtob_basename}' is already not applied.")
             sys.exit(1)
         else:
+            log.debug(f"Overlay '{dtob_basename}' is already not applied.")
             return False
 
+    log.debug(f"Removing overlay '{dtob_basename}'")
     dtob_basenames.remove(dtob_basename)
 
-    # Deploy a new overlays.txt file without the reference to the removed overlay.
+    # Create a overlays.txt file without the reference to the removed overlay.
     dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
     overlays_txt_target_path = \
         os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays.txt")
@@ -261,6 +263,29 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
     return True
 
 
+def dto_remove_all(storage_dir):
+    '''Remove all overlays currently applied.'''
+
+    log.debug(f"Removing all overlays")
+
+    # Deploy an empty overlays config file.
+    dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
+    overlays_txt_target_path = os.path.join(
+        dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays.txt")
+    os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
+    with open(overlays_txt_target_path, "w") as file:
+        file.write("fdt_overlays=\n")
+
+    # Wipe out all overlay blobs as external changes.
+    dtob_target_dir = os.path.join(
+        dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays")
+    subprocess.check_call(f"rm -rf {dtob_target_dir}", shell=True, text=True)
+
+    # Sanity check.
+    assert not dto.get_applied_overlays_base_names(storage_dir), \
+        "panic: all overlays removal failed; please contact the maintainers of this tool."
+
+
 def do_dto_remove(args):
     '''Perform the 'dto status' command.'''
 
@@ -270,20 +295,7 @@ def do_dto_remove(args):
 
     if args.all:
         # The user wants to remove all overlays.
-
-        # Deploy an empty overlays config file.
-        dt_changes_dir = dt.get_dt_changes_dir(args.storage_directory)
-        overlays_txt_target_path = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays.txt")
-        os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
-        with open(overlays_txt_target_path, "w") as f:
-            f.write("fdt_overlays=\n")
-
-        # Wipe out all overlay blobs as external changes.
-        dtob_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(args.storage_directory), "overlays")
-        subprocess.check_call(f"rm -rf {dtob_target_dir}", shell=True, text=True)
-
-        # Sanity check.
-        assert not dto.get_applied_overlays_base_names(args.storage_directory), "panic: all overlays removal failed; please contact the maintainers of this tool."
+        dto_remove_all(args.storage_directory)
 
     else:
         # The user wants to remove a single overlay.

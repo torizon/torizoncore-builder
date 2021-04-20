@@ -125,10 +125,10 @@ def do_kernel_set_custom_args(args):
         # invoked will not try to apply the overlay for assurance purposes. Also, the include
         # directory is not needed either because we know the file being compiled includes no
         # other files.
-        dto_cli.dto_apply_cmd(dtos_path=dtos_path,
-                              dtb_path=None, include_dirs=[],
-                              storage_dir=args.storage_directory,
-                              allow_reapply=True, test_apply=False)
+        dto_cli.dto_apply(dtos_path=dtos_path,
+                          dtb_path=None, include_dirs=[],
+                          storage_dir=args.storage_directory,
+                          allow_reapply=True, test_apply=False)
 
     # Confirm application of arguments.
     print(f"Kernel custom arguments successfully configured with \"{kargs}\".")
