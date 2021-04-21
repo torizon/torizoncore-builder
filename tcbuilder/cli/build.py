@@ -9,13 +9,19 @@ from datetime import datetime
 # import dockerbundle
 
 from tcbuilder.errors import (FileContentMissing,
-                              FeatureNotImplementedError, InvalidDataError)
+                              FeatureNotImplementedError, InvalidDataError,
+                              InvalidStateError)
 
 from tcbuilder.backend import build as bb
 from tcbuilder.backend import combine as comb_be
-from tcbuilder.cli import images as images_cli
-from tcbuilder.cli import union as union_cli
+from tcbuilder.backend import dt as dt_be
 from tcbuilder.cli import deploy as deploy_cli
+from tcbuilder.cli import dt as dt_cli
+from tcbuilder.cli import dto as dto_cli
+from tcbuilder.cli import kernel as kernel_cli
+from tcbuilder.cli import images as images_cli
+from tcbuilder.cli import splash as splash_cli
+from tcbuilder.cli import union as union_cli
 
 DEFAULT_BUILD_FILE = "tcbuild.yaml"
 
@@ -64,7 +70,6 @@ def handle_easy_installer_input(props, storage_dir=None, download_dir=None):
             props["local"], storage_dir, remove_storage=True)
 
     elif ("remote" in props) or ("toradex-feed" in props):
-        # Review the `toradex-feed` docs (TODO)
         if "toradex-feed" in props:
             # Evaluate if it makes sense to supply a checksum here too (TODO).
             remote_url, remote_fname = bb.make_feed_url(props["toradex-feed"])
@@ -95,6 +100,88 @@ def handle_ostree_input(props, **kwargs):
     """Handle the input/easy-installer subsection of the configuration file"""
     raise FeatureNotImplementedError(
         "Processing of ostree archive inputs is not implemented yet.")
+
+
+def handle_customization_section(props, storage_dir=None):
+    """Handle the customization section of the configuration file
+
+    :param props: Dictionary holding the data of the section.
+    :param storage_dir: Absolute path of storage directory. This is a required
+                        keyword argument.
+    """
+
+    assert storage_dir is not None, "Parameter `storage_dir` must be passed"
+
+    log.debug(f"Handling customization section: {str(props)}")
+
+    if "splash-screen" in props:
+        splash_cli.splash(props["splash-screen"], storage_dir=storage_dir)
+
+    if "device-tree" in props:
+        handle_dt_customization(props["device-tree"], storage_dir=storage_dir)
+
+    if "kernel" in props:
+        handle_kernel_customization(props["kernel"], storage_dir=storage_dir)
+
+    # Filesystem changes are actually handled as part of the output processing.
+    fs_changes = props.get("filesystem")
+
+    return fs_changes
+
+
+def handle_dt_customization(props, storage_dir=None):
+    """Handle the device-tree customization section."""
+
+    log.debug(f"Handling DT subsection: {str(props)}")
+
+    if "custom" in props:
+        dt_cli.dt_apply(dts_path=props["custom"],
+                        storage_dir=storage_dir,
+                        include_dirs=props.get("include-dirs", []))
+
+    overlay_props = props.get("overlays", {})
+    if overlay_props.get("clear", True):
+        dto_cli.dto_remove_all(storage_dir)
+
+        if "remove" in overlay_props:
+            log.info("Individual overlay removal ignored because they've all been "
+                     "removed due to the 'clear' property")
+
+    elif "remove" in overlay_props:
+        for overl in overlay_props["remove"]:
+            dto_cli.dto_remove_single(overl, storage_dir, presence_required=False)
+
+    if "add" in overlay_props:
+        # We enable the overlay apply test only if it is possible to do it.
+        test_apply = bool(dt_be.get_current_dtb_basename(storage_dir))
+        log.debug(f"Overlay apply test is {['disabled','enabled'][test_apply]}")
+        for overl in overlay_props["add"]:
+            dto_cli.dto_apply(
+                dtos_path=overl,
+                dtb_path=None,
+                include_dirs=props.get("include-dirs", []),
+                storage_dir=storage_dir,
+                allow_reapply=False,
+                test_apply=test_apply)
+
+
+def handle_kernel_customization(props, storage_dir=None):
+    """Handle the kernel customization section."""
+
+    if "modules" in props:
+        for mod_props in props["modules"]:
+            mod_source = mod_props["source-dir"]
+            log.info(f"Build module from {mod_source}...")
+            kernel_cli.kernel_build_module(
+                source_dir=mod_source,
+                storage_dir=storage_dir,
+                autoload=mod_props.get("source-dir", False))
+
+    if "arguments" in props:
+        log.info("Setting kernel arguments...")
+        kernel_cli.kernel_set_custom_args(
+            kernel_args=props["arguments"],
+            storage_dir=storage_dir)
 
 
 def handle_output_section(props, storage_dir, extra_changes_dirs=None):
@@ -129,8 +216,8 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
 
     union_cli.union(**union_params)
 
-    # Handle the "ostree.local" property (TODO).
-    # Handle the "ostree.remote" property (TODO).
+    # Handle the "output.ostree.local" property (TODO).
+    # Handle the "output.ostree.remote" property (TODO).
 
     tezi_props = props.get("easy-installer", {})
 
@@ -165,8 +252,10 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
             licence_file=tezi_props.get("licence"),
             release_notes_file=tezi_props.get("release-notes"))
 
-    # Implement this (TODO)
-    # elif "compose-file" in bundle_props:
+    # Implement this urgently (TODO)
+    elif "compose-file" in bundle_props:
+        raise FeatureNotImplementedError("compose-file property is not handled yet")
+
     #     #####
     #     dockerbundle.download_containers_by_compose_file(
     #         output_dir, compose_file, host_workdir,
@@ -187,21 +276,31 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
     # Handle each section.
     # ---
 
-    if "input" in config:
-        handle_input_section(config["input"], storage_dir=storage_dir)
-    else:
-        # Raise a parse error instead to allow a better message (TODO)
+    if "input" not in config:
+        # Raise a parse error instead (TODO).
         raise FileContentMissing("No input specified in configuration file")
 
-    # Customization section is currently optional.
-    customization_props = config.get("customization", {})
-    # fs_changes = handle_customization_section(customization_props)
-    fs_changes = customization_props.get("filesystem")
+    if "output" not in config:
+        # Raise a parse error instead (TODO).
+        raise FileContentMissing("No output specified in configuration file")
 
-    # Output section is currently optional.
-    handle_output_section(config.get("output", {}),
-                          storage_dir=storage_dir,
-                          extra_changes_dirs=fs_changes)
+    # Check if output directory already exists and fail if it does.
+    output_dir = config["output"]["easy-installer"]["local"]
+    if os.path.exists(output_dir):
+        raise InvalidStateError(
+            f"Output directory {output_dir} must not exist.")
+
+    # Input section (required):
+    handle_input_section(config["input"], storage_dir=storage_dir)
+
+    # Customization section (currently optional).
+    fs_changes = handle_customization_section(
+        config.get("customization", {}), storage_dir=storage_dir)
+
+    # Output section (required):
+    handle_output_section(
+        config["output"],
+        storage_dir=storage_dir, extra_changes_dirs=fs_changes)
 
     # print(config)
 

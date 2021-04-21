@@ -110,9 +110,6 @@ def parse_remote(remote_str):
         fname = unquote(os.path.basename(parts.path))
         fname = sanitize_fname(fname) or None
 
-    # Document sha256sum parameter (TODO).
-    # Document filename parameter (TODO).
-
     return url, fname, cksum
 
 
@@ -136,18 +133,16 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
     assert os.path.basename(fname) == fname, \
         "fetch_remote: fname cannot contain a path"
 
-    # Optimization (TODO).
     if None not in [fname, cksum, download_dir]:
         # If a file in the download directory with correct checksum exists then
-        # do not download it again.
+        # do not download it again (TODO).
         pass
 
-    # Optimization (TODO).
     elif None not in [fname, download_dir]:
         # If a file in the download directory exists and its checksum matches
         # the one provided by the server then do not download it again.
         # Note that Artifactory provides a header named X-Checksum-Sha256
-        # that we could use for that.
+        # that we could use for that (TODO).
         pass
 
     is_temp = False
