@@ -3,7 +3,7 @@ import shutil
 import logging
 from tcbuilder.backend.common import \
     (get_additional_size, combine_single_image, DOCKER_FILES_TO_ADD)
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidStateError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -24,10 +24,11 @@ def combine_image(image_dir, bundle_dir, output_directory, image_name,
         log.info("Updating TorizonCore image in place.")
         output_directory = image_dir
     else:
-        # Document this: now combine automatically creates the output directory (TODO).
-        log.info("Creating copy of TorizonCore source image.")
+        # Fail when output directory exists like deploy does.
         if os.path.exists(output_directory):
-            shutil.rmtree(output_directory)
+            raise InvalidStateError(
+                f"Output directory {output_directory} must not exist.")
+        log.info("Creating copy of TorizonCore source image.")
         shutil.copytree(image_dir, output_directory)
 
     # Notice that the present function can be used simply for updating the

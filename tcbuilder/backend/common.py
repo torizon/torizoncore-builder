@@ -95,7 +95,7 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
         raise InvalidDataError(
             "No root file system content section found in Easy Installer image.")
 
-    # Document this (TODO)
+    # Review this (TODO)
     if "filelist" in content:
         raise InvalidDataError(
             "Currently it is not possible to customize the containers of a base "

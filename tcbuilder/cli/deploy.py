@@ -46,7 +46,6 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
 
     if any(arg is not None for arg in comb_args):
         # Change output directory in place.
-        # Document new parameters (TODO).
         cbe.combine_image(image_dir=output_dir_,
                           bundle_dir=None,
                           output_directory=None,
