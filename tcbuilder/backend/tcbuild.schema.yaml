@@ -259,6 +259,9 @@ properties:
                   password:
                     type: string
                     description: "Docker login password to be used if accessing a private registry is required"
+                  registry:
+                    type: string
+                    description: "Alternative container registry used to access container image"
                 required: [compose-file]
                 additionalProperties: false
               - properties:

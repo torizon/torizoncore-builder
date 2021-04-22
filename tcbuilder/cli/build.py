@@ -2,16 +2,18 @@
 CLI handling for build subcommand
 """
 
-import logging
 import os
+import logging
+import shutil
 from datetime import datetime
 
-# import dockerbundle
+import dockerbundle
 
 from tcbuilder.errors import (FileContentMissing,
                               FeatureNotImplementedError, InvalidDataError,
                               InvalidStateError)
 
+from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
 from tcbuilder.backend import combine as comb_be
 from tcbuilder.backend import dt as dt_be
@@ -154,7 +156,9 @@ def handle_dt_customization(props, storage_dir=None):
     if "add" in overlay_props:
         # We enable the overlay apply test only if it is possible to do it.
         test_apply = bool(dt_be.get_current_dtb_basename(storage_dir))
-        log.debug(f"Overlay apply test is {['disabled','enabled'][test_apply]}")
+        if not test_apply:
+            log.info("Not testing overlay because base image does not have a "
+                     "device-tree set!")
         for overl in overlay_props["add"]:
             dto_cli.dto_apply(
                 dtos_path=overl,
@@ -171,7 +175,7 @@ def handle_kernel_customization(props, storage_dir=None):
     if "modules" in props:
         for mod_props in props["modules"]:
             mod_source = mod_props["source-dir"]
-            log.info(f"Build module from {mod_source}...")
+            log.info(f"Build module located at {mod_source}...")
             kernel_cli.kernel_build_module(
                 source_dir=mod_source,
                 storage_dir=storage_dir,
@@ -239,12 +243,16 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
         licence_file=tezi_props.get("licence"),
         release_notes_file=tezi_props.get("release-notes"))
 
-    bundle_props = tezi_props.get("bundle", {})
+    handle_bundle_output(output_dir, tezi_props.get("bundle", {}), tezi_props)
+
+
+def handle_bundle_output(image_dir, bundle_props, tezi_props):
+    """Handle the bundle and combine steps of the output generation."""
 
     if "dir" in bundle_props:
         # Do a combine "in place" to avoid creating another directory.
         comb_be.combine_image(
-            image_dir=output_dir,
+            image_dir=image_dir,
             bundle_dir=bundle_props["dir"],
             output_directory=None,
             image_name=tezi_props.get("name"),
@@ -252,15 +260,43 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
             licence_file=tezi_props.get("licence"),
             release_notes_file=tezi_props.get("release-notes"))
 
-    # Implement this urgently (TODO)
     elif "compose-file" in bundle_props:
-        raise FeatureNotImplementedError("compose-file property is not handled yet")
+        # Download bundle to user's directory - review (TODO).
+        # Detect platform based on OSTree data (TODO).
+        # Avoid polluting user's directory with certificate stuff (TODO).
 
-    #     #####
-    #     dockerbundle.download_containers_by_compose_file(
-    #         output_dir, compose_file, host_workdir,
-    #         docker_username, docker_password, registry,
-    #         use_host_docker, platform, output_filename)
+        bundle_dir = datetime.now().strftime("bundle_%Y%m%d%H%M%S_%f.tmp")
+        log.info(f"Bundling images to directory {bundle_dir}")
+        try:
+            # Download bundle to temporary directory - currently that directory
+            # must be relative to the work directory.
+            download_params = {
+                "output_dir": bundle_dir,
+                "compose_file": bundle_props["compose-file"],
+                "host_workdir": common.get_host_workdir()[0],
+                "docker_username": bundle_props.get("username"),
+                "docker_password": bundle_props.get("password", ""),
+                "registry": bundle_props.get("registry"),
+                "use_host_docker": False,
+                "platform": bundle_props.get("platform", "linux/arm/v7"),
+                "output_filename": common.DOCKER_BUNDLE_FILENAME
+            }
+            dockerbundle.download_containers_by_compose_file(**download_params)
+
+            # Do a combine "in place" to avoid creating another directory.
+            comb_be.combine_image(
+                image_dir=image_dir,
+                bundle_dir=bundle_dir,
+                output_directory=None,
+                image_name=tezi_props.get("name"),
+                image_description=tezi_props.get("description"),
+                licence_file=tezi_props.get("licence"),
+                release_notes_file=tezi_props.get("release-notes"))
+
+        finally:
+            log.debug(f"Removing temporary bundle directory {bundle_dir}")
+            if os.path.exists(bundle_dir):
+                shutil.rmtree(bundle_dir)
 
 
 def build(config_fname, storage_dir, substs=None, enable_subst=True):
@@ -298,17 +334,20 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
         config.get("customization", {}), storage_dir=storage_dir)
 
     # Output section (required):
-    handle_output_section(
-        config["output"],
-        storage_dir=storage_dir, extra_changes_dirs=fs_changes)
-
-    # print(config)
+    try:
+        handle_output_section(
+            config["output"],
+            storage_dir=storage_dir, extra_changes_dirs=fs_changes)
+    except Exception as exc:
+        # Avoid leaving a damaged output around:
+        if os.path.exists(output_dir):
+            log.info(f"Removing output directory {output_dir} due to build errors")
+            shutil.rmtree(output_dir)
+        raise exc
 
 
 def do_build(args):
     """Wrapper of the build command that unpacks argparse arguments"""
-
-    print(args)
 
     if args.create_template:
         # Template creating mode.
