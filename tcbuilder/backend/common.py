@@ -14,6 +14,10 @@ from typing import Optional
 import git
 import dns.resolver
 import ifaddr
+
+from docker import DockerClient
+from docker.errors import NotFound
+
 import tezi.utils
 
 from tcbuilder.backend import ostree
@@ -143,20 +147,21 @@ def combine_single_image(bundle_dir, files_to_add, additional_size,
 
 def get_unpack_command(filename):
     """Get shell command to unpack a given file format"""
+    cmd = "cat"
     if filename.endswith(".gz") or filename.endswith(".tgz"):
-        return "gzip -dc"
+        cmd = "gzip -dc"
     elif filename.endswith(".xz"):
-        return "xz -dc"
+        cmd = "xz -dc"
     elif filename.endswith(".lzo"):
-        return "lzop -dc"
+        cmd = "lzop -dc"
     elif filename.endswith(".zst"):
-        return "zstd -dc"
+        cmd = "zstd -dc"
     elif filename.endswith(".lz4"):
-        return "lz4 -dc"
+        cmd = "lz4 -dc"
     elif filename.endswith(".bz2"):
-        return "bzip2 -dc"
-    else:
-        return "cat"
+        cmd = "bzip2 -dc"
+    return cmd
+
 
 def get_additional_size(output_dir_containers, files_to_add):
     additional_size = 0
@@ -346,3 +351,37 @@ def get_file_sha256sum(path):
     assert (len(parts) >= 2) and (len(parts[0]) == 64)
     # Return the SHA-256 checksum
     return parts[0]
+
+
+def get_host_workdir():
+    """Get location of working directory w.r.t. the host"""
+
+    fields = []
+    with open("/proc/self/cgroup", "r") as proc_self_cgroup:
+        for line in proc_self_cgroup:
+            fields = line.split(":")
+            if len(fields) != 3:
+                continue
+            if fields[1] == "cpuset":
+                break
+
+    if len(fields) != 3:
+        raise InvalidDataError("cannot parse /proc/self/cgroup")
+
+    cgroup_name = fields[2]
+    container_id = cgroup_name[cgroup_name.rfind("/")+1:-1]
+    docker_client = DockerClient.from_env()
+
+    try:
+        container = docker_client.containers.get(container_id)
+    except NotFound as _ex:
+        raise OperationFailureError("Can't retrieve container information from docker.")
+
+    mounts = container.attrs["Mounts"]
+    for mount in mounts:
+        if mount["Destination"] == "/workdir":
+            if "Name" in mount:
+                return mount["Name"], mount["Type"]
+            return mount["Source"], mount["Type"]
+
+    return None, None

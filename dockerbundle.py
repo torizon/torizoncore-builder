@@ -219,8 +219,10 @@ class DindManager(DockerManager):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
-def download_containers_by_compose_file(output_dir, compose_file, host_workdir, docker_username, docker_password,
-        registry, platform, output_filename, use_host_docker=False):
+def download_containers_by_compose_file(
+        output_dir, compose_file, host_workdir,
+        docker_username, docker_password, registry,
+        platform, output_filename, use_host_docker=False):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
