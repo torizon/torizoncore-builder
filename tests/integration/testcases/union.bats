@@ -30,7 +30,7 @@ load 'lib/union.bash'
 
     run torizoncore-builder union --changes-directory $SAMPLES_DIR/changes --union-branch branch1
     assert_success
-    assert_output --regexp "Commit.*has been generated for changes and ready to be deployed."
+    assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
     local COMMIT=$(echo "$output" | grep '^Commit' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
@@ -53,7 +53,7 @@ load 'lib/union.bash'
                                   --subject integration-tests --body my-customizations \
                                   --union-branch branch2"
     assert_success
-    assert_output --regexp "Commit.*has been generated for changes and ready to be deployed."
+    assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
     local COMMIT=$(echo "$output" | grep '^Commit' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
