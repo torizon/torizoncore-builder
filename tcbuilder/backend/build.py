@@ -3,6 +3,7 @@ Backend handling for build subcommand
 """
 
 import os
+import copy
 import logging
 import re
 import sys
@@ -15,6 +16,7 @@ import jsonschema
 import yaml
 
 from tcbuilder.backend.common import progress, get_file_sha256sum
+from tcbuilder.backend.expandvars import expand
 from tcbuilder.errors import (PathNotExistError, InvalidDataError,
                               InvalidAssignmentError, OperationFailureError,
                               IntegrityCheckFailed)
@@ -306,3 +308,47 @@ def make_feed_url(feed_props):
     log.debug(f"Feed URL: {url}")
 
     return url, filename
+
+
+def transform_leaves(dct, handler, max_depth=10):
+    """Traverse a dictionary invoking 'handler' on all leaf nodes"""
+
+    def _traverse(dct_or_lst, depth=0):
+        assert depth < max_depth, "Dictionary is too deeply nested"
+        if isinstance(dct_or_lst, dict):
+            for key, value in dct_or_lst.items():
+                if isinstance(value, (list, tuple, dict)):
+                    _traverse(value, depth+1)
+                else:
+                    dct_or_lst[key] = handler(value)
+                    # log.debug(f"Property {key}: '{value}' -> '{dct_or_lst[key]}'")
+
+        elif isinstance(dct_or_lst, (list, tuple)):
+            for index, value in enumerate(dct_or_lst):
+                if isinstance(value, (list, tuple, dict)):
+                    _traverse(value, depth+1)
+                else:
+                    dct_or_lst[index] = handler(value)
+                    # log.debug(f"Property [{index}]: '{value}' -> '{dct_or_lst[index]}'")
+        else:
+            assert False, "_traverse() error"
+
+    _traverse(dct)
+
+
+def subst_variables(config, variables):
+    """Perform variable substitution on all string-type values
+
+    This function will go over all string-type values contained in the
+    dictionary 'config' expanding variables via the expand() function.
+    """
+
+    def _replacer(value):
+        if isinstance(value, str):
+            return expand(value, variables)
+        # No change except for string.
+        return value
+
+    config = copy.deepcopy(config)
+    transform_leaves(config, _replacer)
+    return config

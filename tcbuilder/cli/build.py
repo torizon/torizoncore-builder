@@ -5,10 +5,12 @@ CLI handling for build subcommand
 import os
 import logging
 import shutil
+import sys
 from datetime import datetime
 
 import dockerbundle
 
+from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.errors import (FileContentMissing,
                               FeatureNotImplementedError, InvalidDataError,
                               InvalidStateError)
@@ -26,6 +28,7 @@ from tcbuilder.cli import splash as splash_cli
 from tcbuilder.cli import union as union_cli
 
 DEFAULT_BUILD_FILE = "tcbuild.yaml"
+TEMPLATE_BUILD_FILE = "tcbuild.template.yaml"
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -33,7 +36,20 @@ log = logging.getLogger("torizon." + __name__)
 def create_template(config_fname):
     """Main handler for the create-template mode of the build subcommand"""
 
-    print(f"Generating '{config_fname}' (not yet implemented)")
+    src_file = os.path.join(os.path.dirname(__file__), TEMPLATE_BUILD_FILE)
+
+    # Dump the file directly to stdout (avoid creating root owned files):
+    if config_fname == '-':
+        with open(src_file, 'r') as file:
+            for line in file:
+                print(line, end='')
+        return
+
+    if os.path.exists(config_fname):
+        raise InvalidStateError(f"File '{config_fname}' already exists: aborting.")
+
+    log.info(f"Creating template file '{config_fname}'")
+    shutil.copy(src_file, config_fname)
 
 
 def handle_input_section(props, **kwargs):
@@ -308,10 +324,13 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
 
     config = bb.parse_config_file(config_fname)
 
+    # Do variable substitutions.
+    if enable_subst and substs is not None:
+        config = bb.subst_variables(config, substs)
+
     # ---
     # Handle each section.
     # ---
-
     if "input" not in config:
         # Raise a parse error instead (TODO).
         raise FileContentMissing("No input specified in configuration file")
@@ -349,14 +368,19 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
 def do_build(args):
     """Wrapper of the build command that unpacks argparse arguments"""
 
-    if args.create_template:
-        # Template creating mode.
-        create_template(args.config_fname)
-    else:
-        # Normal build mode.
-        build(args.config_fname, args.storage_directory,
-              substs=bb.parse_assignments(args.assignments),
-              enable_subst=args.enable_substitutions)
+    try:
+        if args.create_template:
+            # Template creating mode.
+            create_template(args.config_fname)
+        else:
+            # Normal build mode.
+            build(args.config_fname, args.storage_directory,
+                  substs=bb.parse_assignments(args.assignments),
+                  enable_subst=args.enable_substitutions)
+
+    except UserFailureException as exc:
+        log.warning(f"\n** Exiting due to user-defined error: {str(exc)}")
+        sys.exit(1)
 
 
 def init_parser(subparsers):
@@ -370,8 +394,9 @@ def init_parser(subparsers):
     parser.add_argument(
         "-c", "--create-template", dest="create_template",
         default=False, action="store_true",
-        help=("Request that a template file be generated (with the name "
-              "defined by --file)."))
+        help=("Request that a template file be generated with the name "
+              "defined by -f; dump to standard output if file name is set "
+              "to '-'."))
 
     parser.add_argument(
         "-f", "--file", metavar="CONFIG", dest="config_fname",
