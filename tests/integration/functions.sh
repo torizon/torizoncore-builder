@@ -69,3 +69,13 @@ requires-device() {
     fi
 }
 export -f requires-device
+
+# unpack image if needed
+# $1 = path to image tarball
+unpack-image() {
+	if [ ! -d "$1" ]; then
+		echo "Unpacking image $1"
+		tar xvf "$1"
+	fi
+}
+export -f unpack-image

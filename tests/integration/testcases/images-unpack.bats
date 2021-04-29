@@ -40,7 +40,9 @@ load 'bats/bats-file/load.bash'
 @test "images unpack: unpack image from directory" {
     torizoncore-builder-clean-storage
 
+    unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+
     run torizoncore-builder images --remove-storage unpack $IMAGE_DIR
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
