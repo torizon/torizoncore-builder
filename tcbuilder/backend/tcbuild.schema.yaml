@@ -48,7 +48,6 @@ properties:
                           - apalis-imx8
                           - apalis-imx8x
                           - colibri-imx6
-                          - colibri-imx6ull
                           - colibri-imx7
                           - colibri-imx7-emmc
                           - colibri-imx8x
@@ -72,21 +71,18 @@ properties:
                         description: "variant of the image"
                         default: torizon-core-docker
                       build-number:
-                        # TODO: Point out this is a string in the docs.
                         type: string
                         description: "build number as a string"
                         pattern: "^[0-9]+$"
                       build-date:
-                        # TODO: Point out this is a string in the docs.
                         type: string
-                        description: "build number as a string"
+                        description: "build date as a string"
                         pattern: "^[0-9]+$"
                     required:
                       - version
                       - release
                       - machine
                       - distro
-                      - variant
                       - build-number
                 additionalProperties: false
                 required:

@@ -41,6 +41,7 @@ RELEASE_TO_BUILD_TYPE_MAP = {
 MAJOR_TO_YOCTO_MAP = {
     5: "dunfell-5.x.y"
 }
+DEFAULT_IMAGE_VARIANT = "torizon-core-docker"
 
 # Assigment regex pre-compiled.
 ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
@@ -257,7 +258,7 @@ def make_feed_url(feed_props):
     params["prod"] = RELEASE_TO_PROD_MAP[release_prop]
     params["machine_name"] = feed_props["machine"]
     params["distro"] = distro_prop
-    params["variant"] = feed_props["variant"]
+    params["variant"] = feed_props.get("variant", DEFAULT_IMAGE_VARIANT)
     params["rt_flag"] = rt_flag
 
     version_prop = feed_props["version"]
