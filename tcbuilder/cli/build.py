@@ -337,7 +337,8 @@ def handle_bundle_output(image_dir, bundle_props, tezi_props):
                 shutil.rmtree(bundle_dir)
 
 
-def build(config_fname, storage_dir, substs=None, enable_subst=True):
+def build(config_fname, storage_dir,
+          substs=None, enable_subst=True, force=False):
     """Main handler for the normal operating mode of the build subcommand"""
 
     log.info(f"Building image as per configuration file '{config_fname}'...")
@@ -364,9 +365,13 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
     # Check if output directory already exists and fail if it does.
     output_dir = config["output"]["easy-installer"]["local"]
     if os.path.exists(output_dir):
-        raise InvalidStateError(
-            f"Output directory '{output_dir}' already exists; please remove it"
-            " or select another output directory.")
+        if force:
+            log.debug(f"Removing existing output directory '{output_dir}'")
+            shutil.rmtree(output_dir)
+        else:
+            raise InvalidStateError(
+                f"Output directory '{output_dir}' already exists; please remove"
+                " it or select another output directory.")
 
     # Input section (required):
     handle_input_section(config["input"], storage_dir=storage_dir)
@@ -384,7 +389,7 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
     except Exception as exc:
         # Avoid leaving a damaged output around:
         if os.path.exists(output_dir):
-            log.info(f"Removing output directory {output_dir} due to build errors")
+            log.info(f"Removing output directory '{output_dir}' due to build errors")
             shutil.rmtree(output_dir)
         raise exc
 
@@ -402,7 +407,8 @@ def do_build(args):
             # Normal build mode.
             build(args.config_fname, args.storage_directory,
                   substs=bb.parse_assignments(args.assignments),
-                  enable_subst=args.enable_substitutions)
+                  enable_subst=args.enable_substitutions,
+                  force=args.force)
 
     except UserFailureException as exc:
         log.warning(f"\n** Exiting due to user-defined error: {str(exc)}")
@@ -433,6 +439,12 @@ def init_parser(subparsers):
         default=DEFAULT_BUILD_FILE,
         help=("Specify location of the build configuration file "
               f"(default: {DEFAULT_BUILD_FILE})."))
+
+    parser.add_argument(
+        "--force", dest="force",
+        default=False, action="store_true",
+        help=("Force program output (remove output directory before "
+              "starting the build process)."))
 
     parser.add_argument(
         "--set", metavar="ASSIGNMENT", dest="assignments",
