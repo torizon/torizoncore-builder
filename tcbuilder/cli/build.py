@@ -33,6 +33,11 @@ TEMPLATE_BUILD_FILE = "tcbuild.template.yaml"
 L1_PREF = "\n=>> "
 L2_PREF = "\n=> "
 
+ARCH_TO_PLAT = {
+    "aarch64" : "linux/arm64",
+    "arm" : "linux/arm/v7"
+}
+
 log = logging.getLogger("torizon." + __name__)
 
 
@@ -44,6 +49,19 @@ def l1_pref(orgstr):
 def l2_pref(orgstr):
     """Add L2_PREF prefix to orgstr"""
     return L2_PREF + orgstr
+
+
+def get_docker_platform(storage_dir):
+    """Determine platform for accessing a Docker registry
+
+    The information is mapped from the architecture field in the OSTree
+    metadata.
+    """
+
+    oe_arch = common.get_arch_from_ostree(storage_dir)
+    if oe_arch not in ARCH_TO_PLAT:
+        raise InvalidDataError(f"Unknown architecture {oe_arch} in OSTree metadata")
+    return ARCH_TO_PLAT[oe_arch]
 
 
 def create_template(config_fname):
@@ -281,10 +299,11 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
         licence_file=tezi_props.get("licence"),
         release_notes_file=tezi_props.get("release-notes"))
 
-    handle_bundle_output(output_dir, tezi_props.get("bundle", {}), tezi_props)
+    handle_bundle_output(
+        output_dir, storage_dir, tezi_props.get("bundle", {}), tezi_props)
 
 
-def handle_bundle_output(image_dir, bundle_props, tezi_props):
+def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
     """Handle the bundle and combine steps of the output generation."""
 
     if "dir" in bundle_props:
@@ -300,8 +319,13 @@ def handle_bundle_output(image_dir, bundle_props, tezi_props):
 
     elif "compose-file" in bundle_props:
         # Download bundle to user's directory - review (TODO).
-        # Detect platform based on OSTree data (TODO).
         # Avoid polluting user's directory with certificate stuff (TODO).
+
+        if "platform" in bundle_props:
+            platform = bundle_props["platform"]
+        else:
+            # Detect platform based on OSTree data.
+            platform = get_docker_platform(storage_dir)
 
         bundle_dir = datetime.now().strftime("bundle_%Y%m%d%H%M%S_%f.tmp")
         log.info(f"Bundling images to directory {bundle_dir}")
@@ -316,7 +340,7 @@ def handle_bundle_output(image_dir, bundle_props, tezi_props):
                 "docker_password": bundle_props.get("password", ""),
                 "registry": bundle_props.get("registry"),
                 "use_host_docker": False,
-                "platform": bundle_props.get("platform", "linux/arm/v7"),
+                "platform": platform,
                 "output_filename": common.DOCKER_BUNDLE_FILENAME
             }
             dockerbundle.download_containers_by_compose_file(**download_params)

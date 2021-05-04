@@ -385,3 +385,15 @@ def get_host_workdir():
             return mount["Source"], mount["Type"]
 
     return None, None
+
+
+def get_arch_from_ostree(storage_dir, ref="base"):
+    """Determine architecture from OSTree metadata"""
+
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    srcrepo = ostree.open_ostree(src_ostree_archive_dir)
+    ret, csumdeploy = srcrepo.resolve_rev(ref, False)
+    if not ret:
+        raise TorizonCoreBuilderError(f"Error resolving {ref}.")
+    srcmeta, _subject, _body = ostree.get_metadata_from_ref(srcrepo, csumdeploy)
+    return srcmeta.get("oe.arch")
