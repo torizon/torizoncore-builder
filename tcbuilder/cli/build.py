@@ -13,7 +13,7 @@ import dockerbundle
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.errors import (FileContentMissing,
                               FeatureNotImplementedError, InvalidDataError,
-                              InvalidStateError)
+                              InvalidStateError, TorizonCoreBuilderError)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
@@ -30,7 +30,20 @@ from tcbuilder.cli import union as union_cli
 DEFAULT_BUILD_FILE = "tcbuild.yaml"
 TEMPLATE_BUILD_FILE = "tcbuild.template.yaml"
 
+L1_PREF = "\n=>> "
+L2_PREF = "\n=> "
+
 log = logging.getLogger("torizon." + __name__)
+
+
+def l1_pref(orgstr):
+    """Add L1_PREF prefix to orgstr"""
+    return L1_PREF + orgstr
+
+
+def l2_pref(orgstr):
+    """Add L2_PREF prefix to orgstr"""
+    return L2_PREF + orgstr
 
 
 def create_template(config_fname):
@@ -60,6 +73,9 @@ def handle_input_section(props, **kwargs):
                    functions of the subsections.
     """
 
+    if props:
+        log.info(l1_pref("Handling input section"))
+
     if "easy-installer" in props:
         handle_easy_installer_input(props["easy-installer"], **kwargs)
     elif "ostree" in props:
@@ -78,8 +94,6 @@ def handle_easy_installer_input(props, storage_dir=None, download_dir=None):
     :param download_dir: Directory where files should be downloaded to or
                          obtained from if they already exist (TODO).
     """
-
-    log.debug(f"Handling easy-installer section: {str(props)}")
 
     assert storage_dir is not None, "Parameter `storage_dir` must be passed"
 
@@ -128,11 +142,13 @@ def handle_customization_section(props, storage_dir=None):
                         keyword argument.
     """
 
+    if props:
+        log.info(l1_pref("Handling customization section"))
+
     assert storage_dir is not None, "Parameter `storage_dir` must be passed"
 
-    log.debug(f"Handling customization section: {str(props)}")
-
     if "splash-screen" in props:
+        log.info(l2_pref("Setting splash screen"))
         splash_cli.splash(props["splash-screen"], storage_dir=storage_dir)
 
     if "device-tree" in props:
@@ -150,9 +166,11 @@ def handle_customization_section(props, storage_dir=None):
 def handle_dt_customization(props, storage_dir=None):
     """Handle the device-tree customization section."""
 
-    log.debug(f"Handling DT subsection: {str(props)}")
+    if props:
+        log.info(l2_pref("Handling device-tree subsection"))
 
     if "custom" in props:
+        log.info(l2_pref(f"Selecting custom device-tree '{props['custom']}'"))
         dt_cli.dt_apply(dts_path=props["custom"],
                         storage_dir=storage_dir,
                         include_dirs=props.get("include-dirs", []))
@@ -176,6 +194,7 @@ def handle_dt_customization(props, storage_dir=None):
             log.info("Not testing overlay because base image does not have a "
                      "device-tree set!")
         for overl in overlay_props["add"]:
+            log.info(l2_pref(f"Adding device-tree overlay '{overl}'"))
             dto_cli.dto_apply(
                 dtos_path=overl,
                 dtb_path=None,
@@ -191,14 +210,14 @@ def handle_kernel_customization(props, storage_dir=None):
     if "modules" in props:
         for mod_props in props["modules"]:
             mod_source = mod_props["source-dir"]
-            log.info(f"Build module located at {mod_source}...")
+            log.info(l2_pref(f"Building module located at '{mod_source}'"))
             kernel_cli.kernel_build_module(
                 source_dir=mod_source,
                 storage_dir=storage_dir,
                 autoload=mod_props.get("source-dir", False))
 
     if "arguments" in props:
-        log.info("Setting kernel arguments...")
+        log.info(l2_pref("Setting kernel arguments"))
         kernel_cli.kernel_set_custom_args(
             kernel_args=props["arguments"],
             storage_dir=storage_dir)
@@ -211,6 +230,9 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
     :param storage_dir: Absolute path of storage directory. This is a required
                         keyword argument.
     """
+
+    if props:
+        log.info(l1_pref("Handling output section"))
 
     # ostree data is currently optional.
     ostree_props = props.get("ostree", {})
@@ -343,7 +365,8 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
     output_dir = config["output"]["easy-installer"]["local"]
     if os.path.exists(output_dir):
         raise InvalidStateError(
-            f"Output directory {output_dir} must not exist.")
+            f"Output directory '{output_dir}' already exists; please remove it"
+            " or select another output directory.")
 
     # Input section (required):
     handle_input_section(config["input"], storage_dir=storage_dir)
@@ -357,12 +380,15 @@ def build(config_fname, storage_dir, substs=None, enable_subst=True):
         handle_output_section(
             config["output"],
             storage_dir=storage_dir, extra_changes_dirs=fs_changes)
+
     except Exception as exc:
         # Avoid leaving a damaged output around:
         if os.path.exists(output_dir):
             log.info(f"Removing output directory {output_dir} due to build errors")
             shutil.rmtree(output_dir)
         raise exc
+
+    log.info(l1_pref("Build command successfully executed!"))
 
 
 def do_build(args):
@@ -382,6 +408,10 @@ def do_build(args):
         log.warning(f"\n** Exiting due to user-defined error: {str(exc)}")
         sys.exit(1)
 
+    except TorizonCoreBuilderError as exc:
+        exc.msg = "Error: " + exc.msg
+        raise exc
+
 
 def init_parser(subparsers):
     """Initialize "build" subcommands command line interface."""
@@ -392,26 +422,26 @@ def init_parser(subparsers):
               "specified via a configuration file."))
 
     parser.add_argument(
-        "-c", "--create-template", dest="create_template",
+        "--create-template", dest="create_template",
         default=False, action="store_true",
         help=("Request that a template file be generated with the name "
               "defined by -f; dump to standard output if file name is set "
               "to '-'."))
 
     parser.add_argument(
-        "-f", "--file", metavar="CONFIG", dest="config_fname",
+        "--file", metavar="CONFIG", dest="config_fname",
         default=DEFAULT_BUILD_FILE,
         help=("Specify location of the build configuration file "
               f"(default: {DEFAULT_BUILD_FILE})."))
 
     parser.add_argument(
-        "-s", "--set", metavar="ASSIGNMENT", dest="assignments",
+        "--set", metavar="ASSIGNMENT", dest="assignments",
         default=[], action="append",
         help=("Assign values to variables (e.g. VER=\"1.2.3\"). This can "
               "be used multiple times."))
 
     parser.add_argument(
-        "-n", "--no-subst", dest="enable_substitutions",
+        "--no-subst", dest="enable_substitutions",
         default=True, action="store_false",
         help="Disable the variable substitution feature.")
 
