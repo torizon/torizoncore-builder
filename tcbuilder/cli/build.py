@@ -11,9 +11,9 @@ from datetime import datetime
 import dockerbundle
 
 from tcbuilder.backend.expandvars import UserFailureException
-from tcbuilder.errors import (FileContentMissing,
-                              FeatureNotImplementedError, InvalidDataError,
-                              InvalidStateError, TorizonCoreBuilderError)
+from tcbuilder.errors import (
+    FileContentMissing, FeatureNotImplementedError, InvalidDataError,
+    InvalidStateError, TorizonCoreBuilderError, ParseError, ParseErrors)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
@@ -64,7 +64,7 @@ def get_docker_platform(storage_dir):
     return ARCH_TO_PLAT[oe_arch]
 
 
-def create_template(config_fname):
+def create_template(config_fname, force=False):
     """Main handler for the create-template mode of the build subcommand"""
 
     src_file = os.path.join(os.path.dirname(__file__), TEMPLATE_BUILD_FILE)
@@ -76,7 +76,7 @@ def create_template(config_fname):
                 print(line, end='')
         return
 
-    if os.path.exists(config_fname):
+    if os.path.exists(config_fname) and not force:
         raise InvalidStateError(f"File '{config_fname}' already exists: aborting.")
 
     log.info(f"Creating template file '{config_fname}'")
@@ -379,11 +379,11 @@ def build(config_fname, storage_dir,
     # Handle each section.
     # ---
     if "input" not in config:
-        # Raise a parse error instead (TODO).
+        # Note that is also checked by the schema.
         raise FileContentMissing("No input specified in configuration file")
 
     if "output" not in config:
-        # Raise a parse error instead (TODO).
+        # Note that is also checked by the schema.
         raise FileContentMissing("No output specified in configuration file")
 
     # Check if output directory already exists and fail if it does.
@@ -426,7 +426,7 @@ def do_build(args):
     try:
         if args.create_template:
             # Template creating mode.
-            create_template(args.config_fname)
+            create_template(args.config_fname, force=args.force)
         else:
             # Normal build mode.
             build(args.config_fname, args.storage_directory,
@@ -437,6 +437,23 @@ def do_build(args):
     except UserFailureException as exc:
         log.warning(f"\n** Exiting due to user-defined error: {str(exc)}")
         sys.exit(1)
+
+    except ParseError as exc:
+        log.warning(l2_pref("Parsing errors found:"))
+        log.warning(f"{str(exc)}")
+        sys.exit(2)
+
+    except ParseErrors as exc:
+        log.warning(l2_pref("Parsing errors found:"))
+        assert isinstance(exc.payload, list)
+        for error in exc.payload:
+            # Very large messages are usually shown when jsonschema is dumping
+            # part of the schema (for now, let's show those only in debug mode).
+            if len(error.msg) < 140:
+                log.warning(str(error))
+            else:
+                log.debug(str(error))
+        sys.exit(2)
 
     except TorizonCoreBuilderError as exc:
         exc.msg = "Error: " + exc.msg

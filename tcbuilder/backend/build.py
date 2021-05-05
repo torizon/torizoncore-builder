@@ -20,7 +20,7 @@ from tcbuilder.backend.common import progress, get_file_sha256sum
 from tcbuilder.backend.expandvars import expand
 from tcbuilder.errors import (PathNotExistError, InvalidDataError,
                               InvalidAssignmentError, OperationFailureError,
-                              IntegrityCheckFailed)
+                              IntegrityCheckFailed, ParseError, ParseErrors)
 
 DEFAULT_SCHEMA_FILE = "tcbuild.schema.yaml"
 
@@ -237,7 +237,8 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE):
     """
 
     if not os.path.exists(config_path):
-        raise PathNotExistError(f"Build configuration file '{config_path}' does not exist.")
+        raise PathNotExistError(
+            f"Build configuration file '{config_path}' does not exist.")
 
     # Load the YAML configuration file (user-supplied):
     with open(config_path) as file:
@@ -245,17 +246,12 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE):
             config = yaml.load(file, Loader=yaml.FullLoader)
 
         except yaml.YAMLError as ex:
-            parts = []
-            parts.append(f"{config_path}:")
+            error_exc = ParseError(getattr(ex, "problem", "parsing error"))
+            error_exc.set_source(file=config_path)
             if hasattr(ex, "problem_mark"):
                 mark = getattr(ex, "problem_mark")
-                parts.append(f"{mark.line}:{mark.column}: ")
-            if hasattr(ex, "problem"):
-                parts.append(getattr(ex, "problem"))
-            else:
-                parts.append("parsing error")
-
-            raise InvalidDataError("".join(parts))
+                error_exc.set_source(line=mark.line, column=mark.column)
+            raise error_exc
 
     # Load the YAML schema file (supplied with the tool):
     schemapath = os.path.join(os.path.dirname(__file__), schema_path)
@@ -263,11 +259,14 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE):
         schema = yaml.load(file, Loader=yaml.FullLoader)
 
     # Do the actual validation of configuration against the schema.
-    try:
-        jsonschema.validate(config, schema)
-    except jsonschema.ValidationError as ex:
-        # print("Config file:", json.dumps(config))
-        raise InvalidDataError(f"{config_path}: {ex.message}")
+    validator = jsonschema.Draft7Validator(schema)
+    errors = []
+    for error in validator.iter_errors(config):
+        error_exc = ParseError(error.message)
+        error_exc.set_source(file=config_path, prop=error.path)
+        errors.append(error_exc)
+    if errors:
+        raise ParseErrors("Parsing errors found in configuration file!", payload=errors)
 
     return config
 
@@ -307,6 +306,7 @@ def make_feed_url(feed_props):
     version_major = int(version_prop.split('.')[0])
     if version_major not in MAJOR_TO_YOCTO_MAP:
         # Raise a parse error instead to allow a better message (TODO)
+        # Caller should capture parse error and set file name.
         raise InvalidDataError(
             f"Don't know how to handle a major version of {version_major}")
 
