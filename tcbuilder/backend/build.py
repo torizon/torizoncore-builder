@@ -7,6 +7,7 @@ import copy
 import logging
 import re
 import sys
+import shutil
 import tempfile
 
 from urllib.parse import urlparse, unquote
@@ -46,6 +47,15 @@ DEFAULT_IMAGE_VARIANT = "torizon-core-docker"
 # Assigment regex pre-compiled.
 ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
 
+# Possible file name extensions for which parse_remote() will consider the
+# inferred file name valid.
+ALLOWED_SLUG_EXTS = [".tar", ".zip"]
+
+# Minimum base file name length for which parse_remote() will consider the
+# inferred file name valid.
+MIN_INFER_FNAME = 8
+
+
 log = logging.getLogger("torizon." + __name__)
 
 
@@ -75,7 +85,7 @@ def sanitize_fname(fname, repl="_"):
     return re.sub(r"[^\w\.\-\+]", repl, fname)
 
 
-def parse_remote(remote_str):
+def parse_remote(remote_str, infer_fname=True):
     """Parse the 'remote' property in the configuration file
 
     The remote property provides the remote file URL but it may additionally
@@ -109,9 +119,15 @@ def parse_remote(remote_str):
     # Note that this is not expected to work always but we need a stable file
     # name in order to be able to find out if the file has already been
     # downloaded. Here we also sanitize the file name just in case.
-    if fname is None:
+    if fname is None and infer_fname:
         fname = unquote(os.path.basename(parts.path))
         fname = sanitize_fname(fname) or None
+        fparts = os.path.splitext(fname)
+        if (len(fparts[0]) >= MIN_INFER_FNAME and fparts[1] in ALLOWED_SLUG_EXTS):
+            log.debug(f"Remote file name inferred from slug: {fname}")
+        else:
+            log.debug("Remote file name could not be inferred from slug")
+            fname = None
 
     return url, fname, cksum
 
@@ -128,13 +144,10 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
                          obtained from if it already exists (TODO).
     """
 
-    if fname is None:
-        # Try to determine file name from server (TODO).
-        raise InvalidDataError("Do not know the name of the file to download!")
-
     # No path allowed: paths should be passed through download_dir.
-    assert os.path.basename(fname) == fname, \
-        "fetch_remote: fname cannot contain a path"
+    if fname:
+        assert os.path.basename(fname) == fname, \
+            "fetch_remote: file name cannot contain a path"
 
     if None not in [fname, cksum, download_dir]:
         # If a file in the download directory with correct checksum exists then
@@ -148,12 +161,21 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
         # that we could use for that (TODO).
         pass
 
-    is_temp = False
-    if download_dir:
-        in_fname = os.path.join(download_dir, fname)
-    else:
-        in_fname = os.path.join(tempfile.gettempdir(), fname)
-        is_temp = True
+    # Inner helper function.
+    def make_download_fname(fname):
+        """Make full name of file to download"""
+        des_fname = None
+        is_temp = False
+        if download_dir and fname:
+            # Download directory and file name known: use them.
+            des_fname = os.path.join(download_dir, fname)
+        elif fname:
+            # Only file name is known: place file into temp directory.
+            des_fname = os.path.join(tempfile.gettempdir(), fname)
+            is_temp = True
+        return des_fname, is_temp
+
+    in_fname, is_temp = make_download_fname(fname)
 
     try:
         # Show progress bar only when outputting to a terminal.
@@ -163,14 +185,34 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
             progress_hook = progress
         else:
             log.info(f"Fetching URL '{url}' into '{in_fname}'")
+
         # Do actual download.
-        out_fname, _headers = urlretrieve(
+        out_fname, headers = urlretrieve(
             url, filename=in_fname, reporthook=progress_hook)
         log.info("\nDownload Complete!")
-        log.debug(f"Target file name: {out_fname}")
         # log.debug(f"Downloaded {out_fname}, headers: {headers}")
+
+        # If we still haven't decided the name of the file, try to determine
+        # one from the Content-Disposition header.
+        if in_fname is None and "Content-Disposition" in headers:
+            new_fname = parse_disposition_header(headers["Content-Disposition"])
+            new_fname = sanitize_fname(new_fname)
+            new_fname, is_temp = make_download_fname(new_fname)
+            log.debug(f"Moving '{out_fname}' to '{new_fname}'")
+            shutil.move(out_fname, new_fname)
+            out_fname = new_fname
+
+        elif in_fname is None:
+            # Currently a temporary name is useless to the program because the
+            # file name is used to determine its type. This should be reviewed
+            # if the logic in 'images unpack' changes (TODO).
+            os.unlink(out_fname)
+            raise InvalidDataError(
+                "Cannot determine appropriate file name after download!")
     except:
         raise OperationFailureError(f"Could not fetch URL '{url}'")
+
+    log.info(f"Downloaded file name: '{out_fname}'")
 
     # Ensure checksum matches expected one:
     if cksum is not None:
@@ -353,3 +395,15 @@ def subst_variables(config, variables):
     config = copy.deepcopy(config)
     transform_leaves(config, _replacer)
     return config
+
+
+# From https://stackoverflow.com/questions/37060344/
+# how-to-determine-the-filename-of-content-downloaded-with-http-in-python
+#
+def parse_disposition_header(header):
+    """Simplified parser of Content-Disposition header (RF6266)"""
+    # Review this if a full-blown parser is required (TODO).
+    # See https://tools.ietf.org/html/rfc6266
+    fname = re.findall(r"filename\*?=([^;]+)", header, flags=re.IGNORECASE)
+    assert len(fname) == 1, "Failed parsing Content-Disposition header"
+    return fname[0].strip().strip('"')
