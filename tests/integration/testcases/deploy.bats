@@ -49,6 +49,6 @@ load 'bats/bats-file/load.bash'
     run device-wait 10
     assert_success
 
-    run device-shell /usr/sbin/secret_of_life
+    run device-shell-root /usr/sbin/secret_of_life
     assert_failure 42
 }

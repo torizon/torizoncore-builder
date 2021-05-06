@@ -73,7 +73,7 @@ fi
 if [ ! -z "$DEVICE_ADDR" ]; then
     printf "Checking connection with device $DEVICE_ADDR..."
     DEVICE_INFO=$(device-shell cat /etc/os-release)
-    echo $DEVICE_INFO | grep -q Torizoncore
+    echo $DEVICE_INFO | grep -iq torizoncore
     if [ $? = "0" ]; then
         printf "OK!"
     else
