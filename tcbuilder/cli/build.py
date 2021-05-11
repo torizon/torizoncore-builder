@@ -232,7 +232,7 @@ def handle_kernel_customization(props, storage_dir=None):
             kernel_cli.kernel_build_module(
                 source_dir=mod_source,
                 storage_dir=storage_dir,
-                autoload=mod_props.get("source-dir", False))
+                autoload=mod_props.get("autoload", False))
 
     if "arguments" in props:
         log.info(l2_pref("Setting kernel arguments"))
@@ -320,6 +320,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
     elif "compose-file" in bundle_props:
         # Download bundle to user's directory - review (TODO).
         # Avoid polluting user's directory with certificate stuff (TODO).
+        # Complain if variant is not "torizon-core-docker" (TODO)?
 
         if "platform" in bundle_props:
             platform = bundle_props["platform"]
