@@ -27,7 +27,7 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 #pylint: enable=wrong-import-position
 
-__version_info__ = ('2', '5', '4')
+__version_info__ = ('2', '6', '0')
 __version__ = '.'.join(__version_info__)
 
 parser = argparse.ArgumentParser(description="""\
@@ -116,20 +116,21 @@ parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + _
 
 subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
+# Commands in ALPHABETICAL order.
 batch.init_parser(subparsers)
+build.init_parser(subparsers)
 bundle.init_parser(subparsers)
-images.init_parser(subparsers)
-isolate.init_parser(subparsers)
-deploy.init_parser(subparsers)
-union.init_parser(subparsers)
 combine.init_parser(subparsers)
+deploy.init_parser(subparsers)
 dt.init_parser(subparsers)
 dto.init_parser(subparsers)
-push.init_parser(subparsers)
-splash.init_parser(subparsers)
-serve.init_parser(subparsers)
+images.init_parser(subparsers)
+isolate.init_parser(subparsers)
 kernel.init_parser(subparsers)
-build.init_parser(subparsers)
+push.init_parser(subparsers)
+serve.init_parser(subparsers)
+splash.init_parser(subparsers)
+union.init_parser(subparsers)
 
 #pylint: disable=broad-except
 
