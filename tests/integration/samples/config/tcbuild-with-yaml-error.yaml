@@ -1,0 +1,5 @@
+input:
+  local: files/input-image.tar
+
+output:
+  & bad anchor

@@ -1,0 +1,53 @@
+
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  splash-screen: samples/splash/fast-banana.png
+  filesystem:
+     - samples/changes/
+  device-tree:
+    # >> Directories where to look for include files.
+    # include-dirs:
+      # - device-trees/include/
+    # >> Device-tree overlays configuration:
+    overlays:
+      clear: false
+      remove:
+        - overlay_not_present1.dtbo
+        - overlay_not_present2.dtbo
+      add:
+        - samples/dts/sample_overlay.dts
+  kernel:
+    arguments:
+      - key1=val1
+      - key2=val2
+    # >> Modules to build and possibly load automatically.
+    # modules:
+      # - source-dir: virtual_touchscreen/
+      #   autoload: no
+
+output:
+  ostree:
+    branch: my-dev-branch
+    commit-subject: "full-customization subject"
+    commit-body: "full-customization body"
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    name: "fully-customized image"
+    description: "fully-customized image description"
+    licence: samples/installer/license-fc.html
+    release-notes: samples/installer/release-notes-fc.html
+    bundle:
+      # >> Choose one of the options:
+      # >> (1) Specify a docker-compose file whose referenced images will be downloaded.
+      # >>     Properties platform, username, password and registry are optional.
+      # compose-file: files/docker-compose.yml
+      # platform: linux/arm/v7
+      # username: "${USERNAME}"
+      # password: "${PASSWORD}"
+      # registry: hub.docker.com
+      # >> (2) Specify a local directory containing the bundled images (previously
+      # >>     obtained by 'torizoncore-builder bundle' command).
+      dir: samples/bundles/hello/

@@ -1,0 +1,28 @@
+input:
+  easy-installer:
+    toradex-feed:
+      version: "5.1.0"
+      release: quarterly
+      # [REQUIRED]  machine: colibri-imx7-emmc
+      # [REQUIRED]  distro: torizon-upstream
+      # [REQUIRED]  variant: torizon-core-docker
+      # [REQUIRED]  build-number: "1"
+      # [REQUIRED]  # build-date: "20210408"
+
+customization:
+  splash-screen: 1234
+  filesystem:
+     - 11
+     - 22
+  device-tree:
+    include-dirs: "include/"
+    overlays:
+      clear: NOPE
+
+output:
+  ostree:
+    branch: my-dev-branch
+    commit-subject: "OSTree commit subject"
+    commit-body: "OSTree commit body"
+  easy-installer:
+    local: output_directory

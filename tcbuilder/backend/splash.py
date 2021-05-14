@@ -16,8 +16,6 @@ def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
     splash_initramfs_dir = "usr/share/plymouth/themes/spinner/"
     rel_splash_initramfs_dir = os.path.join(work_dir, splash_initramfs_dir)  # relative to work_dir
 
-    print(rel_splash_initramfs_dir)
-
     if os.path.exists(rel_splash_initramfs_dir):
         shutil.rmtree(rel_splash_initramfs_dir)
 

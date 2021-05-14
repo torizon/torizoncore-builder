@@ -79,3 +79,30 @@ unpack-image() {
 	fi
 }
 export -f unpack-image
+
+# determine image version string "major.minor.patch" from image file name
+# $1 = image file name
+image-version() {
+	echo "$1" | sed -E -ne 's#^.*Tezi_([0-9]+\.[0-9]+\.[0-9]+).*$#\1#p'
+}
+export -f image-version
+
+# skip test if image version is not greater or equal than major.minor.patch
+# $1 = image file name
+# $2 = required minimal semver (e.g. "5.2.0")
+requires-image-version() {
+	local VER="$(image-version \"$1\")"
+	if [ -z "$VER" ]; then
+		skip "cannot determine image version"
+	fi
+	# Extract parts of semver:
+	local MAJOR MINOR PATCH
+	IFS='.' read MAJOR MINOR PATCH <<< "$VER"
+	local CURVER="$(($MAJOR*10000 + $MINOR*100 + $PATCH))"
+	IFS='.' read MAJOR MINOR PATCH <<< "$2"
+	local REQVER="$(($MAJOR*10000 + $MINOR*100 + $PATCH))"
+	if [ $CURVER -lt $REQVER  ]; then
+		skip "image must be version $2+ for this test (but it is $VER)"
+	fi
+}
+export -f requires-image-version

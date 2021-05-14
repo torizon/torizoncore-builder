@@ -1,0 +1,4 @@
+services:
+  hello-world:
+    image: hello-world@sha256:5122f6204b6a3596e048758cabba3c46b1c937a46b5be6225b835d091b90e46c
+version: '2.4'

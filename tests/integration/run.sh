@@ -18,6 +18,7 @@ $TESTCASES_DIR/deploy.bats \
 $TESTCASES_DIR/isolate.bats \
 $TESTCASES_DIR/dt.bats \
 $TESTCASES_DIR/dto.bats \
+$TESTCASES_DIR/build.bats \
 "
 
 # test case to run

@@ -1,0 +1,11 @@
+input:
+  easy-installer:
+    local: files/input-image.tar
+
+output:
+  ostree:
+    branch: my-dev-branch
+    commit-subject: "${EMPTY_VAR}"
+    commit-body: "${BODY?No body message}"
+  easy-installer:
+    local: dummy_output_directory

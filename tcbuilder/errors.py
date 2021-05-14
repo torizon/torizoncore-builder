@@ -47,7 +47,8 @@ class ParseError(TorizonCoreBuilderError):
         parts.append(self.msg)
         if self.prop is not None:
             # Format the property path like an XPath.
-            parts.append(f", while parsing /{'/'.join(self.prop)}")
+            path = '/'.join([str(prop) for prop in self.prop])
+            parts.append(f", while parsing /{path}")
         return "".join(parts)
 
 
