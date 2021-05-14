@@ -115,6 +115,7 @@ load 'lib/union.bash'
     mkdir -p $ISOLATE_DIR
 
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
+                                    --force \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
                                     --remote-password $DEVICE_PASS
