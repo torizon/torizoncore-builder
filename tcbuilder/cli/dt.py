@@ -9,10 +9,12 @@ import subprocess
 import sys
 import tempfile
 import traceback
+import re
 
 from tcbuilder.backend import dt
 from tcbuilder.backend.common import checkout_git_repo
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import (
+    TorizonCoreBuilderError, InvalidArgumentError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -55,6 +57,14 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
         include_dirs = ["device-trees/include"]
 
     log.debug(f"dt_apply: include directories: {','.join(include_dirs)}")
+
+    # Check if the device tree blob passed is an overlay
+    with open(dts_path, 'r') as file:
+        file_string = file.read()
+    match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
+    if match:
+        raise InvalidArgumentError(
+            f"error: {dts_path} is a device tree overlay and cannot be applied")
 
     # Compile the device tree.
     with tempfile.NamedTemporaryFile(delete=False) as file:
