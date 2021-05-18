@@ -64,8 +64,10 @@ load 'bats/bats-file/load.bash'
     run torizoncore-builder-shell "fdtput -t s $DTB / model tcb_test"
     assert_success
 
-    torizoncore-builder union --union-branch branch1
-    run torizoncore-builder deploy --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS --reboot branch1
+    torizoncore-builder union branch1
+    run torizoncore-builder deploy \
+        --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
+        --remote-password $DEVICE_PASS --reboot branch1
     assert_success
     assert_output --partial "Deploying successfully finished"
 

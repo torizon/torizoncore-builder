@@ -329,15 +329,16 @@ def do_dto_deploy(args):
         do_dto_apply(args)
 
     # Create an ostree overlay.
-    args.union_branch = "dto_deploy"
-    args.changes_dirs = None
-    args.extra_changes_dirs = None
-    args.subject = "dto_deploy_subject"
-    args.body = "dto_deploy_body"
-    union_cli.do_union(args)
+    union_branch = "dto_deploy"
+    union_cli.union(
+        changes_dirs=None,
+        storage_dir=args.storage_directory,
+        union_branch=union_branch,
+        commit_subject="dto_deploy_subject",
+        commit_body="dto_deploy_body")
 
     # Deploy an ostree overlay in the device.
-    args.ref = args.union_branch
+    args.ref = union_branch
     deploy_cli.do_deploy_ostree_remote(args)
 
 

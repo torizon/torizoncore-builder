@@ -5,11 +5,13 @@ hash) with local changes (e.g. copied from an adjusted module using the isolate
 sub-command).
 """
 
-import os
+import argparse
 import logging
+import os
 import subprocess
+
 from tcbuilder.backend import union as ub
-from tcbuilder.errors import PathNotExistError
+from tcbuilder.errors import PathNotExistError, InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -109,33 +111,29 @@ def set_acl_attributes(change_dir):
 
 
 
-def union(changes_dirs, extra_changes_dirs, storage_dir,
-          union_branch, commit_subject=None, commit_body=None):
+def union(changes_dirs, storage_dir, union_branch,
+          commit_subject=None, commit_body=None):
     """Perform the actual work of the union subcommand"""
 
     storage_dir_ = os.path.abspath(storage_dir)
     if not os.path.exists(storage_dir_):
-        raise PathNotExistError(f"Storage directory \"{storage_dir_}\""
-                                " does not exist.")
+        raise PathNotExistError(
+            f"Storage directory \"{storage_dir_}\" does not exist.")
 
     changes_dirs_ = []
-    if changes_dirs is None:
-        # Automatically add the ones present...
-        for subdir in ["changes", "splash", "dt", "kernel"]:
-            changed_dir = os.path.join(storage_dir_, subdir)
-            if os.path.isdir(changed_dir):
-                if subdir == "changes":
-                    set_acl_attributes(changed_dir)
-                changes_dirs_.append(changed_dir)
-    else:
-        temp_dir = os.path.join("/tmp", "changes_dirs")
-        os.mkdir(temp_dir)
-        check_and_append_dirs(changes_dirs_, changes_dirs, temp_dir)
 
-    if extra_changes_dirs:
-        temp_dir_extra = os.path.join("/tmp", "extra_changes_dirs")
+    # Automatically add directories from storage.
+    for subdir in ["changes", "splash", "dt", "kernel"]:
+        changed_dir = os.path.join(storage_dir_, subdir)
+        if os.path.isdir(changed_dir):
+            if subdir == "changes":
+                set_acl_attributes(changed_dir)
+            changes_dirs_.append(changed_dir)
+
+    if changes_dirs:
+        temp_dir_extra = os.path.join("/tmp", "changes_dirs")
         os.mkdir(temp_dir_extra)
-        check_and_append_dirs(changes_dirs_, extra_changes_dirs, temp_dir_extra)
+        check_and_append_dirs(changes_dirs_, changes_dirs, temp_dir_extra)
 
     src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
 
@@ -147,32 +145,67 @@ def union(changes_dirs, extra_changes_dirs, storage_dir,
 
 
 def do_union(args):
-    """Run \"union\" subcommand"""
+    """Run "union" subcommand"""
 
-    union(args.changes_dirs, args.extra_changes_dirs, args.storage_directory,
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if args.changes_dirs_compat:
+        raise InvalidArgumentError(
+            "Error: "
+            "the switch --extra-changes-directory has been removed; "
+            "please use switch --changes-directory instead.")
+
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if args.union_branch_compat:
+        raise InvalidArgumentError(
+            "Error: "
+            "the switch --union-branch has been removed; "
+            "please provide the branch name without passing the switch.")
+
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if not args.union_branch:
+        raise InvalidArgumentError(
+            "Error: "
+            "the UNION_BRANCH positional argument is required.")
+
+    union(args.changes_dirs, args.storage_directory,
           args.union_branch, args.subject, args.body)
 
 
 def init_parser(subparsers):
     """Initialize argument parser"""
-    subparser = subparsers.add_parser("union", help="""\
-    Create a commit out of isolated changes for unpacked Toradex Easy Installer Image""")
-    subparser.add_argument("--changes-directory", dest="changes_dirs", action='append',
-                           help="""Path to the directory containing user changes.
-                           Can be specified multiple times!""")
-    subparser.add_argument("--extra-changes-directory", dest="extra_changes_dirs", action='append',
-                           help="""Additional path with user changes to be committed.
-                           Can be specified multiple times!""")
-    subparser.add_argument("--union-branch", dest="union_branch",
-                           help="""Name of branch containing the changes committed to
-                           the unpacked repo.
-                           """,
-                           required=True)
-    subparser.add_argument("--subject", dest="subject",
-                           help="""OSTree commit subject. Defaults to
-                           "TorizonCore Builder [timestamp]"
-                           """)
-    subparser.add_argument("--body", dest="body",
-                           help="""OSTree commit body message""")
+    subparser = subparsers.add_parser(
+        "union",
+        help=("Create a commit out of isolated changes for unpacked "
+              "Toradex Easy Installer Image"),
+        epilog=("NOTE: the switch --extra-changes-directory has been "
+                "removed; please use --changes-directory instead."))
+    subparser.add_argument(
+        "--changes-directory", dest="changes_dirs", action='append',
+        help=("Path to the directory containing user changes. Can be "
+              "specified multiple times!"))
+    subparser.add_argument(
+        "--subject", dest="subject",
+        help=("OSTree commit subject. "
+              "Defaults to TorizonCore Builder [timestamp]"))
+    subparser.add_argument(
+        "--body", dest="body", help="OSTree commit body message")
+
+    # The nargs='?' argument below can be removed together with the
+    # --extra-changes-directory and --union-branch switches that currently
+    # exist just to allow for better messages (DEPRECATED since 2021-05-17).
+    subparser.add_argument(
+        dest="union_branch",
+        metavar="UNION_BRANCH",
+        nargs='?',
+        help=("Name of branch containing the changes committed to the "
+              "unpacked repository (REQUIRED)."))
+
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    subparser.add_argument(
+        "--extra-changes-directory",
+        dest="changes_dirs_compat", action='append', help=argparse.SUPPRESS)
+    subparser.add_argument(
+        "--union-branch",
+        dest="union_branch_compat", help=argparse.SUPPRESS)
 
     subparser.set_defaults(func=do_union)

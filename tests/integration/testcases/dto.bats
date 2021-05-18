@@ -57,8 +57,10 @@ load 'bats/bats-file/load.bash'
     run device-shell "cat /proc/device-tree/tcb_prop_test"
     assert_failure 1
 
-    torizoncore-builder union --union-branch branch1
-    run torizoncore-builder deploy --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS --reboot branch1
+    torizoncore-builder union branch1
+    run torizoncore-builder deploy \
+        --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
+        --remote-password $DEVICE_PASS --reboot branch1
     assert_success
     assert_output --partial "Deploying successfully finished"
 
@@ -83,8 +85,10 @@ load 'bats/bats-file/load.bash'
 @test "dto: remove overlay from the device" {
     requires-device
 
-    torizoncore-builder union --union-branch branch2
-    run torizoncore-builder deploy --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS --reboot branch2
+    torizoncore-builder union branch2
+    run torizoncore-builder deploy \
+        --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
+        --remote-password $DEVICE_PASS --reboot branch2
     assert_success
     assert_output --partial "Deploying successfully finished"
 

@@ -21,7 +21,7 @@ load 'bats/bats-file/load.bash'
 
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    torizoncore-builder union --changes-directory $SAMPLES_DIR/changes --union-branch branch1
+    torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
 
     run torizoncore-builder deploy --output-directory my_new_image branch1
     assert_success
@@ -40,7 +40,7 @@ load 'bats/bats-file/load.bash'
 
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    torizoncore-builder union --changes-directory $SAMPLES_DIR/changes2 --union-branch branch1
+    torizoncore-builder union --changes-directory $SAMPLES_DIR/changes2 branch1
 
     run torizoncore-builder deploy --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS --reboot branch1
     assert_success

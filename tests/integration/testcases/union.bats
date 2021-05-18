@@ -6,8 +6,8 @@ load 'lib/union.bash'
 
 @test "union: run without parameters" {
     run torizoncore-builder union
-    assert_failure 2
-    assert_output --partial "error: the following arguments are required: --union-branch"
+    assert_failure
+    assert_output --partial "UNION_BRANCH positional argument is required"
 }
 
 @test "union: check help output" {
@@ -19,8 +19,8 @@ load 'lib/union.bash'
 @test "union: invalid changes directory" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder union --changes-directory invalid_changes/ --union-branch branch1
-    assert_failure 255
+    run torizoncore-builder union --changes-directory invalid_changes/ branch1
+    assert_failure
     assert_output --partial "Changes directory \"invalid_changes/\" does not exist"
 }
 
@@ -28,7 +28,7 @@ load 'lib/union.bash'
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder union --changes-directory $SAMPLES_DIR/changes --union-branch branch1
+    run torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
@@ -44,14 +44,14 @@ load 'lib/union.bash'
     assert_output --partial "branch1"
 }
 
-@test "union: create branch using multiple --extra-changes-directory" {
+@test "union: create branch using multiple --changes-directory" {
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder "union --extra-changes-directory $SAMPLES_DIR/changes \
-                                  --extra-changes-directory $SAMPLES_DIR/changes2 \
+    run torizoncore-builder "union --changes-directory $SAMPLES_DIR/changes \
+                                  --changes-directory $SAMPLES_DIR/changes2 \
                                   --subject integration-tests --body my-customizations \
-                                  --union-branch branch2"
+                                  branch2"
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
@@ -91,7 +91,7 @@ load 'lib/union.bash'
     add-files-to-check-default-credentials "/storage/changes"
 
     local COMMIT=tcattr-branch
-    run torizoncore-builder union --union-branch $COMMIT
+    run torizoncore-builder union $COMMIT
     assert_success
 
     local ROOTFS=/storage/$COMMIT
@@ -122,8 +122,7 @@ load 'lib/union.bash'
     add-files-to-check-default-credentials "/workdir/$ISOLATE_DIR"
 
     local COMMIT=tcattr-branch
-    run torizoncore-builder union --changes-directory $ISOLATE_DIR \
-                                  --union-branch $COMMIT
+    run torizoncore-builder union --changes-directory $ISOLATE_DIR $COMMIT
     assert_success
 
     local ROOTFS=/storage/$COMMIT
@@ -134,7 +133,7 @@ load 'lib/union.bash'
     check-tcattr-files-removal $ROOTFS
 }
 
-@test "union: create branch using --extra-changes-dirs and check credentials" {
+@test "union: create branch using --changes-dirs and check credentials" {
     requires-device
 
     torizoncore-builder-clean-storage
@@ -149,8 +148,7 @@ load 'lib/union.bash'
                                     --remote-password $DEVICE_PASS
 
     local COMMIT=tcattr-branch
-    run torizoncore-builder union --extra-changes-directory $EXTRA_DIR \
-                                  --union-branch $COMMIT
+    run torizoncore-builder union --changes-directory $EXTRA_DIR $COMMIT
     assert_success
 
     local ROOTFS=/storage/$COMMIT

@@ -241,12 +241,13 @@ def handle_kernel_customization(props, storage_dir=None):
             storage_dir=storage_dir)
 
 
-def handle_output_section(props, storage_dir, extra_changes_dirs=None):
+def handle_output_section(props, storage_dir, changes_dirs=None):
     """Handle the output section of the configuration file
 
     :param props: Dictionary holding the data of the section.
     :param storage_dir: Absolute path of storage directory. This is a required
                         keyword argument.
+    :param changes_dirs: Directories containing filesystem changes to apply.
     """
 
     if props:
@@ -257,9 +258,8 @@ def handle_output_section(props, storage_dir, extra_changes_dirs=None):
 
     # Parameters to pass to union()
     union_params = {
-        "changes_dirs": None,
         "storage_dir": storage_dir,
-        "extra_changes_dirs": extra_changes_dirs
+        "changes_dirs": changes_dirs
     }
 
     if "branch" in ostree_props:
@@ -409,7 +409,7 @@ def build(config_fname, storage_dir,
     try:
         handle_output_section(
             config["output"],
-            storage_dir=storage_dir, extra_changes_dirs=fs_changes)
+            storage_dir=storage_dir, changes_dirs=fs_changes)
 
     except Exception as exc:
         # Avoid leaving a damaged output around:
