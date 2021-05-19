@@ -2,13 +2,13 @@ import datetime
 import logging
 import os
 
-import gi
-gi.require_version("OSTree", "1.0")
-from gi.repository import GLib, OSTree
-
 from tcbuilder.backend import ostree
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError
+
+import gi
+gi.require_version("OSTree", "1.0")
+from gi.repository import GLib, OSTree
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -45,9 +45,9 @@ def process_whiteouts(mt, path="/"):
     for dirname, submt in mt.get_subdirs().items():
         process_whiteouts(submt, os.path.join(path, dirname))
 
-def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
+def commit_changes(repo, ref, changes_dirs, branch_name,
+                   subject, body, pre_apply_callback=None):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
-    log.debug(f"Committing changes from {changes_dirs} to {branch_name}")
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
 
@@ -64,6 +64,10 @@ def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
 
     # --tree=dir=my-changes
     for changes_dir in changes_dirs:
+        # Inform upper layer about what we are going to do.
+        if pre_apply_callback:
+            pre_apply_callback(changes_dir)
+
         changesdir_fd = os.open(changes_dir, os.O_DIRECTORY)
         if not repo.write_dfd_to_mtree(changesdir_fd, ".", mt):
             raise TorizonCoreBuilderError("Adding directory to commit failed.")
@@ -94,15 +98,15 @@ def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
     timestamp = datetime.datetime.now()
     for i in range(metadata.n_children()):
         kv = metadata.get_child_value(i)
-        # Adjust the "verison" metadata, and pass everyting else transparently
+        # Adjust the "version" metadata, and pass everything else transparently
         if kv.get_child_value(0).get_string() == 'version':
             # Version itself is a Variant, which just contains a string...
             version = kv.get_child_value(1).get_child_value(0).get_string()
             version += "-tcbuilder." + timestamp.strftime("%Y%m%d%H%M%S")
             newmetadata.append(
-                    GLib.Variant.new_dict_entry(GLib.Variant("s", "version"),
-                        GLib.Variant('v', GLib.Variant("s", version)))
-                    )
+                GLib.Variant.new_dict_entry(
+                    GLib.Variant("s", "version"),
+                    GLib.Variant('v', GLib.Variant("s", version))))
         else:
             newmetadata.append(kv)
 
@@ -128,11 +132,13 @@ def commit_changes(repo, ref, changes_dirs, branch_name, subject, body):
 
     return commit
 
-def union_changes(changes_dir, ostree_archive_dir, union_branch, subject, body):
+def union_changes(changes_dir, ostree_archive_dir, union_branch,
+                  subject, body, pre_apply_callback=None):
     repo = ostree.open_ostree(ostree_archive_dir)
 
     # Create new commit with the changes overlayed in a single transaction
-    final_commit = commit_changes(repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch,
-                                  subject, body)
+    final_commit = commit_changes(
+        repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch,
+        subject, body, pre_apply_callback=pre_apply_callback)
 
     return final_commit

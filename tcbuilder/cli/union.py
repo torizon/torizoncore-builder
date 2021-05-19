@@ -110,6 +110,28 @@ def set_acl_attributes(change_dir):
     apply_default_acl(files_to_apply_default_acl)
 
 
+def make_dirs_labels(changes_dirs, stor_pref, work_pref):
+    """Create a mapping between changes directories and labels
+
+    The labels are of the form WORKDIR/<dirname> or STORAGE/<dirname>
+    and are intended just for displaying to the user.
+
+    """
+    # Ensure prefixes have a leading slash.
+    stor_pref = os.path.join(stor_pref, '')
+    work_pref = os.path.join(work_pref, '')
+
+    dirs_labels = {}
+    for fulldir in changes_dirs:
+        if fulldir.startswith(stor_pref):
+            dirs_labels[fulldir] = f"STORAGE/{fulldir[len(stor_pref):]}"
+        elif fulldir.startswith(work_pref):
+            dirs_labels[fulldir] = f"WORKDIR/{fulldir[len(work_pref):]}"
+        else:
+            assert False, f"Unhandled prefix: {fulldir}"
+
+    return dirs_labels
+
 
 def union(changes_dirs, storage_dir, union_branch,
           commit_subject=None, commit_body=None):
@@ -130,16 +152,24 @@ def union(changes_dirs, storage_dir, union_branch,
                 set_acl_attributes(changed_dir)
             changes_dirs_.append(changed_dir)
 
+    temp_dir_extra = os.path.join("/tmp", "changes_dirs")
     if changes_dirs:
-        temp_dir_extra = os.path.join("/tmp", "changes_dirs")
         os.mkdir(temp_dir_extra)
         check_and_append_dirs(changes_dirs_, changes_dirs, temp_dir_extra)
 
     src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
+    dirs_labels = make_dirs_labels(changes_dirs_, storage_dir_, temp_dir_extra)
+
+    # Callback to show the label when backend is about to apply it:
+    def apply_callback(fulldir):
+        log.info(f"Applying changes from {dirs_labels[fulldir]}.")
 
     log.debug(f"union: subject='{commit_subject}' body='{commit_body}'")
-    commit = ub.union_changes(changes_dirs_, src_ostree_archive_dir,
-                              union_branch, commit_subject, commit_body)
+    commit = ub.union_changes(
+        changes_dirs_, src_ostree_archive_dir,
+        union_branch, commit_subject, commit_body,
+        pre_apply_callback=apply_callback)
+
     log.info(f"Commit {commit} has been generated for changes and is ready"
              " to be deployed.")
 
@@ -181,8 +211,10 @@ def init_parser(subparsers):
                 "removed; please use --changes-directory instead."))
     subparser.add_argument(
         "--changes-directory", dest="changes_dirs", action='append',
-        help=("Path to the directory containing user changes. Can be "
-              "specified multiple times!"))
+        help=("Path to the directory containing user changes (can be "
+              "specified multiple times). If you have changes in the "
+              "storage, the changes passed in this parameter will be "
+              "applied on top of them."))
     subparser.add_argument(
         "--subject", dest="subject",
         help=("OSTree commit subject. "
