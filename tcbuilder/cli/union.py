@@ -37,16 +37,19 @@ def apply_tcattr_acl(files):
     """
     Apply ACLs based on .tcattr files. It just needs to be done once for
     each ".tcattr" file found in each sub directory of the tree.
+
+    :param files: A list with the elements being a tuple of the base_dir
+                  of all '.tcattr' files and all filenames that we should
+                  apply the ACL attributes.
     """
 
-    # Review: not appropriately handling especial directory names (FIXME).
     for tcattr_basedir in {tcattr[0] for tcattr in files}:
-        setfacl_cmd = f"cd {tcattr_basedir} && \
-                        setfacl --restore={tcattr_basedir}/.tcattr"
-        subprocess.run(setfacl_cmd, shell=True, check=True)
+        tcattr_file = os.path.join(tcattr_basedir, '.tcattr')
+        setfacl_cmd = ['setfacl', f'--restore={tcattr_file}']
+        subprocess.run(setfacl_cmd, cwd=tcattr_basedir, check=True)
 
 
-def set_file_mode(filename, mode, is_link=False):
+def set_file_mode(filename, mode):
     """
     Set file mode and ownership if filename is a regular file or a directory.
     If filename is a symbolic link, set just the ownership since it is not
@@ -54,17 +57,15 @@ def set_file_mode(filename, mode, is_link=False):
 
     :param filename: Filename to set the mode to.
     :param mode: Mode to be set on the file.
-    :param is_link: Indicates if file is a symbolic link.
     """
 
-    chown = ['chown', 'root.root', filename]
-    if is_link:
-        chown.insert(1, '-h') # use '-h' to set the link ownership
-    subprocess.run(chown, check=True)
+    root_uid = 0
+    root_gid = 0
 
-    if not is_link:
-        chmod = ['chmod', mode, filename]
-        subprocess.run(chmod, check=True)
+    os.chown(filename, root_uid, root_gid, follow_symlinks=False)
+
+    if not os.path.islink(filename):
+        os.chmod(filename, mode)
 
 
 def apply_default_acl(files):
@@ -79,33 +80,65 @@ def apply_default_acl(files):
     :param files: A list of files to apply default ACL.
     """
 
-    default_file_mode = "0660"
-    default_dir_mode = "0755"
-    default_exec_mode = "0770"
+    default_file_mode = 0o660
+    default_dir_mode = 0o755
+    default_exec_mode = 0o770
 
     for filename in files:
-        is_link = False
         mode = default_file_mode
-        if os.path.islink(filename):
-            is_link = True
-        elif os.path.isdir(filename):
+        if os.path.isdir(filename):
             mode = default_dir_mode
         else:
             # Check if file is an executable file
-            status = os.stat(filename)
+            status = os.stat(filename, follow_symlinks=False)
             if status.st_mode & 0o111:
                 mode = default_exec_mode
-        set_file_mode(filename, mode, is_link)
+        set_file_mode(filename, mode)
+
+
+def remove_links_from_tcattr(base_dir):
+    """
+    Remove any symbolic link from the '.tcattr' file.
+    It's need because we cannot set mode (permissions) for symbolic
+    links in Linux.
+
+    :param base_dir: Base directory where there is a '.tcattr' file.
+    """
+
+    tcattr = []
+    tcattr_file = os.path.join(base_dir, '.tcattr')
+    tcattr_file_tmp = os.path.join(base_dir, '.tcattr.tmp')
+    field_separator = '%TCB%'
+
+    with open(tcattr_file, 'r') as fd_tcattr:
+        for line in fd_tcattr:
+            if line.startswith('\n'):
+                tcattr.append(field_separator)
+            else:
+                tcattr.append(line)
+    tcattr = ''.join(tcattr)
+
+    with open(tcattr_file_tmp, 'w') as fd_tcattr_tmp:
+        for file_attr in tcattr.split(field_separator):
+            filename = file_attr.split('\n')[0].replace('# file: ', '')
+            if not os.path.islink(os.path.join(base_dir, filename)):
+                fd_tcattr_tmp.write(file_attr+'\n')
+
+    os.rename(tcattr_file_tmp, tcattr_file)
 
 
 def set_acl_attributes(change_dir):
     """
     From "change_dir" onward, find all ".tcattr" files and create two lists
-    which the contents should be:
+    which the content should be:
       - Files and/or directories that must have ".tcattr" ACLs
       - The other files and/or directories that must have "default" ACLs
     Each ".tcattr" file should be created by the "isolate" command or
     manually by the user.
+    Having both lists in hand, set the attributes.
+
+    :param change_dir: Directory with changes to be incoporated into an
+                       OSTree commit.
     """
 
     files_to_apply_tcattr_acl = []
@@ -114,20 +147,20 @@ def set_acl_attributes(change_dir):
     for base_dir, _, filenames in os.walk(change_dir):
         if '.tcattr' not in filenames:
             continue
-        with open(f'{base_dir}/.tcattr') as fd_tcattr:
-            for line in fd_tcattr:
-                if '# file: ' in line:
-                    line = line.strip().replace('# file: ', '')
-                    files_to_apply_tcattr_acl.append((f'{base_dir}', line))
+        remove_links_from_tcattr(base_dir)
+        with open(os.path.join(base_dir, '.tcattr')) as fd_tcattr:
+            files_to_apply_tcattr_acl = [
+                (base_dir, line.strip().replace('# file: ', ''))
+                for line in fd_tcattr
+                if '# file: ' in line]
 
     for base_dir, dirnames, filenames in os.walk(change_dir):
         for filename in dirnames + filenames:
-            # Review: Reduce nesting (FIXME).
-            if filename != '.tcattr':
-                full_filename = f'{base_dir}/{filename}'
-                if full_filename not in ['/'.join(f)
-                                         for f in files_to_apply_tcattr_acl]:
-                    files_to_apply_default_acl.append(full_filename)
+            if filename != '.tcattr' and \
+               os.path.join(base_dir, filename) not in [
+                       os.path.join(*f)
+                       for f in files_to_apply_tcattr_acl]:
+                files_to_apply_default_acl.append(os.path.join(base_dir, filename))
 
     apply_tcattr_acl(files_to_apply_tcattr_acl)
     apply_default_acl(files_to_apply_default_acl)
