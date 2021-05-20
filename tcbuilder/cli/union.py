@@ -46,13 +46,37 @@ def apply_tcattr_acl(files):
         subprocess.run(setfacl_cmd, shell=True, check=True)
 
 
+def set_file_mode(filename, mode, is_link=False):
+    """
+    Set file mode and ownership if filename is a regular file or a directory.
+    If filename is a symbolic link, set just the ownership since it is not
+    possible to set the mode (permissions) for a symbolic link in Linux.
+
+    :param filename: Filename to set the mode to.
+    :param mode: Mode to be set on the file.
+    :param is_link: Indicates if file is a symbolic link.
+    """
+
+    chown = ['chown', 'root.root', filename]
+    if is_link:
+        chown.insert(1, '-h') # use '-h' to set the link ownership
+    subprocess.run(chown, check=True)
+
+    if not is_link:
+        chmod = ['chmod', mode, filename]
+        subprocess.run(chmod, check=True)
+
+
 def apply_default_acl(files):
     """
     Apply default ACL to files and directories.
       - For executables files: 0770.
       - For non-executables files: 0660.
       - For directories: 0755.
+      - For symbolic links just the user and group will be set.
       - For all files and directories the user and group will be "root".
+
+    :param files: A list of files to apply default ACL.
     """
 
     default_file_mode = "0660"
@@ -60,19 +84,18 @@ def apply_default_acl(files):
     default_exec_mode = "0770"
 
     for filename in files:
+        is_link = False
         mode = default_file_mode
-        if os.path.isdir(filename):
+        if os.path.islink(filename):
+            is_link = True
+        elif os.path.isdir(filename):
             mode = default_dir_mode
         else:
             # Check if file is an executable file
             status = os.stat(filename)
-            if status.st_mode & 0o777 & 0o111:
+            if status.st_mode & 0o111:
                 mode = default_exec_mode
-
-        # Review: not appropriately handling especial directory names (FIXME).
-        default_acl_cmd = f'chmod {mode} \'{filename}\' && \
-                            chown root.root \'{filename}\''
-        subprocess.run(default_acl_cmd, shell=True, check=True)
+        set_file_mode(filename, mode, is_link)
 
 
 def set_acl_attributes(change_dir):
