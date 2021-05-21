@@ -4,11 +4,12 @@ Allows to bundle a Toradex Easy Installer images with a set of containers.
 """
 
 import logging
-import dockerbundle
+
 from tcbuilder.backend import common
+from tcbuilder.backend import bundle as bundle_be
 
 
-def bundle_containers(args):
+def do_bundle(args):
     """\"bundle\" sub-command"""
     # If no Docker host workdir is given, we assume that Docker uses the same
     # path as we do to access the current working directory.
@@ -17,7 +18,7 @@ def bundle_containers(args):
         host_workdir = common.get_host_workdir()[0]
 
     logging.info("Creating Docker Container bundle.")
-    dockerbundle.download_containers_by_compose_file(
+    bundle_be.download_containers_by_compose_file(
         args.bundle_directory, args.compose_file, host_workdir,
         args.docker_username, args.docker_password,
         args.registry, platform=args.platform,
@@ -48,4 +49,4 @@ def init_parser(subparsers):
                            help="Password to be used to access container image.")
     subparser.add_argument("--registry", dest="registry",
                            help="Alternative container registry used to access container image.")
-    subparser.set_defaults(func=bundle_containers)
+    subparser.set_defaults(func=do_bundle)

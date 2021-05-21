@@ -6,10 +6,9 @@ Note: These tests heavily rely on the environment:
   (location of workdir as seen from dockerd).
 """
 import os
-
 import yaml
 
-import dockerbundle
+import tcbuilder.backend.bundle as dockerbundle
 
 TEST_DOCKER_COMPOSE_DATA = {'version': '2.4', \
     'services': {'portainer': {'image': 'portainer/portainer:latest'}}}

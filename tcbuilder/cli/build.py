@@ -8,8 +8,7 @@ import shutil
 import sys
 from datetime import datetime
 
-import dockerbundle
-
+from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.errors import (
     FileContentMissing, FeatureNotImplementedError, InvalidDataError,
@@ -344,7 +343,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
                 "platform": platform,
                 "output_filename": common.DOCKER_BUNDLE_FILENAME
             }
-            dockerbundle.download_containers_by_compose_file(**download_params)
+            download_containers_by_compose_file(**download_params)
 
             # Do a combine "in place" to avoid creating another directory.
             comb_be.combine_image(

@@ -12,6 +12,7 @@ import compose.config.environment
 import compose.config.serialize
 import docker
 
+
 def get_compression_command(output_file):
     """Get compression command
 
@@ -40,12 +41,14 @@ def get_compression_command(output_file):
 
     return (output_file_tar, command)
 
-class DockerManager:
-    """Docker bundle helper class
 
-    This class assumes we can use host Docker to create a bundle of the containers
-    Note that this is most often not the case as other images are already
-    preinstalled...
+# pylint: disable=no-self-use
+class DockerManager:
+    """Docker bundling helper class
+
+    This class assumes we can use host Docker to create a bundle of the
+    containers. Note that this is most often not the case as other images are
+    already preinstalled.
     """
     def __init__(self, output_dir):
         if not os.path.isdir(output_dir):
@@ -60,29 +63,39 @@ class DockerManager:
         pass
 
     def get_tar_command(self, output_file):
-
-        return [ "tar", "--numeric-owner",
-                 "--preserve-permissions", "--directory=/var/lib/docker",
-                 "--xattrs-include='*'", "--create", "--file", output_file,
-                 "overlay2/", "image/" ]
+        return [
+            "tar", "--numeric-owner",
+            "--preserve-permissions", "--directory=/var/lib/docker",
+            "--xattrs-include='*'", "--create", "--file", output_file,
+            "overlay2/", "image/"
+        ]
 
     def get_client(self):
         return docker.from_env()
 
     def save_tar(self, output_file):
 
-        (output_file_tar, compression_command) = get_compression_command(output_file)
+        output_file_tar, compression_command = get_compression_command(output_file)
 
         # Use host tar to store the Docker storage backend
-        subprocess.run(self.get_tar_command(os.path.join(self.output_dir, output_file_tar)),
-                       check=True)
+        subprocess.run(
+            self.get_tar_command(os.path.join(self.output_dir, output_file_tar)),
+            check=True)
 
         output_filepath = os.path.join(self.output_dir, output_file)
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
 
+# pylint: enable=no-self-use
+
+
 class DindManager(DockerManager):
+    """Docker bundling class using a Docker-in-Docker instance
+
+    TODO: Explain
+    """
+
     DIND_CONTAINER_IMAGE = "docker:19.03.8-dind"
     DIND_CONTAINER_NAME = "fetch-dind"
     DIND_VOLUME_NAME = "dind-volume"
@@ -103,9 +116,8 @@ class DindManager(DockerManager):
         self.dind_volume = None
         self.dind_container = None
 
-
     def start(self, network_name="fetch-dind-network", default_platform=None):
-        dind_cmd = [ "--storage-driver", "overlay2" ]
+        dind_cmd = ["--storage-driver", "overlay2"]
 
         if network_name == "host":
             # Choose a safe and high port to avoid conflict with already
@@ -120,8 +132,8 @@ class DindManager(DockerManager):
                 results = re.findall(r"tcp?:\/\/(.*):(\d*)\/?.*", docker_host)
                 if not results or len(results) < 1:
                     raise Exception("Regex does not match: {}".format(docker_host))
-                ip = results[0][0]
-                self.docker_host = f"tcp://{ip}:{port}"
+                host_ip = results[0][0]
+                self.docker_host = f"tcp://{host_ip}:{port}"
             else:
                 self.docker_host = f"tcp://127.0.0.1:{port}"
             logging.info(f"Using Docker host \"{self.docker_host}\"")
@@ -131,33 +143,35 @@ class DindManager(DockerManager):
 
         self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
 
-        environment = { 'DOCKER_TLS_CERTDIR': '/certs' }
+        environment = {'DOCKER_TLS_CERTDIR': '/certs'}
         if default_platform is not None:
             environment['DOCKER_DEFAULT_PLATFORM'] = default_platform
-        self.dind_container = self.host_client.containers.run(self.DIND_CONTAINER_IMAGE,
+        self.dind_container = self.host_client.containers.run(
+            self.DIND_CONTAINER_IMAGE,
             privileged=True,
             environment=environment,
-            volumes= {
-                       self.cert_dir_host: {'bind': '/certs/client', 'mode': 'rw'},
-                       self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'rw'}
-                     },
+            volumes={
+                self.cert_dir_host: {'bind': '/certs/client', 'mode': 'rw'},
+                self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'rw'}
+            },
             network=network_name,
             name=self.DIND_CONTAINER_NAME,
             auto_remove=True,
             detach=True,
-            command = dind_cmd)
+            command=dind_cmd)
 
         time.sleep(10)
 
-        if not network_name == "host":
-            # Find IP of the DIND cotainer (make sure attributes are current...)
+        if network_name != "host":
+            # Find IP of the DIND container (make sure attributes are current...)
             self.dind_container.reload()
-            dind_ip = self.dind_container.attrs["NetworkSettings"]["Networks"][network_name]["IPAddress"]
+            dind_ip = self.dind_container.attrs \
+                ["NetworkSettings"]["Networks"][network_name]["IPAddress"]
             self.docker_host = "tcp://{}:2376".format(dind_ip)
 
     def stop(self):
         self.dind_container.stop()
-        # Otherwise Docker API throws execeptions...
+        # Otherwise Docker API throws exceptions...
         time.sleep(1)
         self.dind_volume.remove()
         if self.network:
@@ -178,12 +192,15 @@ class DindManager(DockerManager):
                    has been created by the Docker in Docker instance. Make sure {} is
                    a shared location between this script and the Docker host.""",
                 self.cert_dir)
-            return
+            return None
+
         # Use TLS to authenticate
-        tls_config = docker.tls.TLSConfig(ca_cert=os.path.join(self.cert_dir, 'ca.pem'),
-                verify=os.path.join(self.cert_dir, 'ca.pem'),
-                client_cert=(os.path.join(self.cert_dir, 'cert.pem'), os.path.join(self.cert_dir, 'key.pem')),
-                assert_hostname=False)
+        tls_config = docker.tls.TLSConfig(
+            ca_cert=os.path.join(self.cert_dir, 'ca.pem'),
+            verify=os.path.join(self.cert_dir, 'ca.pem'),
+            client_cert=(os.path.join(self.cert_dir, 'cert.pem'),
+                         os.path.join(self.cert_dir, 'key.pem')),
+            assert_hostname=False)
 
         logging.info(f"Connecting to Docker Daemon at {self.docker_host}")
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
@@ -200,13 +217,14 @@ class DindManager(DockerManager):
 
         # Use a container to tar the Docker storage backend instead of the
         # built-in save_tar() is more flexible...
-        _tar_container = self.host_client.containers.run("debian:bullseye-slim",
-                volumes = {
-                            self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'ro'},
-                            self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
-                          },
-                command = self.get_tar_command(os.path.join(output_mount_dir, output_file_tar)),
-                auto_remove=True)
+        _tar_container = self.host_client.containers.run(
+            "debian:bullseye-slim",
+            volumes={
+                self.DIND_VOLUME_NAME: {'bind': '/var/lib/docker/', 'mode': 'ro'},
+                self.output_dir_host: {'bind': output_mount_dir, 'mode': 'rw'}
+            },
+            command=self.get_tar_command(os.path.join(output_mount_dir, output_file_tar)),
+            auto_remove=True)
 
         output_filepath_tar = os.path.join(self.output_dir, output_file_tar)
         if not os.path.exists(output_filepath_tar):
@@ -218,6 +236,7 @@ class DindManager(DockerManager):
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
+
 
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir,
@@ -250,11 +269,11 @@ def download_containers_by_compose_file(
     else:
         base_dir = os.path.dirname(compose_file)
 
-    environment = compose.config.environment.Environment.from_env_file(base_dir)
-    config = compose.config.find(base_dir, [ os.path.basename(compose_file) ], environment, None)
-    cfg = compose.config.load(config)
+    environ = compose.config.environment.Environment.from_env_file(base_dir)
+    details = compose.config.find(
+        base_dir, [os.path.basename(compose_file)], environ, None)
+    config = compose.config.load(details)
 
-    logging.info("Starting DIND container")
     if use_host_docker:
         logging.info("Using DockerManager")
         manager = DockerManager(output_dir)
@@ -275,22 +294,21 @@ def download_containers_by_compose_file(
                 dind_client.login(docker_username, docker_password, registry=registry)
             else:
                 dind_client.login(docker_username, docker_password)
-        for service in cfg.services:
+
+        for service in config.services:
             image = service['image']
             logging.info(f"Fetching container image {image}")
-
             if not ":" in image:
                 image += ":latest"
-
             image = dind_client.images.pull(image, platform=platform)
             service['image'] = image.attrs['RepoDigests'][0]
 
         logging.info("Save Docker Compose file")
-        f = open(os.path.join(manager.output_dir, "docker-compose.yml"), "w")
-
-        # Serialization need to escape dollar sign and requires no env varibales interpolation.
-        f.write(compose.config.serialize.serialize_config(cfg, escape_dollar=False).replace("@@MACHINE@@", "$MACHINE", 1))
-        f.close()
+        with open(os.path.join(manager.output_dir, "docker-compose.yml"), "w") as file:
+            # Serialization need to escape dollar sign and requires no env
+            # variables interpolation.
+            file.write(compose.config.serialize.serialize_config(
+                config, escape_dollar=False).replace("@@MACHINE@@", "$MACHINE", 1))
 
         logging.info("Exporting storage")
         manager.save_tar(output_filename)
