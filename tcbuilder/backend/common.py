@@ -381,8 +381,10 @@ def get_host_workdir():
     for mount in mounts:
         if mount["Destination"] == "/workdir":
             if "Name" in mount:
-                return mount["Name"], mount["Type"]
-            return mount["Source"], mount["Type"]
+                # A Docker volume is mapped to the workdir.
+                return (mount["Name"], mount["Type"], True)
+            # A real directory is mapped to the workdir.
+            return (mount["Source"], mount["Type"], False)
 
     return None, None
 

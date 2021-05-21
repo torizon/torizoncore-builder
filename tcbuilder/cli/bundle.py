@@ -15,7 +15,7 @@ def do_bundle(args):
     # path as we do to access the current working directory.
     host_workdir = args.host_workdir
     if host_workdir is None:
-        host_workdir = common.get_host_workdir()[0]
+        host_workdir = common.get_host_workdir()
 
     logging.info("Creating Docker Container bundle.")
     bundle_be.download_containers_by_compose_file(
@@ -23,7 +23,8 @@ def do_bundle(args):
         args.docker_username, args.docker_password,
         args.registry, platform=args.platform,
         output_filename=common.DOCKER_BUNDLE_FILENAME)
-    logging.info(f"Successfully created Docker Container bundle in {args.bundle_directory}.")
+    logging.info("Successfully created Docker Container bundle in "
+                 f"\"{args.bundle_directory}\".")
 
 
 def init_parser(subparsers):
