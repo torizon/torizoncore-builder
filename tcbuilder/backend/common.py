@@ -22,14 +22,23 @@ import tezi.utils
 
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
-                              PathNotExistError, TorizonCoreBuilderError, GitRepoError,
-                              InvalidDataError)
+                              PathNotExistError, TorizonCoreBuilderError,
+                              InvalidStateError, InvalidDataError, GitRepoError)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
     "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
     DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true"
 ]
+
+# Mapping from architecture to a Docker platform.
+ARCH_TO_DOCKER_PLAT = {
+    "aarch64" : "linux/arm64",
+    "arm" : "linux/arm/v7"
+}
+
+DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
+
 
 def get_rootfs_tarball(tezi_image_dir):
     if not os.path.exists(tezi_image_dir):
@@ -393,9 +402,26 @@ def get_arch_from_ostree(storage_dir, ref="base"):
     """Determine architecture from OSTree metadata"""
 
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    if not os.path.isdir(src_ostree_archive_dir):
+        raise InvalidStateError(
+            f"Source OSTree archive ({src_ostree_archive_dir}) does not exist!")
     srcrepo = ostree.open_ostree(src_ostree_archive_dir)
     ret, csumdeploy = srcrepo.resolve_rev(ref, False)
     if not ret:
         raise TorizonCoreBuilderError(f"Error resolving {ref}.")
     srcmeta, _subject, _body = ostree.get_metadata_from_ref(srcrepo, csumdeploy)
     return srcmeta.get("oe.arch")
+
+
+def get_docker_platform(storage_dir):
+    """Determine platform for accessing a Docker registry
+
+    The information is mapped from the architecture field in the OSTree
+    metadata.
+    """
+
+    oe_arch = get_arch_from_ostree(storage_dir)
+    if oe_arch not in ARCH_TO_DOCKER_PLAT:
+        raise InvalidDataError(
+            f"Unknown architecture {oe_arch} in OSTree metadata")
+    return ARCH_TO_DOCKER_PLAT[oe_arch]

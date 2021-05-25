@@ -32,11 +32,6 @@ TEMPLATE_BUILD_FILE = "tcbuild.template.yaml"
 L1_PREF = "\n=>> "
 L2_PREF = "\n=> "
 
-ARCH_TO_PLAT = {
-    "aarch64" : "linux/arm64",
-    "arm" : "linux/arm/v7"
-}
-
 log = logging.getLogger("torizon." + __name__)
 
 
@@ -48,19 +43,6 @@ def l1_pref(orgstr):
 def l2_pref(orgstr):
     """Add L2_PREF prefix to orgstr"""
     return L2_PREF + orgstr
-
-
-def get_docker_platform(storage_dir):
-    """Determine platform for accessing a Docker registry
-
-    The information is mapped from the architecture field in the OSTree
-    metadata.
-    """
-
-    oe_arch = common.get_arch_from_ostree(storage_dir)
-    if oe_arch not in ARCH_TO_PLAT:
-        raise InvalidDataError(f"Unknown architecture {oe_arch} in OSTree metadata")
-    return ARCH_TO_PLAT[oe_arch]
 
 
 def create_template(config_fname, force=False):
@@ -325,7 +307,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             platform = bundle_props["platform"]
         else:
             # Detect platform based on OSTree data.
-            platform = get_docker_platform(storage_dir)
+            platform = common.get_docker_platform(storage_dir)
 
         bundle_dir = datetime.now().strftime("bundle_%Y%m%d%H%M%S_%f.tmp")
         log.info(f"Bundling images to directory {bundle_dir}")

@@ -203,6 +203,7 @@ class DindManager(DockerManager):
             'DOCKER_TLS_CERTDIR': os.path.join('/workdir/', self.cert_dir_host[2])
         }
         if default_platform is not None:
+            log.debug(f"Default platform: {default_platform}")
             _environ['DOCKER_DEFAULT_PLATFORM'] = default_platform
 
         _mounts = [
