@@ -21,7 +21,7 @@ import os
 import traceback
 
 from tcbuilder.cli import (batch, bundle, build, combine, deploy, dt, dto,
-                           images, isolate, kernel, push, serve, splash, union)
+                           images, isolate, kernel, ostree, push, splash, union)
 
 from tcbuilder.errors import TorizonCoreBuilderError
 
@@ -127,8 +127,8 @@ dto.init_parser(subparsers)
 images.init_parser(subparsers)
 isolate.init_parser(subparsers)
 kernel.init_parser(subparsers)
+ostree.init_parser(subparsers)
 push.init_parser(subparsers)
-serve.init_parser(subparsers)
 splash.init_parser(subparsers)
 union.init_parser(subparsers)
 

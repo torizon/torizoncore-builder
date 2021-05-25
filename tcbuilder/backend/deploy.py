@@ -11,7 +11,7 @@ from gi.repository import Gio, OSTree
 
 import paramiko
 
-from tcbuilder.backend import ostree, serve
+from tcbuilder.backend import ostree
 from tcbuilder.backend.common import get_rootfs_tarball, resolve_remote_host
 from tcbuilder.backend.rforward import reverse_forward_tunnel
 from tcbuilder.errors import TorizonCoreBuilderError
@@ -214,7 +214,7 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
              "from local archive repository...")
 
     # Start http server...
-    http_server_thread = serve.serve_ostree_start(src_ostree_archive_dir, "localhost")
+    http_server_thread = ostree.serve_ostree_start(src_ostree_archive_dir, "localhost")
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -272,4 +272,4 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
 
     client.close()
 
-    serve.serve_ostree_stop(http_server_thread)
+    ostree.serve_ostree_stop(http_server_thread)

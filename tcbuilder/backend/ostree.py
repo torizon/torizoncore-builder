@@ -7,6 +7,10 @@ import logging
 import os
 import subprocess
 import traceback
+import threading
+
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 import gi
 gi.require_version("OSTree", "1.0")
@@ -275,3 +279,50 @@ def copy_file(repo, commit, input_file, output_file):
     # Move input to output stream
     output_stream.splice(input_stream, Gio.OutputStreamSpliceFlags.CLOSE_SOURCE,
                       None)
+
+
+class TCBuilderHTTPRequestHandler(SimpleHTTPRequestHandler):
+    """SimpleHTTPRequestHandler which makes use of logging framework"""
+
+    def __init__(self, *args, **kwargs):
+        self.log = logging.getLogger("torizon." + __name__)
+        super().__init__(*args, **kwargs)
+
+    #pylint: disable=redefined-builtin,logging-not-lazy
+    def log_message(self, format, *args):
+        self.log.debug(format % args)
+
+
+class HTTPThread(threading.Thread):
+    """HTTP Server thread"""
+
+    def __init__(self, directory, host="", port=8080):
+        threading.Thread.__init__(self, daemon=True)
+
+        self.log = logging.getLogger("torizon." + __name__)
+        self.log.info("Starting http server to serve OSTree.")
+
+        # From what I understand, this creates a __init__ function with the
+        # directory argument already set. Nice hack!
+        handler_init = partial(TCBuilderHTTPRequestHandler, directory=directory)
+        self.http_server = HTTPServer((host, port), handler_init)
+
+    def run(self):
+        self.http_server.serve_forever()
+
+    def shutdown(self):
+        """Shutdown HTTP server"""
+        self.log.debug("Shutting down http server.")
+        self.http_server.shutdown()
+
+
+def serve_ostree_start(ostree_dir, host=""):
+    """Serving given path via http"""
+    http_thread = HTTPThread(ostree_dir, host)
+    http_thread.start()
+    return http_thread
+
+
+def serve_ostree_stop(http_thread):
+    """Stop serving"""
+    http_thread.shutdown()
