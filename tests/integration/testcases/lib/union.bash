@@ -89,13 +89,15 @@ check-tcattr-files-removal() {
 }
 
 # Check credentials for all files include with the --extra-changes-directory
-check-credentials-extra() {
+check-credentials-for-links() {
     local ROOTFS="$1"
 
     local FILE_ATTRS="usr/bin/file1|-rw-rw-r--|1000|2000 \
                       usr/bin/file2|-rw-rw----|0|0 \
                       usr/bin/dir1|drwxrwxr-x|1000|2000 \
-                      usr/bin/dir1/file11|-rw-rw-r--|1000|1000"
+                      usr/bin/dir1/file11|-rw-rw-r--|1000|1000 \
+                      usr/bin/broken_link|lrwxrwxrwx|0|0 \
+                      usr/bin/good_link|lrwxrwxrwx|0|0 "
 
 
     for FILE_ATTR in $FILE_ATTRS

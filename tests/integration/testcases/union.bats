@@ -135,18 +135,10 @@ load 'lib/union.bash'
 }
 
 @test "union: create branch using --extra-changes-dirs and check credentials" {
-    requires-device
-
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    create-files-in-device
-
     local EXTRA_DIR="$SAMPLES_DIR/changes3"
-
-    run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
-                                    --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS
 
     local COMMIT=tcattr-branch
     run torizoncore-builder union --extra-changes-directory $EXTRA_DIR \
@@ -157,6 +149,6 @@ load 'lib/union.bash'
     torizoncore-builder-shell "rm -rf $ROOTFS"
     torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
 
-    check-credentials-extra $ROOTFS
+    check-credentials-for-links $ROOTFS
     check-tcattr-files-removal $ROOTFS
 }
