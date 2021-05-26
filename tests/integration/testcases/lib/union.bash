@@ -88,7 +88,7 @@ check-tcattr-files-removal() {
     refute_output --partial '.tcattr'
 }
 
-# Check credentials for all files include with the --extra-changes-directory
+# Check credentials for all files include with the --changes-directory
 check-credentials-for-links() {
     local ROOTFS="$1"
 
