@@ -5,7 +5,7 @@ variables:
   # container version
   TORIZONCORE_BUILDER_MAJOR: "2"
   TORIZONCORE_BUILDER_MINOR: "6"
-  TORIZONCORE_BUILDER_PATCH: "0"
+  TORIZONCORE_BUILDER_PATCH: "1"
 
   # This should be set by docker image already, just to be sure...
   DOCKER_HOST: tcp://docker:2375
