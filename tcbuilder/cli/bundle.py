@@ -16,10 +16,24 @@ log = logging.getLogger("torizon." + __name__)
 
 DEFAULT_COMPOSE_FILE = "docker-compose.yml"
 
-
+# pylint: disable=too-many-arguments
 def bundle(bundle_dir, compose_file, storage_dir,
            force=False, platform=None,
            reg_username=None, reg_password=None, registry=None):
+    """Main handler of the bundle command (CLI layer)
+
+    :param bundle_dir: Name of bundle directory (that will be created in the
+                       working directory).
+    :param compose_file: Relative path to the input compose file.
+    :param storage_dir: Location of the storage directory (currently used only
+                        when no platform is specified).
+    :param force: Whether or not to overwrite the (output) bundle directory
+                  if it already exists.
+    :param platform: Default platform to use when fetching container images.
+    :param reg_username: Username to access a registry.
+    :param reg_password: Password to access a registry.
+    :param registry: Registry from where images should be fetched from.
+    """
 
     if not platform:
         try:
@@ -57,6 +71,8 @@ def bundle(bundle_dir, compose_file, storage_dir,
     logging.info(
         f"Successfully created Docker Container bundle in \"{bundle_dir}\".")
 
+# pylint: enable=too-many-arguments
+
 
 def do_bundle(args):
     """\"bundle\" sub-command"""
@@ -80,10 +96,13 @@ def do_bundle(args):
 def init_parser(subparsers):
     """Initialize argument parser"""
 
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-25).
     subparser = subparsers.add_parser(
         "bundle",
         help=("Create container bundle from a Docker Compose file. Can be "
-              "used to combine with a TorizonCore base image."))
+              "used to combine with a TorizonCore base image."),
+        epilog=("NOTE: the switch --host-workdir has been removed; please don't use it."))
+
     subparser.add_argument(
         "-f", "--file", dest="compose_file",
         help=f"Compose file to be processed (default: {DEFAULT_COMPOSE_FILE}).",
@@ -97,7 +116,8 @@ def init_parser(subparsers):
         "--platform", dest="platform",
         help=("Default platform for fetching container images when multi-"
               "platform images are specified in the compose file (e.g. "
-              "linux/arm/v7 or linux/arm64)."))
+              "linux/arm/v7 or linux/arm64); when not specified, it will "
+              "be inferred from the current image in the storage."))
     subparser.add_argument(
         "--docker-username", dest="docker_username",
         help="Optional username to be used to access a container registry.")
