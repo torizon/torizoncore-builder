@@ -19,6 +19,7 @@ $TESTCASES_DIR/isolate.bats \
 $TESTCASES_DIR/dt.bats \
 $TESTCASES_DIR/dto.bats \
 $TESTCASES_DIR/build.bats \
+$TESTCASES_DIR/bundle.bats \
 "
 
 # test case to run

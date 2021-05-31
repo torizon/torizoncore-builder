@@ -16,6 +16,7 @@ import compose.config
 import compose.config.environment
 import compose.config.serialize
 import docker
+import docker.errors
 import docker.types
 
 from tcbuilder.errors import OperationFailureError
@@ -381,7 +382,7 @@ def show_pull_progress_xterm(pull_stream):
         elif 'status' in row:
             print(f"  {row['status']}\033[K")
         elif 'error' in row:
-            print(f"  {row['error']}\033[K")
+            print(f"  Error: {row['error']}\033[K")
 
     def show_rows(redisp=True):
         """Helper to show all rows currently stored in `rows_by_id`"""
@@ -447,10 +448,16 @@ def download_containers_by_compose_file(
         elif not (_term.startswith('xterm') or _term.startswith('rxvt')):
             show_progress = False
 
-    environ = compose.config.environment.Environment.from_env_file(base_dir)
-    details = compose.config.find(
-        base_dir, [os.path.basename(compose_file)], environ, None)
-    config = compose.config.load(details)
+    try:
+        environ = compose.config.environment.Environment.from_env_file(base_dir)
+        details = compose.config.find(
+            base_dir, [os.path.basename(compose_file)], environ, None)
+        config = compose.config.load(details)
+
+    except compose.config.errors.ConfigurationError as exc:
+        raise OperationFailureError(
+            "Error: "
+            f"Could not load the Docker compose file '{compose_file}'.") from exc
 
     log.info("Starting DIND container")
     if use_host_docker:
@@ -501,6 +508,10 @@ def download_containers_by_compose_file(
 
         log.info("Exporting storage")
         manager.save_tar(output_filename)
+
+    except docker.errors.APIError as exc:
+        raise OperationFailureError(
+            f"Error: container images download failed: {str(exc)}") from exc
 
     finally:
         log.info("Stopping DIND container")

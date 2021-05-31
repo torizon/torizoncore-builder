@@ -14,37 +14,23 @@ from tcbuilder.errors import InvalidArgumentError, InvalidStateError
 
 log = logging.getLogger("torizon." + __name__)
 
-DEFAULT_COMPOSE_FILE = "docker-compose.yml"
 
 # pylint: disable=too-many-arguments
-def bundle(bundle_dir, compose_file, storage_dir,
-           force=False, platform=None,
+def bundle(bundle_dir, compose_file, force=False, platform=None,
            reg_username=None, reg_password=None, registry=None):
     """Main handler of the bundle command (CLI layer)
 
     :param bundle_dir: Name of bundle directory (that will be created in the
                        working directory).
     :param compose_file: Relative path to the input compose file.
-    :param storage_dir: Location of the storage directory (currently used only
-                        when no platform is specified).
     :param force: Whether or not to overwrite the (output) bundle directory
                   if it already exists.
-    :param platform: Default platform to use when fetching container images.
+    :param platform: Default platform to use when fetching multi-platform
+                     container images.
     :param reg_username: Username to access a registry.
     :param reg_password: Password to access a registry.
     :param registry: Registry from where images should be fetched from.
     """
-
-    if not platform:
-        try:
-            platform = common.get_docker_platform(storage_dir)
-            log.debug(f"Platform not specified: default set to '{platform}' "
-                      "based on current image on storage")
-
-        except InvalidStateError as _exc:
-            platform = common.DEFAULT_DOCKER_PLATFORM
-            log.info("Could not determine platform from current image: "
-                     f"using default of '{platform}'")
 
     if os.path.exists(bundle_dir):
         if force:
@@ -58,7 +44,7 @@ def bundle(bundle_dir, compose_file, storage_dir,
     # Determine mapping between volume and working directory.
     host_workdir = common.get_host_workdir()
 
-    logging.info("Creating Docker Container bundle.")
+    log.info("Creating Docker Container bundle...")
 
     bundle_be.download_containers_by_compose_file(
         bundle_dir, compose_file, host_workdir,
@@ -68,8 +54,7 @@ def bundle(bundle_dir, compose_file, storage_dir,
         platform=platform,
         output_filename=common.DOCKER_BUNDLE_FILENAME)
 
-    logging.info(
-        f"Successfully created Docker Container bundle in \"{bundle_dir}\".")
+    log.info(f"Successfully created Docker Container bundle in \"{bundle_dir}\"!")
 
 # pylint: enable=too-many-arguments
 
@@ -83,9 +68,19 @@ def do_bundle(args):
             "Error: the switch --host-workdir has been removed; "
             "please run the tool without passing that switch (and its argument).")
 
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if args.compose_file_compat:
+        raise InvalidArgumentError(
+            "Error: the switch --file (-f) has been removed; "
+            "please provide the file name without passing the switch.")
+
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if not args.compose_file:
+        raise InvalidArgumentError(
+            "Error: the COMPOSE_FILE positional argument is required.")
+
     bundle(bundle_dir=args.bundle_directory,
            compose_file=args.compose_file,
-           storage_dir=args.storage_directory,
            force=args.force,
            platform=args.platform,
            reg_username=args.docker_username,
@@ -101,12 +96,17 @@ def init_parser(subparsers):
         "bundle",
         help=("Create container bundle from a Docker Compose file. Can be "
               "used to combine with a TorizonCore base image."),
-        epilog=("NOTE: the switch --host-workdir has been removed; please don't use it."))
+        epilog=("NOTE: the switches --host-workdir and --file (-f) have been "
+                "removed; please don't use them."))
 
+    # The nargs='?' argument below can be removed together with the
+    # --host-workdir and --file switches that currently exist just to allow
+    # for better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(
-        "-f", "--file", dest="compose_file",
-        help=f"Compose file to be processed (default: {DEFAULT_COMPOSE_FILE}).",
-        default=DEFAULT_COMPOSE_FILE)
+        nargs='?',
+        dest="compose_file",
+        help=("Compose file to be processed (REQUIRED); "
+              "commonly named 'docker-compose.yml'."))
     subparser.add_argument(
         "--force", dest="force",
         default=False, action="store_true",
@@ -116,8 +116,7 @@ def init_parser(subparsers):
         "--platform", dest="platform",
         help=("Default platform for fetching container images when multi-"
               "platform images are specified in the compose file (e.g. "
-              "linux/arm/v7 or linux/arm64); when not specified, it will "
-              "be inferred from the current image in the storage."))
+              "linux/arm/v7 or linux/arm64)."))
     subparser.add_argument(
         "--docker-username", dest="docker_username",
         help="Optional username to be used to access a container registry.")
@@ -131,5 +130,7 @@ def init_parser(subparsers):
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-25).
     subparser.add_argument(
         "--host-workdir", dest="host_workdir_compat", help=argparse.SUPPRESS)
+    subparser.add_argument(
+        "-f", "--file", dest="compose_file_compat", help=argparse.SUPPRESS)
 
     subparser.set_defaults(func=do_bundle)
