@@ -9,9 +9,14 @@ import logging
 import argparse
 
 from tcbuilder.backend.common import (add_common_image_arguments,
-                                      add_bundle_directory_argument)
+                                      add_bundle_directory_argument,
+                                      check_valid_tezi_image)
+
 from tcbuilder.backend import combine
-from tcbuilder.errors import PathNotExistError, InvalidArgumentError
+from tcbuilder.errors import (PathNotExistError,
+                              InvalidArgumentError)
+
+log = logging.getLogger("torizon." + __name__)
 
 
 def check_deprecated_parameters(args):
@@ -40,10 +45,8 @@ def check_deprecated_parameters(args):
             "please provide the output directory without passing the switch.")
 
 
-def combine_image(args):
-    """combine sub-command"""
-
-    log = logging.getLogger("torizon." + __name__)
+def do_combine(args):
+    """Run "combine" sub-command"""
 
     check_deprecated_parameters(args)
 
@@ -51,16 +54,14 @@ def combine_image(args):
     if not os.path.exists(dir_containers):
         raise PathNotExistError(f"bundle directory {dir_containers} does not exist")
 
-    image_dir = os.path.abspath(args.image_directory)
-    if not os.path.exists(image_dir):
-        raise PathNotExistError(f"Source image directory {image_dir} does not exist")
+    image_dir = check_valid_tezi_image(args.image_directory)
 
     output_dir = os.path.abspath(args.output_directory)
 
     combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
                           args.image_description, args.licence_file,
                           args.release_notes_file)
-    log.info(f"Successfully created a TorizonCore image with Docker Containers"
+    log.info("Successfully created a TorizonCore image with Docker Containers"
              f" preprovisioned in {args.output_directory}")
 
 
@@ -80,13 +81,13 @@ def init_parser(subparsers):
         dest="image_directory",
         metavar="IMAGE_DIRECTORY",
         help="Path to TorizonCore Toradex Easy Installer source image, "
-             "which needs to be updated with docker bundle (REQUIRED).")
+             "which needs to be updated with docker bundle.")
 
     subparser.add_argument(
         dest="output_directory",
         metavar="OUTPUT_DIRECTORY",
         help="Path to combined TorizonCore Toradex Easy Installer image, "
-             "which needs to be updated with docker bundle (REQUIRED).")
+             "which needs to be updated with docker bundle.")
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(
@@ -106,4 +107,4 @@ def init_parser(subparsers):
 
     add_common_image_arguments(subparser)
 
-    subparser.set_defaults(func=combine_image)
+    subparser.set_defaults(func=do_combine)

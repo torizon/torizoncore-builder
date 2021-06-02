@@ -438,3 +438,36 @@ def get_docker_platform(storage_dir):
         raise InvalidDataError(
             f"Unknown architecture {oe_arch} in OSTree metadata")
     return ARCH_TO_DOCKER_PLAT[oe_arch]
+
+
+def check_valid_tezi_image(image_directory):
+    """
+    Check if the image directory has a valid TEZI image.
+
+    :param image_directory: Directory with a TEZI image.
+    :raises:
+        PathNotExistError: if image_directory path does not exist.
+        InvalidDataError: if image_directory has an invalid TEZI image.
+    :return:
+        The absolute image directory path
+    """
+
+    image_dir = os.path.abspath(image_directory)
+    if not os.path.exists(image_dir):
+        raise PathNotExistError(
+            f"Source image directory {image_directory} does not exist")
+
+    tarfile = ""
+    try:
+        tarfile = get_rootfs_tarball(image_dir)
+    except (FileNotFoundError, FileContentMissing):
+        raise InvalidDataError(
+            "Error: "
+            f"directory {image_directory} does not contain a valid TEZI image")
+
+    if not os.path.exists(tarfile):
+        raise InvalidDataError(
+            "Error: "
+            f"directory {image_directory} does not contain a valid TEZI image")
+
+    return image_dir
