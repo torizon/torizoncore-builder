@@ -3,7 +3,7 @@ load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
 
 
-@test "combine: check without --bundle-directory parameter" {
+@test "combine: run with the deprecated --image-directory switch" {
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
@@ -15,7 +15,52 @@ load 'bats/bats-file/load.bash'
     local OUTPUT_DIR="output"
 
     run torizoncore-builder combine --image-directory $IMAGE_DIR \
+                                    $OUTPUT_DIR
+    assert_failure
+    assert_output --partial "Error: the switch --image-directory has been removed"
+    assert_output --partial "please provide the image directory without passing the switch."
+
+    torizoncore-builder-shell "rm -f $COMPOSE"
+    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    torizoncore-builder-shell "rm -rf /workdir/$OUTPUT_DIR"
+    rm -rf $IMAGE_DIR
+}
+
+@test "combine: run with the deprecated --output-directory switch" {
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    torizoncore-builder bundle $COMPOSE
+
+    unpack-image $DEFAULT_TEZI_IMAGE
+    local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+    local OUTPUT_DIR="output"
+
+    run torizoncore-builder combine $IMAGE_DIR \
                                     --output-directory $OUTPUT_DIR
+    assert_failure
+    assert_output --partial "Error: the switch --output-directory has been removed"
+    assert_output --partial "please provide the output directory without passing the switch."
+
+    torizoncore-builder-shell "rm -f $COMPOSE"
+    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    torizoncore-builder-shell "rm -rf /workdir/$OUTPUT_DIR"
+    rm -rf $IMAGE_DIR
+}
+
+@test "combine: check without --bundle-directory parameter" {
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    torizoncore-builder bundle $COMPOSE
+
+    unpack-image $DEFAULT_TEZI_IMAGE
+    local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+    local OUTPUT_DIR="output"
+
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
     assert_success
     run ls -l $OUTPUT_DIR/$COMPOSE
     assert_success
@@ -38,8 +83,7 @@ load 'bats/bats-file/load.bash'
     local OUTPUT_DIR="output"
 
     run torizoncore-builder combine --bundle-directory $BUNDLE_DIR \
-                                    --image-directory $IMAGE_DIR \
-                                    --output-directory $OUTPUT_DIR
+                                    $IMAGE_DIR $OUTPUT_DIR
     assert_success
     run ls -l $OUTPUT_DIR/$COMPOSE
     assert_success
