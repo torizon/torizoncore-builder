@@ -23,7 +23,7 @@ import traceback
 from tcbuilder.cli import (batch, bundle, build, combine, deploy, dt, dto,
                            images, isolate, kernel, ostree, push, splash, union)
 
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
 #pylint: enable=wrong-import-position
 
@@ -102,10 +102,6 @@ parser.add_argument("--log-file", dest="log_file",
                     help="write logs to a file instead of console",
                     default=None)
 
-parser.add_argument("--bundle-directory", dest="bundle_directory",
-                    help="container bundle directory",
-                    default="bundle")
-
 parser.add_argument("--storage-directory", dest="storage_directory",
                     help="""path to internal storage. Must be a file system
                     capable of carrying Linux file system metadata (Unix
@@ -113,6 +109,14 @@ parser.add_argument("--storage-directory", dest="storage_directory",
                     default="/storage")
 
 parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
+
+# Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+parser.add_argument(
+    "--bundle-directory",
+    dest="bundle_directory_compat",
+    type=str,
+    default="",
+    help=argparse.SUPPRESS)
 
 subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
@@ -165,12 +169,33 @@ def assert_operational_directory(path, label):
         logging.warning(f"You may want to bind '{path}' to a host directory with Docker's --volume option.")
     return
 
+def check_deprecated_parameters(args):
+    """Check deprecated base TorizonCore Builder command line arguments.
+
+    It checks for "DEPRECATED" switches or command line arguments and
+    shows a message explaining what the user should do.
+
+    :param args: Base arguments provided to "torizoncore-builder" command.
+    :raises:
+        InvalidArgumentError: if a deprecated switch was passed.
+    """
+
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if args.bundle_directory_compat:
+        raise InvalidArgumentError(
+            "Error: the switch --bundle-directory has been removed from the "
+            "base torizoncore-builder command; it should be used with the "
+            "\"bundle\", \"combine\", and \"patch\" subcommands")
+
+
 if __name__ == "__main__":
     mainargs = parser.parse_args()
+
     setup_logging(mainargs.log_level, mainargs.verbose, mainargs.log_file)
     assert_operational_directory(mainargs.storage_directory, 'storage')
 
     try:
+        check_deprecated_parameters(mainargs)
         if hasattr(mainargs, 'func'):
             mainargs.func(mainargs)
         else:

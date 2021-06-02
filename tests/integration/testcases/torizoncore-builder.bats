@@ -12,3 +12,10 @@ load 'bats/bats-file/load.bash'
     run torizoncore-builder --version
     assert_success
 }
+
+@test "torizoncore-builder: deprecated --bundle-directory" {
+    run torizoncore-builder --bundle-directory somedir bundle
+    assert_failure
+    assert_output --partial "Error: the switch --bundle-directory has been removed from the base torizoncore-builder command;"
+    assert_output --partial "it should be used with the \"bundle\", \"combine\", and \"patch\" subcommands"
+}

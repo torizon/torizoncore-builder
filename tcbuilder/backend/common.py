@@ -61,6 +61,19 @@ def get_rootfs_tarball(tezi_image_dir):
     return os.path.join(tezi_image_dir, content["filename"])
 
 
+def add_bundle_directory_argument(parser):
+    """
+    Add the --bundle-directory argument to a parser of a command.
+
+    :param parser: A parser of a command line.
+    """
+    parser.add_argument(
+        "--bundle-directory",
+        dest="bundle_directory",
+        default="bundle",
+        help="Container bundle directory")
+
+
 def add_common_image_arguments(subparser):
     subparser.add_argument("--image-name", dest="image_name",
                            help="""Image name to be used in Easy Installer image json""")

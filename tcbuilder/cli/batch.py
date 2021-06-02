@@ -9,9 +9,8 @@ import subprocess
 import urllib
 
 from tcbuilder.backend import common
-from tezi import downloader
-
 from tcbuilder.errors import InvalidArgumentError, OperationFailureError
+from tezi import downloader
 
 
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
@@ -42,19 +41,21 @@ def get_images(artifactory_repo, branch, release_type, matrix_build_number, mach
     image_base_url = os.path.dirname(req.url)
 
     imagelist = json.loads(content)
-    for image in imagelist['images']:
-        if not bool(urllib.parse.urlparse(image).netloc):
-            yield os.path.join(image_base_url, image)
+    for _image in imagelist['images']:
+        if not bool(urllib.parse.urlparse(_image).netloc):
+            yield os.path.join(image_base_url, _image)
         else:
-            yield image
+            yield _image
+
 
 def batch_process(args):
     """\"batch\" sub-command"""
+
     output_dir_containers = os.path.abspath(args.bundle_directory)
     additional_size = common.get_additional_size(output_dir_containers, common.DOCKER_FILES_TO_ADD)
     if additional_size is None:
         raise InvalidArgumentError("Docker Container bundle missing, use bundle sub-command.")
-        
+
     image_dir = os.path.abspath(args.output_directory)
 
     if not os.path.exists(image_dir):
@@ -97,40 +98,74 @@ def batch_process(args):
                     raise OperationFailureError(
                         f"""Executing post image generation script was unsuccessful.
                         Exit code {cp_process.returncode}.""")
-                    
 
     logging.info("Finished")
 
+
 def init_parser(subparsers):
     """Initialize argument parser"""
-    subparser = subparsers.add_parser("batch", help="""\
-    Automatically downloads a set of Toradex Easy Installer images and adds the
-    specified containers to it.
-    """)
 
-    subparser.add_argument("--output-directory", dest="output_directory",
-                           help="Specify the output directory",
-                           default="output")
-    subparser.add_argument("--repo", dest="repo",
-                           help="""Toradex Easy Installer source repository""",
-                           default="torizoncore-oe-nightly-horw")
-    subparser.add_argument("--branch", dest="branch",
-                           help="""TorizonCore OpenEmbedded branch""",
-                           default="zeus")
-    subparser.add_argument("--distro", dest="distro", nargs='+',
-                           help="""TorizonCore OpenEmbedded distro""",
-                           default=["torizon"])
-    subparser.add_argument("--release-type", dest="release_type",
-                           help="""TorizonCore release type (nightly/monthly/release)""",
-                           default="nightly")
-    subparser.add_argument("--matrix-build-number", dest="matrix_build_number",
-                           help="""Matrix build number to processes.""")
-    subparser.add_argument("--image-directory", dest="image_directory",
-                           help="""Image directory name""",
-                           default="torizon-core-docker-with-containers")
+    subparser = subparsers.add_parser(
+        "batch",
+        help="Automatically downloads a set of Toradex Easy Installer images "
+             "and adds the specified containers to it.")
+
+    subparser.add_argument(
+        "--output-directory",
+        dest="output_directory",
+        default="output",
+        help="Specify the output directory")
+
+    subparser.add_argument(
+        "--repo",
+        dest="repo",
+        default="torizoncore-oe-nightly-horw",
+        help="Toradex Easy Installer source repository")
+
+    subparser.add_argument(
+        "--branch",
+        dest="branch",
+        default="zeus",
+        help="TorizonCore OpenEmbedded branch")
+
+    subparser.add_argument(
+        "--distro",
+        dest="distro",
+        nargs='+',
+        default=["torizon"],
+        help="TorizonCore OpenEmbedded distro")
+
+    subparser.add_argument(
+        "--release-type",
+        dest="release_type",
+        default="nightly",
+        help="TorizonCore release type (nightly/monthly/release)")
+
+    subparser.add_argument(
+        "--matrix-build-number",
+        dest="matrix_build_number",
+        help="Matrix build number to processes.")
+
+    subparser.add_argument(
+        "--image-directory",
+        dest="image_directory",
+        default="torizon-core-docker-with-containers",
+        help="Image directory name")
+
     common.add_common_image_arguments(subparser)
-    subparser.add_argument("--post-script", dest="post_script",
-                           help="""Executes this script in every image generated.""")
-    subparser.add_argument('machines', metavar='MACHINE', type=str, nargs='+',
-                           help='Machine names to process.')
+
+    subparser.add_argument(
+        "--post-script",
+        dest="post_script",
+        help="Executes this script in every image generated.")
+
+    common.add_bundle_directory_argument(subparser)
+
+    subparser.add_argument(
+        "machines",
+        metavar="MACHINE",
+        type=str,
+        nargs="+",
+        help="Machine names to process.")
+
     subparser.set_defaults(func=batch_process)

@@ -99,6 +99,8 @@ def init_parser(subparsers):
         epilog=("NOTE: the switches --host-workdir and --file (-f) have been "
                 "removed; please don't use them."))
 
+    common.add_bundle_directory_argument(subparser)
+
     # The nargs='?' argument below can be removed together with the
     # --host-workdir and --file switches that currently exist just to allow
     # for better messages (DEPRECATED since 2021-05-17).

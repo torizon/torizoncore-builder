@@ -51,7 +51,7 @@ load 'lib/common.bash'
     # Test with an existing output directory and non-default name.
     local BUNDLEDIR='bundle-non-default'
     torizoncore-builder-shell "rm -fr $BUNDLEDIR && mkdir $BUNDLEDIR"
-    run torizoncore-builder --bundle-directory "$BUNDLEDIR" bundle "$COMPOSE"
+    run torizoncore-builder bundle --bundle-directory "$BUNDLEDIR" "$COMPOSE"
     assert_failure
     assert_output --partial "Bundle directory '$BUNDLEDIR' already exists"
     rm -fr "$BUNDLEDIR"
@@ -97,4 +97,36 @@ load 'lib/common.bash'
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE"
     assert_failure
     assert_output --partial "container images download failed"
+}
+
+@test "bundle: check without --bundle-directory parameter" {
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    run torizoncore-builder bundle $COMPOSE
+    assert_success
+    run ls -l bundle/$COMPOSE
+    assert_success
+    run ls -l bundle/docker-storage.tar.xz
+    assert_success
+
+    torizoncore-builder-shell "rm -f $COMPOSE"
+    torizoncore-builder-shell "rm -rf /workdir/bundle"
+}
+
+@test "bundle: check with --bundle-directory parameter" {
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    local BUNDLE_DIR="custom-bundle-dir"
+
+    run torizoncore-builder bundle --bundle-directory $BUNDLE_DIR $COMPOSE
+    assert_success
+    run ls -l $BUNDLE_DIR/$COMPOSE
+    assert_success
+    run ls -l $BUNDLE_DIR/docker-storage.tar.xz
+    assert_success
+
+    torizoncore-builder-shell "rm -f $COMPOSE"
+    torizoncore-builder-shell "rm -rf /workdir/$BUNDLE_DIR"
 }
