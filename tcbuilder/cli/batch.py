@@ -48,8 +48,8 @@ def get_images(artifactory_repo, branch, release_type, matrix_build_number, mach
             yield _image
 
 
-def batch_process(args):
-    """\"batch\" sub-command"""
+def do_batch(args):
+    """Run "batch" sub-command"""
 
     output_dir_containers = os.path.abspath(args.bundle_directory)
     additional_size = common.get_additional_size(output_dir_containers, common.DOCKER_FILES_TO_ADD)
@@ -105,10 +105,7 @@ def batch_process(args):
 def init_parser(subparsers):
     """Initialize argument parser"""
 
-    subparser = subparsers.add_parser(
-        "batch",
-        help="Automatically downloads a set of Toradex Easy Installer images "
-             "and adds the specified containers to it.")
+    subparser = subparsers.add_parser("batch")
 
     subparser.add_argument(
         "--output-directory",
@@ -168,4 +165,4 @@ def init_parser(subparsers):
         nargs="+",
         help="Machine names to process.")
 
-    subparser.set_defaults(func=batch_process)
+    subparser.set_defaults(func=do_batch)

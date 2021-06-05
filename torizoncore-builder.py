@@ -30,14 +30,13 @@ from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 __version_info__ = ('2', '6', '0')
 __version__ = '.'.join(__version_info__)
 
-parser = argparse.ArgumentParser(description="""\
-TorizonCore Builder is an utility that allows to create customized TorizonCore
-OSTree commits and Toradex Easy Installer images without rebuilding the complete
-operating system.""",
-epilog="""\
-Learn more on
-https://developer.toradex.com/knowledge-base/torizoncore-builder-tool
-""")
+parser = argparse.ArgumentParser(
+    description="TorizonCore Builder is an utility that allows to create "
+                "customized TorizonCore OSTree commits and Toradex Easy "
+                "Installer images without rebuilding the complete operating "
+                "system.",
+    epilog="Learn more on "
+           "https://developer.toradex.com/knowledge-base/torizoncore-builder-tool")
 
 
 def setup_logging(arg_level, verbose, file):
@@ -118,7 +117,9 @@ parser.add_argument(
     default="",
     help=argparse.SUPPRESS)
 
-subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
+subparsers = parser.add_subparsers(
+    metavar='{build,bundle,combine,deploy,dt,dto,images,isolate,kernel,ostree,push,splash,union}',
+    title='Commands', required=True, dest='cmd')
 
 # Commands in ALPHABETICAL order.
 batch.init_parser(subparsers)
@@ -143,8 +144,8 @@ def am_i_under_docker():
     '''
     # Detect if the init process has Docker control groups; see
     # https://stackoverflow.com/questions/20010199/how-to-determine-if-a-process-runs-inside-lxc-docker
-    with open('/proc/1/cgroup', 'rt') as f:
-        return 'docker' in f.read()
+    with open('/proc/1/cgroup', 'rt') as fd_cgroup:
+        return 'docker' in fd_cgroup.read()
 
 def assert_operational_directory(path, label):
     '''Assert that a given directory looks ok to be used as a data storage
@@ -165,8 +166,11 @@ def assert_operational_directory(path, label):
         # We're under Docker and the directory is part of the container's root mount.
         # When the container vanishes, so will the contents of the directory.
         # This is probably not what the user desires.
-        logging.warning(f"warning: {label} directory '{path}' is local to a Docker container, and its contents will be lost if the container vanishes.")
-        logging.warning(f"You may want to bind '{path}' to a host directory with Docker's --volume option.")
+        logging.warning(f"warning: {label} directory '{path}' is local to "
+                        "a Docker container, and its contents will be lost "
+                        "if the container vanishes.")
+        logging.warning(f"You may want to bind '{path}' to a host directory "
+                        "with Docker's --volume option.")
     return
 
 def check_deprecated_parameters(args):
@@ -184,8 +188,8 @@ def check_deprecated_parameters(args):
     if args.bundle_directory_compat:
         raise InvalidArgumentError(
             "Error: the switch --bundle-directory has been removed from the "
-            "base torizoncore-builder command; it should be used with the "
-            "\"bundle\", \"combine\", and \"patch\" subcommands")
+            "base torizoncore-builder command; it should be used only with "
+            "the \"bundle\" and \"combine\" subcommands")
 
 
 if __name__ == "__main__":
@@ -204,12 +208,11 @@ if __name__ == "__main__":
         logging.error(ex.msg)  # msg from all kinds of Exceptions
         if ex.det is not None:
             logging.info(ex.det)  # more elaborative message
-        logging.debug(traceback.format_exc())  # full traceback to be shown for debugging only    
+        logging.debug(traceback.format_exc())  # full traceback to be shown for debugging only
         sys.exit(-1)
     except Exception as ex:
         logging.fatal(
             "An unexpected Exception occured. Please provide the following stack trace to\n"
             "the Toradex TorizonCore support team:\n\n")
-        logging.error(traceback.format_exc())     
+        logging.error(traceback.format_exc())
         sys.exit(-2)
-
