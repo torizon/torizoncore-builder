@@ -67,7 +67,7 @@ class DockerManager:
         self.output_dir = output_dir
         self.output_dir_host = output_dir
 
-    def start(self, network_name=None, default_platform=None):
+    def start(self, network_name=None, default_platform=None, dind_params=None):
         """Start manager (dummy implementation)"""
 
     def stop(self):
@@ -181,7 +181,8 @@ class DindManager(DockerManager):
                 f"{self.cert_dir} is a shared location between this script and "
                 "the Docker host.")
 
-    def start(self, network_name="fetch-dind-network", default_platform=None):
+    def start(self, network_name="fetch-dind-network",
+              default_platform=None, dind_params=None):
         """Start manager
 
         This will start the Docker-in-Docker container which can then be used
@@ -238,6 +239,10 @@ class DindManager(DockerManager):
             )
         ]
         log.debug(f"Volume mapping for DinD: {_mounts}")
+
+        # Augment DinD program arguments.
+        if dind_params is not None:
+            dind_cmd.extend(dind_params)
 
         self.dind_container = self.host_client.containers.run(
             self.DIND_CONTAINER_IMAGE,
@@ -406,11 +411,33 @@ def show_pull_progress_xterm(pull_stream):
         # print(res)
 
 
+def login_to_registries(client, logins):
+    """Log in to multiple registries
+
+    :param client: A DockerClient object to use on the operations.
+    :param logins: List of logins to perform: each element of the list must
+                   be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
+                   (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
+    """
+
+    for login in logins:
+        login = tuple(login)
+        assert len(login) in [2, 3], "`logins` must be a 2- or 3-tuple"
+        if len(login) == 2:
+            registry = None
+            username, password = login
+        else:
+            registry, username, password = login
+
+        log.info(f"Attempting to log in to registry '{registry or 'default'}' "
+                 f"with username={username}")
+
+        client.login(username, password, registry=registry)
+
+
 def download_containers_by_compose_file(
-        output_dir, compose_file, host_workdir,
-        docker_username, docker_password, registry,
-        platform, output_filename,
-        use_host_docker=False, show_progress=True):
+        output_dir, compose_file, host_workdir, logins, output_filename,
+        platform=None, dind_params=None, use_host_docker=False, show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -418,13 +445,14 @@ def download_containers_by_compose_file(
     :param compose_file: Docker Compose YAML file or path
     :param host_workdir: Working directory location on the Docker Host (the
                             system where dockerd we are accessing is running)
-    :param docker_username: Username to be used to access docker images
-    :param docker_password: Password to be used to access docker images
-    :param registry: Alternative container registry used to images
-    :param platform: Container Platform to fetch (if an image is multi-arch
-                        capable)
+    :param logins: List of logins to perform: each element of the list must
+                   be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
+                   (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
     :param output_filename: Output filename of the processed Docker Compose
                             YAML.
+    :param platform: Container Platform to fetch (if an image is multi-arch
+                        capable)
+    :param dind_params: Parameters to pass to Docker-in-Docker (list).
     :param use_host_docker: Use host docker (instead of Docker in Docker)
                             Note: This only really works if the Host Docker
                             Engine is not used by anything else than this
@@ -468,19 +496,17 @@ def download_containers_by_compose_file(
         manager = DindManager(output_dir, host_workdir)
 
     try:
-        manager.start("host", default_platform=platform)
+        manager.start("host", default_platform=platform, dind_params=dind_params)
 
         dind_client = manager.get_client()
         if dind_client is None:
             return
 
-        # Now we can fetch the containers...
-        if docker_username is not None:
-            if registry is not None:
-                dind_client.login(docker_username, docker_password, registry=registry)
-            else:
-                dind_client.login(docker_username, docker_password)
+        # Login to all registries before trying to fetch anything.
+        if logins:
+            login_to_registries(dind_client, logins)
 
+        # Now we can fetch the containers...
         for service in config.services:
             image_name = service['image']
             log.info(f"Fetching container image {image_name}")

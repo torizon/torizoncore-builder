@@ -314,16 +314,23 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
         try:
             # Download bundle to temporary directory - currently that directory
             # must be relative to the work directory.
+            logins = None
+            if bundle_props.get("registry") and bundle_props.get("username"):
+                logins = [(bundle_props.get("registry"),
+                           bundle_props.get("username"),
+                           bundle_props.get("password", ""))]
+            elif bundle_props.get("username"):
+                logins = [(bundle_props.get("username"),
+                           bundle_props.get("password", ""))]
+
             download_params = {
                 "output_dir": bundle_dir,
                 "compose_file": bundle_props["compose-file"],
                 "host_workdir": common.get_host_workdir()[0],
-                "docker_username": bundle_props.get("username"),
-                "docker_password": bundle_props.get("password", ""),
-                "registry": bundle_props.get("registry"),
                 "use_host_docker": False,
-                "platform": platform,
-                "output_filename": common.DOCKER_BUNDLE_FILENAME
+                "logins": logins,
+                "output_filename": common.DOCKER_BUNDLE_FILENAME,
+                "platform": platform
             }
             download_containers_by_compose_file(**download_params)
 

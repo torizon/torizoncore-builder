@@ -9,31 +9,25 @@ load 'lib/common.bash'
     assert_output --partial 'usage: torizoncore-builder bundle'
 }
 
-@test "bundle: check --host-workdir parameter" {
-    # Test with deprecated parameter.
+@test "bundle: check removed parameters" {
     run torizoncore-builder bundle --host-workdir "$(pwd)"
     assert_failure
     assert_output --partial 'the switch --host-workdir has been removed'
-}
 
-@test "bundle: check --file parameter" {
-    # Test with deprecated parameter.
-    local BUNDLEDIR='bundle'
-    local COMPOSE='docker-compose.yml'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
-    rm -f "$COMPOSE"
-    run torizoncore-builder bundle --file "$(pwd)"
+    run torizoncore-builder bundle --registry "index.docker.io"
     assert_failure
-    assert_output --partial 'the switch --file (-f) has been removed'
+    assert_output --partial \
+        'the switches --docker-username, --docker-password and --registry have been removed'
 
-    # Test with a missing compose file.
-    local BUNDLEDIR='bundle'
-    local COMPOSE='docker-compose.yml'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
-    rm -f "$COMPOSE"
-    run torizoncore-builder bundle "$COMPOSE"
+    run torizoncore-builder bundle --docker-username "USERNAME"
     assert_failure
-    assert_output --partial "Could not load the Docker compose file '$COMPOSE'"
+    assert_output --partial \
+        'the switches --docker-username, --docker-password and --registry have been removed'
+
+    run torizoncore-builder bundle --docker-password "PASSWORD*"
+    assert_failure
+    assert_output --partial \
+        'the switches --docker-username, --docker-password and --registry have been removed'
 }
 
 @test "bundle: check output directory overwriting" {
@@ -67,6 +61,26 @@ load 'lib/common.bash'
     run torizoncore-builder bundle --force "$COMPOSE"
     assert_success
     assert_output --partial "Successfully created Docker Container bundle in \"$BUNDLEDIR\""
+}
+
+@test "bundle: check --file parameter" {
+    # Test with deprecated parameter.
+    local BUNDLEDIR='bundle'
+    local COMPOSE='docker-compose.yml'
+    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -f "$COMPOSE"
+    run torizoncore-builder bundle --file "$(pwd)"
+    assert_failure
+    assert_output --partial 'the switch --file (-f) has been removed'
+
+    # Test with a missing compose file.
+    local BUNDLEDIR='bundle'
+    local COMPOSE='docker-compose.yml'
+    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -f "$COMPOSE"
+    run torizoncore-builder bundle "$COMPOSE"
+    assert_failure
+    assert_output --partial "Could not load the Docker compose file '$COMPOSE'"
 }
 
 @test "bundle: check --platform parameter" {

@@ -17,7 +17,7 @@ log = logging.getLogger("torizon." + __name__)
 
 # pylint: disable=too-many-arguments
 def bundle(bundle_dir, compose_file, force=False, platform=None,
-           reg_username=None, reg_password=None, registry=None):
+           logins=None, dind_params=None):
     """Main handler of the bundle command (CLI layer)
 
     :param bundle_dir: Name of bundle directory (that will be created in the
@@ -27,9 +27,10 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
                   if it already exists.
     :param platform: Default platform to use when fetching multi-platform
                      container images.
-    :param reg_username: Username to access a registry.
-    :param reg_password: Password to access a registry.
-    :param registry: Registry from where images should be fetched from.
+    :param logins: List of logins to perform: each element of the list must
+                   be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
+                   (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
+    :param dind_params: Extra parameters to pass to Docker-in-Docker (list).
     """
 
     if os.path.exists(bundle_dir):
@@ -47,12 +48,10 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
     log.info("Creating Docker Container bundle...")
 
     bundle_be.download_containers_by_compose_file(
-        bundle_dir, compose_file, host_workdir,
-        docker_username=reg_username,
-        docker_password=reg_password,
-        registry=registry,
+        bundle_dir, compose_file, host_workdir, logins,
+        output_filename=common.DOCKER_BUNDLE_FILENAME,
         platform=platform,
-        output_filename=common.DOCKER_BUNDLE_FILENAME)
+        dind_params=dind_params)
 
     log.info(f"Successfully created Docker Container bundle in \"{bundle_dir}\"!")
 
@@ -75,17 +74,29 @@ def do_bundle(args):
             "please provide the file name without passing the switch.")
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
+    if args.username_compat or args.password_compat or args.registry_compat:
+        raise InvalidArgumentError(
+            "Error: the switches --docker-username, --docker-password and --registry "
+            "have been removed; please use either --login or --login-to.")
+
+    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     if not args.compose_file:
         raise InvalidArgumentError(
             "Error: the COMPOSE_FILE positional argument is required.")
+
+    # Build list of logins:
+    logins = []
+    if args.main_login:
+        logins.append(args.main_login)
+    if args.extra_logins:
+        logins.extend(args.extra_logins)
 
     bundle(bundle_dir=args.bundle_directory,
            compose_file=args.compose_file,
            force=args.force,
            platform=args.platform,
-           reg_username=args.docker_username,
-           reg_password=args.docker_password,
-           registry=args.registry)
+           logins=logins,
+           dind_params=args.dind_params)
 
 
 def init_parser(subparsers):
@@ -96,8 +107,10 @@ def init_parser(subparsers):
         "bundle",
         help=("Create container bundle from a Docker Compose file. Can be "
               "used to combine with a TorizonCore base image."),
-        epilog=("NOTE: the switches --host-workdir and --file (-f) have been "
-                "removed; please don't use them."))
+        epilog=(
+            "NOTE: following switches have been removed: --docker-username, "
+            "--docker-password, --registry, --host-workdir and --file (-f); "
+            "please review your command line if using any of them."))
 
     common.add_bundle_directory_argument(subparser)
 
@@ -120,19 +133,32 @@ def init_parser(subparsers):
               "platform images are specified in the compose file (e.g. "
               "linux/arm/v7 or linux/arm64)."))
     subparser.add_argument(
-        "--docker-username", dest="docker_username",
-        help="Optional username to be used to access a container registry.")
+        "--login", nargs=2, dest="main_login",
+        metavar=('USERNAME', 'PASSWORD'),
+        help=("Request that the tool logs in to the default [Docker Hub] "
+              "registry using specified USERNAME and PASSWORD."))
     subparser.add_argument(
-        "--docker-password", dest="docker_password",
-        help="Password to be used to access a container registry.")
+        "--login-to", nargs=3, action="append", dest="extra_logins",
+        metavar=('REGISTRY', 'USERNAME', 'PASSWORD'),
+        help=("Request that the tool logs in to registry REGISTRY using "
+              "specified USERNAME and PASSWORD (can be employed multiple times)."))
     subparser.add_argument(
-        "--registry", dest="registry",
-        help="Alternative container registry used to access container images.")
+        "--dind-param", action="append", dest="dind_params", metavar="DIND_PARAM",
+        help=("Parameter to forward to the Docker-in-Docker container executed by the "
+              "tool (can be employed multiple times). The parameter will be processed "
+              "by the Docker daemon (dockerd) running in the container. Please see "
+              "Docker documentation for more information."))
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-25).
     subparser.add_argument(
         "--host-workdir", dest="host_workdir_compat", help=argparse.SUPPRESS)
     subparser.add_argument(
         "-f", "--file", dest="compose_file_compat", help=argparse.SUPPRESS)
+    subparser.add_argument(
+        "--docker-username", dest="username_compat", help=argparse.SUPPRESS)
+    subparser.add_argument(
+        "--docker-password", dest="password_compat", help=argparse.SUPPRESS)
+    subparser.add_argument(
+        "--registry", dest="registry_compat", help=argparse.SUPPRESS)
 
     subparser.set_defaults(func=do_bundle)
