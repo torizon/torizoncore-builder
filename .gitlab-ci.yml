@@ -95,9 +95,12 @@ integration-tests:
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
     # prepare images
     - mkdir -p workdir/images
-    - 'wget --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_APALIS_IMX6} -O workdir/images/${TEST_IMAGE_APALIS_IMX6}'
-    - 'wget --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_VERDIN_IMX8MM} -O workdir/images/${TEST_IMAGE_VERDIN_IMX8MM}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_APALIS_IMX6} -O workdir/images/${TEST_IMAGE_APALIS_IMX6}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_VERDIN_IMX8MM} -O workdir/images/${TEST_IMAGE_VERDIN_IMX8MM}'
     - touch workdir/images/.images_downloaded
+    # use a paid user to access DockerHub to avoid pull limit problems during the tests
+    # TODO: re-evaluate if this is the best option here
+    - docker login -u $CI_DOCKER_HUB_PULL_USER -p $CI_DOCKER_HUB_PULL_PASSWORD $CI_DOCKER_HUB_IMAGES_REGISTRY
     # run tests with Apalis iMX6 image
     - TCB_REPORT=1 TCB_MACHINE=apalis-imx6 ./run.sh
     # run tests with Verdin iMX8MM image
