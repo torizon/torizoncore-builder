@@ -3,8 +3,8 @@ image: docker:latest
 variables:
   DEBIAN_RELEASE: "bullseye-slim"
   # container version
-  TORIZONCORE_BUILDER_MAJOR: "2"
-  TORIZONCORE_BUILDER_MINOR: "6"
+  TORIZONCORE_BUILDER_MAJOR: "3"
+  TORIZONCORE_BUILDER_MINOR: "0"
   TORIZONCORE_BUILDER_PATCH: "0"
 
   # This should be set by docker image already, just to be sure...

@@ -27,7 +27,7 @@ from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
 #pylint: enable=wrong-import-position
 
-__version_info__ = ('2', '6', '0')
+__version_info__ = ('3', '0', '0')
 __version__ = '.'.join(__version_info__)
 
 parser = argparse.ArgumentParser(
