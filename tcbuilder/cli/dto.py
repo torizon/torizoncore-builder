@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 
-from tcbuilder.backend import dt, dto
+from tcbuilder.backend import dt, dto, common
 
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import dt as dt_cli
@@ -374,8 +374,7 @@ def init_parser(subparsers):
     # dto deploy
     subparser = subparsers.add_parser("deploy", description="Deploy a device tree overlay in the device", help="Deploy a device tree overlay in the device")
     subparser.add_argument("--remote-host", dest="remote_host", help="Name/IP of remote machine", required=True)
-    subparser.add_argument("--remote-username", dest="remote_username", help="User name of remote machine", required=True)
-    subparser.add_argument("--remote-password", dest="remote_password", help="Password of remote machine", required=True)
+    common.add_username_password_arguments(subparser)
     subparser.add_argument("--reboot", dest="reboot", action='store_true', help="Reboot device after deploying device tree overlay(s)", default=False)
     subparser.add_argument("--mdns-source", dest="mdns_source", help="Use the given IP address as mDNS source. This is useful when multiple interfaces are used, and mDNS multicast requests are sent out the wrong network interface.")
     subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during overlay compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'")

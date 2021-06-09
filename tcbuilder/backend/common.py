@@ -84,6 +84,17 @@ def add_common_image_arguments(subparser):
     subparser.add_argument("--image-release-notes", dest="release_notes_file",
                            help="""Release notes file which will be shown on image installation""")
 
+def add_username_password_arguments(subparser):
+    subparser.add_argument("--remote-username",
+                           dest="remote_username",
+                           help="Username of remote machine (default value "
+                                "is torizon)",
+                           default="torizon")
+    subparser.add_argument("--remote-password",
+                           dest="remote_password",
+                           help="Password of remote machine (default value "
+                                "is torizon)",
+                           default="torizon")
 
 def add_files(tezidir, image_json_filename, filelist, additional_size,
               image_name, image_description, licence_file, release_notes_file):

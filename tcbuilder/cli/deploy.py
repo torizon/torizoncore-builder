@@ -1,7 +1,7 @@
 import os
 
 from tcbuilder.backend import deploy as dbe
-from tcbuilder.backend.common import add_common_image_arguments
+from tcbuilder.backend import common
 from tcbuilder.backend import combine as cbe
 from tcbuilder.errors import InvalidArgumentError, InvalidStateError, PathNotExistError
 
@@ -93,11 +93,7 @@ def init_parser(subparsers):
 
     subparser.add_argument("--remote-host", dest="remote_host",
                            help="""Remote host machine to deploy to.""")
-    subparser.add_argument("--remote-username", dest="remote_username",
-                           help="""user name of remote machine""",
-                           default="torizon")
-    subparser.add_argument("--remote-password", dest="remote_password",
-                           help="""password of remote machine""")
+    common.add_username_password_arguments(subparser)
     subparser.add_argument("--mdns-source", dest="mdns_source",
                            help="""Use the given IP address as mDNS source.
                            This is useful when multiple interfaces are used, and
@@ -116,6 +112,6 @@ def init_parser(subparsers):
                            reliably work when using a Docker volume!
                            """,
                            default=DEFAULT_DEPLOY_DIR)
-    add_common_image_arguments(subparser)
+    common.add_common_image_arguments(subparser)
 
     subparser.set_defaults(func=do_deploy)

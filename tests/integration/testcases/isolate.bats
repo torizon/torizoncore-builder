@@ -8,7 +8,7 @@ load 'lib/isolate.bash'
 @test "isolate: run without parameters" {
     run torizoncore-builder isolate
     assert_failure 2
-    assert_output --partial "error: the following arguments are required: --remote-host, --remote-username, --remote-password"
+    assert_output --partial "error: the following arguments are required: --remote-host"
 }
 
 @test "isolate: check help output" {

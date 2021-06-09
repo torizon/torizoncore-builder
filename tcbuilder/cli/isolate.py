@@ -6,7 +6,7 @@ import os
 import logging
 import shutil
 
-from tcbuilder.backend import isolate
+from tcbuilder.backend import isolate, common
 from tcbuilder.errors import OperationFailureError
 
 # use name hierarchy for "main" to be the parent
@@ -88,14 +88,7 @@ def init_parser(subparsers):
                            dest="remote_host",
                            help="name/IP of remote machine",
                            required=True)
-    subparser.add_argument("--remote-username",
-                           dest="remote_username",
-                           help="user name of remote machine",
-                           required=True)
-    subparser.add_argument("--remote-password",
-                           dest="remote_password",
-                           help="password of remote machine",
-                           required=True)
+    common.add_username_password_arguments(subparser)
     subparser.add_argument("--mdns-source",
                            dest="mdns_source",
                            help="Use the given IP address as mDNS source. "

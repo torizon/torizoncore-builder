@@ -5,8 +5,7 @@ CLI handling for images subcommand
 import os
 import shutil
 
-from tcbuilder.backend import images, kernel
-from tcbuilder.backend.common import resolve_remote_host
+from tcbuilder.backend import images, kernel, common
 from tcbuilder.errors import UserAbortError
 
 def prepare_storage(storage_directory, remove_storage):
@@ -52,7 +51,7 @@ def prepare_storage(storage_directory, remove_storage):
 def do_images_download(args):
     """Run 'images download' subcommand"""
 
-    r_ip = resolve_remote_host(args.remote_host, args.mdns_source)
+    r_ip = common.resolve_remote_host(args.remote_host, args.mdns_source)
     dir_list = prepare_storage(args.storage_directory, args.remove_storage)
     images.download_tezi(r_ip, args.remote_username, args.remote_password,
                          dir_list[0], dir_list[1], dir_list[2])
@@ -88,10 +87,7 @@ def init_parser(subparsers):
                                       and unpack it.""")
     subparser.add_argument("--remote-host", dest="remote_host",
                            help="Hostname/IP address to target device.", required=True)
-    subparser.add_argument("--remote-username", dest="remote_username",
-                           help="Username login to target device.", required=True)
-    subparser.add_argument("--remote-password", dest="remote_password",
-                           help="Password login to target device.", required=True)
+    common.add_username_password_arguments(subparser)
     subparser.add_argument("--mdns-source", dest="mdns_source",
                            help="""Use the given IP address as mDNS source.
                            This is useful when multiple interfaces are used, and
