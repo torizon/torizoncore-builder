@@ -71,7 +71,7 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --partial "Deploying successfully finished"
 
-    run device-wait 10
+    run device-wait 20
     assert_success
 
     run device-shell "cat /proc/device-tree/model"
