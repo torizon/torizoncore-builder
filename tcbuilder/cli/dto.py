@@ -1,3 +1,5 @@
+"""CLI handling for dto subcommand."""
+
 import logging
 import os
 import shutil
@@ -26,6 +28,7 @@ log = logging.getLogger("torizon." + __name__)
 # - target: functional output artifact in filesystem
 
 
+# pylint: disable=too-many-locals
 def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
               allow_reapply=False, test_apply=True):
     '''Execute most of the work of 'dto apply' command.
@@ -56,8 +59,8 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
         applied_overlay_basenames.remove(dtob_target_basename)
 
     # Compile the overlay.
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        dtob_tmp_path = f.name
+    with tempfile.NamedTemporaryFile(delete=False) as tmpf:
+        dtob_tmp_path = tmpf.name
     if not dt.build_dts(dtos_path, include_dirs, dtob_tmp_path):
         log.error(f"error: cannot apply {dtos_path}.")
         sys.exit(1)
@@ -76,24 +79,27 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
                 log.error("Please use --device-tree to pass one of the device trees below or use "
                           "--force to bypass checking:")
                 dtb_list = subprocess.check_output(
-                    f"find {os.path.dirname(dtb_path)} -maxdepth 1 -type f -name '*.dtb' -printf '- %f\\n'",
-                    shell=True, text=True).rstrip()
+                    ["find", os.path.dirname(dtb_path), "-maxdepth", "1", "-type", "f",
+                     "-name", "*.dtb", "-printf", "- %f\\n"],
+                    text=True).rstrip()
                 log.error(dtb_list)
                 sys.exit(1)
 
         applied_overlay_paths = \
             dto.get_applied_overlay_paths(storage_dir, base_names=applied_overlay_basenames)
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            dtb_tmp_path = f.name
+        with tempfile.NamedTemporaryFile(delete=False) as tmpf:
+            dtb_tmp_path = tmpf.name
         if not dto.modify_dtb_by_overlays(dtb_path,
                                           applied_overlay_paths + [dtob_tmp_path], dtb_tmp_path):
             log.error(f"error: overlay '{dtos_path}' is not applicable.")
             sys.exit(1)
-        log.info(f"'{dtob_target_basename}' can successfully modify the device tree '{os.path.basename(dtb_path)}'.")
+        log.info(f"'{dtob_target_basename}' can successfully modify the device "
+                 f"tree '{os.path.basename(dtb_path)}'.")
 
     # Deploy the device tree overlay blob.
     dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
-    dtob_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays")
+    dtob_target_dir = os.path.join(
+        dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays")
     os.makedirs(dtob_target_dir, exist_ok=True)
     dtob_target_path = os.path.join(dtob_target_dir, dtob_target_basename)
     shutil.move(dtob_tmp_path, dtob_target_path)
@@ -102,11 +108,13 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
     new_overlay_basenames = applied_overlay_basenames + [dtob_target_basename]
     overlays_txt_target_path = \
         os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays.txt")
-    with open(overlays_txt_target_path, "w") as f:
-        f.write("fdt_overlays=" + " ".join(new_overlay_basenames) + "\n")
+    with open(overlays_txt_target_path, "w") as ovlf:
+        ovlf.write("fdt_overlays=" + " ".join(new_overlay_basenames) + "\n")
 
     # All set :-)
     log.info(f"Overlay {dtob_target_basename} successfully applied.")
+
+# pylint: enable=too-many-locals
 
 
 def do_dto_apply(args):
@@ -134,12 +142,15 @@ def do_dto_list(args):
     # Sanity check for overlay sources to scan.
     overlays_subdir = "device-trees/overlays"
     if not os.path.isdir(overlays_subdir):
-        log.error(f"error: missing device tree overlays directory '{overlays_subdir}' -- see dt checkout")
+        log.error("error: missing device tree overlays directory "
+                  f"'{overlays_subdir}' -- see dt checkout")
         sys.exit(1)
 
     # Sanity check for --device-tree
-    if args.device_tree and not (args.device_tree.endswith(".dtb") or args.device_tree.endswith(".dts")):
-        log.error("Please pass either a device tree source file or device tree binary to --device-tree.")
+    if args.device_tree and not (args.device_tree.endswith(".dtb") or
+                                 args.device_tree.endswith(".dts")):
+        log.error("Please pass either a device tree source file or device "
+                  "tree binary to --device-tree.")
         sys.exit(1)
 
     # Find a device tree to check overlay compatibility against.
@@ -155,65 +166,84 @@ def do_dto_list(args):
     if not is_dtb_exact and not args.device_tree:
         log.error("Could not determine default device tree.")
         dtb_list = subprocess.check_output(
-            f"find {os.path.dirname(dtb_path)} -maxdepth 1 -type f -name '*.dtb' -printf '- %f\\n'",
-            shell=True, text=True).rstrip()
+            ["find", os.path.dirname(dtb_path), "-maxdepth", "1", "-type", "f",
+             "-name", "*.dtb", "-printf", "- %f\\n"],
+            text=True).rstrip()
         if dtb_list.count('\n') > 0:
-            log.error("Please use --device-tree to pass one of the device trees below as the assumed default:")
+            log.error("Please use --device-tree to pass one of the device "
+                      "trees below as the assumed default:")
             log.error(dtb_list)
             sys.exit(1)
         else:
             log.info("Proceeding with the following device tree as the assumed default:")
             log.info(dtb_list)
     if args.device_tree and args.device_tree.endswith(".dtb"):
-        dtb_path = os.path.join(os.path.dirname(dtb_path), args.device_tree) 
+        dtb_path = os.path.join(os.path.dirname(dtb_path), args.device_tree)
 
     # Extract compatibility labels from the device tree blob,
-    # and use them for building regexp patterns for matching with compatible device tree source files.
+    # and use them for building regexp patterns for matching with compatible
+    # device tree source files.
     #
     # Samples of such patterns:
     # ^[[:blank:]]*compatible *= *"toradex,colibri-imx8x-aster"
     # ^[[:blank:]]*compatible *= *"toradex,colibri-imx8x"
     # ^[[:blank:]]*compatible *= *"fsl,imx8qxp"
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        compat_regexps_tmp_path = f.name
+    with tempfile.NamedTemporaryFile(delete=False) as tmpf:
+        compat_regexps_tmp_path = tmpf.name
     if args.device_tree and args.device_tree.endswith(".dts"):
         # The user passed a device tree source file to check compatibility against;
         # parse the textual content of the file.
         try:
             # About the 'sed' invocations below:
-            # 1. The first 'sed' scans the device tree source file and extracts the first block from "compatible =" to the semi-colon.
-            # 2. The second sed filters out the "source noise" of the compatibility values;
-            # 3. The final 'sed' prepends '^[[:blank:]]*compatible *= *' to the compatibility values.
-            subprocess.check_output("set -o pipefail && "
-                f"sed -r -e '/^[[:blank:]]*compatible *=/,/;/!d' -e '/;/q' {dtb_path} | tr -d '\n' | "
-                "sed -r -e 's/.*\\<compatible *= *//' -e 's/[[:blank:]]*//g' -e 's/\";.*/\"\\n/' -e 's/\",\"/\"\\n\"/g'"
-                f">{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            log.error(e.output.strip())
-            log.error(f"error: cannot extract compatibility labels from device tree source '{dtb_path}'")
+            # 1. The first 'sed' scans the device tree source file and extracts
+            #    the first block from "compatible =" to the semicolon.
+            # 2. The second sed filters out the "source noise" of the
+            #    compatibility values;
+            # 3. The final 'sed' prepends '^[[:blank:]]*compatible *= *'
+            #    to the compatibility values.
+            subprocess.check_output(
+                "set -o pipefail && "
+                "sed -r -e '/^[[:blank:]]*compatible *=/,/;/!d' "
+                f"-e '/;/q' {dtb_path} | tr -d '\n' | "
+                "sed -r -e 's/.*\\<compatible *= *//' "
+                "-e 's/[[:blank:]]*//g' -e 's/\";.*/\"\\n/' -e 's/\",\"/\"\\n\"/g'"
+                f">{compat_regexps_tmp_path}",
+                shell=True, text=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as exc:
+            log.error(exc.output.strip())
+            log.error("error: cannot extract compatibility labels from device "
+                      f"tree source '{dtb_path}'")
             sys.exit(1)
     else:
         # The device tree is a blob file from the image.
         try:
             # About the 'sed' programs below:
             #  -e 's/$/\"/' appends '"' to each line
-            subprocess.check_output(f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' | sed -e 's/$/\"/' >{compat_regexps_tmp_path}", shell=True, text=True, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            log.error(e.output.strip())
-            if "FDT_ERR_BADMAGIC" in e.output:
+            subprocess.check_output(
+                f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' "
+                f"| sed -e 's/$/\"/' >{compat_regexps_tmp_path}",
+                shell=True, text=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as exc:
+            log.error(exc.output.strip())
+            if "FDT_ERR_BADMAGIC" in exc.output:
                 log.error(f"error: bad file format -- is '{dtb_path}' a device tree blob?")
             else:
-                log.error(f"error: cannot extract compatibility labels from device tree blob '{dtb_path}'")
+                log.error("error: cannot extract compatibility labels from "
+                          f"device tree blob '{dtb_path}'")
             sys.exit(1)
 
     # Show all device tree overlay source files that are compatible with the device tree blob.
-    # Given the regexp patterns mentioned above, 'grep' can easily scan for all compatible files under a given subdirectory.
+    # Given the regexp patterns mentioned above, 'grep' can easily scan for all compatible
+    # files under a given subdirectory.
     try:
-        compat_list = subprocess.check_output(f"set -o pipefail && grep -rlHEf {compat_regexps_tmp_path} {overlays_subdir} | sort -u | sed -e 's/^/- /'", shell=True, text=True).strip()
+        compat_list = subprocess.check_output(
+            f"set -o pipefail && grep -rlHEf {compat_regexps_tmp_path} {overlays_subdir} "
+            "| sort -u | sed -e 's/^/- /'", shell=True, text=True).strip()
         log.info(f"Overlays compatible with device tree {os.path.basename(dtb_path)}:")
         log.info(f"{compat_list}")
     except: # pylint: disable=W0702
-        log.info(f"No overlays compatible with device tree {os.path.basename(dtb_path)} were found.")
+        log.info("No overlays compatible with device tree "
+                 f"{os.path.basename(dtb_path)} were found.")
 
 
 def do_dto_status(args):
@@ -252,8 +282,8 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
     overlays_txt_target_path = \
         os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays.txt")
     os.makedirs(os.path.dirname(overlays_txt_target_path), exist_ok=True)
-    with open(overlays_txt_target_path, "w") as f:
-        f.write("fdt_overlays=" + " ".join(dtob_basenames) + "\n")
+    with open(overlays_txt_target_path, "w") as ovlf:
+        ovlf.write("fdt_overlays=" + " ".join(dtob_basenames) + "\n")
 
     # Remove the overlay blob if it's not deployed.
     dtob_path = dto.find_path_to_overlay(storage_dir, dtob_basename)
@@ -345,41 +375,109 @@ def do_dto_deploy(args):
 def init_parser(subparsers):
     '''Initializes the 'dto' subcommands command line interface.'''
 
-    parser = subparsers.add_parser("dto", description="Manage device tree overlays", help="Manage device tree overlays")
+    parser = subparsers.add_parser(
+        "dto",
+        description="Manage device tree overlays",
+        help="Manage device tree overlays")
+
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # dto apply
-    subparser = subparsers.add_parser("apply", description="Apply a device tree overlay", help="Apply a device tree overlay")
-    subparser.add_argument(metavar="OVERLAY", dest="dtos_path", help="Path to the device tree overlay source file")
-    subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during overlay compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'")
-    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Test the overlay against an specific device tree.")
-    subparser.add_argument("--force", action="store_true", help="Apply the overlay even on failure checking it against a device tree.")
+    subparser = subparsers.add_parser(
+        "apply",
+        description="Apply a device tree overlay",
+        help="Apply a device tree overlay")
+    subparser.add_argument(
+        metavar="OVERLAY", dest="dtos_path",
+        help="Path to the device tree overlay source file")
+    subparser.add_argument(
+        "--include-dir",
+        metavar="DIR", dest="include_dirs", action='append',
+        help=("Search directory for include files during overlay compilation. "
+              "Can be passed multiple times. If absent, defaults to 'device-trees/include'"))
+    subparser.add_argument(
+        "--device-tree",
+        metavar="FILE", dest="device_tree",
+        help="Test the overlay against an specific device tree.")
+    subparser.add_argument(
+        "--force",
+        action="store_true",
+        help="Apply the overlay even on failure checking it against a device tree.")
     subparser.set_defaults(func=do_dto_apply)
 
     # dto list
-    subparser = subparsers.add_parser("list", description="List the device tree overlays compatible with the current device tree", help="List the device tree overlays compatible with the current device tree")
-    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Check for overlay compatibility against this device tree source or binary file instead.")
+    subparser = subparsers.add_parser(
+        "list",
+        description="List the device tree overlays compatible with the current device tree",
+        help="List the device tree overlays compatible with the current device tree")
+    subparser.add_argument(
+        "--device-tree",
+        metavar="FILE", dest="device_tree",
+        help=("Check for overlay compatibility against this device tree source or binary "
+              "file instead."))
     subparser.set_defaults(func=do_dto_list)
 
     # dto status
-    subparser = subparsers.add_parser("status", description="List the applied device tree overlays", help="List the applied device tree overlays")
+    subparser = subparsers.add_parser(
+        "status",
+        description="List the applied device tree overlays",
+        help="List the applied device tree overlays")
     subparser.set_defaults(func=do_dto_status)
 
     # dto remove
-    subparser = subparsers.add_parser("remove", description="Remove a device tree overlay", help="Remove a device tree overlay")
-    subparser.add_argument(metavar="OVERLAY", dest="dtob_basename", nargs='?', help="Name of the device tree overlay")
-    subparser.add_argument("--all", action="store_true", help="Remove all device tree overlays")
+    subparser = subparsers.add_parser(
+        "remove",
+        description="Remove a device tree overlay",
+        help="Remove a device tree overlay")
+    subparser.add_argument(
+        metavar="OVERLAY", dest="dtob_basename", nargs='?',
+        help="Name of the device tree overlay")
+    subparser.add_argument(
+        "--all",
+        action="store_true",
+        help="Remove all device tree overlays")
     subparser.set_defaults(func=do_dto_remove)
 
     # dto deploy
-    subparser = subparsers.add_parser("deploy", description="Deploy a device tree overlay in the device", help="Deploy a device tree overlay in the device")
-    subparser.add_argument("--remote-host", dest="remote_host", help="Name/IP of remote machine", required=True)
+    subparser = subparsers.add_parser(
+        "deploy",
+        description="Deploy a device tree overlay in the device",
+        help="Deploy a device tree overlay in the device")
+    subparser.add_argument(
+        "--remote-host",
+        dest="remote_host",
+        help="Name/IP of remote machine", required=True)
     common.add_username_password_arguments(subparser)
-    subparser.add_argument("--reboot", dest="reboot", action='store_true', help="Reboot device after deploying device tree overlay(s)", default=False)
-    subparser.add_argument("--mdns-source", dest="mdns_source", help="Use the given IP address as mDNS source. This is useful when multiple interfaces are used, and mDNS multicast requests are sent out the wrong network interface.")
-    subparser.add_argument("--include-dir", metavar="DIR", dest="include_dirs", action='append', help="Search directory for include files during overlay compilation. Can be passed multiple times. If absent, defaults to 'device-trees/include'")
-    subparser.add_argument("--force", action="store_true", help="Apply the overlay even on failure checking it against a device tree.")
-    subparser.add_argument("--device-tree", metavar="FILE", dest="device_tree", help="Test the overlay against an specific device tree.")
-    subparser.add_argument("--clear", dest="clear", action="store_true", help="Remove all currently applied device tree overlays.", default=False)
-    subparser.add_argument(metavar="OVERLAY", dest="dtos_paths", help="Path to the device tree overlay source file(s)", nargs='+')
+    subparser.add_argument(
+        "--reboot",
+        dest="reboot", action='store_true',
+        help="Reboot device after deploying device tree overlay(s)",
+        default=False)
+    subparser.add_argument(
+        "--mdns-source",
+        dest="mdns_source",
+        help=("Use the given IP address as mDNS source. This is useful when "
+              "multiple interfaces are used, and mDNS multicast requests are "
+              "sent out the wrong network interface."))
+    subparser.add_argument(
+        "--include-dir",
+        metavar="DIR", dest="include_dirs", action='append',
+        help=("Search directory for include files during overlay compilation. "
+              "Can be passed multiple times. If absent, defaults to "
+              "'device-trees/include'"))
+    subparser.add_argument(
+        "--force",
+        action="store_true",
+        help="Apply the overlay even on failure checking it against a device tree.")
+    subparser.add_argument(
+        "--device-tree",
+        metavar="FILE", dest="device_tree",
+        help="Test the overlay against an specific device tree.")
+    subparser.add_argument(
+        "--clear",
+        dest="clear", action="store_true",
+        help="Remove all currently applied device tree overlays.", default=False)
+    subparser.add_argument(
+        metavar="OVERLAY", dest="dtos_paths",
+        help="Path to the device tree overlay source file(s)", nargs='+')
     subparser.set_defaults(func=do_dto_deploy)
