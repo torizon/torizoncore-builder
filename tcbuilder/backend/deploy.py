@@ -5,16 +5,18 @@ import shutil
 import subprocess
 import threading
 
+import paramiko
+
+# pylint: disable=wrong-import-position
 import gi
 gi.require_version("OSTree", "1.0")
 from gi.repository import Gio, OSTree
-
-import paramiko
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import get_rootfs_tarball, resolve_remote_host
 from tcbuilder.backend.rforward import reverse_forward_tunnel
 from tcbuilder.errors import TorizonCoreBuilderError
+# pylint: enable=wrong-import-position
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -70,7 +72,8 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
     file.close()
 
     log.debug(f"Write deployment for revision {revision}")
-    if not sysroot.simple_write_deployment(OSNAME, deployment, None,
+    if not sysroot.simple_write_deployment(
+            OSNAME, deployment, None,
             OSTree.SysrootSimpleWriteDeploymentFlags.NO_CLEAN):
         raise TorizonCoreBuilderError("Error writing deployment.")
 
@@ -92,15 +95,18 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     elif tarfile.endswith(".zst"):
         compression = "--zstd"
 
+    # pylint: disable=line-too-long
     # This is a OSTree bare repository. Care must been taken to preserve all
     # file system attributes. Python tar does not support xattrs, so use GNU tar
-    # here
+    # here.
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     tarcmd = "tar --xattrs --xattrs-include='*' -cf {0} {1} -S -C {2} -p .".format(
-                tarfile, compression, dst_sysroot_dir)
+        tarfile, compression, dst_sysroot_dir)
     log.debug(f"Running tar command: {tarcmd}")
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT,
-                            env={ "XZ_OPT": "-1" })
+                            env={"XZ_OPT": "-1"})
+    # pylint: enable=line-too-long
+
 
 def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
     # Call get_path twice to receive the local path instead of an
@@ -109,7 +115,8 @@ def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
     dst_path = dst_sysroot.get_path().get_path()
     var_path = os.path.join("ostree/deploy", OSNAME, "var")
     copy_list = [
-        {"src": os.path.join(src_path, var_path, "rootdirs"), "dst": os.path.join(dst_path, var_path)},
+        {"src": os.path.join(src_path, var_path, "rootdirs"),
+         "dst": os.path.join(dst_path, var_path)},
         {"src": os.path.join(src_path, "boot.scr"), "dst": dst_path}
     ]
 
@@ -118,6 +125,7 @@ def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
         if subprocess.Popen(['cp', '-a', '-t', copy_file['dst'], copy_file['src']]).wait():
             raise TorizonCoreBuilderError("Cannot deploy home directories.")
 
+# pylint: disable=too-many-locals
 def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                       output_dir, dst_sysroot_dir, ref=None):
     """Deploys a Toradex Easy Installer image with given OSTree reference
@@ -171,6 +179,8 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     copy_tezi_image(tezi_dir, output_dir)
     pack_rootfs_for_tezi(dst_sysroot_dir, output_dir)
     log.info("Packing rootfs done.")
+# pylint: enable=too-many-locals
+
 
 def run_command_with_sudo(client, command, password):
     stdin, stdout, stderr = client.exec_command("sudo -S -- " + command)
@@ -187,11 +197,12 @@ def run_command_with_sudo(client, command, password):
         if len(stderr_str) > 0:
             log.error(stderr_str)
         raise TorizonCoreBuilderError(f"Failed to run command on module: {command}")
-    else:
-        if len(stdout_str) > 0:
-            log.debug(stdout_str)
-        if len(stderr_str) > 0:
-            log.debug(stderr_str)
+
+    if len(stdout_str) > 0:
+        log.debug(stdout_str)
+    if len(stderr_str) > 0:
+        log.debug(stderr_str)
+
 
 def deploy_ostree_remote(remote_host, remote_username, remote_password,
                          remote_mdns, src_ostree_archive_dir, ref, reboot=False):
