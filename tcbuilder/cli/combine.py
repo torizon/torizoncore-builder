@@ -10,7 +10,8 @@ import argparse
 
 from tcbuilder.backend.common import (add_common_image_arguments,
                                       add_bundle_directory_argument,
-                                      check_valid_tezi_image)
+                                      check_valid_tezi_image,
+                                      set_output_ownership)
 
 from tcbuilder.backend import combine
 from tcbuilder.errors import (PathNotExistError,
@@ -61,6 +62,7 @@ def do_combine(args):
     combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
                           args.image_description, args.licence_file,
                           args.release_notes_file)
+    set_output_ownership(output_dir)
     log.info("Successfully created a TorizonCore image with Docker Containers"
              f" preprovisioned in {args.output_directory}")
 

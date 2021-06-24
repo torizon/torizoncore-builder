@@ -1,6 +1,7 @@
 load 'bats/bats-support/load.bash'
 load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
+load 'lib/common.bash'
 
 @test "images download: run without parameters" {
     run torizoncore-builder images download
@@ -17,11 +18,16 @@ load 'bats/bats-file/load.bash'
     requires-device
     torizoncore-builder-clean-storage
 
-    run torizoncore-builder images download --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS
+    run torizoncore-builder images download --remote-host $DEVICE_ADDR \
+                                            --remote-username $DEVICE_USER \
+                                            --remote-password $DEVICE_PASS
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
 
     run torizoncore-builder-shell "ls /storage/"
     assert_success
     assert_output --regexp "ostree-archive.*sysroot.*tezi"
+
+    IMAGE=$(ls torizon-core*.tar)
+    check-file-ownership-as-workdir "$IMAGE"
 }

@@ -16,6 +16,7 @@ load 'lib/common.bash'
     run torizoncore-builder build --create-template
     assert_success
     assert_output --partial "Creating template file '$FNAME'"
+    check-file-ownership-as-workdir "$FNAME"
     rm -f "$FNAME"
 
     # Test with custom file name:
@@ -24,6 +25,7 @@ load 'lib/common.bash'
     run torizoncore-builder build --create-template --file "$FNAME"
     assert_success
     assert_output --partial "Creating template file '$FNAME'"
+    check-file-ownership-as-workdir $FNAME
     rm -f "$FNAME"
 
     # Test sending template to stdout:

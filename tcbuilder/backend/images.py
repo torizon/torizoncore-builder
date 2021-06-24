@@ -11,18 +11,25 @@ import urllib.request
 from zipfile import ZipFile
 import paramiko
 
-from tcbuilder.backend.common import get_rootfs_tarball, get_unpack_command
+from tcbuilder.backend.common import (get_rootfs_tarball, get_unpack_command,
+                                      set_output_ownership)
 from tcbuilder.backend import ostree
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
 
-# pylint: disable=too-many-locals
-def download_tezi(r_host, r_username, r_password,
-                  tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
+def get_device_info(r_host, r_username, r_password):
     """
-    Download appropriate Tezi Image based on target device.
+    Access a "live" TorizonCore device and get some information about it.
+
+    :param r_host: TorizonCore hostname.
+    :param r_username: TorizonCore remote username.
+    :param r_password: TorizonCore remote password.
+    :returns:
+        version: TorizonCore version.
+        hostname: TorizonCore hostname
+        container: Container runtime engine.
     """
 
     client = paramiko.SSHClient()
@@ -52,6 +59,20 @@ def download_tezi(r_host, r_username, r_password,
         raise TorizonCoreBuilderError("Unable to create SSH connection")
 
     client.close()
+
+    return version, hostname, container
+
+
+# pylint: disable=too-many-locals
+def download_tezi(r_host, r_username, r_password,
+                  tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
+    """
+    Download appropriate Tezi Image based on target device.
+    """
+
+    version, hostname, container = get_device_info(r_host,
+                                                   r_username,
+                                                   r_password)
 
     # Create correct artifactory link based on device information
     if "devel" in version:
@@ -101,12 +122,14 @@ def download_tezi(r_host, r_username, r_password,
     log.info(f"Downloading image from: {url}\n")
     log.info("The download may take some time. Please wait...")
     download_file = os.path.basename(url)
+    download_file_cwd = os.path.abspath(download_file)
     try:
-        urllib.request.urlretrieve(url, os.getcwd() + "/" + download_file)
+        urllib.request.urlretrieve(url, download_file_cwd)
         log.info("Download Complete!\n")
     except:
         raise TorizonCoreBuilderError("The requested image could not be found "
                                       "in the Toradex Artifactory.")
+    set_output_ownership(download_file_cwd)
     import_local_image(download_file, tezi_dir,
                        src_sysroot_dir, src_ostree_archive_dir)
 # pylint: enable=too-many-locals

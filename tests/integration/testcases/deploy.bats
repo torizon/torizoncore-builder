@@ -1,6 +1,7 @@
 load 'bats/bats-support/load.bash'
 load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
+load 'lib/common.bash'
 
 @test "deploy: run without parameters" {
     run torizoncore-builder deploy
@@ -16,7 +17,7 @@ load 'bats/bats-file/load.bash'
 
 @test "deploy: deploy changes to Tezi image" {
     local ROOTFS=temp_rootfs
-    torizoncore-builder-shell "rm -Rf /workdir/my_new_image"
+    rm -rf my_new_image
     rm -rf $ROOTFS
 
     torizoncore-builder-clean-storage
@@ -32,7 +33,11 @@ load 'bats/bats-file/load.bash'
     run cat ostree/deploy/torizon/deploy/*/etc/myconfig.txt
     assert_success
     assert_output --partial "enabled=1"
-    cd .. && rm -rf $ROOTFS
+
+    check-file-ownership-as-workdir ../my_new_image
+    check-file-ownership-as-workdir ../my_new_image/*.ota.tar.zst
+
+    cd .. && rm -rf $ROOTFS my_new_image
 }
 
 @test "deploy: deploy changes to device" {
@@ -42,7 +47,10 @@ load 'bats/bats-file/load.bash'
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     torizoncore-builder union --changes-directory $SAMPLES_DIR/changes2 branch1
 
-    run torizoncore-builder deploy --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS --reboot branch1
+    run torizoncore-builder deploy --remote-host $DEVICE_ADDR \
+                                   --remote-username $DEVICE_USER \
+                                   --remote-password $DEVICE_PASS \
+                                   --reboot branch1
     assert_success
     assert_output --partial "Deploying successfully finished"
 

@@ -60,6 +60,8 @@ def isolate_subcommand(args):
     if ret == isolate.NO_CHANGES:
         log.info("There are no changes in /etc to be isolated.")
     else:
+        if args.changes_dir:
+            common.set_output_ownership(changes_dir)
         log.info("Changes in /etc successfully isolated.")
 
 

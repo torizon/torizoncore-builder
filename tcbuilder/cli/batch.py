@@ -99,6 +99,7 @@ def do_batch(args):
                         f"""Executing post image generation script was unsuccessful.
                         Exit code {cp_process.returncode}.""")
 
+    common.set_output_ownership(image_dir)
     logging.info("Finished")
 
 

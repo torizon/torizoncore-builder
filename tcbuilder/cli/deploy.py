@@ -1,3 +1,7 @@
+"""
+CLI handling for deploy subcommand
+"""
+
 import os
 
 from tcbuilder.backend import deploy as dbe
@@ -53,6 +57,8 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
                           image_description=image_description,
                           licence_file=licence_file,
                           release_notes_file=release_notes_file)
+
+    common.set_output_ownership(output_dir_)
 
 
 def do_deploy_tezi_image(args):

@@ -12,7 +12,8 @@ import traceback
 import re
 
 from tcbuilder.backend import dt
-from tcbuilder.backend.common import checkout_git_repo
+from tcbuilder.backend.common import (checkout_git_repo,
+                                      set_output_ownership)
 from tcbuilder.errors import (
     TorizonCoreBuilderError, InvalidArgumentError)
 
@@ -41,6 +42,7 @@ def do_dt_checkout(args):
         return
     try:
         checkout_git_repo(storage_dir, None, None)
+        set_output_ownership("device-trees")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
         if ex.det is not None:

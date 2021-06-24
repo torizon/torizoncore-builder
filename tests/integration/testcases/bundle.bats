@@ -37,14 +37,14 @@ load 'lib/common.bash'
 
     # Test with an existing output directory and default name.
     local BUNDLEDIR='bundle'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR && mkdir $BUNDLEDIR"
+    rm -fr $BUNDLEDIR && mkdir $BUNDLEDIR
     run torizoncore-builder bundle "$COMPOSE"
     assert_failure
     assert_output --partial "Bundle directory '$BUNDLEDIR' already exists"
 
     # Test with an existing output directory and non-default name.
     local BUNDLEDIR='bundle-non-default'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR && mkdir $BUNDLEDIR"
+    rm -fr $BUNDLEDIR && mkdir $BUNDLEDIR
     run torizoncore-builder bundle --bundle-directory "$BUNDLEDIR" "$COMPOSE"
     assert_failure
     assert_output --partial "Bundle directory '$BUNDLEDIR' already exists"
@@ -52,7 +52,7 @@ load 'lib/common.bash'
 
     # Test with an non-existing bundle directory.
     local BUNDLEDIR='bundle'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -fr $BUNDLEDIR
     run torizoncore-builder bundle "$COMPOSE"
     assert_success
     assert_output --partial "Successfully created Docker Container bundle in \"$BUNDLEDIR\""
@@ -61,13 +61,14 @@ load 'lib/common.bash'
     run torizoncore-builder bundle --force "$COMPOSE"
     assert_success
     assert_output --partial "Successfully created Docker Container bundle in \"$BUNDLEDIR\""
+    rm -fr $BUNDLEDIR
 }
 
 @test "bundle: check --file parameter" {
     # Test with deprecated parameter.
     local BUNDLEDIR='bundle'
     local COMPOSE='docker-compose.yml'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -fr "$BUNDLEDIR"
     rm -f "$COMPOSE"
     run torizoncore-builder bundle --file "$(pwd)"
     assert_failure
@@ -76,7 +77,7 @@ load 'lib/common.bash'
     # Test with a missing compose file.
     local BUNDLEDIR='bundle'
     local COMPOSE='docker-compose.yml'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -fr "$BUNDLEDIR"
     rm -f "$COMPOSE"
     run torizoncore-builder bundle "$COMPOSE"
     assert_failure
@@ -91,7 +92,7 @@ load 'lib/common.bash'
     # Test with platform employed on 32-bit architectures.
     local BUNDLEDIR='bundle'
     local PLATFORM='linux/arm/v7'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -fr "$BUNDLEDIR"
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE"
     assert_success
     assert_output --partial "Default platform: $PLATFORM"
@@ -99,7 +100,7 @@ load 'lib/common.bash'
     # Test with platform employed on 64-bit architectures.
     local BUNDLEDIR='bundle'
     local PLATFORM='linux/arm64'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -fr "$BUNDLEDIR"
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE"
     assert_success
     assert_output --partial "Default platform: $PLATFORM"
@@ -107,7 +108,7 @@ load 'lib/common.bash'
     # Test with an unexisting platform.
     local BUNDLEDIR='bundle'
     local PLATFORM='dummy-platform'
-    torizoncore-builder-shell "rm -fr $BUNDLEDIR"
+    rm -fr "$BUNDLEDIR"
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE"
     assert_failure
     assert_output --partial "container images download failed"
@@ -117,7 +118,7 @@ load 'lib/common.bash'
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    rm -rf bundle
     run torizoncore-builder bundle $COMPOSE
     assert_success
     run ls -l bundle/$COMPOSE
@@ -125,14 +126,14 @@ load 'lib/common.bash'
     run ls -l bundle/docker-storage.tar.xz
     assert_success
 
-    torizoncore-builder-shell "rm -f $COMPOSE"
-    torizoncore-builder-shell "rm -rf /workdir/bundle"
+    rm -f "$COMPOSE"
+    rm -rf bundle
 }
 
 @test "bundle: check with --bundle-directory parameter" {
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
-    local BUNDLE_DIR="custom-bundle-dir"
+    local BUNDLE_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
     run torizoncore-builder bundle --bundle-directory $BUNDLE_DIR $COMPOSE
     assert_success
@@ -141,6 +142,9 @@ load 'lib/common.bash'
     run ls -l $BUNDLE_DIR/docker-storage.tar.xz
     assert_success
 
-    torizoncore-builder-shell "rm -f $COMPOSE"
-    torizoncore-builder-shell "rm -rf /workdir/$BUNDLE_DIR"
+    check-file-ownership-as-workdir "$BUNDLE_DIR"
+    check-file-ownership-as-workdir "$BUNDLE_DIR/docker-storage.tar.xz"
+
+    rm -f "$COMPOSE"
+    rm -rf "$BUNDLE_DIR"
 }

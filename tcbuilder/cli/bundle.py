@@ -98,6 +98,8 @@ def do_bundle(args):
            logins=logins,
            dind_params=args.dind_params)
 
+    common.set_output_ownership(args.bundle_directory)
+
 
 def init_parser(subparsers):
     """Initialize argument parser"""

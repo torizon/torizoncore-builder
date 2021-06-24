@@ -62,6 +62,7 @@ def create_template(config_fname, force=False):
 
     log.info(f"Creating template file '{config_fname}'")
     shutil.copy(src_file, config_fname)
+    common.set_output_ownership(config_fname)
 
 
 def handle_input_section(props, **kwargs):

@@ -111,7 +111,7 @@ load 'lib/union.bash'
     create-files-in-device
 
     local ISOLATE_DIR="isolate_dir"
-    torizoncore-builder-shell "rm -rf /workdir/$ISOLATE_DIR"
+    rm -rf $ISOLATE_DIR
     mkdir -p $ISOLATE_DIR
 
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \

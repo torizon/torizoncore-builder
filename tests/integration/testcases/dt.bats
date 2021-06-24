@@ -1,6 +1,7 @@
 load 'bats/bats-support/load.bash'
 load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
+load 'lib/common.bash'
 
 @test "dt: run without parameters" {
     run torizoncore-builder dt
@@ -16,7 +17,7 @@ load 'bats/bats-file/load.bash'
 
 @test "dt: checkout device tree overlays directory" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    torizoncore-builder-shell "rm -rf /workdir/device-trees"
+    rm -rf device-trees
 
     run torizoncore-builder dt checkout
     assert_success
@@ -24,6 +25,14 @@ load 'bats/bats-file/load.bash'
 
     run ls device-trees/overlays/*.dts
     assert_success
+
+    check-file-ownership-as-workdir "device-trees"
+    check-file-ownership-as-workdir "device-trees/overlays"
+
+    for FILE_DTS in device-trees/overlays/*.dts
+    do
+        check-file-ownership-as-workdir $FILE_DTS
+    done
 }
 
 @test "dt: check currently enabled device tree" {

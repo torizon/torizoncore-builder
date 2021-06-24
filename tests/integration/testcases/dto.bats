@@ -16,7 +16,7 @@ load 'bats/bats-file/load.bash'
 
 @test "dto: list compatible overlays" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    torizoncore-builder-shell "rm -rf /workdir/device-trees"
+    rm -rf device-trees
     torizoncore-builder dt checkout
 
     run torizoncore-builder dto list

@@ -37,6 +37,11 @@ load 'lib/isolate.bash'
     run ls -ld $ISOLATE_DIR
     assert_success
     assert_output --partial $ISOLATE_DIR
+
+    check-file-ownership-as-workdir $ISOLATE_DIR
+    check-file-ownership-as-workdir $ISOLATE_DIR/$FILE
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: remove the output directory when it exists and both, --changes-directory and --force are used" {
@@ -59,6 +64,8 @@ load 'lib/isolate.bash'
 
     run ls -ld $ISOLATE_DIR/file1
     assert_failure
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: don't remove the output directory if it exists, --changes-directory is used and --force was not passed" {
@@ -77,8 +84,10 @@ load 'lib/isolate.bash'
                                     --remote-password $DEVICE_PASS
     assert_failure
     assert_output --partial "There is already a directory with isolated changes. If you want to replace it, please use --force."
-    run torizoncore-builder-shell "ls -l $ISOLATE_DIR/file1"
+    run ls -l $ISOLATE_DIR/file1
     assert_success
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: don't remove the output directory if 'storage' is being used and --force was not passed" {
@@ -101,6 +110,8 @@ load 'lib/isolate.bash'
     assert_output --partial "There is already a directory with isolated changes. If you want to replace it, please use --force."
     run torizoncore-builder-shell "ls -l $STORAGE_DIR/file1"
     assert_success
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: remove the output directory if 'storage' is being used and --force was passed" {
@@ -124,14 +135,15 @@ load 'lib/isolate.bash'
     assert_output --partial "Changes in /etc successfully isolated."
     run torizoncore-builder-shell "ls -l $STORAGE_DIR/file1"
     assert_failure
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: isolate changes using workdir" {
     requires-device
 
-    local ISOLATE_DIR="isolate_dir"
-    torizoncore-builder-shell "rm -rf /workdir/$ISOLATE_DIR"
-    mkdir -p $ISOLATE_DIR
+    local ISOLATE_DIR=$(mktemp -d tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+    touch $ISOLATE_DIR/file1
 
     local TMPFILE1="$(mktemp -u tmp.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX)"
     local TMPFILE2='  file with'\''special chars$ @!    '
@@ -158,8 +170,14 @@ load 'lib/isolate.bash'
            "$ISOLATE_DIR/usr$ISOLATE_FILE2" \
            "$ISOLATE_DIR/usr$ISOLATE_FILE3"
     assert_success
-    device-shell-root "rm -f \"$ISOLATE_FILE1\" \"$ISOLATE_FILE2\""
+
+    device-shell-root "rm -f \"$ISOLATE_FILE1\" \"$ISOLATE_FILE2\" \"$ISOLATE_FILE3\""
     device-shell-root "rm -fr \"/etc/$TMPDIR1\""
+
+    run ls $ISOLATE_DIR/file1
+    assert_failure
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: isolate changes using storage" {
@@ -172,13 +190,17 @@ load 'lib/isolate.bash'
     device-shell-root "touch $ISOLATE_FILE"
 
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    run torizoncore-builder isolate --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER --remote-password $DEVICE_PASS
+    run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
 
     run torizoncore-builder-shell "ls /storage/changes/usr/$ISOLATE_FILE"
     assert_success
     assert_output --partial "$ISOLATE_FILE"
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
 @test "isolate: isolate changes and save credentials using storage" {
@@ -203,8 +225,8 @@ load 'lib/isolate.bash'
 @test "isolate: isolate changes and save credentials using --changes-directory" {
     requires-device
 
-    local ISOLATE_DIR="isolate_dir"
-    torizoncore-builder-shell "rm -rf /workdir/$ISOLATE_DIR"
+    local ISOLATE_DIR=$(mktemp -d tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+    rm -rf $ISOLATE_DIR
 
     create-files-in-device
 
@@ -218,4 +240,6 @@ load 'lib/isolate.bash'
 
     check-tcattr-file "changes-dir" "$ISOLATE_DIR"
     check-isolated-files "changes-dir" "$ISOLATE_DIR"
+
+    check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
