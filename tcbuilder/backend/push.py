@@ -8,6 +8,8 @@ import logging
 import subprocess
 import os
 import json
+import zipfile
+import requests
 
 from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import ostree
@@ -40,7 +42,7 @@ def run_garage_command(command, verbose):
     if verbose:
         command.append("--verbose")
     garage_command = subprocess.run(command, check=False, capture_output=True)
-    
+
     if verbose:
         stdoutstr = garage_command.stdout.decode().strip()
         if len(stdoutstr) > 0:
@@ -52,7 +54,7 @@ def run_garage_command(command, verbose):
     if len(stderrstr) > 0:
         print("== garage-sign stderr:")
         log.warning(stderrstr)
-    
+
     if garage_command.returncode != 0:
         raise TorizonCoreBuilderError("Error ("+str(garage_command.returncode)+") running garage command \"{}\" with arguments \"{}\""
                                       .format(command[0], command[1:]))
@@ -129,3 +131,34 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
                         "--repo", tuf_repo], verbose)
 
     log.info(f"Signed and pushed OSTree package {packagename} successfully.")
+
+def push_compose(credentials, target, version, compose_file):
+    """Push docker-compose file to OTA server."""
+
+    zip_ref = zipfile.ZipFile(credentials, 'r')
+    treehub_creds = json.loads(zip_ref.read("treehub.json"))
+    auth_server = treehub_creds["oauth2"]["server"]
+    client_id = treehub_creds["oauth2"]["client_id"]
+    client_secret = treehub_creds["oauth2"]["client_secret"]
+
+    try:
+        response = requests.get(f"{auth_server}/token", data={"grant_type":"client_credentials"},
+                                auth=(client_id, client_secret))
+        token = json.loads(response.text)["access_token"]
+    except TorizonCoreBuilderError as ex:
+        log.error(ex.msg)
+        log.error("Couldn't get access token")
+
+    reposerver = zip_ref.read("tufrepo.url").decode("utf-8")
+    data = open(compose_file, 'rb').read()
+    put = requests.put(f"{reposerver}/api/v1/user_repo/targets/{target}_{version}",
+                       params={"name" : f"{target}", "version" : f"{version}",
+                               "hardwareIds" : "docker-compose"},
+                       headers={"Authorization":f"Bearer {token}", }, data=data)
+
+    log.info(f"Pushing package name '{target}' with package version '{version}'.")
+    if put.status_code == 204:
+        log.info(f"Successfully pushed {os.path.basename(compose_file)} to OTA server.")
+    else:
+        log.error(f"Could not upload {os.path.basename(compose_file)} to OTA server at this time:")
+        log.error(put.text)
