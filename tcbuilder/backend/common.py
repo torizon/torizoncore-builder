@@ -84,6 +84,7 @@ def add_common_image_arguments(subparser):
     subparser.add_argument("--image-release-notes", dest="release_notes_file",
                            help="""Release notes file which will be shown on image installation""")
 
+
 def add_username_password_arguments(subparser):
     subparser.add_argument("--remote-username",
                            dest="remote_username",
@@ -95,6 +96,7 @@ def add_username_password_arguments(subparser):
                            help="Password of remote machine (default value "
                                 "is torizon)",
                            default="torizon")
+
 
 def add_files(tezidir, image_json_filename, filelist, additional_size,
               image_name, image_description, licence_file, release_notes_file):
@@ -227,10 +229,11 @@ def get_additional_size(output_dir_containers, files_to_add):
 
             additional_size += int(size_proc.stdout.decode('utf-8'))
         else:
-            st = os.stat(filepath)
-            additional_size += st.st_size
+            stat = os.stat(filepath)
+            additional_size += stat.st_size
 
     return additional_size
+
 
 def get_all_local_ip_addresses():
     """
@@ -244,14 +247,15 @@ def get_all_local_ip_addresses():
     local_ip_addresses = []
     for adapter in ifaddr.get_adapters():
         if not adapter.nice_name in ('lo', 'docker0'):
-            for ip in adapter.ips:
-                if type(ip.ip) == str: # If it's an str it's an IPv4.
-                    local_ip_addresses.append(ip.ip)
+            for ipaddr in adapter.ips:
+                if isinstance(ipaddr.ip, str): # If it's an str it's an IPv4.
+                    local_ip_addresses.append(ipaddr.ip)
                 else:
-                    local_ip_addresses.append(ip.ip[0])
+                    local_ip_addresses.append(ipaddr.ip[0])
     return local_ip_addresses
 
-def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, bool):  # pylint: disable=E1136
+
+def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, bool):
     """
     Convert a hostname to ip using operating system's name resolution service
     first and fallback to mDNS if the hostname is (or can be) a mDNS host name.
@@ -307,9 +311,9 @@ def resolve_hostname(hostname: str, mdns_source: Optional[str] = None) -> (str, 
                 break
         if mdns_addr:
             return mdns_addr[0].to_text(), True
-        else:
-            raise TorizonCoreBuilderError(
-                f'Resolving hostname "{mdns_hostname}" using mDNS on all interfaces failed.')
+
+        raise TorizonCoreBuilderError(
+            f'Resolving hostname "{mdns_hostname}" using mDNS on all interfaces failed.')
 
 
 def resolve_remote_host(remote_host, mdns_source=None):
