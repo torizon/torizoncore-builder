@@ -12,11 +12,13 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
+from tcbuilder.errors import TorizonCoreBuilderError, PathNotExistError
+
+# pylint: disable=wrong-import-order,wrong-import-position
 import gi
 gi.require_version("OSTree", "1.0")
 from gi.repository import Gio, GLib, OSTree
-
-from tcbuilder.errors import TorizonCoreBuilderError, PathNotExistError
+# pylint: enable=wrong-import-order,wrong-import-position
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -34,7 +36,7 @@ def open_ostree(ostree_dir):
         raise TorizonCoreBuilderError("Opening the archive OSTree repository failed.")
     return repo
 
-def create_ostree(ostree_dir, mode:OSTree.RepoMode = OSTree.RepoMode.ARCHIVE_Z2):
+def create_ostree(ostree_dir, mode: OSTree.RepoMode = OSTree.RepoMode.ARCHIVE_Z2):
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
     repo.create(mode, None)
     return repo
@@ -109,6 +111,7 @@ def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
     if not repo.pull_with_options("origin", options, progress=asyncprogress):
         raise TorizonCoreBuilderError("Error pulling contents from local repository.")
 
+
 def pull_local_ref(repo, repopath, csum, remote=None):
     """ fetches reference from local repository
 
@@ -133,7 +136,8 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     #        "override-remote-name": GLib.Variant('s', remote),
     #    })
     #    if not repo.pull_with_options("file://" + repopath, options):
-    #        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.")
+    #        raise TorizonCoreBuilderError(
+    #            f"Error pulling contents from local repository {repopath}.")
     #
     # Work around by employing the ostree CLI instead.
     repo_fd = repo.get_dfd()
@@ -149,9 +153,10 @@ def pull_local_ref(repo, repopath, csum, remote=None):
                 csum] if arg],
             check=True)
         repo.reload_config()
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as exc:
         logging.error(traceback.format_exc())
-        raise TorizonCoreBuilderError(f"Error pulling contents from local repository {repopath}.") from e
+        raise TorizonCoreBuilderError(
+            f"Error pulling contents from local repository {repopath}.") from exc
 
     # Note: In theory we can do this with two options in one go, but that seems
     # to validate ref-bindings... (has probably something to do with Collection IDs etc..)
@@ -159,23 +164,27 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     #"override-commit-ids": GLib.Variant.new_strv([ref]),
     repo.set_collection_ref_immediate(OSTree.CollectionRef.new(None, OSTREE_BASE_REF), csum)
 
+
 def _convert_gio_file_type(gio_file_type):
+    res = None
     if gio_file_type == Gio.FileType.DIRECTORY:
-        return 'directory'
+        res = 'directory'
     elif gio_file_type == Gio.FileType.MOUNTABLE:
-        return 'mountable'
+        res = 'mountable'
     elif gio_file_type == Gio.FileType.REGULAR:
-        return 'regular'
+        res = 'regular'
     elif gio_file_type == Gio.FileType.SHORTCUT:
-        return 'shortcut'
+        res = 'shortcut'
     elif gio_file_type == Gio.FileType.SPECIAL:
-        return 'special'
+        res = 'special'
     elif gio_file_type == Gio.FileType.SYMBOLIC_LINK:
-        return 'symbolic_link'
+        res = 'symbolic_link'
     elif gio_file_type == Gio.FileType.UNKNOWN:
-        return 'unknown'
+        res = 'unknown'
     else:
         raise TorizonCoreBuilderError(f"Unknown gio filetype {gio_file_type}")
+    return res
+
 
 def check_existance(repo, commit, path):
     path = os.path.realpath(path)
@@ -187,6 +196,8 @@ def check_existance(repo, commit, path):
     sub_path = root.resolve_relative_path(path)
     return sub_path.query_exists()
 
+
+# pylint: disable=invalid-name
 def ls(repo, path, commit):
     """ return a list of files and directories in a ostree repo under path
 
@@ -214,11 +225,14 @@ def ls(repo, path, commit):
         file_list = sub_path.enumerate_children(
             "*", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
 
-        return list(map(lambda f: {"name": f.get_name(),
-                                "type": _convert_gio_file_type(f.get_file_type())
-                                }, file_list))
-    else:
-        raise PathNotExistError(f"path {path} does not exist")
+        return list(map(lambda f: {
+            "name": f.get_name(),
+            "type": _convert_gio_file_type(f.get_file_type())
+        }, file_list))
+
+    raise PathNotExistError(f"path {path} does not exist")
+# pylint: enable=invalid-name
+
 
 def get_kernel_version(repo, commit):
     """ return the kernel version used in the commit
@@ -277,8 +291,8 @@ def copy_file(repo, commit, input_file, output_file):
         raise TorizonCoreBuilderError(f"Can not create file {output_file}")
 
     # Move input to output stream
-    output_stream.splice(input_stream, Gio.OutputStreamSpliceFlags.CLOSE_SOURCE,
-                      None)
+    output_stream.splice(
+        input_stream, Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, None)
 
 
 class TCBuilderHTTPRequestHandler(SimpleHTTPRequestHandler):
