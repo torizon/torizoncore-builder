@@ -9,25 +9,25 @@ from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITE
 from tcbuilder.backend.common import resolve_remote_host
 
 ignore_files = [
-        'group-',
-        'shadow-',
-        'gshadow-',
-        'hostname',
-        'machine-id',
-        'ipk-postinsts',
-        'fw_env.conf',
-        'docker/key.json',
-        '.updated',
-        '.pwd.lock',
-        'ssh/ssh_host_rsa_key',
-        'ssh/ssh_host_rsa_key.pub',
-        'ssh/ssh_host_ecdsa_key',
-        'ssh/ssh_host_ecdsa_key.pub',
-        'ssh/ssh_host_ed25519_key',
-        'ssh/ssh_host_ed25519_key.pub',
-        'systemd/system/sysinit.target.wants/run-postinsts.service',
-        'ostree/remotes.d/toradex-nightly.conf',
-        ]
+    'group-',
+    'shadow-',
+    'gshadow-',
+    'hostname',
+    'machine-id',
+    'ipk-postinsts',
+    'fw_env.conf',
+    'docker/key.json',
+    '.updated',
+    '.pwd.lock',
+    'ssh/ssh_host_rsa_key',
+    'ssh/ssh_host_rsa_key.pub',
+    'ssh/ssh_host_ecdsa_key',
+    'ssh/ssh_host_ecdsa_key.pub',
+    'ssh/ssh_host_ed25519_key',
+    'ssh/ssh_host_ed25519_key.pub',
+    'systemd/system/sysinit.target.wants/run-postinsts.service',
+    'ostree/remotes.d/toradex-nightly.conf',
+]
 TAR_NAME = 'isolated_changes.tar'
 
 NO_CHANGES = 0
@@ -61,9 +61,9 @@ def remove_tmp_dir(client, tmp_dir_name):
     run_command_without_sudo(client, 'rm -rf ' + tmp_dir_name)
 
 
-def check_path(p):
-    return '/' if p.rsplit('/', 1)[0] == p else '/{}/'.format(
-        p.rsplit('/', 1)[0])
+def check_path(path):
+    return '/' if path.rsplit('/', 1)[0] == path else '/{}/'.format(
+        path.rsplit('/', 1)[0])
 
 
 def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
@@ -82,22 +82,21 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
                                     + deleted_f_d
 
     # create deleted files/dir in torizonbuilder tmp directory with whiteout format
-    create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(tmp_dir_name,
-                                                                            deleted_file_dir_to_tar.rsplit(
-                                                                                '/', 1)[0],
-                                                                            deleted_file_dir_to_tar)
+    create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(
+        tmp_dir_name, deleted_file_dir_to_tar.rsplit('/', 1)[0], deleted_file_dir_to_tar)
     status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
     if status > 0:
-        raise OperationFailureError(f'could not create dir in {tmp_dir_name}',  stdout.read().decode(
-            'utf-8').strip())
+        raise OperationFailureError(
+            f'Could not create dir in {tmp_dir_name}',
+            stdout.read().decode('utf-8').strip())
 
 
 def get_tcattr_file_content(files_dir_to_tar, ssh_client, sftp_client,
                             remote_password, tmp_dir_name):
     """
-        Get the content (permission/ownership) for the "/etc/.tcattr"
-        metadata file of all files that will be isolated and will be
-        used later by the "union" command.
+    Get the content (permission/ownership) for the "/etc/.tcattr"
+    metadata file of all files that will be isolated and will be
+    used later by the "union" command.
     """
 
     facl_command = "sudo getfacl -n {0} 2>/dev/null".format(files_dir_to_tar)
@@ -129,6 +128,7 @@ def create_tcattr_file(diff_dir, tcattr):
         fd_tcattr.write(tcattr.replace('# file: etc/', '# file: '))
 
 
+# pylint: disable=too-many-locals
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -138,7 +138,8 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
                    username=r_username,
                    password=r_password)
     # get config diff
-    status, _stdin, stdout = run_command_with_sudo(client, 'sudo ostree admin config-diff', r_password)
+    status, _stdin, stdout = run_command_with_sudo(
+        client, 'sudo ostree admin config-diff', r_password)
     if status > 0:
         client.close()
         raise OperationFailureError('Unable to get user changes',
@@ -178,10 +179,11 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
         if f_delete_exists:
             tar_command = "sudo tar --exclude={0} --xattrs --acls -cf {1}/{0} -C {1} . {2}". \
                 format(TAR_NAME, tmp_dir_name, files_dir_to_tar)
-        else:  # don't include current directory i.e. '.' --> whiteout files does not exist in /tmp/toriozn-builder/
-            tar_command = "sudo tar --xattrs --acls -cf {1}/{0} {2}".format(TAR_NAME,
-                                                                            tmp_dir_name,
-                                                                            files_dir_to_tar)
+        else:
+            # don't include current directory i.e. '.':
+            # whiteout files does not exist in /tmp/torizon-builder/
+            tar_command = "sudo tar --xattrs --acls -cf {1}/{0} {2}".format(
+                TAR_NAME, tmp_dir_name, files_dir_to_tar)
         # make tar
         status, _stdin, stdout = run_command_with_sudo(client, tar_command, r_password)
         if status > 0:
@@ -206,15 +208,18 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
 
     # Extract tar to diff_dir/usr/ so that at time of union
     # they can be committed to /usr/etc of unpacked image as it is
+    # No longer use shell=True (FIXME)
     os.mkdir(diff_dir + "/usr")
-    extract_tar_cmd = "tar --acls --xattrs --overwrite --preserve-permissions " \
-                        "-xf {0}/{1} -C {2}/".format(
-        diff_dir, TAR_NAME, diff_dir + "/usr")
+    extract_tar_cmd = (
+        "tar --acls --xattrs --overwrite --preserve-permissions -xf {0}/{1} -C {2}/"
+        .format(diff_dir, TAR_NAME, diff_dir + "/usr"))
     subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
 
     create_tcattr_file(diff_dir, tcattr)
 
+    # No longer use shell=True (FIXME)
     subprocess.check_output('rm {}/{}'.format(diff_dir,
                                               TAR_NAME), shell=True, stderr=subprocess.STDOUT)
 
     return CHANGES_CAPTURED
+# pylint: enable=too-many-locals
