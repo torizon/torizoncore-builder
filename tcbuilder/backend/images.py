@@ -17,6 +17,8 @@ from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
+
+# pylint: disable=too-many-locals
 def download_tezi(r_host, r_username, r_password,
                   tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
     """
@@ -81,9 +83,9 @@ def download_tezi(r_host, r_username, r_password,
         kernel_type = ""
 
     if "PREEMPT" in version:
-        rt = "-rt"
+        rt_flag = "-rt"
     else:
-        rt = ""
+        rt_flag = ""
 
     sem_ver = re.findall(r'.*([0-9]+\.[0-9]+\.[0-9]+)\.*', version)[0]
 
@@ -92,8 +94,8 @@ def download_tezi(r_host, r_username, r_password,
     url = "https://artifacts.toradex.com/artifactory/{0}/{1}/{2}/{3}/{4}/" \
           "torizon{5}{6}/torizon-core-{7}/oedeploy/" \
           "torizon-core-{7}{6}-{4}-Tezi_{8}{9}{10}+build.{3}.tar".format(
-              prod, yocto, build_type, build_number, module_name, kernel_type, rt,
-              container, sem_ver, devel, date)
+              prod, yocto, build_type, build_number, module_name, kernel_type,
+              rt_flag, container, sem_ver, devel, date)
 
     # Download and unpack tezi image
     log.info(f"Downloading image from: {url}\n")
@@ -107,14 +109,19 @@ def download_tezi(r_host, r_username, r_password,
                                       "in the Toradex Artifactory.")
     import_local_image(download_file, tezi_dir,
                        src_sysroot_dir, src_ostree_archive_dir)
+# pylint: enable=too-many-locals
+
 
 def unpack_local_image(image_dir, sysroot_dir):
+    """Extract the root fs tarball from the image into the sysroot directory"""
     tarfile = get_rootfs_tarball(image_dir)
 
+    # pylint: disable=line-too-long
     # This is a OSTree bare repository. Care must been taken to preserve all
     # file system attributes. Python tar does not support xattrs, so use GNU tar
     # here
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
+    # pylint: enable=line-too-long
     tarcmd = "cat '{0}' | {1} | tar --xattrs --xattrs-include='*' -xhf - -C {2}".format(
                 tarfile, get_unpack_command(tarfile), sysroot_dir)
     log.debug(f"Running tar command: {tarcmd}")
@@ -123,6 +130,7 @@ def unpack_local_image(image_dir, sysroot_dir):
     # Remove the tarball since we have it unpacked now
     os.unlink(tarfile)
 
+
 def _make_tezi_extract_dir(tezi_dir):
     """Create target directory where to extract the tezi image"""
     extract_dir = tezi_dir + '.tmp'
@@ -130,6 +138,7 @@ def _make_tezi_extract_dir(tezi_dir):
         shutil.rmtree(extract_dir)
     os.mkdir(extract_dir)
     return extract_dir
+
 
 def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
     """Import local Toradex Easy Installer image
