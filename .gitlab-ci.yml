@@ -58,9 +58,14 @@ pylint:
     - docker build --tag tcbuilder-dev-amd64 -f torizoncore-builder.Dockerfile --target tcbuilder-dev --build-arg IMAGE_ARCH=linux/amd64 --cache-from ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest .
     - docker tag tcbuilder-dev-amd64 ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
     - docker push ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
-    # Run the code linter without C(onvention)/R(efactoring) levels, use this run as exit code
-    - docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest pylint --output-format=colorized --disable=C,R $(find -type f -name "*.py") || exit_code=$?
-    - docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest pylint --output-format=colorized --disable=W,E,F $(find -type f -name "*.py") || true
+    # Run the code linter disabling only docstring related warnings, use this run as exit code
+    # IMPORTANT: when running locally, DO NOT pass these --disable arguments to the program
+    - docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
+             pylint --output-format=colorized
+                    --disable=missing-module-docstring
+                    --disable=missing-class-docstring
+                    --disable=missing-function-docstring
+                    $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
     - exit ${exit_code}
   stage: build
 
