@@ -104,6 +104,7 @@ class DockerManager:
 # pylint: enable=no-self-use
 
 
+# pylint: disable=too-many-instance-attributes
 class DindManager(DockerManager):
     """Docker bundling class using a Docker-in-Docker instance
 
@@ -363,6 +364,8 @@ class DindManager(DockerManager):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.bundle_dir, check=True)
 
+# pylint: enable=too-many-instance-attributes
+
 
 def show_pull_progress_xterm(pull_stream):
     """Show the container pulling progress similarly to `docker pull`
@@ -435,6 +438,7 @@ def login_to_registries(client, logins):
         client.login(username, password, registry=registry)
 
 
+# pylint: disable=too-many-arguments,too-many-locals
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, logins, output_filename,
         platform=None, dind_params=None, use_host_docker=False, show_progress=True):
@@ -542,3 +546,5 @@ def download_containers_by_compose_file(
     finally:
         log.info("Stopping DIND container")
         manager.stop()
+
+# pylint: enable=too-many-arguments,too-many-locals
