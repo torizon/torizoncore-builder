@@ -44,6 +44,7 @@ KERNEL_SET_CUSTOM_ARGS_PROPERTY = 'bootargs_custom'
 UENV_SET_CUSTOM_ARGS_FUNCTION_RE = r'^\s*set_bootargs_custom='
 
 
+# pylint: disable=too-many-locals
 def kernel_build_module(source_dir, storage_dir, autoload):
     """"Main handler of the 'kernel build_module' subcommand"""
 
@@ -66,8 +67,9 @@ def kernel_build_module(source_dir, storage_dir, autoload):
         raise FileContentMissing(f'KERNEL_SRC not found in "{makefile}"')
 
     # Find and unpack linux source
-    linux_src = subprocess.check_output(f"""find {storage_dir}/sysroot/ostree/deploy \
-        -type f -name 'linux.tar.bz2' -print -quit""", shell=True, text=True)
+    linux_src = subprocess.check_output(
+        ["find", os.path.join(storage_dir, "sysroot/ostree/deploy"),
+         "-type", "f", "-name", "linux.tar.bz2", "-print", "-quit"], text=True)
     assert linux_src, "panic: missing Linux kernel source!"
     linux_src = linux_src.rstrip()
     tarcmd = "cat '{0}' | {1} | tar -xf - -C {2}".format(
@@ -80,8 +82,10 @@ def kernel_build_module(source_dir, storage_dir, autoload):
     kernel_subdir = os.path.dirname(dt.get_dtb_kernel_subdir(storage_dir))
     mod_path = os.path.join(kernel_changes_dir, kernel_subdir)
     os.makedirs(mod_path, exist_ok=True)
-    usr_dir = subprocess.check_output(f"""find {storage_dir}/sysroot/ostree/deploy \
-        -type d -name 'usr' -print -quit""", shell=True, text=True).rstrip()
+    usr_dir = subprocess.check_output(
+        ["find", os.path.join(storage_dir, "sysroot/ostree/deploy"),
+         "-type", "d", "-name", "usr", "-print", "-quit"],
+        text=True).rstrip()
     src_mod_dir = os.path.join(os.path.dirname(usr_dir), kernel_subdir)
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
     src_dir = os.path.abspath(source_dir)
@@ -92,13 +96,16 @@ def kernel_build_module(source_dir, storage_dir, autoload):
 
     # Set built kernel modules to be autoloaded on boot
     if autoload:
-        built_modules = subprocess.check_output(f"""find {source_dir} -name \
-            '*.ko' -print""", shell=True, text=True).splitlines()
+        built_modules = subprocess.check_output(
+            ["find", source_dir, "-name", "*.ko", "-print"],
+            text=True).splitlines()
         for module in built_modules:
             kernel.autoload_module(module, kernel_changes_dir)
             log.info(f"{module} is set to be autoloaded on boot.")
 
     log.info("All kernel module(s) have been built and prepared.")
+
+# pylint: enable=too-many-locals
 
 
 def do_kernel_build_module(args):
@@ -180,8 +187,8 @@ def do_kernel_get_custom_args(args):
     # Run external program from 'device-tree-compiler' package.
     fdtget_output = \
         subprocess.check_output(
-            f"fdtget '{dtob_path}' '/fragment@0/__overlay__/' {KERNEL_SET_CUSTOM_ARGS_PROPERTY}",
-            shell=True, text=True).rstrip()
+            ["fdtget", dtob_path, "/fragment@0/__overlay__/",
+             KERNEL_SET_CUSTOM_ARGS_PROPERTY], text=True).rstrip()
 
     # Send output to stdout always.
     print(f"Currently configured custom kernel arguments: \"{fdtget_output}\".")

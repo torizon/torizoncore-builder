@@ -16,11 +16,14 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
+
 def get_kernel_changes_dir(storage_dir):
     """Return directory containing kernel related changes"""
 
     return os.path.join(storage_dir, "kernel")
 
+
+# pylint: disable=too-many-locals
 def build_module(src_dir, linux_src, src_mod_dir,
                  src_ostree_archive_dir, mod_path, kernel_changes_dir):
     """Build kernel module from source"""
@@ -92,6 +95,9 @@ def build_module(src_dir, linux_src, src_mod_dir,
     # Cleanup kernel source
     shutil.rmtree(linux_src)
 
+# pylint: enable=too-many-locals
+
+
 def autoload_module(module, kernel_changes_dir):
     """Write module name to /etc/modules-load.d to be autloaded on boot"""
 
@@ -102,6 +108,7 @@ def autoload_module(module, kernel_changes_dir):
     conf_file = os.path.join(conf_dir, "tcb.conf")
     with open(conf_file, 'a') as file:
         file.write(f"{module_name} \n")
+
 
 def download_toolchain(toolchain, toolchain_path):
     """Download toolchain from online if it doesn't already exist"""
