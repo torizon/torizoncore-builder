@@ -39,27 +39,32 @@ def push_subcommand(args):
 
 def init_parser(subparsers):
     """Initialize argument parser"""
-    subparser = subparsers.add_parser("push", help="""\
-    Push branch to OTA server""")
-    subparser.add_argument("--credentials", dest="credentials",
-                           help="""Relative path to credentials.zip.""",
-                           required=True)
-    subparser.add_argument("--repo", dest="ostree",
-                           help="""OSTree repository to push from.""",
-                           required=False)
-    subparser.add_argument("--hardwareid", dest="hardwareids", action='append',
-                           help="""Hardware IDs to use when creating and signing targets.json.""",
-                           required=False, default=None)
-    subparser.add_argument("--package-name", dest="target",
-                           help="""Package name for docker-compose file.""",
-                           required=False, default="docker-compose.yml")
-    subparser.add_argument("--package-version", dest="version",
-                           help="""Package version for docker-compose file.""",
-                           required=False, default=datetime.datetime.today().strftime("%Y-%m-%d"))
-    subparser.add_argument(metavar="REF", nargs="?", dest="ref",
-                           help="""OSTree reference or docker-compose file to push to Torizon OTA.""")
-    subparser.add_argument("--verbose", dest="verbose",
-                           action='store_true', help="show more output",
-                           required=False)
+
+    subparser = subparsers.add_parser("push", help="Push branch to OTA server")
+    subparser.add_argument(
+        "--credentials", dest="credentials",
+        help="Relative path to credentials.zip.", required=True)
+    subparser.add_argument(
+        "--repo", dest="ostree",
+        help="OSTree repository to push from.", required=False)
+    subparser.add_argument(
+        "--hardwareid", dest="hardwareids", action="append",
+        help="Hardware IDs to use when creating and signing targets.json.",
+        required=False, default=None)
+    subparser.add_argument(
+        "--package-name", dest="target",
+        help="Package name for docker-compose file.",
+        required=False, default="docker-compose.yml")
+    subparser.add_argument(
+        "--package-version", dest="version",
+        help="Package version for docker-compose file.",
+        required=False, default=datetime.datetime.today().strftime("%Y-%m-%d"))
+    subparser.add_argument(
+        metavar="REF", nargs="?", dest="ref",
+        help="OSTree reference or docker-compose file to push to Torizon OTA.")
+    subparser.add_argument(
+        "--verbose", dest="verbose",
+        action="store_true",
+        help="Show more output", required=False)
 
     subparser.set_defaults(func=push_subcommand)

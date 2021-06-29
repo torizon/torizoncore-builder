@@ -36,13 +36,16 @@ DEFAULT_PORT = 4000
 
 log = logging.getLogger("torizon." + __name__)
 
+
 def handler(chan, host, port):
     sock = socket.socket()
     sock.connect((host, port))
 
     log.debug(f"Tunnel connected {chan.origin_addr} -> {chan.getpeername()} -> {(host, port)}")
     while True:
+        # pylint: disable=invalid-name
         r, _w, _x = select.select([sock, chan], [], [])
+        # pylint: enable=invalid-name
         if sock in r:
             data = sock.recv(1024)
             if len(data) == 0:

@@ -56,8 +56,9 @@ def run_garage_command(command, verbose):
         log.warning(stderrstr)
 
     if garage_command.returncode != 0:
-        raise TorizonCoreBuilderError("Error ("+str(garage_command.returncode)+") running garage command \"{}\" with arguments \"{}\""
-                                      .format(command[0], command[1:]))
+        raise TorizonCoreBuilderError(
+            f'Error ({str(garage_command.returncode)}) running garage command '
+            f'"{command[0]}" with arguments "{command[1:]}"')
 
 
 def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=False):
@@ -117,8 +118,8 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
     # Extend target info with OSTree commit metadata
     # Remove some metadata keys which are already used otherwise or ar rather
     # large and blow up targets.json unnecessary
-    for key in [ "oe.garage-target-name", "oe.garage-target-version", "oe.sota-hardware-id",
-                 "oe.layers", "oe.kargs-default" ]:
+    for key in ["oe.garage-target-name", "oe.garage-target-version", "oe.sota-hardware-id",
+                "oe.layers", "oe.kargs-default"]:
         metadata.pop(key, None)
     targets_file_path = os.path.join(tuf_repo, "roles/unsigned/targets.json")
     update_targets(targets_file_path, packagename, commit, subject, body, metadata)
