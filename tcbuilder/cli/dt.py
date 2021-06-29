@@ -1,5 +1,5 @@
 """
-CLI handling for dt subcommand
+CLI for the DT (device-tree) command.
 """
 
 import logging

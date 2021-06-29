@@ -13,8 +13,8 @@ strings_re = re.compile(r'"([^"]*)"')
 
 class CompatibleOverlayParser:
     def __init__(self, sourcefile):
-        with io.open(sourcefile, "r") as f:
-            self.file_content = f.read()
+        with io.open(sourcefile, "r") as srcf:
+            self.file_content = srcf.read()
         self.counter = 0
         self.description = ""
 
@@ -37,6 +37,8 @@ class CompatibleOverlayParser:
         for comment in comments:
             if not comment_spdx_re.match(comment):
                 return comment
+
+        return None
 
     def block_repl(self, matchobj):
         text = matchobj.group(0)
