@@ -1,6 +1,5 @@
-
 """
-CLI handling for splash subcommand
+CLI for the splash command
 """
 
 import argparse
@@ -15,8 +14,7 @@ log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" 
 
 
 def splash(splash_image, storage_dir):
-    """
-    Prepare everything to call the "splash" backend service.
+    """Prepare everything to call the "splash" backend service.
 
     :param splash_image: Path to the image splash filename.
     :param storage_dir: Storage volume directory.
@@ -42,8 +40,7 @@ def splash(splash_image, storage_dir):
 
 
 def do_splash(args):
-    """
-    Check for deprecated parameters.
+    """Check for deprecated parameters.
 
     :param args: Arguments provided to the "isolate" subcommand.
     :raises:
@@ -68,9 +65,8 @@ def do_splash(args):
 
 
 def init_parser(subparsers):
-    """
-    Parser for "splash" command.
-    """
+    """Parser for "splash" command."""
+
     subparser = subparsers.add_parser(
         "splash",
         help="change splash screen",

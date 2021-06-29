@@ -1,3 +1,7 @@
+"""
+Backend for the splash command
+"""
+
 import logging
 import os
 import shutil
@@ -12,6 +16,8 @@ log = logging.getLogger("torizon." + __name__)
 
 
 def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
+    """Create a initramfs with a splash screen and append it to the current initramfs"""
+
     splash_initramfs = "initramfs.splash"
     splash_initramfs_dir = "usr/share/plymouth/themes/spinner/"
     rel_splash_initramfs_dir = os.path.join(work_dir, splash_initramfs_dir)  # relative to work_dir
@@ -32,7 +38,7 @@ def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
     subprocess.check_output(create_initramfs_cmd, shell=True, stderr=subprocess.STDOUT)
     shutil.rmtree(os.path.join(work_dir, "usr/share"))
 
-    # get path of initrmafs of current deployment inside sysroot        
+    # get path of initramfs of current deployment inside sysroot
     repo = ostree.open_ostree(src_ostree_archive_dir)
     kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
 
@@ -48,14 +54,13 @@ def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
     # create directory for storing finalized initramfs
     os.makedirs(os.path.join(work_dir, "usr/lib/modules", kernel_version))
 
-    initramfs = Gio.File.new_for_path(os.path.join(work_dir, "usr/lib/modules",
-                                                   kernel_version, "initramfs.img")
-                                     ).create(Gio.FileCreateFlags.NONE, None)
+    initramfs = Gio.File.new_for_path(
+        os.path.join(work_dir, "usr/lib/modules", kernel_version, "initramfs.img")
+        ).create(Gio.FileCreateFlags.NONE, None)
 
     initramfs.splice(sub_path.read(None), Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, None)
-
     initramfs.splice(Gio.File.new_for_path(os.path.join(work_dir, splash_initramfs)).read(None),
-                     Gio.OutputStreamSpliceFlags.CLOSE_SOURCE | 
+                     Gio.OutputStreamSpliceFlags.CLOSE_SOURCE |
                      Gio.OutputStreamSpliceFlags.CLOSE_TARGET, None)
 
     os.remove(os.path.join(work_dir, splash_initramfs))
