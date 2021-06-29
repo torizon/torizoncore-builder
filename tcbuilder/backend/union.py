@@ -6,59 +6,63 @@ from tcbuilder.backend import ostree
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError
 
+# pylint: disable=wrong-import-order,wrong-import-position
 import gi
 gi.require_version("OSTree", "1.0")
 from gi.repository import GLib, OSTree
+# pylint: enable=wrong-import-order,wrong-import-position
 
 log = logging.getLogger("torizon." + __name__)
 
 
-def remove_tcattr_files_from_ostree(mt):
+def remove_tcattr_files_from_ostree(mtree):
     """
-        Remove all ".tcattr" (metadata) files before committing to OSTree so
-        they won't end up in the final file system.
+    Remove all ".tcattr" (metadata) files before committing to OSTree so
+    they won't end up in the final file system.
     """
-    for filename in mt.get_files().keys():
+    for filename in mtree.get_files().keys():
         if filename == '.tcattr':
-            mt.remove(filename, False)
+            mtree.remove(filename, False)
 
 
-def process_whiteouts(mt, path="/"):
+def process_whiteouts(mtree, path="/"):
 
-    remove_tcattr_files_from_ostree(mt)
+    remove_tcattr_files_from_ostree(mtree)
 
     # Check for opaque whiteouts
-    if any(name == OSTREE_OPAQUE_WHITEOUT_NAME for name in mt.get_files().keys()):
+    if any(name == OSTREE_OPAQUE_WHITEOUT_NAME for name in mtree.get_files().keys()):
         log.debug(f"Removing all contents from {path}.")
-        for name in mt.get_files().keys():
-            mt.remove(name, False)
+        for name in mtree.get_files().keys():
+            mtree.remove(name, False)
         return
 
-    for name in mt.get_files().keys():
+    for name in mtree.get_files().keys():
         if name.startswith(OSTREE_WHITEOUT_PREFIX):
-            mt.remove(name, False)
+            mtree.remove(name, False)
             name_to_remove = name[4:]
             log.debug(f"Removing file {path}/{name_to_remove}.")
-            result = mt.remove(name_to_remove, False)
+            result = mtree.remove(name_to_remove, False)
             log.debug(f"Removing file {name_to_remove}, {result}.")
 
-    for dirname, submt in mt.get_subdirs().items():
+    for dirname, submt in mtree.get_subdirs().items():
         process_whiteouts(submt, os.path.join(path, dirname))
 
+
+# pylint: disable=too-many-locals
 def commit_changes(repo, ref, changes_dirs, branch_name,
                    subject, body, pre_apply_callback=None):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
 
-    mt = OSTree.MutableTree.new()
+    mtree = OSTree.MutableTree.new()
 
     # --tree=ref=<ref>
     result, root, csum = repo.read_commit(ref)
     if not result:
         raise TorizonCoreBuilderError("Read base commit failed.")
 
-    result = repo.write_directory_to_mtree(root, mt)
+    result = repo.write_directory_to_mtree(root, mtree)
     if not result:
         raise TorizonCoreBuilderError("Write base tree failed.")
 
@@ -69,13 +73,13 @@ def commit_changes(repo, ref, changes_dirs, branch_name,
             pre_apply_callback(changes_dir)
 
         changesdir_fd = os.open(changes_dir, os.O_DIRECTORY)
-        if not repo.write_dfd_to_mtree(changesdir_fd, ".", mt):
+        if not repo.write_dfd_to_mtree(changesdir_fd, ".", mtree):
             raise TorizonCoreBuilderError("Adding directory to commit failed.")
 
         log.debug("Processing whiteouts.")
-        process_whiteouts(mt)
+        process_whiteouts(mtree)
 
-        result, root = repo.write_mtree(mt)
+        result, root = repo.write_mtree(mtree)
         if not result:
             raise TorizonCoreBuilderError("Write mtree failed.")
 
@@ -96,19 +100,19 @@ def commit_changes(repo, ref, changes_dirs, branch_name,
     # Append something to the version object
     newmetadata = []
     timestamp = datetime.datetime.now()
-    for i in range(metadata.n_children()):
-        kv = metadata.get_child_value(i)
+    for ind in range(metadata.n_children()):
+        val = metadata.get_child_value(ind)
         # Adjust the "version" metadata, and pass everything else transparently
-        if kv.get_child_value(0).get_string() == 'version':
+        if val.get_child_value(0).get_string() == 'version':
             # Version itself is a Variant, which just contains a string...
-            version = kv.get_child_value(1).get_child_value(0).get_string()
+            version = val.get_child_value(1).get_child_value(0).get_string()
             version += "-tcbuilder." + timestamp.strftime("%Y%m%d%H%M%S")
             newmetadata.append(
                 GLib.Variant.new_dict_entry(
                     GLib.Variant("s", "version"),
                     GLib.Variant('v', GLib.Variant("s", version))))
         else:
-            newmetadata.append(kv)
+            newmetadata.append(val)
 
     if subject is None:
         isodatetime = timestamp.replace(microsecond=0).isoformat()
@@ -131,6 +135,9 @@ def commit_changes(repo, ref, changes_dirs, branch_name,
               f"{stats.content_objects_written} objects written.")
 
     return commit
+
+# pylint: enable=too-many-locals
+
 
 def union_changes(changes_dir, ostree_archive_dir, union_branch,
                   subject, body, pre_apply_callback=None):
