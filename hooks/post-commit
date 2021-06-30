@@ -1,0 +1,6 @@
+#!/bin/sh
+
+echo ""
+echo "--> Please remember to run Pylint on the source code before pushing"
+echo "    changes to GitLab (see instructions on the README.md file)."
+echo ""

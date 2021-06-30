@@ -6,7 +6,7 @@ logging-format-style=new
 good-names=torizoncore-builder,ex
 [TYPECHECK]
 ignored-modules=py
-# [MESSAGES CONTROL]
+[MESSAGES CONTROL]
 # Settings as used in moses:
 # disable=logging-fstring-interpolation,unsubscriptable-object,cyclic-import,duplicate-code
 disable=logging-fstring-interpolation,unsubscriptable-object,duplicate-code

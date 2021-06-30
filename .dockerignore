@@ -1,2 +1,5 @@
 # Ignore workdir meant for development/debugging using Visual Studio Code
 workdir/
+
+# Ignore the directory containing integration tests
+tests/
