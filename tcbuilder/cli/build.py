@@ -461,7 +461,7 @@ def init_parser(subparsers):
         "--create-template", dest="create_template",
         default=False, action="store_true",
         help=("Request that a template file be generated with the name "
-              "defined by -f; dump to standard output if file name is set "
+              "defined by --file; dump to standard output if file name is set "
               "to '-'."))
 
     parser.add_argument(
