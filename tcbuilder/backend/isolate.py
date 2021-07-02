@@ -1,6 +1,7 @@
 import datetime
 import os
 import subprocess
+import shlex
 
 import paramiko
 
@@ -8,7 +9,7 @@ from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
 from tcbuilder.backend.common import resolve_remote_host
 
-ignore_files = [
+IGNORE_FILES = [
     'group-',
     'shadow-',
     'gshadow-',
@@ -51,7 +52,9 @@ def run_command_without_sudo(client, command):
 
 
 def ignore_changes_deletion(change):
-    if change.split()[1] in ignore_files:
+    # NOTE: this offset must match the output of `ostree admin config`:
+    fname = change[5:]
+    if not fname or fname in IGNORE_FILES:
         return False  # ignore file
 
     return True
@@ -69,7 +72,7 @@ def check_path(path):
 def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
     # check if deleted file/dir was in subdirectory of /etc --> '/' for file/dir at /etc
     path = check_path(deleted_f_d)
-    if path != '/':  # file/dir was in subdirectory of of /etc
+    if path != '/':  # file/dir was in subdirectory of /etc
         # check if any file exists other than file/dir deleted in same subdirectory of /etc
         d_list = sftp_channel.listdir('/etc' + path)
         if not d_list:  # entire content(s) deleted
@@ -83,7 +86,8 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
 
     # create deleted files/dir in torizonbuilder tmp directory with whiteout format
     create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(
-        tmp_dir_name, deleted_file_dir_to_tar.rsplit('/', 1)[0], deleted_file_dir_to_tar)
+        tmp_dir_name, deleted_file_dir_to_tar.rsplit('/', 1)[0],
+        shlex.quote(deleted_file_dir_to_tar))
     status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
     if status > 0:
         raise OperationFailureError(
@@ -128,6 +132,14 @@ def create_tcattr_file(diff_dir, tcattr):
         fd_tcattr.write(tcattr.replace('# file: etc/', '# file: '))
 
 
+def list_to_string_with_quote(args_list):
+    """
+        Insert quotes where needed so shell can read names with special characters.
+        Also, transforms the list into a string
+    """
+    return r' '.join([shlex.quote(file) for file in args_list])
+
+
 # pylint: disable=too-many-locals
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
     client = paramiko.SSHClient()
@@ -145,7 +157,7 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
         raise OperationFailureError('Unable to get user changes',
                                     stdout.read().decode('utf-8').strip())
 
-    output = stdout.read().decode("utf-8").strip().split("\r\n")
+    output = stdout.read().decode("utf-8").split("\r\n")
     # remove upto password keyword
     indx = output.index("Password: ")
     output = output[(indx + 1):]
@@ -167,15 +179,18 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
         sftp.mkdir(tmp_dir_name)
 
         files_dir_to_tar = ''
+        files_list = []
         f_delete_exists = False
         # append /etc because ostree config provides file/dir names relative to /etc
         for item in changes:
-            if item.split()[0] != 'D':
-                files_dir_to_tar += '/etc/' + r'\ '.join(item.split()[1:]) + ' '
+            f_name = item[5:]   # Sync with ignore_changes_deletion
+            if item[0] != 'D':
+                files_list.append('/etc/' + f_name)
             else:
                 f_delete_exists = True
-                whiteouts(client, sftp, tmp_dir_name, item.split()[1])
+                whiteouts(client, sftp, tmp_dir_name, f_name)
 
+        files_dir_to_tar = list_to_string_with_quote(files_list)
         if f_delete_exists:
             tar_command = "sudo tar --exclude={0} --xattrs --acls -cf {1}/{0} -C {1} . {2}". \
                 format(TAR_NAME, tmp_dir_name, files_dir_to_tar)
@@ -208,18 +223,16 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
 
     # Extract tar to diff_dir/usr/ so that at time of union
     # they can be committed to /usr/etc of unpacked image as it is
-    # No longer use shell=True (FIXME)
-    os.mkdir(diff_dir + "/usr")
-    extract_tar_cmd = (
-        "tar --acls --xattrs --overwrite --preserve-permissions -xf {0}/{1} -C {2}/"
-        .format(diff_dir, TAR_NAME, diff_dir + "/usr"))
-    subprocess.check_output(extract_tar_cmd, shell=True, stderr=subprocess.STDOUT)
+    os.mkdir(os.path.join(diff_dir, "usr"))
+    extract_tar_cmd = [
+        "tar", "--acls", "--xattrs", "--overwrite", "--preserve-permissions", "-xf",
+        os.path.join(diff_dir, TAR_NAME), "-C", os.path.join(diff_dir, "usr", "")
+    ]
+    subprocess.check_output(extract_tar_cmd, stderr=subprocess.STDOUT)
 
     create_tcattr_file(diff_dir, tcattr)
 
-    # No longer use shell=True (FIXME)
-    subprocess.check_output('rm {}/{}'.format(diff_dir,
-                                              TAR_NAME), shell=True, stderr=subprocess.STDOUT)
+    os.remove(os.path.join(diff_dir, TAR_NAME))
 
     return CHANGES_CAPTURED
 # pylint: enable=too-many-locals

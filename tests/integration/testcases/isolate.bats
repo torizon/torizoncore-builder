@@ -133,10 +133,17 @@ load 'lib/isolate.bash'
     torizoncore-builder-shell "rm -rf /workdir/$ISOLATE_DIR"
     mkdir -p $ISOLATE_DIR
 
-    local TMPFILE=$(mktemp tmp.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX)
-    local ISOLATE_FILE=/etc/$TMPFILE
-    device-shell-root "touch $ISOLATE_FILE"
-    device-shell-root "touch $ISOLATE_FILE\ with\ spaces"
+    local TMPFILE1="$(mktemp -u tmp.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX)"
+    local TMPFILE2='  file with'\''special chars$ @!    '
+    local TMPFILE3='  file with'\''special chars-=%  '
+    local TMPDIR1='  dir with'\''special chars&#'
+    local ISOLATE_FILE1="/etc/$TMPFILE1"
+    local ISOLATE_FILE2="/etc/$TMPFILE2"
+    local ISOLATE_FILE3="/etc/$TMPDIR1/$TMPFILE3"
+    device-shell-root "mkdir -p \"/etc/$TMPDIR1\""
+    device-shell-root "touch \"$ISOLATE_FILE1\""
+    device-shell-root "touch \"$ISOLATE_FILE2\""
+    device-shell-root "touch \"$ISOLATE_FILE3\""
 
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
@@ -147,10 +154,12 @@ load 'lib/isolate.bash'
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
 
-    run ls $ISOLATE_DIR/usr/$ISOLATE_FILE $ISOLATE_DIR/usr/$ISOLATE_FILE\ with\ spaces
+    run ls "$ISOLATE_DIR/usr$ISOLATE_FILE1" \
+           "$ISOLATE_DIR/usr$ISOLATE_FILE2" \
+           "$ISOLATE_DIR/usr$ISOLATE_FILE3"
     assert_success
-    assert_output --partial "$ISOLATE_FILE"
-    assert_output --partial "$ISOLATE_FILE with spaces"
+    device-shell-root "rm -f \"$ISOLATE_FILE1\" \"$ISOLATE_FILE2\""
+    device-shell-root "rm -fr \"/etc/$TMPDIR1\""
 }
 
 @test "isolate: isolate changes using storage" {

@@ -9,6 +9,7 @@ import argparse
 import logging
 import os
 import subprocess
+import shutil
 
 from tcbuilder.backend import union as ub
 from tcbuilder.errors import PathNotExistError, InvalidArgumentError
@@ -23,11 +24,9 @@ def check_and_append_dirs(changes_dirs, new_changes_dirs, temp_dir):
         if not os.path.exists(changes_dir):
             raise PathNotExistError(f'Changes directory "{changes_dir}" does not exist')
 
-        os.makedirs(f"{temp_dir}/{changes_dir}")
-        # Review: not appropriately handling especial directory names (FIXME).
-        cp_command = f"cp -r {changes_dir}/. {temp_dir}/{changes_dir}"
-        subprocess.check_output(cp_command, shell=True,
-                                stderr=subprocess.STDOUT)
+        copy_src = os.path.join(changes_dir, ".")
+        copy_dest = os.path.join(temp_dir, changes_dir)
+        shutil.copytree(copy_src, copy_dest, symlinks=True)
         temp_change_dir = os.path.join(temp_dir, changes_dir)
         set_acl_attributes(temp_change_dir)
         changes_dirs.append(os.path.abspath(temp_change_dir))

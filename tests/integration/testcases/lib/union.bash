@@ -122,4 +122,9 @@ check-credentials-for-links() {
     assert_success
     assert_output --partial 'file with space 2'
     assert_output --regexp -rw-rw---- .* 0 0
+
+    run torizoncore-builder-shell "ls -ldn $ROOTFS"'/usr/bin/\ \ #file\ with\ \$pace\ 4#\ \ '
+    assert_success
+    assert_output --partial '#file with $pace 4#'
+    assert_output --regexp -rw-rw---- .* 0 0
 }
