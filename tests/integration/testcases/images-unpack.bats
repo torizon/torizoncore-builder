@@ -51,3 +51,20 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --regexp "ostree-archive.*sysroot.*tezi"
 }
+
+@test "images unpack: keep only /storage/toolchain directory in storage" {
+    torizoncore-builder-clean-storage
+
+    torizoncore-builder-shell "mkdir -p /storage/{dt,changes,kernel}"
+    torizoncore-builder-shell "mkdir -p /storage/toolchain"
+    torizoncore-builder-shell "mkdir -p /storage/dir{1,2,3}"
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+
+    run torizoncore-builder-shell "ls -l /storage/{dir}?"
+    assert_failure
+    run torizoncore-builder-shell "ls -l /storage/{dt,changes,kernel}"
+    assert_failure
+    run torizoncore-builder-shell "ls -l /storage/toolchain"
+    assert_success
+}

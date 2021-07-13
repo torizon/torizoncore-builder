@@ -5,28 +5,49 @@ CLI handling for images subcommand
 import os
 import shutil
 
-from tcbuilder.backend import images, kernel, common
+from tcbuilder.backend import images, common
 from tcbuilder.errors import UserAbortError
+
+
+def get_extra_dirs(storage_dir, main_dirs):
+    """
+    Get all directories names inside "storage" that should be removed when
+    unpacking a new TEZI image but that are not included in the list of
+    "keep directories" and the list of "main directories". At this time,
+    only the "toolchain directory" should be kept between images unpack.
+
+    :param storage_dir: Storage directory.
+    :param main_dirs: List of main directories for the unpacking.
+    :returns: A list of extra directories that should be removed.
+    """
+
+    # Directories that should be kept between images "unpacks"
+    keep_dirs = [os.path.join(storage_dir, "toolchain")]
+
+    extra_dirs = []
+
+    for dirname in os.listdir(storage_dir):
+        abs_dirname = os.path.join(storage_dir, dirname)
+        if abs_dirname not in keep_dirs + main_dirs:
+            extra_dirs.append(abs_dirname)
+
+    return extra_dirs
+
 
 def prepare_storage(storage_directory, remove_storage):
     """ Prepare Storage directory for unpacking"""
 
     storage_dir = os.path.abspath(storage_directory)
-    # Main directories: will be cleared and returned by this function.
-    main_dirs = [
-        os.path.join(storage_dir, "tezi"),
-        os.path.join(storage_dir, "sysroot"),
-        os.path.join(storage_dir, "ostree-archive")
-    ]
-    # Extra directories: will be cleared but not returned.
-    extra_dirs = [
-        os.path.join(storage_dir, "dt"),
-        os.path.join(storage_dir, "changes"),
-        kernel.get_kernel_changes_dir(storage_dir)
-    ]
 
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
+
+    # Main directories: will be cleared and returned by this function.
+    main_dirs = [os.path.join(storage_dir, dirname)
+                 for dirname in ("tezi", "sysroot", "ostree-archive")]
+
+    # Extra directories: will be cleared but not returned.
+    extra_dirs = get_extra_dirs(storage_dir, main_dirs)
 
     all_dirs = main_dirs + extra_dirs
     need_clearing = False
