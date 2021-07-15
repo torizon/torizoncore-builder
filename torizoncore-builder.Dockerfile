@@ -40,17 +40,18 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     asn1c build-essential cmake curl libarchive-dev \
     libboost-dev libboost-log-dev libboost-program-options-dev \
     libcurl4-openssl-dev libpthread-stubs0-dev libsodium-dev libsqlite3-dev \
-    python3 libglib2.0-dev file \
+    python3 libglib2.0-dev file libostree-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
 
-RUN git clone --recursive https://github.com/advancedtelematic/aktualizr && cd aktualizr && \
-    git checkout 2020.9
+RUN git clone --recursive https://github.com/uptane/aktualizr.git && cd aktualizr && \
+    git checkout 2cb76c46ef0106be90c579b3108817dd26b7c1c5
 
 RUN cd aktualizr && mkdir build/ && cd build/ && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DEB=ON -DBUILD_SOTA_TOOLS=ON \
           -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless \
+          -DBUILD_OSTREE=ON \
           -DWARNING_AS_ERROR=OFF .. && \
     make -j$(nproc) package
 

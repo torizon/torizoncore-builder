@@ -43,8 +43,8 @@ def run_garage_command(command, verbose):
         command.append("--verbose")
     garage_command = subprocess.run(command, check=False, capture_output=True)
 
+    stdoutstr = garage_command.stdout.decode().strip()
     if verbose:
-        stdoutstr = garage_command.stdout.decode().strip()
         if len(stdoutstr) > 0:
             print("== garage-sign stdout:")
             log.debug(stdoutstr)
@@ -56,11 +56,13 @@ def run_garage_command(command, verbose):
         log.warning(stderrstr)
 
     if garage_command.returncode != 0:
+        if not verbose:
+            log.error(stdoutstr)
         raise TorizonCoreBuilderError(
             f'Error ({str(garage_command.returncode)}) running garage command '
             f'"{command[0]}" with arguments "{command[1:]}"')
 
-
+# pylint: disable=too-many-locals
 def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=False):
     """Push OSTree reference to OTA server.
 
@@ -86,11 +88,14 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
                 "No hardware id found in OSTree metadata and none provided.")
         module = hardwareids
 
+    garage_push = ["garage-push",
+                   "--credentials", credentials,
+                   "--repo", ostree_dir,
+                   "--ref", commit]
+    if not verbose:
+        garage_push.extend(["--loglevel", "4"])
     log.info(f"Pushing {ref} (commit checksum {commit}) to OTA server.")
-    run_garage_command(["garage-push",
-                        "--credentials", credentials,
-                        "--repo", ostree_dir,
-                        "--ref", commit], verbose)
+    run_garage_command(garage_push, verbose)
 
     log.info(f"Pushed {ref} successfully.")
 
