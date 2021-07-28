@@ -20,3 +20,12 @@ load 'bats/bats-file/load.bash'
     assert_success
     assert_output --partial "Path to the OSTree repository to serve"
 }
+
+@test "ostree: check 'serve' without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder ostree serve
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}

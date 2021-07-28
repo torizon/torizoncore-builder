@@ -23,7 +23,8 @@ import tezi.utils
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               PathNotExistError, TorizonCoreBuilderError,
-                              InvalidStateError, InvalidDataError, GitRepoError)
+                              InvalidStateError, InvalidDataError,
+                              GitRepoError, ImageUnpackError)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
@@ -536,3 +537,23 @@ def set_output_ownership(output_file):
         for filename in directories + filenames:
             apply_workdir_ownership(os.path.join(rootdir, filename),
                                     workdir_uid, workdir_gid)
+
+def images_unpack_executed(storage_dir):
+    """
+    Check both, if "storage_dir" exists and if a "torizoncore-builder images
+    unpack command" was executed previously.
+
+    :param storage_dir: Storage directory.
+    :raises:
+        PathNotExistError: if "storage_dir" does not exist.
+        ImageUnpackError: if "images unpack" was not executed previously.
+    """
+    if not os.path.exists(storage_dir):
+        raise PathNotExistError(
+            f"Storage directory \"{storage_dir}\" does not exist.")
+
+    image_dirs = ("ostree-archive", "sysroot", "tezi")
+
+    for image_dir in image_dirs:
+        if not os.path.exists(os.path.join(storage_dir, image_dir)):
+            raise ImageUnpackError()

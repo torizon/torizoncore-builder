@@ -63,6 +63,8 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
 
 def do_deploy_tezi_image(args):
 
+    common.images_unpack_executed(args.storage_directory)
+
     deploy_tezi_image(ostree_ref=args.ref,
                       output_dir=args.output_directory,
                       storage_dir=args.storage_directory,
@@ -75,6 +77,8 @@ def do_deploy_tezi_image(args):
 
 def do_deploy_ostree_remote(args):
     storage_dir = os.path.abspath(args.storage_directory)
+    common.images_unpack_executed(storage_dir)
+
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     dbe.deploy_ostree_remote(args.remote_host, args.remote_username,

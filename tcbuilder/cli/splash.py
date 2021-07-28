@@ -9,6 +9,7 @@ import logging
 
 from tcbuilder.errors import PathNotExistError, InvalidArgumentError
 from tcbuilder.backend import splash as sbe
+from tcbuilder.backend.common import images_unpack_executed
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -60,6 +61,8 @@ def do_splash(args):
             "Error: "
             "the switch --work-dir has been removed; "
             "the initramfs file should be created in storage.")
+
+    images_unpack_executed(args.storage_directory)
 
     splash(args.splash_image, args.storage_directory)
 

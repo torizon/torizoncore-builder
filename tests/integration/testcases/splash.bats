@@ -30,6 +30,15 @@ load 'bats/bats-file/load.bash'
     assert_output --partial "the initramfs file should be created in storage."
 }
 
+@test "splash: create splash initramfs without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "splash: create splash initramfs" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 

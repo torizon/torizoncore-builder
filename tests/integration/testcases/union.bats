@@ -24,6 +24,15 @@ load 'lib/union.bash'
     assert_output --partial "Changes directory \"invalid_changes/\" does not exist"
 }
 
+@test "union: create branch without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder union branch1
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "union: create branch using --changes-directory" {
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE

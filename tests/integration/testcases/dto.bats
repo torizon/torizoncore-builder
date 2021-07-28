@@ -14,6 +14,18 @@ load 'bats/bats-file/load.bash'
     assert_output --partial "{apply,list,status,remove,deploy}"
 }
 
+@test "dto: list compatible overlays without images unpack" {
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    rm -rf device-trees
+    torizoncore-builder dt checkout
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder dto list
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "dto: list compatible overlays" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     rm -rf device-trees
@@ -31,7 +43,18 @@ load 'bats/bats-file/load.bash'
     assert_output --partial "_overlay.dts"
 }
 
+@test "dto: apply overlay in the image without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "dto: apply overlay in the image" {
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+
     run torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
     assert_success
     assert_output --partial "Overlay sample_overlay.dtbo successfully applied"
@@ -45,7 +68,19 @@ load 'bats/bats-file/load.bash'
     assert_output --partial "sample_overlay.dtbo"
 }
 
+@test "dto: check currently applied overlays without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder dto status
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "dto: check currently applied overlays" {
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
+
     run torizoncore-builder dto status
     assert_success
     assert_output --partial "sample_overlay.dtbo"
@@ -107,4 +142,13 @@ load 'bats/bats-file/load.bash'
     run torizoncore-builder dto status
     assert_success
     refute_output --regexp ".*dtbo"
+}
+
+@test "dto: remove overlay in the image without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder dto remove sample_overlay.dtbo
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
 }

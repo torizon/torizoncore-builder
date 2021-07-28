@@ -13,6 +13,7 @@ import shutil
 
 from tcbuilder.backend import union as ub
 from tcbuilder.errors import PathNotExistError, InvalidArgumentError
+from tcbuilder.backend.common import images_unpack_executed
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -193,9 +194,6 @@ def union(changes_dirs, storage_dir, union_branch,
     """Perform the actual work of the union subcommand"""
 
     storage_dir_ = os.path.abspath(storage_dir)
-    if not os.path.exists(storage_dir_):
-        raise PathNotExistError(
-            f"Storage directory \"{storage_dir_}\" does not exist.")
 
     changes_dirs_ = []
 
@@ -251,6 +249,8 @@ def do_union(args):
         raise InvalidArgumentError(
             "Error: "
             "the UNION_BRANCH positional argument is required.")
+
+    images_unpack_executed(args.storage_directory)
 
     union(args.changes_dirs, args.storage_directory,
           args.union_branch, args.subject, args.body)

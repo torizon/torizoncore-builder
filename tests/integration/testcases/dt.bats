@@ -15,6 +15,16 @@ load 'lib/common.bash'
     assert_output --partial "{status,checkout,apply}"
 }
 
+@test "dt: checkout device tree overlays directory without images unpack" {
+    torizoncore-builder-clean-storage
+    rm -rf device-trees
+
+    run torizoncore-builder dt checkout
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "dt: checkout device tree overlays directory" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     rm -rf device-trees
@@ -35,12 +45,30 @@ load 'lib/common.bash'
     done
 }
 
+@test "dt: check currently enabled device tree without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder dt status
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "dt: check currently enabled device tree" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder dt status
     assert [ $? = "0" -o $? = "1" ]
     assert_output --regexp "^Current device tree is|^error: cannot identify the enabled device tree"
+}
+
+@test "dt: apply device tree in the image without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder dt apply some_dto_file
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
 }
 
 @test "dt: apply device tree in the image" {

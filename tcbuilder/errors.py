@@ -85,3 +85,16 @@ class UserAbortError(TorizonCoreBuilderError):
 
 class InvalidAssignmentError(TorizonCoreBuilderError):
     pass
+
+class ImageUnpackError(TorizonCoreBuilderError):
+    """
+    Should be raised by commands that need an "images unpack" prior to their
+    execution.
+    """
+
+    msg = ["Error: could not find an Easy Installer image in the storage.",
+           "Please use the 'images' command to unpack an Easy Installer "
+           "image before running this command."]
+
+    def __init__(self):
+        super().__init__(msg="\n".join(ImageUnpackError.msg))

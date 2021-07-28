@@ -15,6 +15,15 @@ load 'lib/common.bash'
     assert_output --partial "usage: torizoncore-builder deploy"
 }
 
+@test "deploy: deploy changes to Tezi image without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder deploy --output-directory some_dir some_branch
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+}
+
 @test "deploy: deploy changes to Tezi image" {
     local ROOTFS=temp_rootfs
     rm -rf my_new_image
@@ -38,6 +47,19 @@ load 'lib/common.bash'
     check-file-ownership-as-workdir ../my_new_image/*.ota.tar.zst
 
     cd .. && rm -rf $ROOTFS my_new_image
+}
+
+@test "deploy: deploy changes to device without images unpack" {
+    requires-device
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder deploy --remote-host $DEVICE_ADDR \
+                                   --remote-username $DEVICE_USER \
+                                   --remote-password $DEVICE_PASS \
+                                   --reboot some_branch
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
 }
 
 @test "deploy: deploy changes to device" {

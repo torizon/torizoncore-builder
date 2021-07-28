@@ -8,6 +8,7 @@ import sys
 import tempfile
 
 from tcbuilder.backend import dt, dto, common
+from tcbuilder.backend.common import images_unpack_executed
 
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import dt as dt_cli
@@ -43,6 +44,8 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
     :param test_apply: whether or not to apply the overlay over the device tree to check for
                        errors.
     '''
+
+    images_unpack_executed(storage_dir)
 
     applied_overlay_basenames = dto.get_applied_overlays_base_names(storage_dir)
     dtob_target_basename = os.path.splitext(os.path.basename(dtos_path))[0] + ".dtbo"
@@ -153,6 +156,8 @@ def do_dto_list(args):
                   "tree binary to --device-tree.")
         sys.exit(1)
 
+    images_unpack_executed(args.storage_directory)
+
     # Find a device tree to check overlay compatibility against.
     dtb_path = args.device_tree
     if dtb_path and not os.path.isfile(dtb_path) and dtb_path.endswith(".dts"):
@@ -249,6 +254,8 @@ def do_dto_list(args):
 def do_dto_status(args):
     '''Perform the 'dto status' command.'''
 
+    images_unpack_executed(args.storage_directory)
+
     # Show the enabled device tree.
     (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(args.storage_directory)
     dtb_basename = os.path.basename(dtb_path)
@@ -318,6 +325,8 @@ def dto_remove_all(storage_dir):
 
 def do_dto_remove(args):
     '''Perform the 'dto status' command.'''
+
+    images_unpack_executed(args.storage_directory)
 
     if args.all and args.dtob_basename:
         log.error("error: both --all and an overlay were specified in the command line.")

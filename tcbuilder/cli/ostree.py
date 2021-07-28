@@ -4,6 +4,7 @@
 import os
 
 from tcbuilder.backend import ostree
+from tcbuilder.backend.common import images_unpack_executed
 
 
 def serving_ostree_callback():
@@ -18,6 +19,8 @@ def do_serve_ostree(args):
         src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
     else:
         src_ostree_archive_dir = os.path.abspath(args.ostree_repo_directory)
+
+    images_unpack_executed(storage_dir)
 
     http_server_thread = ostree.serve_ostree_start(src_ostree_archive_dir)
 

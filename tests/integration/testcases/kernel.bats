@@ -30,6 +30,7 @@ load 'lib/common.bash'
     cp $SAMPLES_DIR/kernel/$README $SRC_DIR
 
     torizoncore-builder-shell "chown 10:20 $SRC_DIR/$README"
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder kernel build_module $SRC_DIR
     assert_success
@@ -46,6 +47,20 @@ load 'lib/common.bash'
     # Check file with ownership not as "root:root"
     run ls -dln $SRC_DIR/$README
     assert_output --partial "1 10 20 0"
+
+    torizoncore-builder-shell "rm -rf $SRC_DIR"
+}
+
+@test "kernel: run build_module without images unpack" {
+    torizoncore-builder-clean-storage
+
+    local SRC_DIR="source_dir"
+    mkdir -p $SRC_DIR
+
+    run torizoncore-builder kernel build_module $SRC_DIR
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
 
     torizoncore-builder-shell "rm -rf $SRC_DIR"
 }

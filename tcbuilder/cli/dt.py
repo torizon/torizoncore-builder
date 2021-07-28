@@ -13,7 +13,8 @@ import re
 
 from tcbuilder.backend import dt
 from tcbuilder.backend.common import (checkout_git_repo,
-                                      set_output_ownership)
+                                      set_output_ownership,
+                                      images_unpack_executed)
 from tcbuilder.errors import (
     TorizonCoreBuilderError, InvalidArgumentError)
 
@@ -22,6 +23,8 @@ log = logging.getLogger("torizon." + __name__)
 
 def do_dt_status(args):
     '''Perform the 'dt status' command.'''
+
+    images_unpack_executed(args.storage_directory)
 
     dtb_basename = dt.get_current_dtb_basename(args.storage_directory)
     if not dtb_basename:
@@ -35,6 +38,8 @@ def do_dt_status(args):
 def do_dt_checkout(args):
     '''Perform the 'dt checkout' command.'''
     storage_dir = os.path.abspath(args.storage_directory)
+
+    images_unpack_executed(storage_dir)
 
     # Retrieve the Toradex device-tree repository, if not already retrieved.
     if os.path.exists(os.path.abspath("device-trees")):
@@ -52,6 +57,8 @@ def do_dt_checkout(args):
 
 def dt_apply(dts_path, storage_dir, include_dirs=None):
     '''Perform the work of the 'dt apply' command.'''
+
+    images_unpack_executed(storage_dir)
 
     # Sanity check parameters.
     assert dts_path, "panic: missing device tree source parameter"

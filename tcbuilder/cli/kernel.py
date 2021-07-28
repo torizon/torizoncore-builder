@@ -12,7 +12,8 @@ import subprocess
 from tcbuilder.errors import PathNotExistError
 from tcbuilder.errors import FileContentMissing
 from tcbuilder.backend.common import (get_unpack_command,
-                                      set_output_ownership)
+                                      set_output_ownership,
+                                      images_unpack_executed)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
 
@@ -112,6 +113,8 @@ def kernel_build_module(source_dir, storage_dir, autoload):
 
 def do_kernel_build_module(args):
     """"Run 'kernel build_module' subcommand"""
+    images_unpack_executed(args.storage_directory)
+
     kernel_build_module(source_dir=args.source_directory,
                         storage_dir=args.storage_directory,
                         autoload=args.autoload)
@@ -159,12 +162,16 @@ def kernel_set_custom_args(kernel_args, storage_dir):
 def do_kernel_set_custom_args(args):
     """Run 'kernel set_custom_args" subcommand"""
 
+    images_unpack_executed(args.storage_directory)
+
     kernel_set_custom_args(kernel_args=args.kernel_args,
                            storage_dir=args.storage_directory)
 
 
 def do_kernel_get_custom_args(args):
     """Run 'kernel get_custom_args" subcommand"""
+
+    images_unpack_executed(args.storage_directory)
 
     # Make sure image can handle kernel arguments.
     assert_custom_kargs_compat_image(args.storage_directory)
@@ -198,6 +205,8 @@ def do_kernel_get_custom_args(args):
 
 def do_kernel_clear_custom_args(args):
     """Run 'kernel clear_custom_args" subcommand"""
+
+    images_unpack_executed(args.storage_directory)
 
     # Make sure image can handle kernel arguments.
     assert_custom_kargs_compat_image(args.storage_directory)
