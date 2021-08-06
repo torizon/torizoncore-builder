@@ -243,3 +243,30 @@ load 'lib/isolate.bash'
 
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
+
+@test "isolate: isolate symbolic links using storage" {
+    requires-device
+    create-links-in-device
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS \
+                                    --force
+    assert_success
+}
+
+@test "isolate: isolate symbolic links using --changes-directory" {
+    requires-device
+    create-links-in-device
+    torizoncore-builder-clean-storage
+
+    local ISOLATE_DIR=$(mktemp -d tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+
+    run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
+                                    --remote-host $DEVICE_ADDR \
+                                    --remote-username $DEVICE_USER \
+                                    --remote-password $DEVICE_PASS \
+                                    --force
+    assert_success
+}

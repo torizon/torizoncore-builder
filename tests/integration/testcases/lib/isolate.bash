@@ -59,3 +59,11 @@ other::$FILE_PERM_OTHER
 __END__
     done
 }
+
+# Create a symbolic link in the device so them can be isolated and checked
+# later both, on the storage or using the --changes-directory parameter.
+create-links-in-device() {
+    device-shell-root "touch /etc/file.txt"
+    device-shell-root "rm -f /etc/link-to-file.txt"
+    device-shell-root "ln -s /etc/file.txt /etc/link-to-file.txt"
+}

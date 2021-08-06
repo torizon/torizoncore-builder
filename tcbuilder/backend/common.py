@@ -503,7 +503,7 @@ def apply_workdir_ownership(filename, workdir_uid, workdir_gid):
     file_uid, file_gid = get_file_ownership(filename)
 
     if file_uid == 0 and file_gid == 0:
-        os.chown(filename, workdir_uid, workdir_gid)
+        os.chown(filename, workdir_uid, workdir_gid, follow_symlinks=False)
 
 
 def get_file_ownership(filename):
@@ -514,7 +514,7 @@ def get_file_ownership(filename):
     :return: File user and group IDs.
     """
 
-    stat = os.stat(filename)
+    stat = os.stat(filename, follow_symlinks=False)
     return stat.st_uid, stat.st_gid
 
 
