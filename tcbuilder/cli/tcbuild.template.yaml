@@ -55,7 +55,7 @@ input:
         # - apalis-imx8_hdmi_overlay.dtbo
       # >> Overlays to add to output image.
       # add:
-        # - device-trees/dts-arm64/imx8qxp-colibri-eval-v3.dts
+        # - device-trees/overlays/display-edt7_overlay.dts
   # kernel:
     # >> Custom kernel arguments.
     # arguments:
