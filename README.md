@@ -2,6 +2,10 @@
 Introduction
 ============
 
+TorizonCore Builder is a tool that enables customizations on a TorizonCore image in an easy way. Almost all aspects of the the image can be customized, including the splash screen, configuration files, device trees and overlays, out-of-tree kernel modules, kernel parameters, etc. The end result is a custom TorizonCore image prepared for production programming. To learn more about the tool and how to get started, please refer to [TorizonCore Builder Commands Manual page](https://developer.toradex.com/torizoncore-builder-commands-manual).
+
+TorizonCore Builder source code is licensed under GPLv3, you can find the license file [here](gpl-30.md)
+
 In the next sections we describe some independent procedures that a developer working on **TorizonCore Builder** may like to follow.
 
 
