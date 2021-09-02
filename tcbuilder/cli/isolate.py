@@ -56,6 +56,7 @@ def isolate_subcommand(args):
                                        args.remote_host,
                                        args.remote_username,
                                        args.remote_password,
+                                       args.remote_port,
                                        args.mdns_source)
     if ret == isolate.NO_CHANGES:
         log.info("There are no changes in /etc to be isolated.")
@@ -90,7 +91,7 @@ def init_parser(subparsers):
                            dest="remote_host",
                            help="name/IP of remote machine",
                            required=True)
-    common.add_username_password_arguments(subparser)
+    common.add_ssh_arguments(subparser)
     subparser.add_argument("--mdns-source",
                            dest="mdns_source",
                            help="Use the given IP address as mDNS source. "

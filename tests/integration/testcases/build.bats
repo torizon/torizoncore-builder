@@ -142,9 +142,11 @@ load 'lib/common.bash'
     local ARCHIVE='/storage/ostree-archive/'
 
     # Deploy custom image.
-    run torizoncore-builder deploy \
-        --remote-host "$DEVICE_ADDR" --remote-username "$DEVICE_USER" \
-        --remote-password "$DEVICE_PASS" --reboot "$COMMIT"
+    run torizoncore-builder deploy --remote-host "$DEVICE_ADDR" \
+                                   --remote-username "$DEVICE_USER" \
+                                   --remote-password "$DEVICE_PASS" \
+                                   --remote-port "$DEVICE_PORT" \
+                                   --reboot "$COMMIT"
     assert_success
     assert_output --partial "Deploying successfully finished"
 

@@ -86,7 +86,14 @@ def add_common_image_arguments(subparser):
                            help="""Release notes file which will be shown on image installation""")
 
 
-def add_username_password_arguments(subparser):
+def add_ssh_arguments(subparser):
+    """
+    Add the ssh arguments: username, password and port.
+
+    --remote-username (Default:torizon)
+    --remote-password (Default:torizon)
+    --remote-port (Default:22)
+    """
     subparser.add_argument("--remote-username",
                            dest="remote_username",
                            help="Username of remote machine (default value "
@@ -97,6 +104,11 @@ def add_username_password_arguments(subparser):
                            help="Password of remote machine (default value "
                                 "is torizon)",
                            default="torizon")
+    subparser.add_argument("--remote-port",
+                           dest="remote_port",
+                           help="SSH port (default value is 22)",
+                           default=22,
+                           type=int)
 
 
 def add_files(tezidir, image_json_filename, filelist, additional_size,

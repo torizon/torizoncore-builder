@@ -98,6 +98,7 @@ def do_images_download(args):
     r_ip = common.resolve_remote_host(args.remote_host, args.mdns_source)
     dir_list = prepare_storage(args.storage_directory, args.remove_storage)
     images.download_tezi(r_ip, args.remote_username, args.remote_password,
+                         args.remote_port,
                          dir_list[0], dir_list[1], dir_list[2])
 
 
@@ -400,7 +401,7 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--remote-host", dest="remote_host",
         help="Hostname/IP address to target device.", required=True)
-    common.add_username_password_arguments(subparser)
+    common.add_ssh_arguments(subparser)
     subparser.add_argument(
         "--mdns-source", dest="mdns_source",
         help=("Use the given IP address as mDNS source. This is useful when "

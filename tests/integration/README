@@ -59,6 +59,8 @@ following variables are available:
 
 TCB_DEVICE:       IP address of the device used in test cases that
                   requires device access.
+TCB_PORT:         SSH port of the device used in test cases that
+                  requires device access (default port: 22)
 TCB_TESTCASE:     Test case to be executed, in case you want to run an
                   specific group of tests.
 TCB_MACHINE:      The test scripts need a TorizonCore image to run the

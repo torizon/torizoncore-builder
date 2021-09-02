@@ -93,7 +93,8 @@ load 'lib/union.bash'
 
     run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS
+                                    --remote-password $DEVICE_PASS \
+                                    --remote-port $DEVICE_PORT
 
     make-changes-to-validate-tcattr-acls "/storage/changes"
 
@@ -127,7 +128,8 @@ load 'lib/union.bash'
                                     --force \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS
+                                    --remote-password $DEVICE_PASS \
+                                    --remote-port $DEVICE_PORT
 
     add-files-to-check-default-credentials "/workdir/$ISOLATE_DIR"
 

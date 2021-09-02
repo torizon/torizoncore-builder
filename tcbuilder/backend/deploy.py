@@ -204,7 +204,7 @@ def run_command_with_sudo(client, command, password):
         log.debug(stderr_str)
 
 
-def deploy_ostree_remote(remote_host, remote_username, remote_password,
+def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_port,
                          remote_mdns, src_ostree_archive_dir, ref, reboot=False):
     """Implementation to deploy OSTree on remote device"""
 
@@ -233,7 +233,8 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password,
     resolved_remote_host = resolve_remote_host(remote_host, remote_mdns)
     client.connect(hostname=resolved_remote_host,
                    username=remote_username,
-                   password=remote_password)
+                   password=remote_password,
+                   port=remote_port)
 
     forwarding_thread = threading.Thread(target=reverse_forward_tunnel,
                                          args=(8080, "127.0.0.1", 8080, client.get_transport()))

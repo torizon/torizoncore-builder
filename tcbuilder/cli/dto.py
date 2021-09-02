@@ -456,7 +456,7 @@ def init_parser(subparsers):
         "--remote-host",
         dest="remote_host",
         help="Name/IP of remote machine", required=True)
-    common.add_username_password_arguments(subparser)
+    common.add_ssh_arguments(subparser)
     subparser.add_argument(
         "--reboot",
         dest="reboot", action='store_true',

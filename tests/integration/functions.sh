@@ -30,7 +30,7 @@ export -f torizoncore-builder-clean-storage
 # $@ = command to be executed
 device-shell() {
     local OPTS="-o ConnectTimeout=5 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
-    sshpass -p $DEVICE_PASS ssh -n -q $OPTS $DEVICE_USER@$DEVICE_ADDR "$@"
+    sshpass -p $DEVICE_PASS ssh -p $DEVICE_PORT -n -q $OPTS $DEVICE_USER@$DEVICE_ADDR "$@"
 }
 export -f device-shell
 

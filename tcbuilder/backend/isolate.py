@@ -141,14 +141,15 @@ def list_to_string_with_quote(args_list):
 
 
 # pylint: disable=too-many-locals
-def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_mdns):
+def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_port, r_mdns):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     resolved_remote_host = resolve_remote_host(r_name_ip, r_mdns)
     client.connect(hostname=resolved_remote_host,
                    username=r_username,
-                   password=r_password)
+                   password=r_password,
+                   port=r_port)
     # get config diff
     status, _stdin, stdout = run_command_with_sudo(
         client, 'sudo ostree admin config-diff', r_password)

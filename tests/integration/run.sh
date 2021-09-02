@@ -40,6 +40,13 @@ export DEVICE_ADDR=$TCB_DEVICE
 export DEVICE_USER="torizon"
 export DEVICE_PASS="1"
 
+# DEVICE_PORT defines the default SSH port used in test cases
+if [ ! -z "$TCB_PORT" ]; then
+    export DEVICE_PORT=$TCB_PORT
+else
+    export DEVICE_PORT="22"
+fi
+
 # machine defines the default tezi image used in test cases
 if [ ! -z "$TCB_MACHINE" ]; then
     MACHINE=$TCB_MACHINE

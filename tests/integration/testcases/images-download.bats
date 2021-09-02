@@ -20,7 +20,8 @@ load 'lib/common.bash'
 
     run torizoncore-builder images download --remote-host $DEVICE_ADDR \
                                             --remote-username $DEVICE_USER \
-                                            --remote-password $DEVICE_PASS
+                                            --remote-password $DEVICE_PASS \
+                                            --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
 

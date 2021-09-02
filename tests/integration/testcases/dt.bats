@@ -102,9 +102,11 @@ load 'lib/common.bash'
     assert_success
 
     torizoncore-builder union branch1
-    run torizoncore-builder deploy \
-        --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
-        --remote-password $DEVICE_PASS --reboot branch1
+    run torizoncore-builder deploy --remote-host "$DEVICE_ADDR" \
+                                   --remote-username "$DEVICE_USER" \
+                                   --remote-password "$DEVICE_PASS" \
+                                   --remote-port "$DEVICE_PORT" \
+                                   --reboot branch1
     assert_success
     assert_output --partial "Deploying successfully finished"
 

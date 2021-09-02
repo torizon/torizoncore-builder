@@ -82,7 +82,7 @@ def do_deploy_ostree_remote(args):
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     dbe.deploy_ostree_remote(args.remote_host, args.remote_username,
-                             args.remote_password, args.mdns_source,
+                             args.remote_password, args.remote_port, args.mdns_source,
                              src_ostree_archive_dir, args.ref, args.reboot)
 
 def do_deploy(args):
@@ -103,7 +103,7 @@ def init_parser(subparsers):
 
     subparser.add_argument("--remote-host", dest="remote_host",
                            help="""Remote host machine to deploy to.""")
-    common.add_username_password_arguments(subparser)
+    common.add_ssh_arguments(subparser)
     subparser.add_argument("--mdns-source", dest="mdns_source",
                            help="""Use the given IP address as mDNS source.
                            This is useful when multiple interfaces are used, and

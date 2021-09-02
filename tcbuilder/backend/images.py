@@ -42,7 +42,7 @@ OSTREE_PUBLIC_FEED = "https://feeds.toradex.com/ostree"
 UNSAFE_FILENAME_CHARS = r'\/:*?"<>|'
 
 
-def get_device_info(r_host, r_username, r_password):
+def get_device_info(r_host, r_username, r_password, r_port):
     """
     Access a "live" TorizonCore device and get some information about it.
 
@@ -60,7 +60,8 @@ def get_device_info(r_host, r_username, r_password):
 
     client.connect(hostname=r_host,
                    username=r_username,
-                   password=r_password)
+                   password=r_password,
+                   port=r_port)
 
     # Gather module and version information remotely from device
     sftp = client.open_sftp()
@@ -87,7 +88,7 @@ def get_device_info(r_host, r_username, r_password):
 
 
 # pylint: disable=too-many-locals
-def download_tezi(r_host, r_username, r_password,
+def download_tezi(r_host, r_username, r_password, r_port,
                   tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
     """
     Download appropriate Tezi Image based on target device.
@@ -95,7 +96,8 @@ def download_tezi(r_host, r_username, r_password,
 
     version, hostname, container = get_device_info(r_host,
                                                    r_username,
-                                                   r_password)
+                                                   r_password,
+                                                   r_port)
 
     # Create correct artifactory link based on device information
     if "devel" in version:
