@@ -518,7 +518,7 @@ def get_file_ownership(filename):
     return stat.st_uid, stat.st_gid
 
 
-def set_output_ownership(output_file):
+def set_output_ownership(output_file, set_parents=False):
     """
     Set ownership for any file and/or directory to the same ownership of
     TorizonCore Builder "working directory", but only if this ownership
@@ -527,9 +527,18 @@ def set_output_ownership(output_file):
     host machine.
 
     :param output_file: Output file or directory inside "/workdir"
+    :param set_parents: If True, set also the ownership of all parent
+                        directories in `output_file` (this is done only
+                        if `output_file` is a relative path).
     """
 
     workdir_uid, workdir_gid = get_file_ownership('/workdir')
+
+    if set_parents and not os.path.isabs(output_file):
+        parts = os.path.normpath(output_file).split(os.sep)
+        for num in range(len(parts) - 1):
+            apply_workdir_ownership(
+                os.sep.join(parts[:num + 1]), workdir_uid, workdir_gid)
 
     apply_workdir_ownership(output_file, workdir_uid, workdir_gid)
 
