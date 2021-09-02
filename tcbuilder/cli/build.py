@@ -402,6 +402,8 @@ def build(config_fname, storage_dir,
 
     except Exception as exc:
         # Avoid leaving a damaged output around:
+        # TODO: Maybe it would be best to catch BaseException here so even
+        #       keyboard interrupts are handled.
         if os.path.exists(output_dir):
             log.info(f"Removing output directory '{output_dir}' due to build errors")
             shutil.rmtree(output_dir)

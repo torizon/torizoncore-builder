@@ -1,0 +1,62 @@
+{
+    "signatures":
+    [
+        {
+            "keyid": "5b2feb3184f3e566c9935230e7af3cb99f4669edcd50d0755fc1bb28fb66959d",
+            "method": "rsassa-pss-sha256",
+            "sig": "ao/X2/yEIW3/BVmvJ1ZeklofeS6ols0UXjRUYNWmReNi+c4eQ7DsZ6tluIab3gpTIOnf0Ct22kbxU9gfoFKdRtK2Fa5X6UI+4u67CHUbKozDVCkleeLIVoQ5V1t3rHeKNIpTfTnWJK9QFbsy7x4HU1eGGTTUzvhkIAGo8JjZ7vFKKsObY3CRaq4FMtHHihu3Zra5S5eO/QRw/yRHysIXsK3JcYQRQIJUpUWWWHerQEOvjyqWEapggGCCq3RHPziT22kAM/O/vaBmp0gcu2V9AEhoTwhAWyEnXo5mnju1IKMUu7z6ARcz8qVRYgi4/Ns2DH9yOUMjtdaIb5do2JmuQQ=="
+        }
+    ],
+    "signed":
+    {
+        "_type": "Offline-Targets",
+        "expires": "2022-08-25T14:17:12Z",
+        "targets":
+        {
+            "5/colibri-imx6/torizon-upstream/torizon-core-docker/testing-750cd6958a5981dde44ae50d0658fd3795a8df154dbaf85308192cade47d342c":
+            {
+                "hashes":
+                {
+                    "sha256": "750cd6958a5981dde44ae50d0658fd3795a8df154dbaf85308192cade47d342c"
+                },
+                "length": 0,
+                "custom":
+                {
+                    "cliUploaded": false,
+                    "name": "5/colibri-imx6/torizon-upstream/torizon-core-docker/testing",
+                    "version": "750cd6958a5981dde44ae50d0658fd3795a8df154dbaf85308192cade47d342c",
+                    "hardwareIds":
+                    [
+                        "colibri-imx6"
+                    ],
+                    "targetFormat": "OSTREE",
+                    "uri": null,
+                    "createdAt": "2021-08-25T14:17:12Z",
+                    "updatedAt": "2021-08-25T14:17:12Z"
+                }
+            },
+            "docker-compose1.yml-2.0":
+            {
+                "hashes":
+                {
+                    "sha256": "ba21edeb15ce2fd27d81028c1d2852232cd0b20fa007582ad9c9878680f6b070"
+                },
+                "length": 556,
+                "custom":
+                {
+                    "name": "docker-compose1.yml",
+                    "version": "2.0",
+                    "hardwareIds":
+                    [
+                        "docker-compose"
+                    ],
+                    "targetFormat": "BINARY",
+                    "uri": null,
+                    "createdAt": "2021-04-24T09:24:00Z",
+                    "updatedAt": "2021-04-24T09:24:00Z"
+                }
+            }
+        },
+        "version": 7
+    }
+}

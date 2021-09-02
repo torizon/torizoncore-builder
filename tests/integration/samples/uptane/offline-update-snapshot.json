@@ -1,0 +1,37 @@
+{
+    "signatures":
+    [
+        {
+            "keyid": "5b2feb3184f3e566c9935230e7af3cb99f4669edcd50d0755fc1bb28fb66959d",
+            "method": "rsassa-pss-sha256",
+            "sig": "o0BsPCOd190HDu4/iGs6f/zRh7tVCeysZHPizCrR2D9ZiepMszACAuCQeh3Q4CO4SVQpsfIm9Qq0AaGmGvfmHljGurq7iHNrpzEWSIPRaQoPQu1W6rE3v9l5KVgrnmtmf3Ae2L2mZvUBGAbcnRuSqk/pyU8AP9DYHgccEeBJbOiILQAkKVApHeYB+IRwXhTkF9wdO6tGzByiW6yl32zpow9C4fROdrISDhCpTM3xGVOZlx2VtjlVW7YdnEVMQ/6+vOReKv0nnonNjqb44JUrwUvxqeGIQJefgAAwxSmIsOicdXhLHJvp5/0R+bYpvaMRGHoulNYQvZEApHiJCWKBqw=="
+        }
+    ],
+    "signed":
+    {
+        "_type": "Offline-Snapshot",
+        "meta":
+        {
+            "offline-update-CUSTOM_TCORE_COMPOSE.json":
+            {
+                "hashes":
+                {
+                    "sha256": "b1457e711a3cf08bf8ff44b47d193d3c77a49ef997ad899b2618ad5983b324b0"
+                },
+                "length": 2403,
+                "version": 7
+            },
+            "offline-update-STOCK_TCORE_COMPOSE.json":
+            {
+                "hashes":
+                {
+                    "sha256": "8e3e1379792275a3b58e0fe19332ed8a015b29192a65d32930c58eb612e462ee"
+                },
+                "length": 3133,
+                "version": 8
+            }
+        },
+        "expires": "2022-06-21T15:38:10Z",
+        "version": 18
+    }
+}

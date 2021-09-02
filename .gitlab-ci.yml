@@ -65,6 +65,7 @@ pylint:
                     --disable=missing-module-docstring
                     --disable=missing-class-docstring
                     --disable=missing-function-docstring
+                    --disable=fixme
                     $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
     - exit ${exit_code}
   stage: build
