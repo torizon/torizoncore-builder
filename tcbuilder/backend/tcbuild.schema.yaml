@@ -15,7 +15,7 @@ properties:
                   local:
                     type: string
                     description: "local directory or tarball containing the image"
-                    meta_tdx: "path;file"
+                    tdxMeta: "path;tar"
                 additionalProperties: false
                 required:
                   - local
@@ -128,15 +128,15 @@ properties:
       splash-screen:
         type: string
         description: "local file path of a PNG file used to generate the splash screen image"
-        meta_tdx: "file;png"
+        tdxMeta: "file;png"
       filesystem:
         type: array
         description: "directory trees to be applied on top of the ones in the input image"
-        meta_tdx: "path;file"
+        tdxMeta: "path"
         items:
           type: string
           description: "path to directory to be applied"
-          meta_tdx: "path;file"
+          tdxMeta: "path"
       device-tree:
         type: object
         description: "device tree configuration"
@@ -147,11 +147,11 @@ properties:
             items:
               type: string
               description: "path of a directory with include files"
-              meta_tdx: "path;file"
+              tdxMeta: "path"
           custom:
             type: string
             description: "path of a device tree source (dts) file that will be built and integrated with the image"
-            meta_tdx: "file"
+            tdxMeta: "file;dts"
           overlays:
             type: object
             description: "overlays configuration"
@@ -169,6 +169,7 @@ properties:
                 items:
                   type: string
                   description: "list of paths to device tree source files that will be compiled and added to the image"
+                  tdxMeta: "file;dts"
             additionalProperties: false
         additionalProperties: false
       kernel:
@@ -189,7 +190,7 @@ properties:
                 source-dir:
                   type: string
                   description: "path to directory containing the kernel module source code"
-                  meta_tdx: "path;file"
+                  tdxMeta: "path"
                 autoload:
                   type: boolean
                   description: "boolean indicating whether the module should be automatically loaded upon system boot"
@@ -253,6 +254,7 @@ properties:
                   compose-file:
                     type: string
                     description: "path of a docker-compose file that will be included in the final image along with the required container images"
+                    tdxMeta: "file:dockercompose"
                   platform:
                     type: string
                     description: "platform for fetching multi-platform container images"
@@ -271,7 +273,7 @@ properties:
                   dir:
                     type: string
                     description: "path to directory containing the container images bundle to be combined with the installer image"
-                    meta_tdx: "path;file"
+                    tdxMeta: "path"
                 required: [dir]
                 additionalProperties: false
         required: [local]
