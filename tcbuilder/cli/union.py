@@ -197,8 +197,12 @@ def union(changes_dirs, storage_dir, union_branch,
 
     changes_dirs_ = []
 
-    # Automatically add directories from storage.
-    for subdir in ["changes", "splash", "dt", "kernel"]:
+    # Automatically add directories from storage. The order in which we
+    # apply these directories to an ostree commit must be exactly like it is
+    # set up in here so the "initramfs.img" file produced by the "splash"
+    # command will not be overwritten by the "initramfs.img" produced by
+    # the "kernel" command.
+    for subdir in ["changes", "kernel", "splash", "dt"]:
         changed_dir = os.path.join(storage_dir_, subdir)
         if os.path.isdir(changed_dir):
             if subdir == "changes":
