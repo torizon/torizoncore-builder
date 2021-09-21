@@ -148,8 +148,10 @@ def push_compose(credentials, target, version, compose_file):
     client_secret = treehub_creds["oauth2"]["client_secret"]
 
     try:
-        response = requests.get(f"{auth_server}/token", data={"grant_type":"client_credentials"},
-                                auth=(client_id, client_secret))
+        response = requests.post(
+            f"{auth_server}/token",
+            data={"grant_type": "client_credentials"},
+            auth=(client_id, client_secret))
         token = json.loads(response.text)["access_token"]
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)
