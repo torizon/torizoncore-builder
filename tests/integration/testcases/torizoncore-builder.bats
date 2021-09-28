@@ -20,3 +20,9 @@ load 'bats/bats-file/load.bash'
     assert_output --partial 'Error: the switch --bundle-directory has been removed from the base torizoncore-builder command;'
     assert_output --partial 'it should be used only with the "bundle" and "combine" subcommands'
 }
+
+@test "torizoncore-builder: hidden --storage-directory parameter" {
+    run torizoncore-builder --help
+    assert_success
+    refute_output --partial "--storage-directory"
+}

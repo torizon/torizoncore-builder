@@ -101,11 +101,12 @@ parser.add_argument("--log-file", dest="log_file",
                     help="write logs to a file instead of console",
                     default=None)
 
-parser.add_argument("--storage-directory", dest="storage_directory",
-                    help="""path to internal storage. Must be a file system
-                    capable of carrying Linux file system metadata (Unix
-                    file permissions and xattr)""",
-                    default="/storage")
+# This parameter should be hidden and its functionality should be
+# defined by setting the "-s" switch of the "tcb-env-setup" script.
+parser.add_argument("--storage-directory",
+                    dest="storage_directory",
+                    help=argparse.SUPPRESS,
+                    default=argparse.SUPPRESS)
 
 parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
 
@@ -147,18 +148,21 @@ def am_i_under_docker():
     with open('/proc/1/cgroup', 'rt') as fd_cgroup:
         return 'docker' in fd_cgroup.read()
 
-def assert_operational_directory(path, label):
-    '''Assert that a given directory looks ok to be used as a data storage
+def assert_operational_directory(path):
+    """Assert that a given directory looks ok to be used as a data storage
        between executions of torizoncore-builder.
-    '''
+
+    :param path: Diretory path to be used as data storage.
+    """
+
     if not os.path.isabs(path):
-        logging.error(f"error: {label} directory '{path}' is not absolute.")
+        logging.error(f"error: storage directory '{path}' is not absolute.")
         sys.exit(1)
     if not os.path.exists(path):
-        logging.error(f"error: {label} directory '{path}' does not exist.")
+        logging.error(f"error: storage directory '{path}' does not exist.")
         sys.exit(1)
     if not os.path.isdir(path):
-        logging.error(f"error: {label} directory '{path}' is not a directory.")
+        logging.error(f"error: storage directory '{path}' is not a directory.")
         sys.exit(1)
     if not am_i_under_docker():
         return
@@ -166,12 +170,10 @@ def assert_operational_directory(path, label):
         # We're under Docker and the directory is part of the container's root mount.
         # When the container vanishes, so will the contents of the directory.
         # This is probably not what the user desires.
-        logging.warning(f"warning: {label} directory '{path}' is local to "
+        logging.warning(f"WARNING: storage directory '{path}' is local to "
                         "a Docker container, and its contents will be lost "
                         "if the container vanishes.")
-        logging.warning(f"You may want to bind '{path}' to a host directory "
-                        "with Docker's --volume option.")
-    return
+
 
 def check_deprecated_parameters(args):
     """Check deprecated base TorizonCore Builder command line arguments.
@@ -196,7 +198,16 @@ if __name__ == "__main__":
     mainargs = parser.parse_args()
 
     setup_logging(mainargs.log_level, mainargs.verbose, mainargs.log_file)
-    assert_operational_directory(mainargs.storage_directory, 'storage')
+
+    # Check if "--storage-directory" was provided in the command line.
+    if "storage_directory" in mainargs:
+        logging.warning("WARNING: The parameter --storage-directory is being "
+                        "deprecated and might be removed from TorizonCore "
+                        "Builder soon. For the same functionality, please "
+                        "use the -s flag from the tcb-env-setup.sh script.")
+        assert_operational_directory(mainargs.storage_directory)
+    else:
+        mainargs.storage_directory = "/storage"
 
     try:
         check_deprecated_parameters(mainargs)
