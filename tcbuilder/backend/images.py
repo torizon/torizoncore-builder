@@ -2,6 +2,8 @@
 Backend handling for build subcommand
 """
 
+# pylint: disable=too-many-lines
+
 import hashlib
 import json
 import logging
@@ -11,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import urllib.request
+import http.server
 
 from io import BytesIO, TextIOWrapper
 from urllib.parse import urljoin
@@ -40,6 +43,71 @@ ROOT_META_FILE = "root.json"
 DEFAULT_METADATA_MAXLEN = 4 * 1024 * 1024
 OSTREE_PUBLIC_FEED = "https://feeds.toradex.com/ostree"
 UNSAFE_FILENAME_CHARS = r'\/:*?"<>|'
+
+
+def serve(images_directory):
+    """
+    Serve TorizonCore TEZI images via HTTP so they can be installed directly
+    from TorizonCore Builder to any SoC using zeroconf technologies.
+
+    :param images_directory: TorizonCore TEZI images directory.
+    """
+
+    image_list_file = os.path.join(images_directory, "image_list.json")
+    if not os.path.exists(image_list_file):
+        logging.error(f"Error: The Toradex Easy Installer '{image_list_file}' "
+                      f"does not exist inside '{images_directory}' directory.")
+        sys.exit(1)
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        """Handler for the HTTP server."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=images_directory, **kwargs)
+
+        def log_message(self, *args):
+            path = args[1]
+            code = "OK" if args[2] == "200" else "Error"
+            log.debug(f"{path} {code}")
+
+        def do_GET(self):
+            """
+            Insert a 'Cache-Control' HTTP header in each response for
+            every '*.json' file requested previously so Toradex Easy
+            Installer will ask again for JSON files which it could
+            had already been asked in the pass because of multiple
+            executions of the TorizonCore Builder 'serve' command.
+            """
+            if self.path.endswith('.json'):
+                fd_json = open(os.path.join(images_directory, self.path[1:])).read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(fd_json)))
+                self.send_header("Cache-Control", "no-store,max-age=0")
+                self.end_headers()
+                self.wfile.write(fd_json.encode("utf-8"))
+            else:
+                super().do_GET()
+
+    try:
+        # The Avahi deamon should respond for zeroconf TEZI services
+        avahi = subprocess.Popen(["avahi-daemon"],
+                                 stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+
+        # Serve TEZI images directory via HTTP
+        log.info("Currently serving Toradex Easy Installer images from "
+                 f"'{images_directory}'. You may now run Toradex Easy Installer "
+                 "on your Toradex Device and install these images. Press "
+                 "'Ctrl+C' to quit and stop serving these images.\n")
+        with http.server.ThreadingHTTPServer(("", 80), Handler) as httpd:
+            httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        avahi.terminate()
+        avahi.wait()
 
 
 def get_device_info(r_host, r_username, r_password, r_port):

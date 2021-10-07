@@ -1,0 +1,54 @@
+{
+    "config_format": "3",
+    "autoinstall": false,
+    "name": "TorizonCore (UPSTREAM)",
+    "description": "TorizonCore Linux with no containers pre-provisioned.",
+    "version": "5.4.0-devel-20210929+build.419",
+    "release_date": "2021-09-29",
+    "u_boot_env": "u-boot-initial-env-spl",
+    "prepare_script": "prepare.sh",
+    "wrapup_script": "wrapup.sh",
+    "marketing": "marketing.tar",
+    "icon": "toradexlinux.png",
+    "supported_product_ids": [
+        "0027",
+        "0028",
+        "0029",
+        "0035"
+    ],
+    "blockdevs": [
+        {
+            "name": "mmcblk0",
+            "partitions": [
+                {
+                    "partition_size_nominal": 512,
+                    "want_maximised": true,
+                    "content": {
+                        "label": "otaroot",
+                        "filesystem_type": "ext4",
+                        "mkfs_options": "-E nodiscard",
+                        "filename": "torizon-core-docker-apalis-imx6.ota.tar.zst",
+                        "uncompressed_size": 456.09375
+                    }
+                }
+            ]
+        },
+        {
+            "name": "mmcblk0boot0",
+            "erase": true,
+            "content": {
+                "filesystem_type": "raw",
+                "rawfiles": [
+                    {
+                        "filename": "SPL",
+                        "dd_options": "seek=2"
+                    },
+                    {
+                        "filename": "u-boot.img",
+                        "dd_options": "seek=138"
+                    }
+                ]
+            }
+        }
+    ]
+}

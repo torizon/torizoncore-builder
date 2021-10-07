@@ -11,6 +11,22 @@ torizoncore-builder() {
 }
 export -f torizoncore-builder
 
+# run torizoncore-builder-bg
+torizoncore-builder-bg() {
+    local CMD=$(eval echo $TCBCMD)
+    $CMD $@ 3>- &
+    sleep 2 # Wait some time so TorizonCore Builder can be initialized.
+}
+export -f torizoncore-builder-bg
+
+# run stop-torizoncore-builder-bg
+stop-torizoncore-builder-bg() {
+    local TCBID=$(docker container ls --format '{{.Command}}${{.ID}}' | \
+                            grep 'torizoncore-builder' | cut -d '$' -f 2)
+    docker container stop $TCBID
+}
+export -f stop-torizoncore-builder-bg
+
 # run command inside torizoncore-builder container
 # $@ = command to be executed
 torizoncore-builder-shell() {

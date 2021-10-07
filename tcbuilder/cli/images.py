@@ -101,6 +101,12 @@ def do_images_download(args):
                          args.remote_port,
                          dir_list[0], dir_list[1], dir_list[2])
 
+def do_images_serve(args):
+    """
+    Wrapper for 'images serve' subcommand.
+    """
+    images.serve(args.images_directory)
+
 
 def load_offupd_metadata(image_name, dest_dir=None):
     """Load and possibly save the metadata for the specified image name
@@ -408,6 +414,16 @@ def init_parser(subparsers):
               "multiple interfaces are used, and mDNS multicast requests are "
               "sent out the wrong network interface."))
     subparser.set_defaults(func=do_images_download)
+
+    # images serve
+    subparser = subparsers.add_parser(
+        "serve",
+        help="Serve TorizonCore TEZI images via HTTP.")
+    subparser.add_argument(
+        metavar="IMAGES_DIRECTORY",
+        dest="images_directory",
+        help="Path to TorizonCore TEZI images directory.")
+    subparser.set_defaults(func=do_images_serve)
 
     # images takeout
     subparser = subparsers.add_parser(

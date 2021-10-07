@@ -1,0 +1,7 @@
+{
+    "config_format": 1,
+    "images": [
+        "image1/image.json",
+        "image2/image.json"
+    ]
+}

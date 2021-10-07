@@ -13,6 +13,7 @@ $TESTCASES_DIR/torizoncore-builder.bats \
 $TESTCASES_DIR/images.bats \
 $TESTCASES_DIR/images-unpack.bats \
 $TESTCASES_DIR/images-download.bats \
+$TESTCASES_DIR/images-serve.bats \
 $TESTCASES_DIR/union.bats \
 $TESTCASES_DIR/deploy.bats \
 $TESTCASES_DIR/isolate.bats \

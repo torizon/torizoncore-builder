@@ -5,5 +5,5 @@ load 'bats/bats-file/load.bash'
 @test "images: check help output" {
     run torizoncore-builder images --help
     assert_success
-    assert_output --partial '{download,takeout,unpack}'
+    assert_output --partial '{download,serve,takeout,unpack}'
 }

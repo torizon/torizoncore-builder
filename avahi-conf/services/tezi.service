@@ -1,0 +1,13 @@
+<?xml version="1.0" standalone='no'?><!--*-nxml-*-->
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">Custom Toradex Easy Installer Feed</name>
+  <service>
+    <type>_tezi._tcp</type>
+    <port>80</port>
+    <txt-record>name=Custom Toradex Easy Installer Feed</txt-record>
+    <txt-record>path=/image_list.json</txt-record>
+    <txt-record>enabled=1</txt-record>
+    <txt-record>https=0</txt-record>
+  </service>
+</service-group>
