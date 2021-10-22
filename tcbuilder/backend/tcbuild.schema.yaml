@@ -35,6 +35,7 @@ properties:
                         type: string
                         description: "image version (major.minor.patch)"
                         pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                        tdxMeta: "build;version"
                       release:
                         type: string
                         enum:
@@ -75,10 +76,12 @@ properties:
                         type: string
                         description: "build number as a string"
                         pattern: "^[0-9]+$"
+                        tdxMeta: "build;number"
                       build-date:
                         type: string
                         description: "build date as a string"
                         pattern: "^[0-9]+$"
+                        tdxMeta: "build;date"
                     required:
                       - version
                       - release
