@@ -88,6 +88,13 @@ properties:
                       - machine
                       - distro
                       - build-number
+                    if:
+                      properties:
+                        release:
+                          const: quarterly
+                    else:
+                      required:
+                        - build-date
                 additionalProperties: false
                 required:
                   - toradex-feed
