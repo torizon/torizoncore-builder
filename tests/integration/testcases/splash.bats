@@ -39,7 +39,7 @@ load 'bats/bats-file/load.bash'
     assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
 }
 
-@test "splash: create splash initramfs" {
+@test "splash: create splash" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
@@ -47,5 +47,8 @@ load 'bats/bats-file/load.bash'
     assert_output --partial "splash screen merged to initramfs"
 
     run torizoncore-builder-shell "ls -l /storage/splash/usr/lib/modules/*/initramfs.img"
+    assert_success
+
+    run torizoncore-builder-shell "ls -l /storage/splash/usr/share/plymouth/themes/spinner/watermark.png"
     assert_success
 }
