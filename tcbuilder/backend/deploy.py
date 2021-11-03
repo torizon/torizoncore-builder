@@ -1,3 +1,7 @@
+"""
+Backend handling for the deploy subcommand.
+"""
+
 import json
 import logging
 import os
@@ -15,7 +19,8 @@ from gi.repository import Gio, OSTree
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import get_rootfs_tarball, resolve_remote_host
 from tcbuilder.backend.rforward import reverse_forward_tunnel
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
+from tezi.utils import find_rootfs_content
 # pylint: enable=wrong-import-position
 
 log = logging.getLogger("torizon." + __name__)
@@ -77,6 +82,35 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
             OSTree.SysrootSimpleWriteDeploymentFlags.NO_CLEAN):
         raise TorizonCoreBuilderError("Error writing deployment.")
 
+
+def update_uncompressed_image_size(image_filename):
+    """
+    Update the 'uncompressed_size' field of the 'image.json' file.
+
+    :param image_filename: Compressed image filename.
+    """
+
+    # '.zst' is the default compression used, but it can also be '.xz'
+    cmd = ["zstd", "-l", f"{image_filename}"]
+    if image_filename.endswith(".xz"):
+        cmd[0] = "xz"
+
+    output = subprocess.check_output(cmd)
+    uncompressed_image_size = output.split()[11] # Uncompressed field of zstd/xz -l
+
+    image_json = os.path.join(os.path.dirname(image_filename), 'image.json')
+    with open(image_json, "r", encoding="utf-8") as jsonfile:
+        jsondata = json.load(jsonfile)
+    content = find_rootfs_content(jsondata)
+    if content is None:
+        raise InvalidDataError(
+            "No root file system content section found in Easy Installer image.")
+
+    content["uncompressed_size"] = float(uncompressed_image_size)
+    with open(image_json, "w", encoding="utf-8") as jsonfile:
+        json.dump(jsondata, jsonfile, indent=4)
+
+
 def create_installed_versions(path, ref, branch):
     with open(os.path.join(path, "installed_versions"), "w") as versionfile:
         versioninfo = {}
@@ -87,25 +121,30 @@ def copy_tezi_image(src_tezi_dir, dst_tezi_dir):
     shutil.copytree(src_tezi_dir, dst_tezi_dir)
 
 def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
-    tarfile = get_rootfs_tarball(output_dir)
+    image_filename = get_rootfs_tarball(output_dir)
 
-    compression = ""
-    if tarfile.endswith(".xz"):
-        compression = "--xz"
-    elif tarfile.endswith(".zst"):
-        compression = "--zstd"
+    if image_filename.endswith(".xz"):
+        uncompressed_file = image_filename.replace(".xz", "")
+        compress_cmd = f"xz -z {uncompressed_file}"
+    elif image_filename.endswith(".zst"):
+        uncompressed_file = image_filename.replace(".zst", "")
+        compress_cmd = f"zstd --rm {uncompressed_file}"
 
     # pylint: disable=line-too-long
     # This is a OSTree bare repository. Care must been taken to preserve all
     # file system attributes. Python tar does not support xattrs, so use GNU tar
     # here.
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
-    tarcmd = "tar --xattrs --xattrs-include='*' -cf {0} {1} -S -C {2} -p .".format(
-        tarfile, compression, dst_sysroot_dir)
-    log.debug(f"Running tar command: {tarcmd}")
-    subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT,
-                            env={"XZ_OPT": "-1"})
     # pylint: enable=line-too-long
+    tar_cmd = "tar --xattrs --xattrs-include='*' -cf {0} -S -C {1} -p .".format(
+        uncompressed_file, dst_sysroot_dir)
+    log.debug(f"Running tar command: {tar_cmd}")
+    subprocess.check_output(tar_cmd, shell=True, stderr=subprocess.STDOUT)
+
+    log.debug(f"Running compress command: {compress_cmd}")
+    subprocess.check_output(compress_cmd, shell=True, stderr=subprocess.STDOUT)
+
+    update_uncompressed_image_size(image_filename)
 
 
 def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
