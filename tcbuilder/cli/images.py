@@ -2,6 +2,7 @@
 CLI handling for images subcommand
 """
 
+import argparse
 import logging
 import os
 import shutil
@@ -11,19 +12,18 @@ from datetime import datetime, timezone
 import dateutil.parser
 
 from tcbuilder.backend import images, sotaops, common
-from tcbuilder.errors import UserAbortError, InvalidStateError, InvalidDataError
+from tcbuilder.backend.images import JSON_EXT, OFFLINE_SNAPSHOT_FILE
+from tcbuilder.errors import UserAbortError, InvalidStateError, InvalidDataError,\
+    TorizonCoreBuilderError
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
-
-JSON_EXT = ".json"
 
 IMAGES_DIR = "images/"
 DIRECTOR_DIR = "metadata/director/"
 IMAGEREPO_DIR = "metadata/image-repo/"
 DOCKERMETA_DIR = "metadata/docker/"
 
-OFFLINE_UPDATE_SNAPSHOT_FILE = "offline-update-snapshot.json"
 DEFAULT_PLATFORMS = ["linux/arm/v7", "linux/arm64"]
 
 
@@ -108,44 +108,30 @@ def do_images_serve(args):
     images.serve(args.images_directory)
 
 
-def load_offupd_metadata(image_name, dest_dir=None):
-    """Load and possibly save the metadata for the specified image name
+def load_offupd_metadata(image_name, source_dir):
+    """Load the metadata for the specified image name
 
-    This function will save both the metadata directly related to the specified
-    image and also the offline-update snapshot which lists all updates
-    available.
+    This function will load both the targets and the snapshot metadata for
+    the specified offline-update image.
 
-    :param image_name: If a name without an extension of ".json" or a "/"
-                       separator is passed, assume this is the name of an
-                       image whose information is to be fetched from the OTA
-                       server.
-    :param dest_dir: If not None, the main metadata and the snapshot files will
-                     be saved into the directory defined by this parameter.
+    :param image_name: Name of the image (possibly with the extension .json)
+    :param source_dir: Path to directory where metadata files are searched for.
     """
 
-    # Load offline-update targets and snapshot metadata:
-    if os.sep in image_name or image_name.endswith(JSON_EXT):
-        # Treat image_name as a file name.
-        if not image_name.endswith(JSON_EXT):
-            image_name += JSON_EXT
+    # Special handling for the case where input is a local file:
+    if image_name.endswith(JSON_EXT):
+        image_name = os.path.basename(image_name[:-len(JSON_EXT)])
 
-        # Load targets metadata into memory.
-        log.info(f"Loading offline-update targets metadata from {image_name}")
-        offupd_targets_info = images.load_metadata(image_name)
+    image_file = os.path.join(source_dir, image_name + JSON_EXT)
 
-        # Load snapshot metadata (search same directory as the targets metadata file is).
-        offupd_snapshot_file = os.path.join(
-            os.path.dirname(image_name), OFFLINE_UPDATE_SNAPSHOT_FILE)
-        log.info(f"Loading offline-update snapshot metadata from {offupd_snapshot_file}")
-        offupd_snapshot_info = images.load_metadata(offupd_snapshot_file)
+    # Load targets metadata into memory.
+    log.info(f"Loading offline-update targets metadata from '{image_file}'")
+    offupd_targets_info = images.load_metadata(image_file)
 
-        # Make a copy into the destination directory:
-        if dest_dir is not None:
-            shutil.copy(image_name, dest_dir)
-            shutil.copy(offupd_snapshot_file, dest_dir)
-    else:
-        assert False, \
-            "NOT IMPLEMENTED: Load offline-update targets metadata from OTA server"
+    # Load snapshot metadata (search same directory as the targets metadata file is).
+    offupd_snapshot_file = os.path.join(source_dir, OFFLINE_SNAPSHOT_FILE)
+    log.info(f"Loading offline-update snapshot metadata from {offupd_snapshot_file}")
+    offupd_snapshot_info = images.load_metadata(offupd_snapshot_file)
 
     return offupd_targets_info, offupd_snapshot_info
 
@@ -173,7 +159,7 @@ def validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info):
     # Basic check of the targets metadata alone.
     targets_meta = offupd_targets_info["parsed"]["signed"]
 
-    ensure(targets_meta["_type"] == "Offline-Targets",
+    ensure(targets_meta["_type"] == "Offline-Updates",
            "_type in targets metadata does not equal 'Offline-Targets'")
 
     ensure(dateutil.parser.parse(targets_meta["expires"]) > now,
@@ -184,9 +170,11 @@ def validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info):
     ensure(targets_file in snapshot_meta["meta"],
            f"{targets_file} is not described in the snapshot metadata")
 
-    ensure(snapshot_meta["meta"][targets_file]["hashes"]["sha256"] ==
-           offupd_targets_info["sha256"],
-           f"{targets_file} does not have the expected sha256")
+    # The way the server determines the SHA is based on the canonical JSON
+    # so we are skipping this check here (Aktualizr doesn't do it either):
+    # ensure(snapshot_meta["meta"][targets_file]["hashes"]["sha256"] ==
+    #        offupd_targets_info["sha256"],
+    #        f"{targets_file} does not have the expected sha256")
 
     ensure(snapshot_meta["meta"][targets_file]["length"] ==
            offupd_targets_info["size"],
@@ -270,7 +258,7 @@ def fetch_offupd_targets(
 def images_takeout(
         image_name, creds_file, output_dir,
         docker_logins=None, docker_platforms=None,
-        force=False, validate=True):
+        force=False, validate=True, fetch_targets=True):
     """Main handler for the 'images takeout' subcommand
 
     :param image_name: Name of the takeout image as defined at the OTA server
@@ -285,6 +273,7 @@ def images_takeout(
                           information to be used with other registries.
     :param force: Whether to force the generation of the output directory.
     :param validate: Whether to validate the Uptane metadata.
+    :param fetch_targets: Whether to fetch the actual targets.
     """
 
     # Create output directory or abort:
@@ -314,12 +303,6 @@ def images_takeout(
         # Configure Docker "operations" class.
         RegistryOperations.set_logins(docker_logins)
 
-        # Load and validate top-level metadata (offline targets and snapshot):
-        offupd_targets_info, offupd_snapshot_info = \
-            load_offupd_metadata(image_name, dest_dir=director_dir)
-        if validate:
-            validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info)
-
         # Load credentials file.
         server_creds = sotaops.ServerCredentials(creds_file)
         # log.debug(server_creds)
@@ -328,24 +311,36 @@ def images_takeout(
         sota_token = sotaops.get_access_token(server_creds)
 
         # Fetch metadata from OTA server.
-        log.info(l1_pref("Handling image-repository metadata"))
+        log.info(l1_pref("Handle director-repository metadata"))
+        images.fetch_director_metadata(
+            image_name,
+            server_creds.director_url, director_dir, access_token=sota_token)
+
+        log.info(l1_pref("Handle image-repository metadata"))
         images.fetch_imgrepo_metadata(
             server_creds.repo_url, imagerepo_dir, access_token=sota_token)
 
-        log.info(l1_pref("Handling director-repository metadata"))
-        # images.fetch_director_metadata()
-        # log.debug(f"{metadata_dir} parameter not used YET!")
+        log.info(l1_pref("Process offline-update metadata"))
+        # Load and validate top-level metadata (offline targets and snapshot (director)):
+        offupd_targets_info, offupd_snapshot_info = \
+            load_offupd_metadata(image_name, director_dir)
+        if validate:
+            validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info)
 
         # Fetch all targets specified in offline-update targets metadata:
-        log.info(l1_pref("Handling Uptane targets"))
-        fetch_offupd_targets(
-            targets_metadata=offupd_targets_info["parsed"]["signed"]["targets"],
-            ostree_url=server_creds.ostree_server,
-            repo_url=server_creds.repo_url,
-            images_dir=images_dir,
-            access_token=sota_token,
-            docker_metadata_dir=dockermeta_dir,
-            docker_platforms=docker_platforms)
+        if fetch_targets:
+            log.info(l1_pref("Handle Uptane targets"))
+
+            fetch_offupd_targets(
+                targets_metadata=offupd_targets_info["parsed"]["signed"]["targets"],
+                ostree_url=server_creds.ostree_server,
+                repo_url=server_creds.repo_url,
+                images_dir=images_dir,
+                access_token=sota_token,
+                docker_metadata_dir=dockermeta_dir,
+                docker_platforms=docker_platforms)
+        else:
+            log.info(l1_pref("Handle Uptane targets [skipped]"))
 
         common.set_output_ownership(output_dir, set_parents=True)
 
@@ -372,7 +367,8 @@ def do_images_takeout(args):
         docker_logins=logins,
         docker_platforms=(args.platforms or DEFAULT_PLATFORMS),
         force=args.force,
-        validate=args.validate)
+        validate=args.validate,
+        fetch_targets=args.fetch_targets)
 
 
 def images_unpack(image_dir, storage_dir, remove_storage=False):
@@ -460,18 +456,25 @@ def init_parser(subparsers):
         metavar=('USERNAME', 'PASSWORD'),
         help=("Request that the tool logs in to the default [Docker Hub] "
               "registry using specified USERNAME and PASSWORD."))
-    subparser.add_argument(
-        "--no-validate",
-        dest="validate",
-        help="Disable basic metadata validation (expiry date, number of targets, etc.).",
-        action="store_false", default=True)
-    # FIXME: Allow logging in also to other registries.
+    # TODO: Allow logging in also to other registries.
     subparser.add_argument(
         "--output-directory",
         help=("Relative path to the output directory (default: update/). If "
               "parent directories are passed such as in a/b/update/, they will "
               "be automatically created."),
         default="update/")
+    # Hidden argument (disable basic metadata validation (expiry date, # of targets, etc.)):
+    subparser.add_argument(
+        "--no-validate",
+        dest="validate",
+        help=argparse.SUPPRESS,
+        action="store_false", default=True)
+    # Hidden argument (disable fetching of targets (that is, fetch only Uptane metadata)):
+    subparser.add_argument(
+        "--no-fetch-targets",
+        dest="fetch_targets",
+        help=argparse.SUPPRESS,
+        action="store_false", default=True)
     subparser.set_defaults(func=do_images_takeout)
 
     # images unpack

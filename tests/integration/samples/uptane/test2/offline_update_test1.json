@@ -1,0 +1,53 @@
+{
+  "signatures": [
+    {
+      "keyid": "82b85839476bc6e510f5791bc31d34a75d52160e7a04cc9cd1278277118c9e51",
+      "method": "rsassa-pss-sha256",
+      "sig": "h1ot7RYpVaplJjkev9K3bzJ7BOZO9qTq2CsTeKl9EZwi8533bIK1OAMBvFiPIkiygryt1gzJrZmAvS7DLTX2+a7kmh9B2L58+fHYGai3TreDS6Eq4tDJapyuIoKgOPoyXJx8Gs3FeF72lGoJRH5cqJPbm8MyJDhvYL5/R6ONXfUQYVDkesI9LsmHxZpTBjxMhReqZQiayvEqMM3L1otvLEp5GB3m8itl+fSDKifpG7tIkrMGgFWZc0Ww9MKbwd7k4mBGKmnPsFVUQZQFM6jzpFTDJr5TaXNkiIPzZG6pL5r6JQHR0ojWPJ8wVsKMGt30yb+yzbHaQVojd7iGN15F+A=="
+    }
+  ],
+  "signed": {
+    "targets": {
+      "5/colibri-imx6/torizon-upstream/torizon-core-docker/monthly": {
+        "hashes": {
+          "sha256": "d6769962bc356de4cb450a951976b7e65de3562a26a5bd47495a47e07a117e48"
+        },
+        "length": 0,
+        "custom": {
+          "name": "5/colibri-imx6/torizon-upstream/torizon-core-docker/monthly",
+          "version": "d6769962bc356de4cb450a951976b7e65de3562a26a5bd47495a47e07a117e48",
+          "hardwareIds": [
+            "colibri-imx6"
+          ],
+          "targetFormat": "OSTREE",
+          "uri": null,
+          "createdAt": "2021-11-04T21:53:39Z",
+          "updatedAt": "2021-11-04T21:53:39Z",
+          "commitSubject": "5.5.0-devel-202111+build.19",
+          "commitBody": ""
+        }
+      },
+      "docker-compose1.yml-2.0": {
+        "hashes": {
+          "sha256": "ba21edeb15ce2fd27d81028c1d2852232cd0b20fa007582ad9c9878680f6b070"
+        },
+        "length": 556,
+        "custom": {
+          "cliUploaded": true,
+          "name": "docker-compose1.yml",
+          "version": "2.0",
+          "hardwareIds": [
+            "docker-compose"
+          ],
+          "targetFormat": "BINARY",
+          "uri": null,
+          "createdAt": "2021-08-25T20:04:52Z",
+          "updatedAt": "2021-08-25T20:04:52Z"
+        }
+      }
+    },
+    "expires": "2022-11-11T21:36:29Z",
+    "version": 1,
+    "_type": "Offline-Updates"
+  }
+}

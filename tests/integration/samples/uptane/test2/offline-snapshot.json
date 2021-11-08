@@ -1,0 +1,23 @@
+{
+  "signatures": [
+    {
+      "keyid": "82b85839476bc6e510f5791bc31d34a75d52160e7a04cc9cd1278277118c9e51",
+      "method": "rsassa-pss-sha256",
+      "sig": "eUYgpdEn3Qgm0hFLxHh6l4KVG5FZ0m+CsjxUxikAxN58dSCHnPhAXAXncPg0OQ7vtUl7iT85tc6QNC8k7FKPpXP0lYKYPtAs3AdUonAe/Zlq6gN8w4nvDf3aYcNyunkslC8eAILAMsT37f1tp/snx07gLRBeDZoH3WVN/qq8aWUjUcQSACOjf97YHzH9YCSE6MyAeudARA8+8vx5tBvgKBeCfBCilU8V9wVuPylIvZyQpjfdIBiNfUuvFg3cuzLARzxYbYrRffEiDi/Q7Izv7XHvZ9DP2twjDTiAiF3LXaNUYkhunhLt21TOtzf2ybfzQo6QDfKMpDKFsa4YPQ/LPg=="
+    }
+  ],
+  "signed": {
+    "meta": {
+      "offline_update_test1.json": {
+        "hashes": {
+          "sha256": "9818f99f6aec78120621050fc0d9c1b7270f284c3cf61d05e7c2c1c00420d6fb"
+        },
+        "length": 1908,
+        "version": 1
+      }
+    },
+    "expires": "2022-11-11T21:36:29Z",
+    "version": 1,
+    "_type": "Offline-Snapshot"
+  }
+}

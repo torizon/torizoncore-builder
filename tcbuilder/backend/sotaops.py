@@ -5,6 +5,7 @@ import logging
 
 from zipfile import ZipFile
 
+from urllib.parse import urlparse, urlunparse
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 
@@ -70,8 +71,22 @@ class ServerCredentials:
 
     @property
     def repo_url(self):
-        """URL to the TUF image? repo"""
-        return self.repo_url_
+        """Base URL for the image repo endpoints (always without a slash at the end)"""
+        assert self.repo_url_ is not None
+        return self.repo_url_.rstrip("/")
+
+    @property
+    def director_url(self):
+        """Base URL for the director repo endpoints (based on the repo URL)
+
+        A repo_url of
+        'https://api-pilot.torizon.io/a/b/c/d/' becomes
+        'https://api-pilot.torizon.io/director/'
+        """
+        assert self.repo_url_ is not None
+        parts = urlparse(self.repo_url_)
+        parts = parts._replace(path="/director")
+        return urlunparse(parts)
 
     @property
     def method(self):

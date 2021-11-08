@@ -1,0 +1,17 @@
+# mode=offline
+services:
+  calibrator1:
+    x-old-image: torizon/arm32v7-debian-weston-touch-calibrator@sha256:99f70e0ee4cb2bb49d41fa7b310ee613f0d9ceb655b1c75796b115c4f8556e4d
+    image: torizon/arm32v7-debian-weston-touch-calibrator:digest_sha256_99f70e0ee4cb2bb49d41fa7b310ee613f0d9ceb655b1c75796b115c4f8556e4d
+  hello-world1:
+    x-old-image: hello-world@sha256:0fe98d7debd9049c50b597ef1f85b7c1e8cc81f59c8d623fcb2250e8bec85b38
+    image: hello-world:digest_sha256_1b26826f602946860c279fce658f31050cff2c596583af237d971f4629b57792
+  hello-world2:
+    x-old-image: hello-world@sha256:0fe98d7debd9049c50b597ef1f85b7c1e8cc81f59c8d623fcb2250e8bec85b38
+    image: hello-world:digest_sha256_1b26826f602946860c279fce658f31050cff2c596583af237d971f4629b57792
+    platform: linux/amd64
+  hello-world3:
+    x-old-image: "hello-world@sha256:0fe98d7debd9049c50b597ef1f85b7c1e8cc81f59c8d623fcb2250e8bec85b38"
+    image: "hello-world:digest_sha256_94b700b6ae5759e539e06fa6d483f5f0174067945f180cc1362cfda71c5fd722"
+    platform: linux/arm/v7
+version: '2.4'

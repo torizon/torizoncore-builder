@@ -28,7 +28,8 @@ from tcbuilder.backend.common import (get_rootfs_tarball, get_unpack_command,
                                       get_host_workdir, set_output_ownership)
 from tcbuilder.backend import ostree
 from tcbuilder.errors import \
-    (TorizonCoreBuilderError, InvalidArgumentError, InvalidDataError, OperationFailureError)
+    (TorizonCoreBuilderError, InvalidArgumentError, InvalidDataError,
+     OperationFailureError, FetchError)
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
 from tcbuilder.backend.registryops import \
@@ -36,13 +37,17 @@ from tcbuilder.backend.registryops import \
 
 log = logging.getLogger("torizon." + __name__)
 
-SNAPSHOT_META_FILE = "snapshot.json"
-TARGETS_META_FILE = "targets.json"
+JSON_EXT = ".json"
 ROOT_META_FILE = "root.json"
+TARGETS_META_FILE = "targets.json"
+SNAPSHOT_META_FILE = "snapshot.json"
+OFFLINE_SNAPSHOT_FILE = "offline-snapshot.json"
 
 DEFAULT_METADATA_MAXLEN = 4 * 1024 * 1024
 OSTREE_PUBLIC_FEED = "https://feeds.toradex.com/ostree"
 UNSAFE_FILENAME_CHARS = r'\/:*?"<>|'
+
+RESERVED_TAKEOUT_IMAGE_NAMES = ["root", "snapshot", "targets", "timestamp"]
 
 
 def serve(images_directory):
@@ -397,7 +402,7 @@ def check_commit_present(ostree_url, commit_sha256, access_token=None):
         f"code={res.status_code}, url={url}")
 
 
-def do_fetch_ostree_target(_target, sha256, ostree_url, images_dir, access_token=None):
+def do_fetch_ostree_target(target, sha256, ostree_url, images_dir, access_token=None):
     """Helper to fetch a given commit from a specified OSTree repo"""
 
     # Evaluate using libostree for the work done by this function (FUTURE).
@@ -424,6 +429,20 @@ def do_fetch_ostree_target(_target, sha256, ostree_url, images_dir, access_token
         ])
     log.debug(f"Running {' '.join(pull_cmd)}")
     subprocess.run(pull_cmd, check=True)
+
+    # Create a ref named after the target.
+    try:
+        subprocess.run(
+            ["ostree", "refs", "--repo", repo_dir, "--create", target, sha256, "--force"],
+            check=True)
+
+    except subprocess.CalledProcessError as _exc:
+        # Setting the ref name is nice but not strictly required; it might fail if
+        # the target name does not match the naming pattern allowed by OSTree. A
+        # possible improvement would be to sanitize the name to be in accordance
+        # with the allowed pattern which can be seen in OSTree's source code, file
+        # ostree-core.c, macro `OSTREE_REF_REGEXP`.
+        log.warning("Could not create ref according to Uptane target name (non-fatal)")
 
     # Remove remote.
     subprocess.run(
@@ -507,8 +526,9 @@ def fetch_validate(url, fname, dest_dir,
         res = requests.get(url)
 
     if res.status_code != requests.codes["ok"]:
-        raise TorizonCoreBuilderError(
-            f"Could not fetch fname '{fname}' from '{url}'")
+        raise FetchError(
+            f"Could not fetch fname '{fname}' from '{url}'",
+            status_code=res.status_code)
 
     if length is not None and len(res.content) != length:
         raise InvalidDataError(
@@ -1023,9 +1043,86 @@ def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None):
         fetch_validate(url, fname, dest_dir, access_token=access_token)
 
 
-def fetch_director_metadata():
-    """Fetch all the required metadata from an Uptane director repo"""
-    # TODO: Implement this.
+def fetch_director_metadata(image_name, director_url, dest_dir, access_token=None):
+    """Fetch (root) metadata from an Uptane director repo"""
+
+    is_local_file = image_name.endswith(JSON_EXT)
+    if is_local_file:
+        image_file = image_name
+        image_name = os.path.basename(image_name[:-len(JSON_EXT)])
+    else:
+        image_file = image_name + JSON_EXT
+
+    # Image name must not be reserved and must contain only characters that are
+    # safe to store on the file system (there might be other constraints enforced
+    # by the server as well).
+    if image_name.lower() in RESERVED_TAKEOUT_IMAGE_NAMES:
+        raise TorizonCoreBuilderError(
+            f"Error: Image name '{image_name}' is reserved and cannot be used (aborting)")
+
+    if not all(ch not in UNSAFE_FILENAME_CHARS for ch in image_name):
+        raise TorizonCoreBuilderError(
+            f"Error: Image name '{image_name}' contains disallowed characters (aborting)")
+
+    # ---
+    # Get offline targets and snapshot metadata files.
+    # ---
+    if is_local_file:
+        # For the local case we simply copy the files to the destination.
+        log.info(f"Copying {image_file} -> {dest_dir}")
+        shutil.copy(image_file, dest_dir)
+
+        snapshot_file = os.path.join(
+            os.path.dirname(image_file), OFFLINE_SNAPSHOT_FILE)
+        log.info(f"Copying {snapshot_file} -> {dest_dir}")
+        shutil.copy(snapshot_file, dest_dir)
+
+    else:
+        # Fetch the targets metadata for the specified offline-update.
+        url = urljoin(director_url + "/", f"api/v1/admin/repo/offline-updates/{image_file}")
+        try:
+            log.info(f"Fetching '{image_file}'")
+            fetch_validate(
+                url, image_file, dest_dir,
+                sha256=None, length=None, access_token=access_token)
+
+        except FetchError as exc:
+            log.warning(str(exc))
+            raise TorizonCoreBuilderError(
+                f"Error: Could not fetch offline-update named '{image_name}' from server")
+
+        # Fetch the targets metadata for the specified offline-update.
+        snapshot_file = OFFLINE_SNAPSHOT_FILE
+        url = urljoin(director_url + "/", f"api/v1/admin/repo/{snapshot_file}")
+        log.info(f"Fetching '{snapshot_file}'")
+        fetch_validate(
+            url, snapshot_file, dest_dir,
+            sha256=None, length=None, access_token=access_token)
+
+    # ---
+    # Get all versions of root metadata.
+    # ---
+    for version in range(1, 9999):
+        fname = f"{version}.root.json"
+        url = urljoin(director_url + "/", f"api/v1/admin/repo/{fname}")
+        try:
+            log.info(f"Fetching '{fname}'")
+            fetch_validate(
+                url, fname, dest_dir,
+                sha256=None, length=None, access_token=access_token)
+
+        except FetchError as exc:
+            not_found_status_codes = [
+                requests.codes["not_found"],
+                requests.codes["failed_dependency"]
+            ]
+            if exc.status_code in not_found_status_codes:
+                log.info(f"Fetching '{fname}' (version not available, stopping)")
+                break
+
+            log.warning(str(exc))
+            raise TorizonCoreBuilderError(
+                f"Error: Could not fetch metadata file '{fname}' from server")
 
 
 # EOF

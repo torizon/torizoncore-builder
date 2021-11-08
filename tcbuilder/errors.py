@@ -1,3 +1,4 @@
+
 class TorizonCoreBuilderError(Exception):
     def __init__(self, msg, deb_details=None, status_code=None, payload=None):
         self.msg = msg
@@ -5,7 +6,6 @@ class TorizonCoreBuilderError(Exception):
         if status_code is not None:
             self.status_code = status_code
         self.payload = payload
-
         super().__init__(self.msg)
 
 class PathNotExistError(TorizonCoreBuilderError):
@@ -98,3 +98,6 @@ class ImageUnpackError(TorizonCoreBuilderError):
 
     def __init__(self):
         super().__init__(msg="\n".join(ImageUnpackError.msg))
+
+class FetchError(TorizonCoreBuilderError):
+    pass
