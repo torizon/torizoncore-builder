@@ -4,8 +4,8 @@ variables:
   DEBIAN_RELEASE: "bullseye-slim"
   # container version
   TORIZONCORE_BUILDER_MAJOR: "3"
-  TORIZONCORE_BUILDER_MINOR: "1"
-  TORIZONCORE_BUILDER_PATCH: "2"
+  TORIZONCORE_BUILDER_MINOR: "2"
+  TORIZONCORE_BUILDER_PATCH: "0"
 
   # This should be set by docker image already, just to be sure...
   DOCKER_HOST: tcp://docker:2375
