@@ -14,7 +14,9 @@ import requests
 from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import ostree
 
+
 log = logging.getLogger("torizon." + __name__)
+
 
 def update_targets(targets_file_path, packagename, commit, subject, body, metadata):
     """Add Toradex specific metadata in targets.json"""
@@ -63,7 +65,8 @@ def run_garage_command(command, verbose):
             f'"{command[0]}" with arguments "{command[1:]}"')
 
 # pylint: disable=too-many-locals
-def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=False):
+def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
+             package_name=None, hardwareids=None, verbose=False):
     """Push OSTree reference to OTA server.
 
     Push given reference of a given archive OSTree repository to the OTA server
@@ -74,6 +77,8 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
     commit = repo.read_commit(ref).out_commit
 
     metadata, subject, body = ostree.get_metadata_from_checksum(repo, commit)
+    package_name = package_name or ref
+    package_version = package_version or subject
 
     # Try to find harware id to use from OSTree metadata
     module = None
@@ -99,9 +104,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
 
     log.info(f"Pushed {ref} successfully.")
 
-    packagename = ref
-
-    log.info(f"Signing OSTree package {packagename} (commit checksum {commit}) "
+    log.info(f"Signing OSTree package {package_name} (commit checksum {commit}) "
              f"for Hardware Id(s) \"{module}\".")
 
     run_garage_command(["garage-sign", "init",
@@ -113,7 +116,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
 
     run_garage_command(["garage-sign", "targets", "add",
                         "--repo", tuf_repo,
-                        "--name", packagename,
+                        "--name", package_name,
                         "--format", "OSTREE",
                         "--version", commit,
                         "--length", "0",
@@ -127,7 +130,9 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
                 "oe.layers", "oe.kargs-default"]:
         metadata.pop(key, None)
     targets_file_path = os.path.join(tuf_repo, "roles/unsigned/targets.json")
-    update_targets(targets_file_path, packagename, commit, subject, body, metadata)
+
+    update_targets(targets_file_path, package_name, commit, package_version,
+                   body, metadata)
 
     run_garage_command(["garage-sign", "targets", "sign",
                         "--repo", tuf_repo,
@@ -136,7 +141,8 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, hardwareids=None, verbose=F
     run_garage_command(["garage-sign", "targets", "push",
                         "--repo", tuf_repo], verbose)
 
-    log.info(f"Signed and pushed OSTree package {packagename} successfully.")
+    log.info(f"Signed and pushed OSTree package {package_name} successfully.")
+
 
 def push_compose(credentials, target, version, compose_file):
     """Push docker-compose file to OTA server."""

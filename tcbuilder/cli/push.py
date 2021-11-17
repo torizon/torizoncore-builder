@@ -7,9 +7,9 @@ to the devices.
 
 import os
 import datetime
+
 from tcbuilder.backend import push
 from tcbuilder.errors import PathNotExistError
-
 
 
 def push_subcommand(args):
@@ -19,7 +19,9 @@ def push_subcommand(args):
 
     if args.ref.endswith(".yml") or args.ref.endswith(".yaml"):
         compose_file = os.path.abspath(args.ref)
-        push.push_compose(credentials, args.target, args.version, compose_file)
+        target = args.target or "docker-compose_file.yml"
+        version = args.version or datetime.datetime.today().strftime("%Y-%m-%d")
+        push.push_compose(credentials, target, version, compose_file)
     else:
         if args.ostree is not None:
             src_ostree_archive_dir = os.path.abspath(args.ostree)
@@ -35,7 +37,8 @@ def push_subcommand(args):
         if args.hardwareids is not None:
             hardwareids = ",".join(args.hardwareids)
         push.push_ref(src_ostree_archive_dir, tuf_repo, credentials,
-                      args.ref, hardwareids, args.verbose)
+                      args.ref, args.version, args.target, hardwareids,
+                      args.verbose)
 
 def init_parser(subparsers):
     """Initialize argument parser"""
@@ -53,12 +56,12 @@ def init_parser(subparsers):
         required=False, default=None)
     subparser.add_argument(
         "--package-name", dest="target",
-        help="Package name for docker-compose file.",
-        required=False, default="docker-compose.yml")
+        help="Package name for docker-compose file or OSTree reference.",
+        required=False, default=None)
     subparser.add_argument(
         "--package-version", dest="version",
-        help="Package version for docker-compose file.",
-        required=False, default=datetime.datetime.today().strftime("%Y-%m-%d"))
+        help="Package version for docker-compose file or OSTree reference.",
+        required=False, default=None)
     subparser.add_argument(
         metavar="REF", nargs="?", dest="ref",
         help="OSTree reference or docker-compose file to push to Torizon OTA.")
