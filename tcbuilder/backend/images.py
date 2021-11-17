@@ -15,6 +15,7 @@ import sys
 import urllib.request
 import http.server
 
+from fnmatch import fnmatchcase
 from io import BytesIO, TextIOWrapper
 from urllib.parse import urljoin
 from zipfile import ZipFile
@@ -43,11 +44,14 @@ TARGETS_META_FILE = "targets.json"
 SNAPSHOT_META_FILE = "snapshot.json"
 OFFLINE_SNAPSHOT_FILE = "offline-snapshot.json"
 
+TARGETS_METADATA_MAXLEN = 16 * 1024 * 1024
 DEFAULT_METADATA_MAXLEN = 4 * 1024 * 1024
 OSTREE_PUBLIC_FEED = "https://feeds.toradex.com/ostree"
 UNSAFE_FILENAME_CHARS = r'\/:*?"<>|'
 
-RESERVED_TAKEOUT_IMAGE_NAMES = ["root", "snapshot", "targets", "timestamp"]
+RESERVED_TAKEOUT_IMAGE_NAMES = [
+    "root", "snapshot", "targets", "timestamp", "offline-snapshot"
+]
 
 
 def serve(images_directory):
@@ -436,7 +440,7 @@ def do_fetch_ostree_target(target, sha256, ostree_url, images_dir, access_token=
             ["ostree", "refs", "--repo", repo_dir, "--create", target, sha256, "--force"],
             check=True)
 
-    except subprocess.CalledProcessError as _exc:
+    except subprocess.CalledProcessError:
         # Setting the ref name is nice but not strictly required; it might fail if
         # the target name does not match the naming pattern allowed by OSTree. A
         # possible improvement would be to sanitize the name to be in accordance
@@ -527,7 +531,7 @@ def fetch_validate(url, fname, dest_dir,
 
     if res.status_code != requests.codes["ok"]:
         raise FetchError(
-            f"Could not fetch fname '{fname}' from '{url}'",
+            f"Could not fetch file '{fname}' from '{url}'",
             status_code=res.status_code)
 
     if length is not None and len(res.content) != length:
@@ -1091,7 +1095,7 @@ def fetch_director_metadata(image_name, director_url, dest_dir, access_token=Non
             raise TorizonCoreBuilderError(
                 f"Error: Could not fetch offline-update named '{image_name}' from server")
 
-        # Fetch the targets metadata for the specified offline-update.
+        # Fetch the snapshot metadata for the specified offline-update.
         snapshot_file = OFFLINE_SNAPSHOT_FILE
         url = urljoin(director_url + "/", f"api/v1/admin/repo/{snapshot_file}")
         log.info(f"Fetching '{snapshot_file}'")
@@ -1123,6 +1127,110 @@ def fetch_director_metadata(image_name, director_url, dest_dir, access_token=Non
             log.warning(str(exc))
             raise TorizonCoreBuilderError(
                 f"Error: Could not fetch metadata file '{fname}' from server")
+
+
+def load_imgrepo_targets(source_dir):
+    """Load Uptane image repo targets metadata (top-level and delegations)"""
+
+    # Load top-level targets:
+    targets_file = os.path.join(source_dir, TARGETS_META_FILE)
+    log.info(f"Loading image-repo targets metadata from '{targets_file}'")
+    targets_metadata = load_metadata(
+        targets_file, ftype="json", maxlen=TARGETS_METADATA_MAXLEN)
+    assert targets_metadata["parsed"]["signed"]["_type"] == "Targets"
+
+    # TODO: Test with data having multiple levels of delegations.
+    # Helper for parsing delegations (depth-first recursion).
+    n_loaded = 0
+    def _load_delegations(node):
+        nonlocal n_loaded
+        children = {}
+        for deleg in node["parsed"]["signed"]["delegations"]["roles"]:
+            deleg_name = deleg["name"]
+            deleg_file = os.path.join(source_dir, deleg_name + JSON_EXT)
+            log.info(f"Loading image-repo delegated targets metadata from '{deleg_file}'")
+            deleg_metadata = load_metadata(
+                deleg_file, ftype="json", maxlen=TARGETS_METADATA_MAXLEN)
+            assert deleg_metadata["parsed"]["signed"]["_type"] == "Targets"
+            children[deleg_name] = deleg_metadata
+            # Recursion:
+            if "delegations" in deleg_metadata["parsed"]["signed"]:
+                _load_delegations(deleg_metadata)
+            # Limit total number of delegations files loaded (protect from loops in metadata).
+            n_loaded += 1
+            assert n_loaded < 32, "Too many delegation files"
+        # 'children' is a dict: (role name, result of load_metadata())
+        node["children"] = children
+
+    if "delegations" in targets_metadata["parsed"]["signed"]:
+        _load_delegations(targets_metadata)
+
+    # print(json.dumps(targets_metadata, indent=4))
+    return targets_metadata
+
+
+def find_imgrepo_target(targets_metadata, sha256, name=None, length=None):
+    """Find an Uptane target on the image repo metadata
+
+    targets_metadata: metadata as loaded by load_imgrepo_targets()
+    sha256: hash of the target to be found
+    name: name of the target to be found (optional)
+    length: length of the target to be found (optional)
+    """
+
+    # Use length parameter (TODO).
+
+    for tgt_key, tgt_val in targets_metadata["parsed"]["signed"]["targets"].items():
+        # Check criteria:
+        if tgt_val["hashes"]["sha256"] != sha256:
+            continue
+        if name is not None and tgt_key != name:
+            log.warning(f"Target {sha256} found by hash but name does not match "
+                        f"({name} != {tgt_key})")
+            continue
+        if length is not None and length != tgt_val["length"]:
+            log.warning(f"Target {sha256} found by hash but length does not match "
+                        f"({length} != {tgt_val['length']})")
+            continue
+        # All conditions passed:
+        return tgt_key, tgt_val
+
+    def _find_in_delegations(node):
+        for deleg in node["parsed"]["signed"]["delegations"]["roles"]:
+            deleg_name = deleg["name"]
+            deleg_paths = deleg.get("paths", [])
+            if name is not None and not any(fnmatchcase(name, wcd) for wcd in deleg_paths):
+                log.debug(f"Name {name} does not match any of {deleg_paths}")
+                continue
+
+            deleg_metadata = node["children"][deleg_name]
+            for tgt_key, tgt_val in deleg_metadata["parsed"]["signed"]["targets"].items():
+                # Check criteria:
+                if tgt_val["hashes"]["sha256"] != sha256:
+                    continue
+                if name is not None and tgt_key != name:
+                    log.warning(f"Target {sha256} found by hash but name does not match "
+                                f"({name} != {tgt_key})")
+                    continue
+                if length is not None and length != tgt_val["length"]:
+                    log.warning(f"Target {sha256} found by hash but length does not match "
+                                f"({length} != {tgt_val['length']})")
+                    continue
+                # All conditions passed:
+                return tgt_key, tgt_val
+
+            # Recursion:
+            if "delegations" in deleg_metadata["parsed"]["signed"]:
+                tgt_key, tgt_val = _find_in_delegations(deleg_metadata)
+                if tgt_key is not None:
+                    return tgt_key, tgt_val
+        return None, None
+
+    # Not found at top-level - search in delegations:
+    if "delegations" in targets_metadata["parsed"]["signed"]:
+        return _find_in_delegations(targets_metadata)
+
+    return None, None
 
 
 # EOF

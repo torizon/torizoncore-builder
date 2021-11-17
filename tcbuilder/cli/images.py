@@ -160,7 +160,7 @@ def validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info):
     targets_meta = offupd_targets_info["parsed"]["signed"]
 
     ensure(targets_meta["_type"] == "Offline-Updates",
-           "_type in targets metadata does not equal 'Offline-Targets'")
+           "_type in targets metadata does not equal 'Offline-Updates'")
 
     ensure(dateutil.parser.parse(targets_meta["expires"]) > now,
            "Offline targets metadata is already expired")
@@ -188,14 +188,16 @@ def validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info):
     log.info("Offline-update metadata passed basic validation")
 
 
-def fetch_offupd_targets(
-        targets_metadata, images_dir, docker_metadata_dir,
+# pylint: disable=too-many-locals
+def fetch_offupdt_targets(
+        offupdt_targets_info, imgrepo_targets_info,
+        images_dir, docker_metadata_dir,
         ostree_url=None, repo_url=None, access_token=None,
         docker_platforms=None):
     """Fetch all targets referenced by the offline-update targets metadata
 
-    :param targets_metadata: The targets metadata as fetched from the director
-                             repository.
+    :param offupdt_targets_info: Targets metadata of the offline-update.
+    :param imgrepo_targets_info: Targets metadata of the image-repository.
     :param images_dir: Directory where images would be stored.
     :param docker_metadata_dir: Directory where to store metadata for Docker.
     :param ostree_url: Base URL of the OSTree repository.
@@ -207,40 +209,48 @@ def fetch_offupd_targets(
                              default.
     """
 
-    validate = True
-    tgtmeta = targets_metadata
-    for tgtkey in targets_metadata:
-        tgtformat = tgtmeta[tgtkey]["custom"]["targetFormat"]
+    # offupdt_targets = offupdt_targets_info["parsed"]["signed"]["targets"]
+    for offupdt_name, offupdt_meta in offupdt_targets_info["parsed"]["signed"]["targets"].items():
+        offupdt_hash = offupdt_meta["hashes"]["sha256"]
+        offupdt_len = offupdt_meta["length"]
+        imgrepo_name, imgrepo_meta = images.find_imgrepo_target(
+            imgrepo_targets_info, offupdt_hash, offupdt_name, offupdt_len)
+
+        if (imgrepo_name is None) or (imgrepo_meta is None):
+            raise TorizonCoreBuilderError(
+                f"Could not find target '{offupdt_name}' in image-repo metadata")
+
+        tgtformat = imgrepo_meta["custom"]["targetFormat"]
+        # TODO: Allow custom URIs ('uri' field?)
         # Handle each type of target.
         if tgtformat == "OSTREE":
             params = {
-                "target": tgtkey,
-                "sha256": tgtmeta[tgtkey]["hashes"]["sha256"],
+                "target": imgrepo_name,
+                "sha256": imgrepo_meta["hashes"]["sha256"],
                 "ostree_url": ostree_url,
                 "images_dir": images_dir,
-                "name": tgtmeta[tgtkey]["custom"]["name"],
-                "version": tgtmeta[tgtkey]["custom"]["version"],
+                "name": imgrepo_meta["custom"]["name"],
+                "version": imgrepo_meta["custom"]["version"],
                 "access_token": access_token
             }
             images.fetch_ostree_target(**params)
 
         elif tgtformat == "BINARY":
             params = {
-                "target": tgtkey,
+                "target": imgrepo_name,
                 "repo_url": repo_url,
                 "images_dir": images_dir,
-                "name": tgtmeta[tgtkey]["custom"]["name"],
-                "version": tgtmeta[tgtkey]["custom"]["version"],
+                "name": imgrepo_meta["custom"]["name"],
+                "version": imgrepo_meta["custom"]["version"],
                 "access_token": access_token
             }
-            if validate:
-                params.update({
-                    "sha256": tgtmeta[tgtkey]["hashes"]["sha256"],
-                    "length": tgtmeta[tgtkey]["length"],
-                })
-
+            # Currently we always check the sha and length of binary targets.
+            params.update({
+                "sha256": imgrepo_meta["hashes"]["sha256"],
+                "length": imgrepo_meta["length"],
+            })
             # Handle compose and basic binary files differently:
-            if "docker-compose" in tgtmeta[tgtkey]["custom"]["hardwareIds"]:
+            if "docker-compose" in imgrepo_meta["custom"]["hardwareIds"]:
                 params.update({
                     "req_platforms": docker_platforms,
                     "metadata_dir": docker_metadata_dir
@@ -252,6 +262,7 @@ def fetch_offupd_targets(
         else:
             assert False, \
                 f"Do not know how to handle target of type {tgtformat}"
+# pylint: enable=too-many-locals
 
 
 # pylint: disable=too-many-locals
@@ -327,12 +338,15 @@ def images_takeout(
         if validate:
             validate_offupd_metadata(offupd_targets_info, offupd_snapshot_info)
 
+        imgrepo_targets_info = images.load_imgrepo_targets(imagerepo_dir)
+
         # Fetch all targets specified in offline-update targets metadata:
         if fetch_targets:
             log.info(l1_pref("Handle Uptane targets"))
 
-            fetch_offupd_targets(
-                targets_metadata=offupd_targets_info["parsed"]["signed"]["targets"],
+            fetch_offupdt_targets(
+                offupdt_targets_info=offupd_targets_info,
+                imgrepo_targets_info=imgrepo_targets_info,
                 ostree_url=server_creds.ostree_server,
                 repo_url=server_creds.repo_url,
                 images_dir=images_dir,
