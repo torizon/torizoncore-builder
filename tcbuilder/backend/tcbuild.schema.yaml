@@ -161,7 +161,7 @@ properties:
           custom:
             type: string
             description: "path of a device tree source (dts) file that will be built and integrated with the image"
-            tdxMeta: "file;dts"
+            tdxMeta: "dts"
           overlays:
             type: object
             description: "overlays configuration"
@@ -179,7 +179,7 @@ properties:
                 items:
                   type: string
                   description: "list of paths to device tree source files that will be compiled and added to the image"
-                  tdxMeta: "file;dts"
+                  tdxMeta: "dts;overlay"
             additionalProperties: false
         additionalProperties: false
       kernel:
