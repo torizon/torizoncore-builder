@@ -411,17 +411,21 @@ def do_fetch_ostree_target(target, sha256, ostree_url, images_dir, access_token=
 
     # Evaluate using libostree for the work done by this function (FUTURE).
     # Create a local repo.
-    repo_dir = os.path.join(images_dir, sha256 + ".ostree")
-    os.mkdir(repo_dir)
-    subprocess.run(
-        ["ostree", "init", "--repo", repo_dir, "--mode=archive"],
-        check=True)
+    repo_dir = os.path.join(images_dir, "ostree")
+    if not os.path.exists(repo_dir):
+        log.debug(f"Initializing OSTree at '{repo_dir}'")
+        os.mkdir(repo_dir)
+        subprocess.run(
+            ["ostree", "init", "--repo", repo_dir, "--mode=archive"],
+            check=True)
+    else:
+        log.debug(f"Reusing existing OSTree repo at '{repo_dir}'")
 
     # Add a temporary remote.
     remote_name = "tmpremote"
     subprocess.run(
         ["ostree", "remote", "add", remote_name,
-         "--repo", repo_dir, ostree_url, "--no-gpg-verify"],
+         "--repo", repo_dir, ostree_url, "--no-gpg-verify", "--force"],
         check=True)
 
     # Pull our hashref.
