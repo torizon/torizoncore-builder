@@ -16,8 +16,9 @@ from tcbuilder.errors import InvalidArgumentError, OperationFailureError
 
 TEZI_FEED_URL = "https://tezi.int.toradex.com:8443/tezifeed"
 
-def get_images(artifactory_repo, branch, release_type, matrix_build_number, machine,
-               distro, image):
+def get_images(tezi_feed_url, artifactory_repo, branch, release_type,
+               matrix_build_number, machine, distro, image,
+               disable_publish_tezi_filer=False):
     """Get list of Toradex Easy Installer images from feed URL"""
 
     filter_params = {'repo': artifactory_repo,
@@ -27,13 +28,16 @@ def get_images(artifactory_repo, branch, release_type, matrix_build_number, mach
                      'BUILD_DISTRO': distro,
                      'BUILD_RECIPE': image}
 
+    if disable_publish_tezi_filer:
+        filter_params['disablePublishTeziFilter'] = 1
+
     if matrix_build_number is not None:
         filter_params['MATRIX_BUILD_NUMBER'] = matrix_build_number
 
     params = urllib.parse.urlencode(filter_params)
 
-    feed_url = "{}?{}".format(TEZI_FEED_URL, params)
-    logging.info(f"Requestion from \"{feed_url}\"")
+    feed_url = "{}?{}".format(tezi_feed_url, params)
+    logging.info(f"Requesting from \"{feed_url}\"")
     req = urllib.request.urlopen(feed_url)
     content = req.read().decode(req.headers.get_content_charset() or "utf-8")
 
@@ -64,9 +68,11 @@ def batch_process(args):
         for distro in args.distro:
             # Get TorizonCore Toradex Easy Installer images for
             # machine/distro/image combination...
-            image_urls = list(get_images(args.repo, args.branch,
-                                         args.release_type, args.matrix_build_number,
-                                         machine, distro, 'torizon-core-docker'))
+            image_urls = list(get_images(args.tezi_feed_url, args.repo,
+                                         args.branch, args.release_type,
+                                         args.matrix_build_number,
+                                         machine, distro, 'torizon-core-docker',
+                                         args.disable_publish_tezi_filer))
 
             if len(image_urls) == 0:
                 continue
@@ -111,6 +117,17 @@ def init_parser(subparsers):
     subparser.add_argument("--output-directory", dest="output_directory",
                            help="Specify the output directory",
                            default="output")
+    subparser.add_argument(
+        "--tezi-feed-url",
+        dest="tezi_feed_url",
+        default="https://tezi.int.toradex.com:8443/tezifeed",
+        help="Toradex Easy Installer URL")
+    subparser.add_argument(
+        "--disable-publish-tezi-filter",
+        dest="disable_publish_tezi_filer",
+        action="store_true",
+        default=False,
+        help="Disable filtering of Toradex Easy Installer feed")
     subparser.add_argument("--repo", dest="repo",
                            help="""Toradex Easy Installer source repository""",
                            default="torizoncore-oe-nightly-horw")
