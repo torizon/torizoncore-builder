@@ -4,7 +4,7 @@ variables:
   DEBIAN_RELEASE: "buster-slim"
   # container version
   TORIZONCORE_BUILDER_MAJOR: "1"
-  TORIZONCORE_BUILDER_MINOR: "2"
+  TORIZONCORE_BUILDER_MINOR: "3"
   TORIZONCORE_BUILDER_PATCH: "1"
 
   # This should be set by docker image already, just to be sure...
