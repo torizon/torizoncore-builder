@@ -8,11 +8,15 @@ import logging
 import subprocess
 import os
 import json
+import re
 import zipfile
 import requests
+import yaml
 
 from tcbuilder.errors import TorizonCoreBuilderError
 from tcbuilder.backend import ostree
+from tcbuilder.backend.common import set_output_ownership
+from tcbuilder.backend.registryops import RegistryOperations, parse_image_name
 
 
 log = logging.getLogger("torizon." + __name__)
@@ -144,7 +148,8 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
     log.info(f"Signed and pushed OSTree package {package_name} successfully.")
 
 
-def push_compose(credentials, target, version, compose_file):
+def push_compose(credentials, target, version, compose_file,
+                 canonicalize=None, force=False):
     """Push docker-compose file to OTA server."""
 
     zip_ref = zipfile.ZipFile(credentials, 'r')
@@ -164,15 +169,92 @@ def push_compose(credentials, target, version, compose_file):
         log.error("Couldn't get access token")
 
     reposerver = zip_ref.read("tufrepo.url").decode("utf-8")
-    data = open(compose_file, 'rb').read()
+
+    if canonicalize:
+        lock_file, data = canonicalize_compose_file(compose_file, force)
+    else:
+        lock_file = compose_file
+        with open(compose_file, encoding='utf-8') as compose_fd:
+            data = compose_fd.read()
+        log.info(f"WARNING: the '{os.path.basename(compose_file)}' is been "
+                 "pushed to OTA as it is, but in future versions of TorizonCore "
+                 "Builder it will be canonicalized in order to follow best "
+                 "practices.")
+
+    log.info(f"Pushing '{os.path.basename(lock_file)}' with package version "
+             f"{version} to OTA server. You should keep this file under your "
+             "version control system.")
     put = requests.put(f"{reposerver}/api/v1/user_repo/targets/{target}_{version}",
                        params={"name" : f"{target}", "version" : f"{version}",
                                "hardwareIds" : "docker-compose"},
                        headers={"Authorization":f"Bearer {token}", }, data=data)
 
-    log.info(f"Pushing package name '{target}' with package version '{version}'.")
     if put.status_code == 204:
-        log.info(f"Successfully pushed {os.path.basename(compose_file)} to OTA server.")
+        log.info(f"Successfully pushed {os.path.basename(lock_file)} to OTA server.")
     else:
-        log.error(f"Could not upload {os.path.basename(compose_file)} to OTA server at this time:")
+        log.error(f"Could not upload {os.path.basename(lock_file)} to OTA server at this time:")
         log.error(put.text)
+
+
+def set_images_hash(compose_file_data):
+    """
+    Set hash for the images defined in the Docker compose file.
+
+    :param compose_file_data: The Docker compose file data.
+    """
+
+    registry = RegistryOperations()
+
+    for service in compose_file_data.get('services').values():
+        image = parse_image_name(service.get('image'))
+        if image.registry:
+            raise TorizonCoreBuilderError("Registry name specification is not supported.")
+        response, image_tag_with_hash = registry.get_manifest(image.name, ret_digest=True)
+        if response.status_code == 200:
+            service['image'] = "@".join((image.name, image_tag_with_hash))
+
+
+def canonicalize_compose_file(compose_file, force=False):
+    """
+    Canonicalize a Docker compose file that could be pushed to OTA and
+    saved as a '.lock.yml/yaml' file.
+
+    :param compose_file: The Docker compose file.
+    :param force: Force the overwriting of the canonicalized file.
+    :returns:
+        The canonicalized data of the Docker compose file as well as the
+        name of the '.lock' file created.
+    """
+
+    if not compose_file.endswith('.yml') and not compose_file.endswith('.yaml'):
+        raise TorizonCoreBuilderError(
+            f"File '{compose_file}' does not seem like a Docker compose file. "
+            "It does not end with '.yml' or '.yaml'.")
+
+    with open(compose_file, encoding='utf-8') as compose_fd:
+        compose_file_data = yaml.load(compose_fd, Loader=yaml.FullLoader)
+
+    # TODO: We should check if this file is really in canonical form and not
+    # only relying on the extension name.
+    if compose_file.endswith(".lock.yml") or compose_file.endswith(".lock.yaml"):
+        log.info(f"File '{os.path.basename(compose_file)}' (already in "
+                 "canonical form).")
+        return compose_file, yaml.dump(compose_file_data, Dumper=yaml.Dumper)
+
+    canonical_compose_file_lock = re.sub(r"(.ya?ml)$", r".lock\1", compose_file)
+    if os.path.exists(canonical_compose_file_lock) and not force:
+        raise TorizonCoreBuilderError(
+            f"Canonicalized file '{os.path.basename(canonical_compose_file_lock)}' "
+            "already exists. Please use the '--force' parameter if you want it to "
+            "be overwritten.")
+
+    set_images_hash(compose_file_data)
+    canonical_data = yaml.dump(compose_file_data, Dumper=yaml.Dumper)
+
+    with open(canonical_compose_file_lock, 'w', encoding='utf-8') as compose_lock_fd:
+        compose_lock_fd.write(canonical_data)
+    set_output_ownership(canonical_compose_file_lock)
+    log.info(f"Canonicalized file '{os.path.basename(canonical_compose_file_lock)}' "
+             "has been generated.")
+
+    return canonical_compose_file_lock, canonical_data

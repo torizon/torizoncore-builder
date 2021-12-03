@@ -6,14 +6,32 @@ to the devices.
 """
 
 import os
+import logging
 import datetime
+import argparse
 
 from tcbuilder.backend import push
-from tcbuilder.errors import PathNotExistError
+from tcbuilder.errors import PathNotExistError, TorizonCoreBuilderError
 
+log = logging.getLogger("torizon." + __name__)
 
 def push_subcommand(args):
     """Run \"push\" subcommand"""
+
+    if args.canonicalize_only:
+        # pylint: disable=singleton-comparison
+        if args.canonicalize == False:
+            raise TorizonCoreBuilderError(
+                "Error: The '--no-canonicalize' and '--canonicalize-only' "
+                "options cannot be used at the same time. Please, run "
+                "torizoncore-builder push --help for more information.")
+        lock_file, _ = push.canonicalize_compose_file(args.ref, args.force)
+        log.info(f"Not pushing '{os.path.basename(lock_file)}' to OTA server.")
+        return
+
+    if not args.credentials:
+        raise TorizonCoreBuilderError("--credentials parameter is required.")
+
     storage_dir = os.path.abspath(args.storage_directory)
     credentials = os.path.abspath(args.credentials)
 
@@ -21,7 +39,8 @@ def push_subcommand(args):
         compose_file = os.path.abspath(args.ref)
         target = args.target or "docker-compose_file.yml"
         version = args.version or datetime.datetime.today().strftime("%Y-%m-%d")
-        push.push_compose(credentials, target, version, compose_file)
+        push.push_compose(credentials, target, version, compose_file,
+                          args.canonicalize, args.force)
     else:
         if args.ostree is not None:
             src_ostree_archive_dir = os.path.abspath(args.ostree)
@@ -46,7 +65,7 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser("push", help="Push branch to OTA server")
     subparser.add_argument(
         "--credentials", dest="credentials",
-        help="Relative path to credentials.zip.", required=True)
+        help="Relative path to credentials.zip.")
     subparser.add_argument(
         "--repo", dest="ostree",
         help="OSTree repository to push from.", required=False)
@@ -63,8 +82,18 @@ def init_parser(subparsers):
         help="Package version for docker-compose file or OSTree reference.",
         required=False, default=None)
     subparser.add_argument(
-        metavar="REF", nargs="?", dest="ref",
+        metavar="REF", dest="ref",
         help="OSTree reference or docker-compose file to push to Torizon OTA.")
+    subparser.add_argument(
+        "--canonicalize", dest="canonicalize", action=argparse.BooleanOptionalAction,
+        help="Canonicalize the docker-compose file before pushing to Torizon OTA.")
+    subparser.add_argument(
+        "--canonicalize-only", dest="canonicalize_only", action="store_true",
+        help="Canonicalize the docker-compose.yml file but do not send it to OTA server.",
+        required=False, default=False)
+    subparser.add_argument(
+        "--force", dest="force", action="store_true", default=False,
+        help="Force removal of the canonicalized file if it already exists.")
     subparser.add_argument(
         "--verbose", dest="verbose",
         action="store_true",
