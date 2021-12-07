@@ -439,12 +439,7 @@ def do_build(args):
         log.warning(l2_pref("Parsing errors found:"))
         assert isinstance(exc.payload, list)
         for error in exc.payload:
-            # Very large messages are usually shown when jsonschema is dumping
-            # part of the schema (for now, let's show those only in debug mode).
-            if len(error.msg) < 140:
-                log.warning(str(error))
-            else:
-                log.debug(str(error))
+            log.warning(str(error))
         sys.exit(2)
 
     except TorizonCoreBuilderError as exc:
