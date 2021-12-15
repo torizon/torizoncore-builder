@@ -147,9 +147,9 @@ docker-build-torizoncore-builder-multiarch:
 # specific Gitlab CI settings.
 .docker-deploy:
   when: manual
+  allow_failure: false
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  when: manual
   script:
     - *do_docker_experimental
     - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
@@ -192,12 +192,11 @@ docker-deploy-torizoncore-builder-arm64:
   stage: deploy
 
 .docker-deploy-multiarch:
-  when: manual
   script:
   - *do_docker_experimental
   - rm -rf ~/.docker/manifests/*
   - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
-  - for tag in ${DOCKER_TAGS_CHECKS};
+  - for tag in ${DOCKER_TAGS_CHECK};
       do
         docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
         (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && exit 1 ; fi);
@@ -212,6 +211,7 @@ docker-deploy-torizoncore-builder-arm64:
 
 docker-deploy-torizoncore-builder-multiarch:
   extends: .docker-deploy-multiarch
+  needs: ["docker-deploy-torizoncore-builder-amd64"]
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
     - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
