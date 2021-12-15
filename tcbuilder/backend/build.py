@@ -278,8 +278,8 @@ def make_feed_url(feed_props):
     # - major -> version (string, major.minor.patch)
     # - module -> machine
     # - release value 'stable' -> 'quarterly'
-    # - build-number (string, required) added
-    # - build-date (string, required except when quarterly) added
+    # - build-number (number|string, required) added
+    # - build-date (number|string, required except when quarterly) added
 
     # ---
     # Define each part of the URL - store in a dictionary:

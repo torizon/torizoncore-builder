@@ -73,13 +73,13 @@ properties:
                         description: "variant of the image"
                         default: torizon-core-docker
                       build-number:
-                        type: string
-                        description: "build number as a string"
+                        type: [number, string]
+                        description: "build number as a string or number"
                         pattern: "^[0-9]+$"
                         tdxMeta: "build;number"
                       build-date:
-                        type: string
-                        description: "build date as a string"
+                        type: [number, string]
+                        description: "build date as a string or number (e.g. 202105 for a monthly or 20210517 for a nightly)"
                         pattern: "^[0-9]+$"
                         tdxMeta: "build;date"
                     required:
