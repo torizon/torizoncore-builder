@@ -29,6 +29,7 @@ load 'lib/common.bash'
     assert_success
     assert_output --regexp "ostree-archive.*sysroot.*tezi"
 
+    # TODO: Improve this (get file name from program output).
     IMAGE=$(ls torizon-core*.tar)
-    check-file-ownership-as-workdir "$IMAGE"
+    check-file-ownership-as-workdir $IMAGE
 }

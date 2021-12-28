@@ -14,15 +14,23 @@ export -f torizoncore-builder
 # run torizoncore-builder-bg
 torizoncore-builder-bg() {
     local CMD=$(eval echo $TCBCMD)
+    # TODO: This seems to be creating a file named '-'
+    #       I guess we wanted just to send output to stderr or to handle 3.
     $CMD $@ 3>- &
-    sleep 2 # Wait some time so TorizonCore Builder can be initialized.
+    # TODO: Maybe not depend on time (time increased to work on HDD based PC).
+    # Wait some time so TorizonCore Builder can be initialized.
+    sleep 5
 }
 export -f torizoncore-builder-bg
 
 # run stop-torizoncore-builder-bg
 stop-torizoncore-builder-bg() {
+    # TODO: Save ID of the BG started docker image in global variable
+    # TODO: Use ID of the BG tcb here (so we stop what we started)
     local TCBID=$(docker container ls --format '{{.Command}}${{.ID}}' | \
                             grep 'torizoncore-builder' | cut -d '$' -f 2)
+    [ -z "$TCBID" ] && return 0
+    echo '# Stopping torizoncore-builder in the background' >&3
     docker container stop $TCBID
 }
 export -f stop-torizoncore-builder-bg
@@ -37,6 +45,7 @@ export -f torizoncore-builder-shell
 
 # clean torizoncore-builder storage
 torizoncore-builder-clean-storage() {
+    # TODO: Question: Why are we closing stderr?
     docker container prune -f >/dev/null 2>&-
     docker volume rm storage -f >/dev/null 2>&-
 }
