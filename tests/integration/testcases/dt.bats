@@ -94,11 +94,31 @@ load 'lib/common.bash'
 @test "dt: deploy device tree in the device" {
     requires-device
 
-    run torizoncore-builder-shell "ls /storage/dt/usr/lib/modules/*/dtb/*.dtb"
-    assert_success
-    local DTB=${output%$'\r'}
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder-shell "fdtput -t s $DTB / model tcb_test"
+    # Determine device-tree being used on device:
+    run device-shell-root "fw_printenv fdtfile"
+    assert_success
+    assert_output --partial "fdtfile="
+    local DTB="${output/*fdtfile=/}"
+    local DTS="${DTB%.*}.dts"
+
+    # Find corresponding device-tree source and apply it.
+    run find device-trees/ -name $DTS
+    assert_success
+    local DTS_LOCATION=$output
+    # echo "# DTS_LOCATION: $DTS_LOCATION" >&3
+
+    run torizoncore-builder dt apply $DTS_LOCATION
+    assert_success
+    assert_output --regexp "Device tree.*successfully applied"
+
+    # Make a slight change in the device tree and deploy it to device.
+    local DTB_LOCATION="$(echo /storage/dt/usr/lib/modules/*/dtb/)$DTB"
+    # echo "# DTB_LOCATION: $DTB_LOCATION" >&3
+
+    local MODEL="tcb_test--$(date +%Y%m%d-%H%M)"
+    run torizoncore-builder-shell "fdtput -t s $DTB_LOCATION / model $MODEL"
     assert_success
 
     torizoncore-builder union branch1
@@ -115,5 +135,5 @@ load 'lib/common.bash'
 
     run device-shell "cat /proc/device-tree/model"
     assert_success
-    assert_output --partial "tcb_test"
+    assert_output --partial "$MODEL"
 }
