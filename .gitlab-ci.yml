@@ -143,7 +143,7 @@ docker-build-torizoncore-builder-multiarch:
 
 # Docker deploy jobs
 #
-# Make sure DOCKER_HUB_USER/DOCKER_HUB_PW is properly set in the project
+# Make sure DOCKER_HUB_USER/DOCKER_HUB_TOKEN is properly set in the project
 # specific Gitlab CI settings.
 .docker-deploy:
   when: manual
@@ -153,7 +153,7 @@ docker-build-torizoncore-builder-multiarch:
   script:
     - *do_docker_experimental
     - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW;
+    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_TOKEN;
     - for tag in ${DOCKER_TAGS_CHECK};
         do
           docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
@@ -195,7 +195,7 @@ docker-deploy-torizoncore-builder-arm64:
   script:
   - *do_docker_experimental
   - rm -rf ~/.docker/manifests/*
-  - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
+  - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_TOKEN
   - for tag in ${DOCKER_TAGS_CHECK};
       do
         docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
