@@ -75,6 +75,8 @@ TCB_CUSTOM_IMAGE: By default, the last TorizonCore Builder version from
                   [registry/]<name>:<tag>
 TCB_REPORT:       If set to '1', it will enable the generation of a test
                   report in $PWD/workdir/reports.
+TCB_UNDER_CI:     If set to '1', some tests not appropriate for running
+                  under CI will be skipped.
 
 Following are some examples of running the test cases.
 

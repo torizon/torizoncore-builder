@@ -3,6 +3,7 @@ load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
 
 function teardown() {
+    # Make sure background process is finished in case of errors.
     stop-torizoncore-builder-bg
 }
 
@@ -23,7 +24,7 @@ function teardown() {
 }
 
 @test "images serve: check zeroconf tezi service response." {
-    requires-device
+    skip-under-ci
 
     IMAGE_DIR="samples/images"
     torizoncore-builder-bg images serve $IMAGE_DIR
@@ -32,11 +33,11 @@ function teardown() {
     assert_success
     assert_output --partial '_tezi._tcp'
     assert_output --partial 'Custom Toradex Easy Installer Feed'
-    # stop-torizoncore-builder-bg (part of teardown)
+    stop-torizoncore-builder-bg
 }
 
 @test "images serve: check if 'image_list.json' is being served." {
-    requires-device
+    skip-under-ci
 
     IMAGE_DIR="samples/images"
     torizoncore-builder-bg images serve $IMAGE_DIR
@@ -46,6 +47,5 @@ function teardown() {
     assert_output --partial 'Cache-Control: no-store,max-age=0'
     assert_output --partial 'config_format'
     assert_output --partial '/image.json'
-    # stop-torizoncore-builder-bg (part of teardown)
+    stop-torizoncore-builder-bg
 }
-

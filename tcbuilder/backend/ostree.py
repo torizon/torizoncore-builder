@@ -329,6 +329,10 @@ class HTTPThread(threading.Thread):
         self.log.debug("Shutting down http server.")
         self.http_server.shutdown()
 
+    @property
+    def server_address(self):
+        return self.http_server.server_address
+
 
 def serve_ostree_start(ostree_dir, host=""):
     """Serving given path via http"""

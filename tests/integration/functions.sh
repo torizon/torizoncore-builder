@@ -11,13 +11,25 @@ torizoncore-builder() {
 }
 export -f torizoncore-builder
 
+# Global variable keeping the current torizoncore-builder running in the background
+export TCB_BG_CONTAINER=""
+
 # run torizoncore-builder-bg
 torizoncore-builder-bg() {
-    local CMD=$(eval echo $TCBCMD)
-    # TODO: This seems to be creating a file named '-'
-    #       I guess we wanted just to send output to stderr or to handle 3.
-    $CMD $@ 3>- &
-    # TODO: Maybe not depend on time (time increased to work on HDD based PC).
+    # Make sure no other process is running in the background
+    assert [ -z $TCB_BG_CONTAINER ]
+    # Make sure the docker command does not have the "-it" parameter(s)
+    [[ $TCBCMD == *" -it"* ]] && assert false
+    # Replace the "run" in "docker run ..." with "run -d" to run it in detached mode
+    # and to output the ID of the container.
+    local CMD=$(eval echo ${TCBCMD/ run / run -d })
+    # Run container in the background
+    # echo "# Running $CMD $@"
+    run $CMD $@
+    assert_success
+    # Save the ID of the container.
+    TCB_BG_CONTAINER=$output
+    echo "# Started container $TCB_BG_CONTAINER in the background"
     # Wait some time so TorizonCore Builder can be initialized.
     sleep 5
 }
@@ -25,13 +37,10 @@ export -f torizoncore-builder-bg
 
 # run stop-torizoncore-builder-bg
 stop-torizoncore-builder-bg() {
-    # TODO: Save ID of the BG started docker image in global variable
-    # TODO: Use ID of the BG tcb here (so we stop what we started)
-    local TCBID=$(docker container ls --format '{{.Command}}${{.ID}}' | \
-                            grep 'torizoncore-builder' | cut -d '$' -f 2)
-    [ -z "$TCBID" ] && return 0
-    echo '# Stopping torizoncore-builder in the background' >&3
-    docker container stop $TCBID
+    [ -z $TCB_BG_CONTAINER ] && return 0
+    echo "# Stopping container $TCB_BG_CONTAINER in the background"
+    docker container stop -t5 $TCB_BG_CONTAINER
+    TCB_BG_CONTAINER=""
 }
 export -f stop-torizoncore-builder-bg
 
@@ -131,3 +140,11 @@ requires-image-version() {
 	fi
 }
 export -f requires-image-version
+
+# skip test if running under CI
+skip-under-ci() {
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        skip "running under CI"
+    fi
+}
+export -f skip-under-ci

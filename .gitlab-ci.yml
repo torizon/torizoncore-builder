@@ -108,9 +108,9 @@ integration-tests:
     # TODO: re-evaluate if this is the best option here
     - docker login -u $CI_DOCKER_HUB_PULL_USER -p $CI_DOCKER_HUB_PULL_PASSWORD $CI_DOCKER_HUB_IMAGES_REGISTRY
     # run tests with Apalis iMX6 image
-    - TCB_REPORT=1 TCB_MACHINE=apalis-imx6 ./run.sh
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=apalis-imx6 ./run.sh
     # run tests with Verdin iMX8MM image
-    - TCB_REPORT=1 TCB_MACHINE=verdin-imx8mm ./run.sh
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=verdin-imx8mm ./run.sh
     # check results
     - (! grep "^not ok" workdir/reports/*)
   stage: test
