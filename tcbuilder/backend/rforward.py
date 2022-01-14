@@ -60,8 +60,18 @@ def handler(chan, host, port):
     sock.close()
     log.debug(f"Tunnel closed from {chan.origin_addr}")
 
-def reverse_forward_tunnel(server_port, remote_host, remote_port, transport):
-    transport.request_port_forward("", server_port)
+def request_port_forward(transport):
+    """
+    Create an SSH reverse port forward tunnel.
+
+    :param transport: The SSH connection transport
+    :returns:
+        The TCP port number opened for the SSH reverse tunnel.
+    """
+    return transport.request_port_forward("", 0)
+
+
+def reverse_forward_tunnel(remote_host, remote_port, transport):
     while True:
         chan = transport.accept(1000)
         if chan is None:

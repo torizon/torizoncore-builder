@@ -18,7 +18,7 @@ from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import get_rootfs_tarball, resolve_remote_host
-from tcbuilder.backend.rforward import reverse_forward_tunnel
+from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
 # pylint: enable=wrong-import-position
@@ -243,6 +243,7 @@ def run_command_with_sudo(client, command, password):
         log.debug(stderr_str)
 
 
+# pylint: disable=too-many-locals
 def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_port,
                          remote_mdns, src_ostree_archive_dir, ref, reboot=False):
     """Implementation to deploy OSTree on remote device"""
@@ -264,7 +265,12 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
              "from local archive repository...")
 
     # Start http server...
-    http_server_thread = ostree.serve_ostree_start(src_ostree_archive_dir, "localhost")
+    http_server_thread = ostree.serve_ostree_start(src_ostree_archive_dir,
+                                                   "localhost", port=0)
+
+    # Get the dynamic port the HTTP server is listening on
+    local_ostree_server_port = http_server_thread.server_port
+    log.info(f'OSTree server listening on "localhost:{local_ostree_server_port}."')
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -275,14 +281,20 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
                    password=remote_password,
                    port=remote_port)
 
+    # Get the reverse TCP port that was chosen by the remote SSH
+    reverse_ostree_server_port = request_port_forward(client.get_transport())
+
     forwarding_thread = threading.Thread(target=reverse_forward_tunnel,
-                                         args=(8080, "127.0.0.1", 8080, client.get_transport()))
+                                         args=("localhost",
+                                               local_ostree_server_port,
+                                               client.get_transport()))
     forwarding_thread.daemon = True
     forwarding_thread.start()
 
     run_command_with_sudo(
         client,
-        "ostree remote add --no-gpg-verify --force tcbuilder http://localhost:8080/",
+        "ostree remote add --no-gpg-verify --force tcbuilder "
+        f"http://localhost:{reverse_ostree_server_port}/",
         remote_password)
 
     log.info("Starting OSTree pull on the device...")
@@ -324,3 +336,4 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
     client.close()
 
     ostree.serve_ostree_stop(http_server_thread)
+# pylint: enable=too-many-locals

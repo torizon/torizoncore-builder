@@ -23,6 +23,7 @@ from gi.repository import Gio, GLib, OSTree
 log = logging.getLogger("torizon." + __name__)
 
 OSTREE_BASE_REF = "base"
+DEFAULT_SERVER_PORT = 8080
 
 # Whiteout defines match what Containers are using:
 # https://github.com/opencontainers/image-spec/blob/v1.0.1/layer.md#whiteouts
@@ -310,7 +311,7 @@ class TCBuilderHTTPRequestHandler(SimpleHTTPRequestHandler):
 class HTTPThread(threading.Thread):
     """HTTP Server thread"""
 
-    def __init__(self, directory, host="", port=8080):
+    def __init__(self, directory, host="", port=DEFAULT_SERVER_PORT):
         threading.Thread.__init__(self, daemon=True)
 
         self.log = logging.getLogger("torizon." + __name__)
@@ -330,13 +331,17 @@ class HTTPThread(threading.Thread):
         self.http_server.shutdown()
 
     @property
+    def server_port(self):
+        return self.http_server.server_port
+
+    @property
     def server_address(self):
         return self.http_server.server_address
 
 
-def serve_ostree_start(ostree_dir, host=""):
+def serve_ostree_start(ostree_dir, host="", port=DEFAULT_SERVER_PORT):
     """Serving given path via http"""
-    http_thread = HTTPThread(ostree_dir, host)
+    http_thread = HTTPThread(ostree_dir, host, port)
     http_thread.start()
     return http_thread
 
