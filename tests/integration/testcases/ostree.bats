@@ -35,6 +35,8 @@ function teardown() {
 }
 
 @test "ostree serve: serve repo from storage" {
+    skip-under-ci
+
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
@@ -47,6 +49,8 @@ function teardown() {
 }
 
 @test "ostree serve: serve repo from external directory" {
+    skip-under-ci
+
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"

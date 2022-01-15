@@ -22,6 +22,9 @@ $TESTCASES_DIR/dto.bats \
 $TESTCASES_DIR/build.bats \
 $TESTCASES_DIR/bundle.bats \
 $TESTCASES_DIR/combine.bats \
+$TESTCASES_DIR/kernel.bats \
+$TESTCASES_DIR/ostree.bats \
+$TESTCASES_DIR/splash.bats \
 "
 
 # test case to run

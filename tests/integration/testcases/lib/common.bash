@@ -33,12 +33,12 @@ create-files-in-device() {
 check-file-ownership-as-workdir() {
     local FILE_NAME="$1"
 
-    local WDIR_UID=$(stat --format=%u .)
-    local FILE_UID=$(stat --format=%u "$FILE_NAME")
+    local WDIR_UID=$(stat -c %u .)
+    local FILE_UID=$(stat -c %u "$FILE_NAME")
     assert_equal "$WDIR_UID" "$FILE_UID"
 
-    local WDIR_GID=$(stat --format=%g .)
-    local FILE_GID=$(stat --format=%g "$FILE_NAME")
+    local WDIR_GID=$(stat -c %g .)
+    local FILE_GID=$(stat -c %g "$FILE_NAME")
     assert_equal "$WDIR_GID" "$FILE_GID"
 }
 

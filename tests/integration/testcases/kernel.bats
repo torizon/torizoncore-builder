@@ -46,7 +46,7 @@ load 'lib/common.bash'
 
     # Check file with ownership not as "root:root"
     run ls -dln $SRC_DIR/$README
-    assert_output --partial "1 10 20 0"
+    assert_output --regexp '[ \t]+1[ \t]+10[ \t]+20[ \t]+0'
 
     torizoncore-builder-shell "rm -rf $SRC_DIR"
 }
