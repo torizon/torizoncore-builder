@@ -2,6 +2,7 @@ import datetime
 import glob
 import ipaddress
 import json
+import logging
 import os
 import re
 import shutil
@@ -25,6 +26,8 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               PathNotExistError, TorizonCoreBuilderError,
                               InvalidStateError, InvalidDataError,
                               GitRepoError, ImageUnpackError)
+
+log = logging.getLogger("torizon." + __name__)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 DOCKER_FILES_TO_ADD = [
@@ -403,24 +406,52 @@ def get_file_sha256sum(path):
     return parts[0]
 
 
+def get_own_container_id(
+        docker_client, image_name="torizoncore-builder", env_var="TCB_CONTAINER_NAME"):
+    """Determine ID of current container
+
+    This function tries to find a container with the name specified by environment
+    variable whose name is specified by `env_var` (if that variable is set) or with
+    an image name containing the substring defined by `image_name`.
+    """
+
+    # Use environment variable if available.
+    if env_var in os.environ:
+        container_id = None
+        container_name = os.environ[env_var]
+        filters = {"name": container_name}
+        for container in docker_client.containers.list(filters=filters):
+            # Sanity check: this condition should never occur.
+            assert container_id is None, \
+                "Found more than one container with the same name"
+            container_id = container.attrs["Id"]
+
+        if container_id is not None:
+            log.debug(f"Current container ID (found by container name): {container_id}")
+            return container_id
+
+        log.warning("couldn't determine ID of container (container name method)")
+
+    # Try to find container with a certain image name:
+    container_id = None
+    for container in docker_client.containers.list():
+        assert container_id is None, \
+            f"Found more than one *{image_name}* container"
+        if image_name in container.attrs["Config"]["Image"]:
+            container_id = container.attrs["Id"]
+
+    if container_id is not None:
+        log.debug(f"Current container ID (found by image name): {container_id}")
+        return container_id
+
+    raise OperationFailureError("Can't determine current container ID.")
+
+
 def get_host_workdir():
     """Get location of working directory w.r.t. the host"""
 
-    fields = []
-    with open("/proc/self/cgroup", "r") as proc_self_cgroup:
-        for line in proc_self_cgroup:
-            fields = line.split(":")
-            if len(fields) != 3:
-                continue
-            if fields[1] == "cpuset":
-                break
-
-    if len(fields) != 3:
-        raise InvalidDataError("cannot parse /proc/self/cgroup")
-
-    cgroup_name = fields[2]
-    container_id = cgroup_name[cgroup_name.rfind("/")+1:-1]
     docker_client = DockerClient.from_env()
+    container_id = get_own_container_id(docker_client)
 
     try:
         container = docker_client.containers.get(container_id)
