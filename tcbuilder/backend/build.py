@@ -228,11 +228,12 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
     return out_fname, is_temp
 
 
-def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE):
+def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None):
     """Parse a configuration file against the expected schema
 
     :param config_path: Configuration file (full-path).
     :param schema_path: Schema file.
+    :param substs: Dictionary with variables to substitute.
     :return: The contents of the configuration file as a dictionary.
     """
 
@@ -252,6 +253,10 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE):
                 mark = getattr(ex, "problem_mark")
                 error_exc.set_source(line=mark.line, column=mark.column)
             raise error_exc
+
+    # Make variable substitutions.
+    if substs is not None:
+        config = subst_variables(config, substs)
 
     # Load the YAML schema file (supplied with the tool):
     schemapath = os.path.join(os.path.dirname(__file__), schema_path)

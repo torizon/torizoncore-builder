@@ -1,0 +1,13 @@
+input:
+  easy-installer:
+    toradex-feed:
+      version: "${VERSION?No version specified}"
+      release: "${RELEASE?No release specified}"
+      machine: "${MACHINE?No machine specified}"
+      distro: "${DISTRO?No distro specified}"
+      variant: "${VARIANT?No variant specified}"
+      build-number: ${BUILD_NUMBER?No build number specified}
+output:
+  easy-installer:
+    local: dummy_output_directory
+

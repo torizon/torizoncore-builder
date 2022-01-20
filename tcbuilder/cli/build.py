@@ -359,11 +359,7 @@ def build(config_fname, storage_dir,
     log.debug(f"Substitutions ({['disabled', 'enabled'][enable_subst]}): "
               f"{substs}")
 
-    config = bb.parse_config_file(config_fname)
-
-    # Do variable substitutions.
-    if enable_subst and substs is not None:
-        config = bb.subst_variables(config, substs)
+    config = bb.parse_config_file(config_fname, substs=(substs if enable_subst else None))
 
     # ---
     # Handle each section.

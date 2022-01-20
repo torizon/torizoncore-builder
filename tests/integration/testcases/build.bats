@@ -72,12 +72,23 @@ load 'lib/common.bash'
     refute_output --partial 'No body message'
 }
 
+@test "build: config file with variables in input section" {
+    run torizoncore-builder build \
+        --file "$SAMPLES_DIR/config/tcbuild-with-variables2.yaml" \
+        --set VERSION=5.0.0 --set RELEASE=quarterly \
+        --set MACHINE=colibri-imx6 --set DISTRO=torizon-upstream \
+        --set VARIANT=torizon-core-docker --set BUILD_NUMBER=1
+    assert_failure
+    refute_output --partial 'is not valid under any of the given schemas'
+    assert_output --partial 'Error: Could not fetch URL'
+}
+
 @test "build: full customization checked on host" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
 
     local OUTDIR='fully_customized_image'
     run torizoncore-builder build \
-        --file samples/config/tcbuild-full-customization.yaml \
+        --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" --force
 
