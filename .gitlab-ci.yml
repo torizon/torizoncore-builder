@@ -70,6 +70,19 @@ pylint:
     - exit ${exit_code}
   stage: build
 
+lint_dockerfile:
+  stage: build
+  image: hadolint/hadolint:latest-debian
+  script:
+    # Some rules cannot be applied in our specific cases.
+    # However, since we don't want to completely ignore these rules,
+    # we are changing the following rules to have the level "info":
+    # - DL3003 (use WORKDIR to switch to a directory)
+    # - DL3008 (pin versions in apt-get install)
+    # - DL3029 (do not use --platform flag with FROM)
+    # - DL4006 (set the SHELL option -o pipefail before RUN with a pipe in it)
+    - hadolint *Dockerfile --failure-threshold warning --info DL3003 --info DL3008 --info DL3029 --info DL4006
+
 docker-build-torizoncore-builder-amd64:
   extends: .docker-build
   variables:
