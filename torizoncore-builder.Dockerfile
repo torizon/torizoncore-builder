@@ -53,7 +53,7 @@ RUN cd aktualizr && mkdir build/ && cd build/ && \
           -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless \
           -DBUILD_OSTREE=ON \
           -DWARNING_AS_ERROR=OFF .. && \
-    make -j$(nproc) package
+    make -j"$(nproc)" package
 
 FROM common-base AS tcbuilder-base
 
@@ -76,9 +76,10 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
 # Refrain dash from taking over the /bin/sh symlink.
 # This allows Python 'subprocess' shell enabled commands to employ bashisms such as pipefail.
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install bash \
+    && rm -rf /var/lib/apt/lists/* \
     && echo 'dash dash/sh boolean false' | debconf-set-selections \
     && DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true dpkg-reconfigure dash \
-    ; test $(realpath /bin/sh) = '/bin/bash'
+    ; test "$(realpath /bin/sh)" = '/bin/bash'
 
 # Copy and install SOTA tools from build stage
 COPY --from=sota-builder /root/aktualizr/build/garage_deploy.deb /
@@ -94,7 +95,7 @@ RUN apt-get -q -y update && ls && pwd \
 # Debian has old version of docker and docker-compose, which does not support some of
 # required functionality like escaping $ in compose file during serialization
 COPY requirements_debian.txt /tmp
-RUN pip3 install -r /tmp/requirements_debian.txt \
+RUN pip3 install --no-cache-dir -r /tmp/requirements_debian.txt \
      && rm -rf /tmp/requirements_debian.txt
 
 RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
@@ -102,7 +103,7 @@ RUN if [ "$APT_PROXY" != "" ]; then rm /etc/apt/apt.conf.d/30proxy; fi
 FROM tcbuilder-base AS tcbuilder-dev
 
 COPY requirements_dev.txt /tmp
-RUN pip3 install -r /tmp/requirements_dev.txt \
+RUN pip3 install --no-cache-dir -r /tmp/requirements_dev.txt \
      && rm -rf /tmp/requirements_dev.txt
 
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
@@ -119,7 +120,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
     #
     # [Optional] Add sudo support. Omit if you don't need to install software after connecting.
     && apt-get update \
-    && apt-get install -y sudo \
+    && apt-get install -y --no-install-recommends sudo \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
@@ -128,9 +129,9 @@ FROM tcbuilder-base
 # put all the tools in the /builder directory 
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
-ADD tezi /builder/tezi/
-ADD tcbuilder /builder/tcbuilder/
-ADD torizoncore-builder.py /builder/torizoncore-builder
+COPY tezi /builder/tezi/
+COPY tcbuilder /builder/tcbuilder/
+COPY torizoncore-builder.py /builder/torizoncore-builder
 
 WORKDIR /workdir
 
