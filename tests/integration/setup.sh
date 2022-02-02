@@ -51,8 +51,14 @@ tcb_tests_pull_container() {
     fi
     mv tcb-env-setup.sh $SETUP_SCRIPT
 
+    local SCRIPT_PARAMS="-a remote"
+    if uname -r | grep -i "microsoft" > /dev/null; then
+        # Add extra parameters to allow "ostree serve" to work under Windows.
+        SCRIPT_PARAMS="${SCRIPT_PARAMS} -- -p 8080:8080"
+    fi
+
     echo "Pulling TorizonCore Builder container..."
-    if ! . $SETUP_SCRIPT -a remote >/dev/null 2>&-; then
+    if ! . $SETUP_SCRIPT $SCRIPT_PARAMS >/dev/null 2>&-; then
         echo "Error: could not pull container and initialize environment!"
         return 2
     fi
