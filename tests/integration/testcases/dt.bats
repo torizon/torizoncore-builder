@@ -45,6 +45,39 @@ load 'lib/common.bash'
     done
 }
 
+@test "dt: checkout updates device tree directory" {
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    rm -rf device-trees
+
+    run torizoncore-builder dt checkout --update
+    assert_success
+    refute_output
+
+    local DEVICETREES_DIR="$(pwd)/device-trees"
+    git -C $DEVICETREES_DIR reset --hard HEAD~
+
+    run torizoncore-builder dt checkout --update
+    assert_success
+    assert_output --partial "'device-trees' successfully updated"
+
+    git -C $DEVICETREES_DIR remote set-url origin ''
+    run torizoncore-builder dt checkout --update
+    assert_failure
+    assert_output --partial "no path specified"
+
+    git -C $DEVICETREES_DIR remote set-url origin 'https://github.com/toradex/device-trees'
+
+    git -C $DEVICETREES_DIR checkout HEAD~
+    run torizoncore-builder dt checkout --update
+    assert_failure
+
+    git -C $DEVICETREES_DIR checkout -
+
+    run torizoncore-builder dt checkout --update
+    assert_success
+    assert_output --partial "'device-trees' is already up to date"
+}
+
 @test "dt: check currently enabled device tree without images unpack" {
     torizoncore-builder-clean-storage
 

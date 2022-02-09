@@ -12,9 +12,10 @@ import traceback
 import re
 
 from tcbuilder.backend import dt
-from tcbuilder.backend.common import (checkout_git_repo,
+from tcbuilder.backend.common import (checkout_dt_git_repo,
                                       set_output_ownership,
-                                      images_unpack_executed)
+                                      images_unpack_executed,
+                                      update_dt_git_repo)
 from tcbuilder.errors import (
     TorizonCoreBuilderError, InvalidArgumentError)
 
@@ -43,10 +44,13 @@ def do_dt_checkout(args):
 
     # Retrieve the Toradex device-tree repository, if not already retrieved.
     if os.path.exists(os.path.abspath("device-trees")):
-        log.error("'device-trees' directory already exists")
+        if args.update:
+            update_dt_git_repo()
+        else:
+            log.error("'device-trees' directory already exists")
         return
     try:
-        checkout_git_repo(storage_dir, None, None)
+        checkout_dt_git_repo(storage_dir, None, None)
         set_output_ownership("device-trees")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
@@ -137,6 +141,10 @@ def init_parser(subparsers):
         "checkout",
         description="Checkout Toradex device tree and overlays repository",
         help="Checkout Toradex device tree and overlays repository")
+    subparser.add_argument(
+        "--update", dest="update", action="store_true",
+        help="Update device-trees repository (if existing)",
+        default=False)
     subparser.set_defaults(func=do_dt_checkout)
 
     # dt apply DEVICE_TREE
