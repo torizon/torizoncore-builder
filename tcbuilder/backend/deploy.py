@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import threading
+import shlex
 
 import paramiko
 
@@ -261,6 +262,18 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
     if not ret:
         raise TorizonCoreBuilderError(f"Error resolving {ref}.")
 
+    # Get metadata from the commit being requested.
+    srcmeta, _subject, _body = ostree.get_metadata_from_ref(srcrepo, csumdeploy)
+    srckargs = srcmeta['oe.kargs-default']
+
+    # Create kargs arguments based on metadata
+    args_list = ['--karg-none']
+    for arg in shlex.split(srckargs):
+        arg = f"--karg-append={arg}"
+        args_list.append(arg)
+
+    args_cli = shlex.join(args_list)
+
     log.info(f"Pulling OSTree with ref {ref} (checksum {csumdeploy}) "
              "from local archive repository...")
 
@@ -304,7 +317,7 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
     log.info("Deploying new OSTree on the device...")
     # Do the final staging after we set upgrade_available, therefore option --stage
     run_command_with_sudo(
-        client, f"ostree admin deploy --stage tcbuilder:{csumdeploy}", remote_password)
+        client, f"ostree admin deploy --stage {args_cli} tcbuilder:{csumdeploy}", remote_password)
 
     # Make sure we set bootcount to 0, it can be > 1 from previous runs
     run_command_with_sudo(
