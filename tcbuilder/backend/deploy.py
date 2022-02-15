@@ -63,7 +63,7 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
     # ostree admin --sysroot=${OTA_SYSROOT} deploy ${kargs_list} --os=${OSTREE_OSNAME} ${revision}
     log.debug(f"Deploying revision {revision}")
     result, deployment = sysroot.deploy_tree(
-        OSNAME, revision, keyfile, None, kargs.split())
+        OSNAME, revision, keyfile, None, shlex.split(kargs))
     if not result:
         raise TorizonCoreBuilderError("Error creating deployment.")
 
