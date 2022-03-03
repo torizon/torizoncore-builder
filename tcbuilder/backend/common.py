@@ -30,9 +30,11 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
 log = logging.getLogger("torizon." + __name__)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
+TARGET_NAME_FILENAME = "target_name"
 DOCKER_FILES_TO_ADD = [
     "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-    DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true"
+    DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true",
+    TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
 ]
 
 # Mapping from architecture to a Docker platform.

@@ -2,7 +2,8 @@ import os
 import shutil
 import logging
 from tcbuilder.backend.common import \
-    (get_additional_size, combine_single_image, DOCKER_FILES_TO_ADD)
+    (get_additional_size, combine_single_image, DOCKER_FILES_TO_ADD, \
+     TARGET_NAME_FILENAME, set_output_ownership)
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidStateError
 
 log = logging.getLogger("torizon." + __name__)
@@ -15,6 +16,11 @@ def combine_image(image_dir, bundle_dir, output_directory, image_name,
     additional_size = 0
     if bundle_dir is not None:
         files_to_add = DOCKER_FILES_TO_ADD
+        target_name_file = os.path.join(bundle_dir, TARGET_NAME_FILENAME)
+        if not os.path.exists(target_name_file):
+            with open(target_name_file, 'w') as target_name_fd:
+                target_name_fd.write("docker-compose.yml")
+            set_output_ownership(bundle_dir)
         additional_size = get_additional_size(bundle_dir, files_to_add)
         if additional_size is None:
             raise TorizonCoreBuilderError(
