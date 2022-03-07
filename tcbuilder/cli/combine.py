@@ -59,9 +59,16 @@ def do_combine(args):
 
     output_dir = os.path.abspath(args.output_directory)
 
-    combine.combine_image(image_dir, dir_containers, output_dir, args.image_name,
-                          args.image_description, args.licence_file,
-                          args.release_notes_file)
+    tezi_props_args = {
+        "name": args.image_name,
+        "description": args.image_description,
+        "autoinstall": args.image_autoinstall,
+        "autoreboot": args.image_autoreboot,
+        "licence_file": args.licence_file,
+        "release_notes_file": args.release_notes_file
+    }
+
+    combine.combine_image(image_dir, dir_containers, output_dir, tezi_props_args)
     set_output_ownership(output_dir)
     log.info("Successfully created a TorizonCore image with Docker Containers"
              f" preprovisioned in {args.output_directory}")
@@ -77,6 +84,13 @@ def init_parser(subparsers):
         epilog="NOTE: the switches --image-directory and --output_directory "
                "have been removed.")
 
+    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
+                           action=argparse.BooleanOptionalAction,
+                           help="""Automatically install image upon image detection.""")
+
+    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
+                           action=argparse.BooleanOptionalAction,
+                           help="""Set an automatic reboot after flashing.""")
     add_bundle_directory_argument(subparser)
 
     subparser.add_argument(

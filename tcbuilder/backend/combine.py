@@ -9,8 +9,8 @@ from tcbuilder.errors import TorizonCoreBuilderError, InvalidStateError
 log = logging.getLogger("torizon." + __name__)
 
 
-def combine_image(image_dir, bundle_dir, output_directory, image_name,
-                  image_description, licence_file, release_notes_file):
+def combine_image(image_dir, bundle_dir, output_directory,
+                  tezi_props):
 
     files_to_add = []
     additional_size = 0
@@ -48,6 +48,12 @@ def combine_image(image_dir, bundle_dir, output_directory, image_name,
     #     f"outdir={output_directory}, imgname={image_name}, "
     #     f"imgdesc={image_description}, licfile={licence_file}, "
     #     f"relnotes={release_notes_file}, addsize={additional_size}")
-    combine_single_image(bundle_dir, files_to_add, additional_size,
-                         output_directory, image_name, image_description,
-                         licence_file, release_notes_file)
+    combine_params = {
+        "bundle_dir": bundle_dir,
+        "files_to_add": files_to_add,
+        "additional_size": additional_size,
+        "output_dir": output_directory,
+        "tezi_props": tezi_props
+    }
+
+    combine_single_image(**combine_params)

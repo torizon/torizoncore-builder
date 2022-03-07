@@ -39,11 +39,20 @@ DOCKER_FILES_TO_ADD = [
 
 # Mapping from architecture to a Docker platform.
 ARCH_TO_DOCKER_PLAT = {
-    "aarch64" : "linux/arm64",
-    "arm" : "linux/arm/v7"
+    "aarch64": "linux/arm64",
+    "arm": "linux/arm/v7"
 }
 
 DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
+
+TEZI_PROPS = [
+    "name",
+    "description",
+    "autoinstall",
+    "autoreboot",
+    "licence_file",
+    "release_notes_file"
+]
 
 
 def get_rootfs_tarball(tezi_image_dir):
@@ -117,7 +126,7 @@ def add_ssh_arguments(subparser):
 
 
 def add_files(tezidir, image_json_filename, filelist, additional_size,
-              image_name, image_description, licence_file, release_notes_file):
+              tezi_props):
 
     image_json_filepath = os.path.join(tezidir, image_json_filename)
     with open(image_json_filepath, "r") as jsonfile:
@@ -126,20 +135,26 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
     # Version 3 image format is required for the advanced filelist syntax.
     jsondata["config_format"] = 3
 
-    if image_name is None:
+    if tezi_props.get("name") is None:
         name_extra = ["", " with Containers"][bool(filelist)]
         jsondata["name"] = jsondata["name"] + name_extra
     else:
-        jsondata["name"] = image_name
+        jsondata["name"] = tezi_props["name"]
 
-    if image_description is not None:
-        jsondata["description"] = image_description
+    if tezi_props.get("description") is not None:
+        jsondata["description"] = tezi_props["description"]
 
-    if licence_file is not None:
-        jsondata["license"] = licence_file
+    if tezi_props.get("autoinstall") is not None:
+        jsondata["autoinstall"] = tezi_props["autoinstall"]
 
-    if release_notes_file is not None:
-        jsondata["releasenotes"] = release_notes_file
+    if tezi_props.get("autoreboot") is not None:
+        set_autoreboot(tezidir, tezi_props["autoreboot"])
+
+    if tezi_props.get("licence_file") is not None:
+        jsondata["license"] = tezi_props["licence_file"]
+
+    if tezi_props.get("release_notes_file") is not None:
+        jsondata["releasenotes"] = tezi_props["release_notes_file"]
 
     # Rather ad-hoc for now, we probably want to give the user more control
     version_extra = [".modified", ".container"][bool(filelist)]
@@ -170,8 +185,10 @@ def add_files(tezidir, image_json_filename, filelist, additional_size,
 
 
 def combine_single_image(bundle_dir, files_to_add, additional_size,
-                         output_dir, image_name, image_description,
-                         licence_file, release_notes_file):
+                         output_dir, tezi_props):
+
+    for prop in tezi_props:
+        assert prop in TEZI_PROPS, f"Unknown property {prop} to combine_single_image"
 
     for filename in files_to_add:
         filename = filename.split(":")[0]
@@ -179,21 +196,32 @@ def combine_single_image(bundle_dir, files_to_add, additional_size,
                     os.path.join(output_dir, filename))
 
     licence_file_bn = None
-    if licence_file is not None:
+    if tezi_props.get("licence_file") is not None:
+        licence_file = tezi_props.get("licence_file")
         licence_file_bn = os.path.basename(licence_file)
         shutil.copy(licence_file, os.path.join(output_dir, licence_file_bn))
+        tezi_props["licence_file"] = licence_file_bn
 
     release_notes_file_bn = None
-    if release_notes_file is not None:
+    if tezi_props.get("release_notes_file") is not None:
+        release_notes_file = tezi_props.get("release_notes_file")
         release_notes_file_bn = os.path.basename(release_notes_file)
         shutil.copy(release_notes_file,
                     os.path.join(output_dir, release_notes_file_bn))
+        tezi_props["release_notes_file"] = release_notes_file_bn
 
     version = None
     for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        version = add_files(output_dir, image_file, files_to_add,
-                            additional_size, image_name, image_description,
-                            licence_file_bn, release_notes_file_bn)
+
+        add_files_params = {
+            "tezidir": output_dir,
+            "image_json_filename": image_file,
+            "filelist": files_to_add,
+            "additional_size": additional_size,
+            "tezi_props": tezi_props
+        }
+
+        version = add_files(**add_files_params)
 
     return version
 
@@ -344,6 +372,7 @@ def resolve_remote_host(remote_host, mdns_source=None):
         ip_addr, _mdns = resolve_hostname(remote_host, mdns_source)
         return ip_addr
 
+
 def get_branch_from_metadata(storage_dir):
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
@@ -352,11 +381,12 @@ def get_branch_from_metadata(storage_dir):
 
     if "oe.kernel-source" not in metadata or not isinstance(metadata["oe.kernel-source"], tuple):
         raise TorizonCoreBuilderError(
-            "OSTree metadata are missing the kernel source branch name. Use " \
+            "OSTree metadata are missing the kernel source branch name. Use "
             "--branch to manually specify the kernel branch used by this image.")
 
     _kernel_repo, kernel_branch, _kernel_revision = metadata["oe.kernel-source"]
     return kernel_branch
+
 
 def update_dt_git_repo():
     """Update the device-trees Git repository"""
@@ -371,6 +401,7 @@ def update_dt_git_repo():
                  else "'device-trees' successfully updated")
     except git.GitError as error:
         raise GitRepoError(error)
+
 
 def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
 
@@ -399,6 +430,7 @@ def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
 
     repo_obj.close()
 
+
 def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
     if totsiz == -1:
         totread = (blocknum * blocksiz) // (1024*1024)
@@ -408,6 +440,7 @@ def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
         barsiz = int(min((blocknum * blocksiz) / (totsiz), 1.0) * totbarsiz)
         sys.stdout.write("\r[" + ("=" * barsiz) + ("." * (totbarsiz - barsiz)) +  "] ")
         sys.stdout.flush()
+
 
 def get_file_sha256sum(path):
     """Get SHA-256 checksum of a file"""
@@ -606,6 +639,7 @@ def set_output_ownership(output_file, set_parents=False):
             apply_workdir_ownership(os.path.join(rootdir, filename),
                                     workdir_uid, workdir_gid)
 
+
 def images_unpack_executed(storage_dir):
     """
     Check both, if "storage_dir" exists and if a "torizoncore-builder images
@@ -626,6 +660,7 @@ def images_unpack_executed(storage_dir):
         if not os.path.exists(os.path.join(storage_dir, image_dir)):
             raise ImageUnpackError()
 
+
 def get_own_network():
     """ Determine Network mode of current tcb container
     Given the host `docker_client`. This function returns
@@ -643,3 +678,46 @@ def get_own_network():
         network = "bridge"
 
     return network
+
+
+def set_autoreboot(output_dir, include):
+    wrapup_sh = os.path.join(os.path.abspath(output_dir), 'wrapup.sh')
+
+    with open(wrapup_sh, "r", encoding="utf-8") as infile:
+        lines = infile.readlines()
+
+    exit_occurrences = [
+        (lineidx, line) for (lineidx, line) in enumerate(lines)
+        if re.match(r"^\s*exit\s+0\s*", line)
+    ]
+
+    if not exit_occurrences:
+        log.warning("no 'exit 0' found")
+        return
+
+    # Check if autoreboot is already set
+    autoreboot_occurrences = [
+        (lineidx, line) for (lineidx, line) in enumerate(lines)
+        if re.match(r"^\s*reboot\s+-f\s+#\s+torizoncore-builder\s+generated\s*", line)
+    ]
+
+    if include:
+        if autoreboot_occurrences:
+            log.debug("autoreboot is already set")
+            return
+        last_exit_occurrence = exit_occurrences[-1]
+
+        if last_exit_occurrence[0] < len(lines) - 2:
+            log.warning("'exit 0' not at the end of the file")
+            return
+
+        # Add extra line(s) before last exit:
+        lines.insert(last_exit_occurrence[0], "reboot -f  # torizoncore-builder generated\n")
+    else:
+        if not autoreboot_occurrences:
+            log.debug("autoreboot is already unset")
+            return
+        lines.pop(autoreboot_occurrences[0][0])
+
+    with open(wrapup_sh, "w", encoding="utf-8") as output:
+        output.writelines(lines)

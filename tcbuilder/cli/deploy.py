@@ -1,7 +1,7 @@
 """
 CLI handling for deploy subcommand
 """
-
+import argparse
 import os
 
 from tcbuilder.backend import deploy as dbe
@@ -25,8 +25,7 @@ def progress_update(asyncprogress, _user_data=None):
 
 
 def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
-                      image_name=None, image_description=None,
-                      licence_file=None, release_notes_file=None):
+                      tezi_props=None):
 
     output_dir_ = os.path.abspath(output_dir)
 
@@ -46,17 +45,15 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
     dbe.deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                           output_dir_, dst_sysroot_dir_, ostree_ref)
 
-    comb_args = [image_name, image_description, licence_file, release_notes_file]
-
-    if any(arg is not None for arg in comb_args):
+    if tezi_props and any(prop is not None for prop in tezi_props):
+        combine_params = {
+            "image_dir": output_dir_,
+            "bundle_dir": None,
+            "output_directory": None,
+            "tezi_props": tezi_props,
+        }
         # Change output directory in place.
-        cbe.combine_image(image_dir=output_dir_,
-                          bundle_dir=None,
-                          output_directory=None,
-                          image_name=image_name,
-                          image_description=image_description,
-                          licence_file=licence_file,
-                          release_notes_file=release_notes_file)
+        cbe.combine_image(**combine_params)
 
     common.set_output_ownership(output_dir_)
 
@@ -65,14 +62,19 @@ def do_deploy_tezi_image(args):
 
     common.images_unpack_executed(args.storage_directory)
 
+    tezi_props_args = {
+        "name": args.image_name,
+        "description": args.image_description,
+        "autoinstall": args.image_autoinstall,
+        "autoreboot": args.image_autoreboot,
+        "licence_file": args.licence_file,
+        "release_notes_file": args.release_notes_file
+    }
     deploy_tezi_image(ostree_ref=args.ref,
                       output_dir=args.output_directory,
                       storage_dir=args.storage_directory,
                       deploy_sysroot_dir=args.deploy_sysroot_directory,
-                      image_name=args.image_name,
-                      image_description=args.image_description,
-                      licence_file=args.licence_file,
-                      release_notes_file=args.release_notes_file)
+                      tezi_props=tezi_props_args)
 
 
 def do_deploy_ostree_remote(args):
@@ -84,6 +86,7 @@ def do_deploy_ostree_remote(args):
     dbe.deploy_ostree_remote(args.remote_host, args.remote_username,
                              args.remote_password, args.remote_port, args.mdns_source,
                              src_ostree_archive_dir, args.ref, args.reboot)
+
 
 def do_deploy(args):
     if args.output_directory is not None:
@@ -103,6 +106,14 @@ def init_parser(subparsers):
 
     subparser.add_argument("--remote-host", dest="remote_host",
                            help="""Remote host machine to deploy to.""")
+
+    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
+                           action=argparse.BooleanOptionalAction,
+                           help="""Automatically install image upon image detection.""")
+
+    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
+                           action=argparse.BooleanOptionalAction,
+                           help="""Set an automatic reboot after flashing.""")
     common.add_ssh_arguments(subparser)
     subparser.add_argument("--mdns-source", dest="mdns_source",
                            help="""Use the given IP address as mDNS source.

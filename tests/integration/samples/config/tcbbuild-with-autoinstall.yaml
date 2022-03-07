@@ -1,0 +1,10 @@
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+output:
+  easy-installer:
+    local: dummy_output_directory
+    name: "test autoinstall && autoreboot"
+    autoinstall: true
+    autoreboot: true

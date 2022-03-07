@@ -59,6 +59,7 @@ load 'lib/common.bash'
 }
 
 @test "build: config file with variables" {
+    rm -rf dummy_output_directory
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-variables.yaml"
     run torizoncore-builder build --file "$FNAME"
     assert_failure
@@ -70,9 +71,11 @@ load 'lib/common.bash'
     assert_failure
     assert_output --partial 'EMPTY_VAR is not set'
     refute_output --partial 'No body message'
+    rm -rf dummy_output_directory
 }
 
 @test "build: config file with variables in input section" {
+    rm -rf dummy_output_directory
     run torizoncore-builder build \
         --file "$SAMPLES_DIR/config/tcbuild-with-variables2.yaml" \
         --set VERSION=5.0.0 --set RELEASE=quarterly \
@@ -81,6 +84,7 @@ load 'lib/common.bash'
     assert_failure
     refute_output --partial 'is not valid under any of the given schemas'
     assert_output --partial 'Error: Could not fetch URL'
+    rm -rf dummy_output_directory
 }
 
 @test "build: full customization checked on host" {
@@ -196,4 +200,21 @@ load 'lib/common.bash'
     assert_success
     assert_output --partial 'key1=val1'
     assert_output --partial 'key2=val2'
+}
+
+@test "build: config file with autoinstall and autoreboot" {
+    local DUMMY_OUTPUT="dummy_output_directory"
+    rm -rf $DUMMY_OUTPUT
+
+    run torizoncore-builder build \
+          --file "$SAMPLES_DIR/config/tcbbuild-with-autoinstall.yaml" \
+          --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" --force
+    assert_success
+
+    run grep autoinstall $DUMMY_OUTPUT/image.json
+    assert_output --partial "true"
+    run grep -E '^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated' $DUMMY_OUTPUT/wrapup.sh
+    assert_success
+
+    rm -rf "$DUMMY_OUTPUT"
 }

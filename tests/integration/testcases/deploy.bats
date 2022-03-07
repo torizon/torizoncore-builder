@@ -84,3 +84,59 @@ load 'lib/common.bash'
     run device-shell-root /usr/sbin/secret_of_life
     assert_failure 42
 }
+
+@test "deploy: check with --image-autoinstall" {
+  torizoncore-builder-clean-storage
+  torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+  torizoncore-builder union branch1
+
+  rm -rf some_dir
+
+  run torizoncore-builder deploy --output-directory some_dir branch1
+  assert_success
+  run grep autoinstall some_dir/image.json
+  assert_output --partial "false"
+
+  rm -rf some_dir
+
+  run torizoncore-builder deploy --output-directory some_dir branch1 --image-autoinstall
+  assert_success
+  run grep autoinstall some_dir/image.json
+  assert_output --partial "true"
+
+  rm -rf some_dir
+  run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoinstall
+  assert_success
+  run grep  autoinstall some_dir/image.json
+  assert_output --partial "false"
+
+  rm -rf some_dir
+}
+
+@test "deploy: check with --image-autoreboot" {
+  local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
+  torizoncore-builder-clean-storage
+  torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+  torizoncore-builder union branch1
+
+  rm -rf some_dir
+
+  run torizoncore-builder deploy --output-directory some_dir branch1
+  assert_success
+  run grep reboot some_dir/wrapup.sh
+  refute_output
+
+  rm -rf some_dir
+
+  run torizoncore-builder deploy --output-directory some_dir branch1 --image-autoreboot
+  assert_success
+  run grep -E $REG_EX_GENERATED some_dir/wrapup.sh
+  assert_success
+
+  rm -rf some_dir
+  run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoreboot
+  run grep -E $REG_EX_GENERATED some_dir/wrapup.sh
+  refute_output
+
+  rm -rf some_dir
+}

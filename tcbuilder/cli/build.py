@@ -65,6 +65,19 @@ def create_template(config_fname, force=False):
     common.set_output_ownership(config_fname)
 
 
+def translate_tezi_props(tezi_props):
+    """Translate the tcbuild.yaml's output.easyinstaler settings"""
+
+    return {
+        "name": tezi_props.get("name"),
+        "description": tezi_props.get("description"),
+        "autoinstall": tezi_props.get("autoinstall"),
+        "autoreboot": tezi_props.get("autoreboot"),
+        "licence_file": tezi_props.get("licence"),
+        "release_notes_file": tezi_props.get("release-notes")
+    }
+
+
 def handle_input_section(props, **kwargs):
     """Handle the input section of the configuration file
 
@@ -272,14 +285,15 @@ def handle_output_section(props, storage_dir, changes_dirs=None):
             f"Image output directory '{output_dir}' is not relative")
     output_dir = os.path.abspath(output_dir)
 
-    deploy_cli.deploy_tezi_image(
-        ostree_ref=union_params["union_branch"],
-        output_dir=output_dir,
-        storage_dir=storage_dir, deploy_sysroot_dir=deploy_cli.DEFAULT_DEPLOY_DIR,
-        image_name=tezi_props.get("name"),
-        image_description=tezi_props.get("description"),
-        licence_file=tezi_props.get("licence"),
-        release_notes_file=tezi_props.get("release-notes"))
+    deploy_tezi_image_params = {
+        "ostree_ref": union_params["union_branch"],
+        "output_dir": output_dir,
+        "storage_dir": storage_dir,
+        "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
+        "tezi_props": translate_tezi_props(tezi_props),
+    }
+
+    deploy_cli.deploy_tezi_image(**deploy_tezi_image_params)
 
     handle_bundle_output(
         output_dir, storage_dir, tezi_props.get("bundle", {}), tezi_props)
@@ -290,14 +304,13 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
 
     if "dir" in bundle_props:
         # Do a combine "in place" to avoid creating another directory.
-        comb_be.combine_image(
-            image_dir=image_dir,
-            bundle_dir=bundle_props["dir"],
-            output_directory=None,
-            image_name=tezi_props.get("name"),
-            image_description=tezi_props.get("description"),
-            licence_file=tezi_props.get("licence"),
-            release_notes_file=tezi_props.get("release-notes"))
+        combine_params = {
+            "image_dir": image_dir,
+            "bundle_dir": bundle_props["dir"],
+            "output_directory": None,
+            "tezi_props": translate_tezi_props(tezi_props)
+        }
+        comb_be.combine_image(**combine_params)
 
     elif "compose-file" in bundle_props:
         # Download bundle to user's directory - review (TODO).
@@ -336,14 +349,13 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             download_containers_by_compose_file(**download_params)
 
             # Do a combine "in place" to avoid creating another directory.
-            comb_be.combine_image(
-                image_dir=image_dir,
-                bundle_dir=bundle_dir,
-                output_directory=None,
-                image_name=tezi_props.get("name"),
-                image_description=tezi_props.get("description"),
-                licence_file=tezi_props.get("licence"),
-                release_notes_file=tezi_props.get("release-notes"))
+            combine_params = {
+                "image_dir": image_dir,
+                "bundle_dir": bundle_props['dir'],
+                "output_directory": None,
+                "tezi_props": translate_tezi_props(tezi_props)
+            }
+            comb_be.combine_image(**combine_params)
 
         finally:
             log.debug(f"Removing temporary bundle directory {bundle_dir}")

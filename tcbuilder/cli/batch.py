@@ -86,10 +86,19 @@ def do_batch(args):
                 logging.info(f"Downloading from {url}")
                 downloader.download(url, output_dir)
 
-            version = common.combine_single_image(output_dir_containers, common.DOCKER_FILES_TO_ADD,
-                                                  additional_size, output_dir, args.image_name,
-                                                  args.image_description, args.licence_file,
-                                                  args.release_notes_file)
+            combine_params = {
+                "bundle_dir": output_dir_containers,
+                "files_to_add": common.DOCKER_FILES_TO_ADD,
+                "additional_size": additional_size,
+                "output_dir": output_dir,
+                "tezi_props": {
+                    "name": args.image_name,
+                    "description": args.image_description,
+                    "licence_file": args.licence_file,
+                    "release_notes_file": args.release_notes_file
+                }
+            }
+            version = common.combine_single_image(**combine_params)
 
             # Start Artifactory upload with a empty environment
             if args.post_script is not None:

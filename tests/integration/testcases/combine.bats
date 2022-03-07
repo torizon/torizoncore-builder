@@ -110,3 +110,70 @@ load 'lib/common.bash'
 
     rm -rf "$COMPOSE" "$BUNDLE_DIR" "$OUTPUT_DIR" "$IMAGE_DIR"
 }
+
+@test "combine: check with --image-autoinstall" {
+  local COMPOSE='docker-compose.yml'
+  cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+  rm -rf bundle
+  torizoncore-builder bundle $COMPOSE
+
+  unpack-image $DEFAULT_TEZI_IMAGE
+  local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+  local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
+  assert_success
+  run grep autoinstall $OUTPUT_DIR/image.json
+  assert_output --partial "false"
+
+  rm -rf "$OUTPUT_DIR"
+
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoinstall
+  assert_success
+  run grep autoinstall $OUTPUT_DIR/image.json
+  assert_output --partial "true"
+
+  rm -rf "$OUTPUT_DIR"
+
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --no-image-autoinstall
+  assert_success
+  run grep autoinstall $OUTPUT_DIR/image.json
+  assert_output --partial "false"
+
+  rm -rf "$COMPOSE" "$OUTPUT_DIR" "$IMAGE_DIR"
+}
+
+@test "combine: check with --image-autoreboot" {
+  local COMPOSE='docker-compose.yml'
+  local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
+  cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+  rm -rf bundle
+  torizoncore-builder bundle $COMPOSE
+
+  unpack-image $DEFAULT_TEZI_IMAGE
+  local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+  local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
+  assert_success
+  run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
+  refute_output
+
+  rm -rf "$OUTPUT_DIR"
+
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoreboot
+  assert_success
+  run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
+  assert_success
+
+  rm -rf "$OUTPUT_DIR"
+
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --no-image-autoreboot
+  assert_success
+  run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
+  refute_output
+
+  rm -rf "$COMPOSE" "$OUTPUT_DIR" "$IMAGE_DIR"
+}
