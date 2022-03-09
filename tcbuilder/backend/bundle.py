@@ -20,6 +20,7 @@ import docker.errors
 import docker.types
 
 from tcbuilder.errors import OperationFailureError
+from tcbuilder.backend.common import get_own_network
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -191,6 +192,7 @@ class DindManager(DockerManager):
         """
 
         dind_cmd = ["--storage-driver", "overlay2"]
+        ports = None
 
         if network_name == "host":
             # Choose a safe and high port to avoid conflict with already
@@ -211,8 +213,9 @@ class DindManager(DockerManager):
                 self.docker_host = f"tcp://127.0.0.1:{port}"
             log.info(f"Using Docker host \"{self.docker_host}\"")
         else:
-            log.info(f"Create network \"{network_name}\"")
-            self.network = self.host_client.networks.create(network_name, driver="bridge")
+            port = 22376
+            ports = {f"{port}/tcp": port}
+            dind_cmd.append(f"--host=tcp://0.0.0.0:{port}")
 
         # Create the volume to hold the /var/lib/docker data.
         self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
@@ -245,11 +248,13 @@ class DindManager(DockerManager):
         if dind_params is not None:
             dind_cmd.extend(dind_params)
 
+        log.debug(f"Running DinD container: ports={ports}, network={network_name}")
         self.dind_container = self.host_client.containers.run(
             self.DIND_CONTAINER_IMAGE,
             privileged=True,
             environment=_environ,
             mounts=_mounts,
+            ports=ports,
             network=network_name,
             name=self.DIND_CONTAINER_NAME,
             auto_remove=True,
@@ -261,7 +266,7 @@ class DindManager(DockerManager):
             self.dind_container.reload()
             dind_ip = self.dind_container.attrs \
                 ["NetworkSettings"]["Networks"][network_name]["IPAddress"]
-            self.docker_host = "tcp://{}:2376".format(dind_ip)
+            self.docker_host = "tcp://{}:22376".format(dind_ip)
 
     def stop(self):
         """Stop manager
@@ -499,8 +504,10 @@ def download_containers_by_compose_file(
         log.debug("Using DindManager")
         manager = DindManager(output_dir, host_workdir)
 
+    network = get_own_network()
+
     try:
-        manager.start("host", default_platform=platform, dind_params=dind_params)
+        manager.start(network, default_platform=platform, dind_params=dind_params)
 
         dind_client = manager.get_client()
         if dind_client is None:

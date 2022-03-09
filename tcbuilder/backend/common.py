@@ -625,3 +625,21 @@ def images_unpack_executed(storage_dir):
     for image_dir in image_dirs:
         if not os.path.exists(os.path.join(storage_dir, image_dir)):
             raise ImageUnpackError()
+
+def get_own_network():
+    """ Determine Network mode of current tcb container
+    Given the host `docker_client`. This function returns
+    the network mode of this instance of the tcb container.
+    """
+    host_client = DockerClient.from_env()
+    tcb_id = get_own_container_id(host_client)
+    try:
+        tcb = host_client.containers.get(tcb_id)
+    except NotFound as _ex:
+        raise OperationFailureError("Can't retrieve container information from docker.")
+
+    network = tcb.attrs["HostConfig"]["NetworkMode"]
+    if network == "default":
+        network = "bridge"
+
+    return network
