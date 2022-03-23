@@ -43,6 +43,7 @@ def update_targets(targets_file_path, packagename, commit, subject, body, metada
     with open(targets_file_path, 'w') as targets_file:
         json.dump(data, targets_file, indent=2)
 
+
 def run_garage_command(command, verbose):
     """Run a single command using garage-sign/garage-push"""
     if verbose:
@@ -68,6 +69,7 @@ def run_garage_command(command, verbose):
             f'Error ({str(garage_command.returncode)}) running garage command '
             f'"{command[0]}" with arguments "{command[1:]}"')
 
+
 # pylint: disable=too-many-locals
 def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
              package_name=None, hardwareids=None, verbose=False):
@@ -91,11 +93,17 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
     elif "oe.machine" in metadata:
         module = metadata["oe.machine"]
 
+    if hardwareids is not None:
+        if module not in hardwareids:
+            log.info(
+                f"The default hardware id '{module}' is being overridden. "
+                "If you want to keep it, re-run the command adding the "
+                f"flag --hardwareid '{module}'.")
+        module = ",".join(hardwareids)
+
     if module is None:
-        if hardwareids is None:
-            raise TorizonCoreBuilderError(
-                "No hardware id found in OSTree metadata and none provided.")
-        module = hardwareids
+        raise TorizonCoreBuilderError(
+            "No hardware id found in OSTree metadata and none provided.")
 
     garage_push = ["garage-push",
                    "--credentials", credentials,
@@ -109,7 +117,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
     log.info(f"Pushed {ref} successfully.")
 
     log.info(f"Signing OSTree package {package_name} (commit checksum {commit}) "
-             f"for Hardware Id(s) \"{module}\".")
+             f"for Hardware Id(s) \"{', '.join(hardwareids)}\".")
 
     run_garage_command(["garage-sign", "init",
                         "--credentials", credentials,
@@ -185,15 +193,16 @@ def push_compose(credentials, target, version, compose_file,
              f"{version} to OTA server. You should keep this file under your "
              "version control system.")
     put = requests.put(f"{reposerver}/api/v1/user_repo/targets/{target}_{version}",
-                       params={"name" : f"{target}", "version" : f"{version}",
-                               "hardwareIds" : "docker-compose"},
-                       headers={"Authorization":f"Bearer {token}", }, data=data)
+                       params={"name": f"{target}", "version": f"{version}",
+                               "hardwareIds": "docker-compose"},
+                       headers={"Authorization": f"Bearer {token}", }, data=data)
 
     if put.status_code == 204:
         log.info(f"Successfully pushed {os.path.basename(lock_file)} to OTA server.")
     else:
         log.error(f"Could not upload {os.path.basename(lock_file)} to OTA server at this time:")
         log.error(put.text)
+# pylint: enable=too-many-locals
 
 
 def set_images_hash(compose_file_data):

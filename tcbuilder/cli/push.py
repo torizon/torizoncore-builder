@@ -11,9 +11,10 @@ import datetime
 import argparse
 
 from tcbuilder.backend import push
-from tcbuilder.errors import PathNotExistError, TorizonCoreBuilderError
+from tcbuilder.errors import InvalidArgumentError, PathNotExistError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
+
 
 def push_subcommand(args):
     """Run \"push\" subcommand"""
@@ -36,6 +37,12 @@ def push_subcommand(args):
     credentials = os.path.abspath(args.credentials)
 
     if args.ref.endswith(".yml") or args.ref.endswith(".yaml"):
+        if args.hardwareids and any(hwid != "docker-compose" for hwid in args.hardwareid):
+            raise InvalidArgumentError("Error: --hardware is only valid when pushing "
+                                       "OSTree reference. The hardware id for a "
+                                       "docker-compose package can only be "
+                                       "\"docker-compose\"")
+
         compose_file = os.path.abspath(args.ref)
         target = args.target or "docker-compose_file.yml"
         version = args.version or datetime.datetime.today().strftime("%Y-%m-%d")
@@ -52,12 +59,10 @@ def push_subcommand(args):
         if not os.path.exists(storage_dir):
             raise PathNotExistError(f"{storage_dir} does not exist")
 
-        hardwareids = None
-        if args.hardwareids is not None:
-            hardwareids = ",".join(args.hardwareids)
         push.push_ref(src_ostree_archive_dir, tuf_repo, credentials,
-                      args.ref, args.version, args.target, hardwareids,
+                      args.ref, args.version, args.target, args.hardwareids,
                       args.verbose)
+
 
 def init_parser(subparsers):
     """Initialize argument parser"""
@@ -71,7 +76,9 @@ def init_parser(subparsers):
         help="OSTree repository to push from.", required=False)
     subparser.add_argument(
         "--hardwareid", dest="hardwareids", action="append",
-        help="Hardware IDs to use when creating and signing targets.json.",
+        help=("Hardware ID to use when pushing an OSTree package (can be specified "
+              "multiple times). Will allow this package to be compatible with "
+              "devices of the same Hardware ID."),
         required=False, default=None)
     subparser.add_argument(
         "--package-name", dest="target",
