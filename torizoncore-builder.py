@@ -13,7 +13,7 @@ MIN_PYTHON = (3, 7)
 if sys.version_info < MIN_PYTHON:
     sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
-#pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position
 
 import argparse
 import logging
@@ -21,11 +21,11 @@ import os
 import traceback
 
 from tcbuilder.cli import (batch, bundle, build, combine, deploy, dt, dto,
-                           images, isolate, kernel, ostree, push, splash, union)
+                           images, isolate, kernel, ostree, platform, push, splash, union)
 
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
-#pylint: enable=wrong-import-position
+# pylint: enable=wrong-import-position
 
 __version_info__ = ('3', '4', '0')
 __version__ = '.'.join(__version_info__)
@@ -119,7 +119,8 @@ parser.add_argument(
     help=argparse.SUPPRESS)
 
 subparsers = parser.add_subparsers(
-    metavar='{build,bundle,combine,deploy,dt,dto,images,isolate,kernel,ostree,push,splash,union}',
+    metavar=('{build,bundle,combine,deploy,dt,dto,images,isolate,'
+             'kernel,ostree,platform,push,splash,union}'),
     title='Commands', required=True, dest='cmd')
 
 # Commands in ALPHABETICAL order.
@@ -134,11 +135,12 @@ images.init_parser(subparsers)
 isolate.init_parser(subparsers)
 kernel.init_parser(subparsers)
 ostree.init_parser(subparsers)
+platform.init_parser(subparsers)
 push.init_parser(subparsers)
 splash.init_parser(subparsers)
 union.init_parser(subparsers)
 
-#pylint: disable=broad-except
+# pylint: disable=broad-except
 
 def am_i_under_docker():
     '''Tells whether the OS is inside the Matrix.
@@ -147,6 +149,7 @@ def am_i_under_docker():
     # https://stackoverflow.com/questions/20010199/how-to-determine-if-a-process-runs-inside-lxc-docker
     with open('/proc/1/cgroup', 'rt') as fd_cgroup:
         return 'docker' in fd_cgroup.read()
+
 
 def assert_operational_directory(path):
     """Assert that a given directory looks ok to be used as a data storage

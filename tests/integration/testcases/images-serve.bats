@@ -10,7 +10,7 @@ function teardown() {
 @test "images serve: check help output" {
     run torizoncore-builder images serve --help
     assert_success
-    assert_output --partial 'Path to TorizonCore TEZI images directory.'
+    assert_output --partial 'Path to directory holding Toradex Easy Installer images.'
 }
 
 @test "images serve: check if 'image_list.json' file exists" {

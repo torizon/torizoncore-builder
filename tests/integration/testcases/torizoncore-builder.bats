@@ -6,7 +6,7 @@ load 'bats/bats-file/load.bash'
     run torizoncore-builder
     assert_failure 2
     assert_output --partial 'error: the following arguments are required: '
-    assert_output --partial '{build,bundle,combine,deploy,dt,dto,images,isolate,kernel,ostree,push,splash,union}'
+    assert_output --partial '{build,bundle,combine,deploy,dt,dto,images,isolate,kernel,ostree,platform,push,splash,union}'
 }
 
 @test "torizoncore-builder: get software version" {
