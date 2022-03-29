@@ -79,31 +79,24 @@ def init_parser(subparsers):
 
     subparser = subparsers.add_parser(
         "combine",
-        help="Combines a container bundle with a specified Toradex Easy "
-             "Installer image.",
-        epilog="NOTE: the switches --image-directory and --output_directory "
-               "have been removed.")
+        help=("Combines a container bundle with a specified Toradex Easy "
+              "Installer image."),
+        epilog=("NOTE: the switches --image-directory and --output_directory "
+                "have been removed."))
 
-    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
-                           action=argparse.BooleanOptionalAction,
-                           help="""Automatically install image upon image detection.""")
-
-    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
-                           action=argparse.BooleanOptionalAction,
-                           help="""Set an automatic reboot after flashing.""")
     add_bundle_directory_argument(subparser)
 
     subparser.add_argument(
         dest="image_directory",
         metavar="IMAGE_DIRECTORY",
-        help="Path to TorizonCore Toradex Easy Installer source image, "
-             "which needs to be updated with docker bundle.")
+        help=("Path to TorizonCore Toradex Easy Installer source image, "
+              "which needs to be updated with docker bundle."))
 
     subparser.add_argument(
         dest="output_directory",
         metavar="OUTPUT_DIRECTORY",
-        help="Path to combined TorizonCore Toradex Easy Installer image, "
-             "which needs to be updated with docker bundle.")
+        help=("Path to combined TorizonCore Toradex Easy Installer image, "
+              "which needs to be updated with docker bundle."))
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(
@@ -122,5 +115,15 @@ def init_parser(subparsers):
         help=argparse.SUPPRESS)
 
     add_common_image_arguments(subparser)
+
+    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Automatically install image upon detection by "
+                                 "Toradex Easy Installer."))
+
+    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Enable automatic reboot after image is flashed by "
+                                 "Toradex Easy Installer."))
 
     subparser.set_defaults(func=do_combine)

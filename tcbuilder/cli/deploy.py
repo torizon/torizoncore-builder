@@ -99,40 +99,48 @@ def do_deploy(args):
 
 
 def init_parser(subparsers):
-    subparser = subparsers.add_parser("deploy", help="""\
-    Deploy the current image as a Toradex Easy Installer image""")
+    subparser = subparsers.add_parser(
+        "deploy",
+        help="Deploy the current image as a Toradex Easy Installer image.")
+
     subparser.add_argument("--output-directory", dest="output_directory",
-                           help="""Output path for TorizonCore Toradex Easy Installer image.""")
+                           help="Output path for TorizonCore Toradex Easy Installer image.")
 
     subparser.add_argument("--remote-host", dest="remote_host",
-                           help="""Remote host machine to deploy to.""")
+                           help="Remote host machine to deploy to.")
 
-    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
-                           action=argparse.BooleanOptionalAction,
-                           help="""Automatically install image upon image detection.""")
-
-    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
-                           action=argparse.BooleanOptionalAction,
-                           help="""Set an automatic reboot after flashing.""")
     common.add_ssh_arguments(subparser)
+
     subparser.add_argument("--mdns-source", dest="mdns_source",
-                           help="""Use the given IP address as mDNS source.
-                           This is useful when multiple interfaces are used, and
-                           mDNS multicast requests are sent out the wrong
-                           network interface.""")
+                           help=("Use the given IP address as mDNS source. "
+                                 "This is useful when multiple interfaces are used, and "
+                                 "mDNS multicast requests are sent out the wrong "
+                                 "network interface."))
+
     subparser.add_argument("--reboot", dest="reboot", action='store_true',
-                           help="""Reboot machine after deploying""",
+                           help="Reboot machine after deploying",
                            default=False)
 
     subparser.add_argument(metavar="REF", nargs="?", dest="ref",
-                           help="""OSTree reference to deploy.""")
+                           help="OSTree reference to deploy.")
+
     subparser.add_argument("--deploy-sysroot-directory", dest="deploy_sysroot_directory",
-                           help="""Work directory to store the intermittent deployment sysroot.
-                           NOTE: OSTree need to be able to write extended
-                           attributes in this directory. This seems to only
-                           reliably work when using a Docker volume!
-                           """,
+                           help=("Work directory to store the intermittent deployment sysroot. "
+                                 "NOTE: OSTree need to be able to write extended "
+                                 "attributes in this directory. This seems to only "
+                                 "reliably work when using a Docker volume!"),
                            default=DEFAULT_DEPLOY_DIR)
+
     common.add_common_image_arguments(subparser)
+
+    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Automatically install image upon detection by "
+                                 "Toradex Easy Installer."))
+
+    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Enable automatic reboot after image is flashed by "
+                                 "Toradex Easy Installer."))
 
     subparser.set_defaults(func=do_deploy)
