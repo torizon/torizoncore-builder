@@ -24,6 +24,7 @@ $TESTCASES_DIR/bundle.bats \
 $TESTCASES_DIR/combine.bats \
 $TESTCASES_DIR/kernel.bats \
 $TESTCASES_DIR/ostree.bats \
+$TESTCASES_DIR/push.bats \
 $TESTCASES_DIR/splash.bats \
 "
 

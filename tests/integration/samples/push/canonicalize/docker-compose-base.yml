@@ -1,0 +1,14 @@
+services:
+  svc1:
+    image: torizon/torizoncore-builder:3
+  svc2:
+    image: rborin/gst_example32@sha256:e4fe98c0422a798069f5a99d6a1842cce350992387dbcc0e496c7411ff33e6d6
+  svc3:
+    image: torizon/weston:2
+  svc4:
+    build: ./build.sh
+  svc5:
+    image: torizon/weston:2-uuu
+  svc6:
+    image: http://10.0.0.1/torizon/weston:2
+version: '2.4'

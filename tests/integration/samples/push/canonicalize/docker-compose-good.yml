@@ -1,0 +1,9 @@
+services:
+  svc1:
+    image: torizon/torizoncore-builder:3
+  svc2:
+    image: torizon/debian:2-bullseye
+  svc3:
+    image: torizon/weston@sha256:6fab6152b860c93cbfc0abfecd3f892adb9154ce284dc4c4442afdab3a005047
+
+version: '2.4'

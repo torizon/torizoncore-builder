@@ -1,0 +1,6 @@
+services:
+  svc1:
+    image: torizon/torizoncore-builder:3
+  svc2:
+    build: ./build.sh
+version: '2.4'

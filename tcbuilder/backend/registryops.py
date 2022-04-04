@@ -118,6 +118,13 @@ class ParsedImageName:
             return f"{self.name}@{_tag}"
         return f"{self.name}:{_tag}"
 
+    def set_tag(self, tag, is_digest=True):
+        if is_digest:
+            # TODO: Add prefix if not present but string looks like a sha256.
+            assert tag.startswith(SHA256_PREFIX), \
+                f"Tag {tag} doesn't look like a digest"
+        self.tag = tag
+
     def __repr__(self):
         return (f"ImageName(registry='{self.registry}', "
                 f"name='{self.name}', tag='{self.tag}')")

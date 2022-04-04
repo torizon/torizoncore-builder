@@ -13,7 +13,7 @@ import zipfile
 import requests
 import yaml
 
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import set_output_ownership
 from tcbuilder.backend.registryops import RegistryOperations, parse_image_name
@@ -214,13 +214,25 @@ def set_images_hash(compose_file_data):
 
     registry = RegistryOperations()
 
-    for service in compose_file_data.get('services').values():
-        image = parse_image_name(service.get('image'))
+    if not isinstance(compose_file_data.get('services'), dict):
+        raise InvalidDataError("Error: No 'services' section in compose file.")
+
+    for svc_name, svc_spec in compose_file_data['services'].items():
+        image_name = svc_spec.get('image')
+        if not image_name:
+            raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
+        # TODO: Support registry name specification in the compose file.
+        image = parse_image_name(image_name)
         if image.registry:
-            raise TorizonCoreBuilderError("Registry name specification is not supported.")
-        response, image_tag_with_hash = registry.get_manifest(image.name, ret_digest=True)
-        if response.status_code == 200:
-            service['image'] = "@".join((image.name, image_tag_with_hash))
+            raise TorizonCoreBuilderError(
+                "Error: Registry name specification is not supported yet "
+                f"(at service '{svc_name}').")
+        response, image_digest = registry.get_manifest(image_name, ret_digest=True)
+        if response.status_code != 200:
+            raise InvalidDataError(f"Error: Can't determine digest for image '{image_name}'.")
+        # Replace tag by digest:
+        image.set_tag(image_digest, is_digest=True)
+        svc_spec['image'] = image.get_name_with_tag()
 
 
 def canonicalize_compose_file(compose_file, force=False):
@@ -246,16 +258,14 @@ def canonicalize_compose_file(compose_file, force=False):
     # TODO: We should check if this file is really in canonical form and not
     # only relying on the extension name.
     if compose_file.endswith(".lock.yml") or compose_file.endswith(".lock.yaml"):
-        log.info(f"File '{os.path.basename(compose_file)}' (already in "
-                 "canonical form).")
+        log.info(f"File '{compose_file}' (already in canonical form).")
         return compose_file, yaml.dump(compose_file_data, Dumper=yaml.Dumper)
 
     canonical_compose_file_lock = re.sub(r"(.ya?ml)$", r".lock\1", compose_file)
     if os.path.exists(canonical_compose_file_lock) and not force:
         raise TorizonCoreBuilderError(
-            f"Canonicalized file '{os.path.basename(canonical_compose_file_lock)}' "
-            "already exists. Please use the '--force' parameter if you want it to "
-            "be overwritten.")
+            f"Canonicalized file '{canonical_compose_file_lock}' already exists. "
+            "Please use the '--force' parameter if you want it to be overwritten.")
 
     set_images_hash(compose_file_data)
     canonical_data = yaml.dump(compose_file_data, Dumper=yaml.Dumper)
@@ -263,7 +273,6 @@ def canonicalize_compose_file(compose_file, force=False):
     with open(canonical_compose_file_lock, 'w', encoding='utf-8') as compose_lock_fd:
         compose_lock_fd.write(canonical_data)
     set_output_ownership(canonical_compose_file_lock)
-    log.info(f"Canonicalized file '{os.path.basename(canonical_compose_file_lock)}' "
-             "has been generated.")
+    log.info(f"Canonicalized file '{canonical_compose_file_lock}' has been generated.")
 
     return canonical_compose_file_lock, canonical_data
