@@ -117,7 +117,7 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
     log.info(f"Pushed {ref} successfully.")
 
     log.info(f"Signing OSTree package {package_name} (commit checksum {commit}) "
-             f"for Hardware Id(s) \"{', '.join(hardwareids)}\".")
+             f"for Hardware Id(s) \"{module}\".")
 
     run_garage_command(["garage-sign", "init",
                         "--credentials", credentials,
