@@ -9,7 +9,7 @@ import subprocess
 import urllib
 
 from tcbuilder.backend import common
-from tcbuilder.errors import InvalidArgumentError, OperationFailureError
+from tcbuilder.errors import OperationFailureError
 from tezi import downloader
 
 
@@ -56,10 +56,6 @@ def do_batch(args):
     """Run "batch" sub-command"""
 
     output_dir_containers = os.path.abspath(args.bundle_directory)
-    additional_size = common.get_additional_size(output_dir_containers, common.DOCKER_FILES_TO_ADD)
-    if additional_size is None:
-        raise InvalidArgumentError("Docker Container bundle missing, use bundle sub-command.")
-
     image_dir = os.path.abspath(args.output_directory)
 
     if not os.path.exists(image_dir):
@@ -89,7 +85,6 @@ def do_batch(args):
             combine_params = {
                 "bundle_dir": output_dir_containers,
                 "files_to_add": common.DOCKER_FILES_TO_ADD,
-                "additional_size": additional_size,
                 "output_dir": output_dir,
                 "tezi_props": {
                     "name": args.image_name,

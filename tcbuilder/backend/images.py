@@ -2,6 +2,10 @@
 Backend handling for build subcommand
 """
 
+import base64
+import binascii
+import http.server
+import json
 import logging
 import os
 import re
@@ -9,18 +13,24 @@ import shutil
 import subprocess
 import sys
 import urllib.request
-import http.server
 
 from zipfile import ZipFile
+from tempfile import TemporaryDirectory
 
 import paramiko
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_unpack_command,
                                       set_output_ownership)
 from tcbuilder.backend import ostree
-from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError)
+from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
+from tezi.image import ImageConfig, DEFAULT_IMAGE_JSON_FILENAME
+from tezi.errors import TeziError
 
 log = logging.getLogger("torizon." + __name__)
+
+PROV_IMPORT_DIRNAME = "import"
+PROV_ONLINE_DATA_FILENAME = "auto-provisioning.json"
+PROV_DATA_FILENAME = "provisioning-data.tar.gz"
 
 
 def serve(images_directory):
@@ -294,5 +304,143 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
     log.info("Unpacked OSTree from Toradex Easy Installer image:")
     log.info(f"  Commit checksum: {csum}".format(csum))
     log.info(f"  TorizonCore Version: {metadata['version']}")
+
+
+def prov_check_provdata_presence(input_dir):
+    """Determine if input TEZI image already has provisioning data"""
+
+    # FIXME: Check why `combine_single_image()` iterates over image*.json file.
+    config_fname = os.path.join(input_dir, DEFAULT_IMAGE_JSON_FILENAME)
+    config = ImageConfig(config_fname)
+    return config.search_filelist(src=PROV_DATA_FILENAME) is not None
+
+
+def prov_gen_provdata_tarball(output_dir, shared_data, online_data):
+    """Generate tarball containing all provisioning data
+
+    The tarball will be stored into the output directory; then it should be
+    added to image.json in order to be actually installed on the device by TEZI.
+
+    Throwing errors here will cause output directory to be removed (if the
+    operation is not in-place).
+    """
+
+    # Let us create the contents of the /var/sota/ directory:
+    # - auto-provisioning.json
+    # - import/
+    #   - directory contents taken from the shared data tarball
+    #
+    with TemporaryDirectory() as tmpdir:
+        toplvl_entries = []
+        log.debug(f"Writing provisioning files to directory: {tmpdir}")
+
+        # Create import directory and extract original shared data into it. This
+        # will keep the numeric IDs and attributes of files since we are running
+        # inside a container (i.e. as root from the perspective of "tar").
+        import_dir = os.path.join(tmpdir, PROV_IMPORT_DIRNAME)
+        os.mkdir(import_dir, 0o511)
+        subprocess.check_output(["tar", "-xvf", shared_data, "-C", import_dir])
+        toplvl_entries.append(PROV_IMPORT_DIRNAME)
+
+        # Create the file holding online provisioning data:
+        if online_data:
+            online_prov_file = os.path.join(tmpdir, PROV_ONLINE_DATA_FILENAME)
+            with open(online_prov_file, "wb") as outfile:
+                # Try to decode it just to be sure it is actually valid JSON.
+                try:
+                    online_data_padded = online_data
+                    online_data_padded += "=" * ((4 - len(online_data) % 4) %4)
+                    online_data_json = base64.b64decode(online_data_padded)
+                    json.loads(online_data_json)
+                except (binascii.Error, json.decoder.JSONDecodeError) as exc:
+                    raise TorizonCoreBuilderError(
+                        "Failure decoding online data: aborting.") from exc
+                outfile.write(online_data_json)
+
+            # Make file contents only visible to root user (assumed UID=0, GID=0).
+            os.chmod(online_prov_file, 0o640)
+            os.chown(online_prov_file, uid=0, gid=0)
+
+            toplvl_entries.append(PROV_ONLINE_DATA_FILENAME)
+
+        # Create final tarball:
+        subprocess.check_output(
+            ["tar", "--numeric-owner", "--preserve-permissions",
+             "-czvf", os.path.join(output_dir, PROV_DATA_FILENAME),
+             "-C", tmpdir, *toplvl_entries])
+
+
+def prov_add_provdata_tarball(output_dir):
+    """Add the provisioning tarball to the files copied to the device by TEZI."""
+
+    # FIXME: Check why `combine_single_image()` iterates over image*.json file.
+    config_fname = os.path.join(output_dir, DEFAULT_IMAGE_JSON_FILENAME)
+    config = ImageConfig(config_fname)
+    config.add_files(
+        [(PROV_DATA_FILENAME, "/ostree/deploy/torizon/var/sota/", True)],
+        image_dir=output_dir, update_size=True, fail_src_present=True)
+    config.save()
+
+
+def provision(input_dir, output_dir, shared_data, online_data, force=False):
+    """Generate TEZI image with added provisioning data
+
+    :param input_dir: Path of directory containing input image.
+    :param output_dir: Path of directory which will hold output image.
+    :param shared_data: Path to tarball containing shared (i.e. related to both
+                        offline and online cases) provisioning data.
+    :param online_data: Base-64 string containing online provisioning data.
+    :param force: Boolean indicating whether to remove output directory if it
+                  already exists.
+    """
+
+    # Basic validations:
+    if not os.path.isdir(input_dir):
+        raise InvalidArgumentError(
+            "Input directory does not exist: aborting.")
+
+    if (input_dir and output_dir and
+            os.path.realpath(input_dir) == os.path.realpath(output_dir)):
+        # For in-place updates caller should not pass an output directory.
+        raise InvalidArgumentError(
+            "Input and output directories must be different: aborting.")
+
+    if prov_check_provdata_presence(input_dir):
+        # Currently we do not support inputting an image with provisioning data
+        # already present.
+        raise InvalidStateError(
+            "Input image already contains provisioning data: aborting.")
+
+    # Handle normal or in-place modifications:
+    inplace = False
+
+    if output_dir is None:
+        log.debug("Updating TorizonCore image in place.")
+        output_dir = input_dir
+        inplace = True
+    else:
+        # Fail when output directory already exists.
+        if os.path.exists(output_dir):
+            if not force:
+                raise InvalidStateError(
+                    f"Output directory \"{output_dir}\" already exists: aborting.")
+            shutil.rmtree(output_dir)
+
+        log.debug("Creating copy of TorizonCore input image.")
+        shutil.copytree(input_dir, output_dir)
+
+    # Actual provisioning:
+    try:
+        prov_gen_provdata_tarball(output_dir, shared_data, online_data)
+        prov_add_provdata_tarball(output_dir)
+        set_output_ownership(output_dir)
+        log.info("Image successfully provisioned.")
+
+    except (TorizonCoreBuilderError, TeziError) as _exc:
+        if not inplace:
+            log.debug("Removing output directory due to error.")
+            shutil.rmtree(output_dir)
+        raise
+
 
 # EOF

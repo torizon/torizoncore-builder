@@ -64,7 +64,7 @@ input:
     # >> Modules to build and possibly load automatically.
     # modules:
       # - source-dir: virtual_touchscreen/
-      #   autoload: no
+      #   autoload: false
 
 # >> The output section defines properties of the output image.
 output:
@@ -94,3 +94,10 @@ output:
       # >> (2) Specify a local directory containing the bundled images (previously
       # >>     obtained by 'torizoncore-builder bundle' command).
       # dir: bundle/
+    # >> Provisioning configuration:
+    # provisioning:
+      # >> For "online" mode, properties "shared-data" and "online-data" must be specified. 
+      # >> For "offline" mode, property "shared-data" must be specified alone.
+      # mode: "online"
+      # shared-data: "shared-data.tar.gz"
+      # online-data: "${ONLINE_PROVISIONING_DATA:?online provisioning data not supplied}"

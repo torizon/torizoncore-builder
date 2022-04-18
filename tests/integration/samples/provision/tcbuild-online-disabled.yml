@@ -1,0 +1,11 @@
+input:
+  easy-installer:
+    local: $INPUT_DIR
+
+output:
+  easy-installer:
+    local: $OUTPUT_DIR
+    provisioning:
+      mode: "disabled"
+      shared-data: $SHARED_DATA_TARBALL
+      online-data: "eyJkdW1teSI6MX0K"

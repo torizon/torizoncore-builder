@@ -262,6 +262,24 @@ properties:
           autoreboot:
             type: boolean
             description: "add autoreboot at wrapup.sh file"
+          provisioning:
+            type: object
+            description: "provisioning configuration"
+            properties:
+              mode:
+                type: string
+                enum:
+                  - offline
+                  - online
+                  - disabled
+                description: "provisioning type (online covers offline)"
+              shared-data:
+                type: string
+                description: "path to tarball containing shared provisioning data (required with online and offline modes)"
+                tdxMeta: "file;tar.gz"
+              online-data:
+                type: string
+                description: "string containing provisioning data specific to the online mode"
           bundle:
             type: object
             description: "image bundling configuration"

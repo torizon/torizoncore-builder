@@ -1,0 +1,10 @@
+input:
+  easy-installer:
+    local: $INPUT_DIR
+
+output:
+  easy-installer:
+    local: $OUTPUT_DIR
+    provisioning:
+      mode: "offline"
+      shared-data: $SHARED_DATA_TARBALL

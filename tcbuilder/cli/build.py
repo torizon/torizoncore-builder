@@ -8,6 +8,7 @@ import shutil
 import sys
 from datetime import datetime
 
+from tezi.errors import TeziError
 from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.errors import (
@@ -18,6 +19,7 @@ from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
 from tcbuilder.backend import combine as comb_be
 from tcbuilder.backend import dt as dt_be
+from tcbuilder.backend import images as images_be
 from tcbuilder.cli import deploy as deploy_cli
 from tcbuilder.cli import dt as dt_cli
 from tcbuilder.cli import dto as dto_cli
@@ -298,6 +300,9 @@ def handle_output_section(props, storage_dir, changes_dirs=None):
     handle_bundle_output(
         output_dir, storage_dir, tezi_props.get("bundle", {}), tezi_props)
 
+    if "provisioning" in tezi_props:
+        handle_provisioning(output_dir, tezi_props.get("provisioning"))
+
 
 def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
     """Handle the bundle and combine steps of the output generation."""
@@ -361,6 +366,38 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             log.debug(f"Removing temporary bundle directory {bundle_dir}")
             if os.path.exists(bundle_dir):
                 shutil.rmtree(bundle_dir)
+
+
+def handle_provisioning(output_dir, prov_props):
+    """Handle the provisioning step of the output generation."""
+
+    prov_params = {
+        "input_dir": output_dir,
+        "output_dir": None,
+        "shared_data": prov_props.get("shared-data"),
+        "online_data": prov_props.get("online-data")
+    }
+
+    if prov_props.get("mode") == images_cli.PROV_MODE_OFFLINE:
+        if not prov_params["shared_data"]:
+            raise InvalidDataError(
+                "With offline provisioning, property 'shared-data' must be set.")
+        if prov_params["online_data"]:
+            raise InvalidDataError(
+                "With offline provisioning, property 'online-data' cannot be set.")
+    elif prov_props.get("mode") == images_cli.PROV_MODE_ONLINE:
+        if not (prov_params["shared_data"] and prov_params["online_data"]):
+            raise InvalidDataError(
+                "With online provisioning, properties 'shared-data' "
+                "and 'online-data' must be set.")
+    elif prov_props.get("mode") == "disabled":
+        # Provide a "disabled" mode so people can disable provisioning without having to
+        # remove the properties (comment them out) from the file.
+        return
+    else:
+        raise InvalidDataError("Provisioning 'mode' not correctly set")
+
+    images_be.provision(**prov_params)
 
 
 def build(config_fname, storage_dir,
@@ -450,7 +487,7 @@ def do_build(args):
             log.warning(str(error))
         sys.exit(2)
 
-    except TorizonCoreBuilderError as exc:
+    except (TorizonCoreBuilderError, TeziError) as exc:
         exc.msg = "Error: " + exc.msg
         raise exc
 

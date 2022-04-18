@@ -1,3 +1,14 @@
+UNPACK_COMMANDS_MAP = {
+    ".gz": "gzip -dc",
+    ".tgz": "gzip -dc",
+    ".xz": "xz -dc",
+    ".lzo": "lzop -dc",
+    ".zst": "zstd -dc",
+    ".lz4": "lz4 -dc",
+    ".bz2": "bzip2 -dc"
+}
+
+
 def find_rootfs_content(jsondata):
     """ Finds root filesystem content data from given image json object
 
@@ -25,3 +36,11 @@ def find_rootfs_content(jsondata):
                         content = part["content"]
 
     return content
+
+
+def get_unpack_command(filename):
+    """Get shell command to unpack a given file format"""
+    for ext, cmd in UNPACK_COMMANDS_MAP.items():
+        if filename.endswith(ext):
+            return cmd
+    return "cat"

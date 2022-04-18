@@ -107,7 +107,7 @@ load 'lib/common.bash'
   rm -rf some_dir
   run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoinstall
   assert_success
-  run grep  autoinstall some_dir/image.json
+  run grep autoinstall some_dir/image.json
   assert_output --partial "false"
 
   rm -rf some_dir

@@ -5,11 +5,17 @@ CLI handling for images subcommand
 import logging
 import os
 import shutil
+import sys
 
 from tcbuilder.backend import images, common
-from tcbuilder.errors import UserAbortError
+from tcbuilder.errors import UserAbortError, TorizonCoreBuilderError
+from tezi.errors import TeziError
 
 log = logging.getLogger("torizon." + __name__)
+
+PROV_MODE_OFFLINE = "offline"
+PROV_MODE_ONLINE = "online"
+PROV_MODES = (PROV_MODE_OFFLINE, PROV_MODE_ONLINE)
 
 
 def get_extra_dirs(storage_dir, main_dirs):
@@ -82,6 +88,42 @@ def do_images_download(args):
                          dir_list[0], dir_list[1], dir_list[2])
 
 
+def do_images_provision(args):
+    """Run 'images provision' subcommand"""
+
+    # ---
+    # Validate arguments:
+    # ---
+    if args.mode == PROV_MODE_OFFLINE:
+        if not args.shared_data_file:
+            log.error("Error: With offline provisioning, switch --shared-data must be passed.")
+            sys.exit(1)
+        if args.online_data:
+            log.error("Error: With offline provisioning, switch --online-data cannot be passed.")
+            sys.exit(1)
+
+    elif args.mode == PROV_MODE_ONLINE:
+        if not (args.shared_data_file and args.online_data):
+            log.error("Error: With online provisioning, switches --shared-data "
+                      "and --online-data must be passed.")
+            sys.exit(1)
+
+    else:
+        assert False, "Unhandled provisioning mode"
+
+    try:
+        images.provision(
+            input_dir=args.input_directory,
+            output_dir=args.output_directory,
+            shared_data=args.shared_data_file,
+            online_data=args.online_data,
+            force=args.force)
+
+    except (TorizonCoreBuilderError, TeziError) as exc:
+        log.error(f"Error: {str(exc)}")
+        sys.exit(2)
+
+
 def do_images_serve(args):
     """
     Wrapper for 'images serve' subcommand.
@@ -109,6 +151,7 @@ def init_parser(subparsers):
     """Initialize 'images' subcommands command line interface."""
 
     parser = subparsers.add_parser("images", help="Manage Toradex Easy Installer Images.")
+    # FIXME: This should be moved to "images unpack" and "images download"
     parser.add_argument("--remove-storage", dest="remove_storage", action="store_true",
                         help="""Automatically clear storage prior to unpacking a new Easy
                         Installer image.""")
@@ -128,6 +171,38 @@ def init_parser(subparsers):
               "multiple interfaces are used, and mDNS multicast requests are "
               "sent out the wrong network interface."))
     subparser.set_defaults(func=do_images_download)
+
+    # images provision
+    subparser = subparsers.add_parser(
+        "provision",
+        help=("Generate a Toradex Easy Installer image with provisioning data "
+              "for secure updates."))
+    subparser.add_argument(
+        metavar="INPUT_DIRECTORY",
+        dest="input_directory",
+        help="Path to input TorizonCore Toradex Easy Installer image.")
+    subparser.add_argument(
+        metavar="OUTPUT_DIRECTORY",
+        dest="output_directory",
+        help=("Path to output TorizonCore Toradex Easy Installer image, which "
+              "will hold provisioning data."))
+    subparser.add_argument(
+        "--mode", dest="mode", choices=PROV_MODES,
+        help="Select type of provisioning; online mode encompasses offline mode.",
+        required=True)
+    subparser.add_argument(
+        "--force", dest="force",
+        default=False, action="store_true",
+        help=("Force program output (remove output directory before "
+              "starting process)."))
+    subparser.add_argument(
+        "--shared-data", dest="shared_data_file",
+        help="Archive containing shared provisioning data.")
+    subparser.add_argument(
+        "--online-data", dest="online_data",
+        help=("String containing sensitive data required for online "
+              "provisioning (base64-encoded)."))
+    subparser.set_defaults(func=do_images_provision)
 
     # images serve
     subparser = subparsers.add_parser(

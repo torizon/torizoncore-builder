@@ -21,6 +21,7 @@ from docker.errors import NotFound
 
 import tezi.utils
 
+from tezi.image import ImageConfig
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               PathNotExistError, TorizonCoreBuilderError,
@@ -125,68 +126,59 @@ def add_ssh_arguments(subparser):
                            type=int)
 
 
-def add_files(tezidir, image_json_filename, filelist, additional_size,
-              tezi_props):
+# TODO: Consider moving this function to `backend.combine`.
+def add_files(tezidir, image_json_filename, filelist, tezi_props):
 
-    image_json_filepath = os.path.join(tezidir, image_json_filename)
-    with open(image_json_filepath, "r") as jsonfile:
-        jsondata = json.load(jsonfile)
+    config_fname = os.path.join(tezidir, image_json_filename)
+    config = ImageConfig(config_fname)
 
-    # Version 3 image format is required for the advanced filelist syntax.
-    jsondata["config_format"] = 3
-
-    if tezi_props.get("name") is None:
-        name_extra = ["", " with Containers"][bool(filelist)]
-        jsondata["name"] = jsondata["name"] + name_extra
-    else:
-        jsondata["name"] = tezi_props["name"]
-
-    if tezi_props.get("description") is not None:
-        jsondata["description"] = tezi_props["description"]
-
-    if tezi_props.get("autoinstall") is not None:
-        jsondata["autoinstall"] = tezi_props["autoinstall"]
-
-    if tezi_props.get("autoreboot") is not None:
-        set_autoreboot(tezidir, tezi_props["autoreboot"])
-
-    if tezi_props.get("licence_file") is not None:
-        jsondata["license"] = tezi_props["licence_file"]
-
-    if tezi_props.get("release_notes_file") is not None:
-        jsondata["releasenotes"] = tezi_props["release_notes_file"]
-
-    # Rather ad-hoc for now, we probably want to give the user more control
-    version_extra = [".modified", ".container"][bool(filelist)]
-    jsondata["version"] = jsondata["version"] + version_extra
-    jsondata["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
-
-    # Find root file system content
-    content = tezi.utils.find_rootfs_content(jsondata)
-    if content is None:
-        raise InvalidDataError(
-            "No root file system content section found in Easy Installer image.")
-
-    # Review this (TODO)
-    if "filelist" in content:
+    if config.search_filelist(src=DOCKER_BUNDLE_FILENAME):
         raise InvalidDataError(
             "Currently it is not possible to customize the containers of a base "
             "image already containing container images")
 
     if filelist:
-        content["filelist"] = filelist
+        config.add_files(
+            filelist, image_dir=tezidir, update_size=True, fail_src_present=True)
 
-    content["uncompressed_size"] += float(additional_size) / 1024 / 1024
+    # ---
+    # FIXME: The code below should be factored out (separate adding files from setting props):
+    # ---
+    if tezi_props.get("name") is None:
+        name_extra = ["", " with Containers"][bool(filelist)]
+        config["name"] = config["name"] + name_extra
+    else:
+        config["name"] = tezi_props["name"]
 
-    with open(image_json_filepath, "w") as jsonfile:
-        json.dump(jsondata, jsonfile, indent=4)
+    if tezi_props.get("description") is not None:
+        config["description"] = tezi_props["description"]
 
-    return jsondata["version"]
+    # Rather ad-hoc for now, we probably want to give the user more control
+    # FIXME: Here we assume that a filelist is always adding containers to the image.
+    version_extra = [".modified", ".container"][bool(filelist)]
+    config["version"] = config["version"] + version_extra
+    config["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
+
+    if tezi_props.get("licence_file") is not None:
+        config["license"] = tezi_props["licence_file"]
+
+    if tezi_props.get("release_notes_file") is not None:
+        config["releasenotes"] = tezi_props["release_notes_file"]
+
+    if tezi_props.get("autoinstall") is not None:
+        config["autoinstall"] = tezi_props["autoinstall"]
+
+    config.save()
+
+    # Properties that are not in "image.json":
+    if tezi_props.get("autoreboot") is not None:
+        set_autoreboot(tezidir, tezi_props["autoreboot"])
+
+    return config["version"]
 
 
-def combine_single_image(bundle_dir, files_to_add, additional_size,
-                         output_dir, tezi_props):
-
+# TODO: Consider moving this function to `backend.combine` along with add_files().
+def combine_single_image(bundle_dir, files_to_add, output_dir, tezi_props):
     for prop in tezi_props:
         assert prop in TEZI_PROPS, f"Unknown property {prop} to combine_single_image"
 
@@ -211,16 +203,14 @@ def combine_single_image(bundle_dir, files_to_add, additional_size,
         tezi_props["release_notes_file"] = release_notes_file_bn
 
     version = None
+    # FIXME: Why do we have this glob here?
     for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-
         add_files_params = {
             "tezidir": output_dir,
             "image_json_filename": image_file,
             "filelist": files_to_add,
-            "additional_size": additional_size,
             "tezi_props": tezi_props
         }
-
         version = add_files(**add_files_params)
 
     return version
@@ -242,43 +232,6 @@ def get_unpack_command(filename):
     elif filename.endswith(".bz2"):
         cmd = "bzip2 -dc"
     return cmd
-
-
-def get_additional_size(output_dir_containers, files_to_add):
-    additional_size = 0
-
-    # Check size of files to add to theimage
-    for fileentry in files_to_add:
-        filename, _destination, *rest = fileentry.split(":")
-        filepath = os.path.join(output_dir_containers, filename)
-        if not os.path.exists(filepath):
-            raise PathNotExistError(f"File {filepath} to be added to image.json does not exist")
-
-        # Check third parameter, if unpack is set to true we need to get size
-        # of unpacked tarball...
-        unpack = False
-        if len(rest) > 0:
-            unpack = rest[0].lower() == "true"
-
-        if unpack:
-            command = get_unpack_command(filename)
-
-            # Unpack similar to how Tezi does the size check
-            size_proc = subprocess.run(
-                "cat '{0}' | {1} | wc -c".format(filename, command),
-                shell=True, capture_output=True, cwd=output_dir_containers,
-                check=False)
-
-            if size_proc.returncode != 0:
-                raise OperationFailureError("Size estimation failed. Exit code {0}."
-                                            .format(size_proc.returncode))
-
-            additional_size += int(size_proc.stdout.decode('utf-8'))
-        else:
-            stat = os.stat(filepath)
-            additional_size += stat.st_size
-
-    return additional_size
 
 
 def get_all_local_ip_addresses():

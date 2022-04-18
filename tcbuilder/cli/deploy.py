@@ -53,6 +53,7 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
             "tezi_props": tezi_props,
         }
         # Change output directory in place.
+        # FIXME: This is not really combining an image - consider refactoring.
         cbe.combine_image(**combine_params)
 
     common.set_output_ownership(output_dir_)
