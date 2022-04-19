@@ -337,10 +337,8 @@ def do_platform_push(args):
                                        "docker-compose package can only be "
                                        "\"docker-compose\"")
 
-        compose_file = os.path.abspath(args.ref)
-        target = args.target or "docker-compose_file.yml"
         version = args.version or datetime.today().strftime("%Y-%m-%d")
-        platform.push_compose(credentials, target, version, compose_file,
+        platform.push_compose(credentials, args.target, version, args.ref,
                               args.canonicalize, args.force)
     else:
         if args.ostree is not None:
@@ -358,10 +356,9 @@ def do_platform_push(args):
                           args.verbose)
 
 
-
 def add_common_push_arguments(subparser):
     """
-    Add push arguemnts to a parser of a command
+    Add push arguments to a parser of a command
     """
     # TODO: IMPORTANT!! Remember to undo this once push command is completely removed
     subparser.add_argument(
@@ -378,18 +375,24 @@ def add_common_push_arguments(subparser):
         required=False, default=None)
     subparser.add_argument(
         "--package-name", dest="target",
-        help="Package name for docker-compose file or OSTree reference.",
+        help=("Package name for docker-compose file (default: name of file being "
+              "pushed to OTA) or OSTree reference (default: same as REF)."),
         required=False, default=None)
     subparser.add_argument(
         "--package-version", dest="version",
-        help="Package version for docker-compose file or OSTree reference.",
+        help=("Package version for docker-compose file (default: current date "
+              "following the 'yyyy-mm-dd' format) or OSTree reference "
+              "(default: OSTree subject)."),
         required=False, default=None)
     subparser.add_argument(
         metavar="REF", dest="ref",
         help="OSTree reference or docker-compose file to push to Torizon OTA.")
     subparser.add_argument(
         "--canonicalize", dest="canonicalize", action=argparse.BooleanOptionalAction,
-        help="Canonicalize the docker-compose file before pushing to Torizon OTA.")
+        help=("Generates a canonicalized version of the docker-compose file, changing "
+              "its extension to '.lock.yml' or '.lock.yaml' and pushing it to Torizon "
+              "OTA; The package name is the name of the generated file if no package "
+              "name is provided."))
     subparser.add_argument(
         "--canonicalize-only", dest="canonicalize_only", action="store_true",
         help="Canonicalize the docker-compose.yml file but do not send it to OTA server.",
@@ -471,7 +474,13 @@ def init_parser(subparsers):
     # platform push
     subparser = subparsers.add_parser(
         "push",
-        help="Push artifact to OTA server as a new update package.")
+        help="Push artifact to OTA server as a new update package.",
+        epilog=("Note: for a docker-compose file to be suitable "
+                "for use with offline-updates it must be in canonical "
+                "form; this can be achieved by passing the "
+                "'--canonicalize' switch to the program in which case "
+                "the file will be translated into canonical "
+                "form before being uploaded to the server."))
 
     add_common_push_arguments(subparser)
 

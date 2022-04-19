@@ -1123,10 +1123,18 @@ def push_compose(credentials, target, version, compose_file,
         lock_file = compose_file
         with open(compose_file, encoding='utf-8') as compose_fd:
             data = compose_fd.read()
-        log.info(f"Warning: the '{os.path.basename(compose_file)}' is being "
-                 "pushed to OTA as it is, but in future versions of TorizonCore "
-                 "Builder it will be canonicalized in order to follow best "
-                 "practices.")
+
+    if target is None:
+        target = os.path.basename(lock_file)
+
+    if re.match(r".+\.lock\.ya?ml$", os.path.basename(lock_file)) is None:
+        log.info("Warning: This package is not in its canonical form. Canonical "
+                 "form is required with offline updates (see help for details); "
+                 "future versions of the tool will canonicalize the file by "
+                 "default as this is considered a good practice.")
+    elif re.match(r".+\.lock\.ya?ml$", target) is None:
+        log.info("Warning: For usage of this package with offline updates, the "
+                 "package name must end with \".lock.yml\" or \".lock.yaml\".")
 
     log.info(f"Pushing '{os.path.basename(lock_file)}' with package version "
              f"{version} to OTA server. You should keep this file under your "
