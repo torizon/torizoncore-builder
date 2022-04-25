@@ -6,7 +6,11 @@ load 'lib/common.bash'
 
 @test "combine: check if image directory has a valid tezi image" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
     rm -rf bundle
     torizoncore-builder bundle $COMPOSE
 
@@ -30,7 +34,11 @@ load 'lib/common.bash'
 
 @test "combine: run with the deprecated --image-directory switch" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
     rm -rf bundle
     torizoncore-builder bundle $COMPOSE
@@ -50,7 +58,11 @@ load 'lib/common.bash'
 
 @test "combine: run with the deprecated --output-directory switch" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
     rm -rf bundle
     torizoncore-builder bundle $COMPOSE
@@ -70,7 +82,11 @@ load 'lib/common.bash'
 
 @test "combine: check without --bundle-directory parameter" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
     rm -rf bundle
     torizoncore-builder bundle $COMPOSE
@@ -91,7 +107,11 @@ load 'lib/common.bash'
 
 @test "combine: check with --bundle-directory parameters" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
     local BUNDLE_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
     torizoncore-builder bundle --bundle-directory $BUNDLE_DIR $COMPOSE
@@ -113,7 +133,11 @@ load 'lib/common.bash'
 
 @test "combine: check with --image-autoinstall" {
   local COMPOSE='docker-compose.yml'
-  cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+  if [ "$TCB_UNDER_CI" = "1" ]; then
+    cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+  else
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+  fi
 
   rm -rf bundle
   torizoncore-builder bundle $COMPOSE
@@ -147,7 +171,11 @@ load 'lib/common.bash'
 @test "combine: check with --image-autoreboot" {
   local COMPOSE='docker-compose.yml'
   local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
-  cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+  if [ "$TCB_UNDER_CI" = "1" ]; then
+      cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+  else
+      cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+  fi
 
   rm -rf bundle
   torizoncore-builder bundle $COMPOSE

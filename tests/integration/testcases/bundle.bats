@@ -33,7 +33,11 @@ load 'lib/common.bash'
 @test "bundle: check output directory overwriting" {
     # Use a basic compose file.
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
     # Test with an existing output directory and default name.
     local BUNDLEDIR='bundle'
@@ -87,7 +91,11 @@ load 'lib/common.bash'
 @test "bundle: check --platform parameter" {
     # Use a basic compose file.
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
     # Test with platform employed on 32-bit architectures.
     local BUNDLEDIR='bundle'
@@ -116,7 +124,11 @@ load 'lib/common.bash'
 
 @test "bundle: check without --bundle-directory parameter" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
     rm -rf bundle
     run torizoncore-builder bundle $COMPOSE
@@ -132,7 +144,11 @@ load 'lib/common.bash'
 
 @test "bundle: check with --bundle-directory parameter" {
     local COMPOSE='docker-compose.yml'
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
     local BUNDLE_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
     run torizoncore-builder bundle --bundle-directory $BUNDLE_DIR $COMPOSE
