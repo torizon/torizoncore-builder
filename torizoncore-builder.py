@@ -20,8 +20,8 @@ import logging
 import os
 import traceback
 
-from tcbuilder.cli import (batch, bundle, build, combine, deploy, dt, dto,
-                           images, isolate, kernel, ostree, platform, push, splash, union)
+from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isolate,
+                           kernel, ostree, platform, push, splash, union)
 
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
@@ -118,13 +118,9 @@ parser.add_argument(
     default="",
     help=argparse.SUPPRESS)
 
-subparsers = parser.add_subparsers(
-    metavar=('{build,bundle,combine,deploy,dt,dto,images,isolate,'
-             'kernel,ostree,platform,push,splash,union}'),
-    title='Commands', required=True, dest='cmd')
+subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
 # Commands in ALPHABETICAL order.
-batch.init_parser(subparsers)
 build.init_parser(subparsers)
 bundle.init_parser(subparsers)
 combine.init_parser(subparsers)
@@ -143,8 +139,7 @@ union.init_parser(subparsers)
 # pylint: disable=broad-except
 
 def am_i_under_docker():
-    '''Tells whether the OS is inside the Matrix.
-    '''
+    """Tells whether the OS is inside the Matrix."""
     # Detect if the init process has Docker control groups; see
     # https://stackoverflow.com/questions/20010199/how-to-determine-if-a-process-runs-inside-lxc-docker
     with open('/proc/1/cgroup', 'rt') as fd_cgroup:
