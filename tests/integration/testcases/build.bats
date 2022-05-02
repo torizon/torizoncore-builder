@@ -207,7 +207,7 @@ load 'lib/common.bash'
     rm -rf $DUMMY_OUTPUT
 
     run torizoncore-builder build \
-          --file "$SAMPLES_DIR/config/tcbbuild-with-autoinstall.yaml" \
+          --file "$SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml" \
           --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" --force
     assert_success
 
@@ -218,3 +218,90 @@ load 'lib/common.bash'
 
     rm -rf "$DUMMY_OUTPUT"
 }
+
+@test "build: check overlays's clear" {
+  local OVERLAY_IMAGE="overlay_image"
+  local DUMMY_OUTPUT="dummy_output_directory"
+
+  rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
+
+  torizoncore-builder-clean-storage
+
+  # Create input image, clearing all overlays and adding 2 dummy overlays.
+  cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+            sed -Ee 's/## add:/add:/' \
+            -Ee '/\badd:/ s/sample_overlay2/sample_overlay/' \
+            -Ee '/\badd:/ s@]@, samples/dts/sample_overlay1.dts]@' > \
+            $SAMPLES_DIR/config/tcbuild-modified.yaml
+
+  run torizoncore-builder build \
+            --file "$SAMPLES_DIR/config/tcbuild-modified.yaml" \
+            --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+            --set OUTPUT_DIR="$OVERLAY_IMAGE" --force
+  assert_success
+
+  # Check if only the 2 dummy overlays are present.
+  run torizoncore-builder dto status
+  assert_success
+  local actual_result=$(echo "$output" | sed -En -e 's/^\s*-\s*(\S+)\.dtbo/\1/p' | tr -s '\n\r' '  ')
+  local expect_result="sample_overlay sample_overlay1 "
+  assert_equal "$actual_result" "$expect_result"
+
+  # Test with clear as true, Adding just one overlay.
+  cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+            sed -Ee 's/## add:/add:/' > \
+            $SAMPLES_DIR/config/tcbuild-clear-true.yaml
+
+  run torizoncore-builder build \
+          --file "$SAMPLES_DIR/config/tcbuild-clear-true.yaml" \
+          --set INPUT_IMAGE="$OVERLAY_IMAGE" \
+          --set OUTPUT_DIR="$DUMMY_OUTPUT" --force
+  assert_success
+
+  # Check if only the added overlay is available.
+  run torizoncore-builder dto status
+  assert_success
+  actual_result=$(echo "$output" | sed -En -e 's/^\s*-\s*(\S+)\.dtbo/\1/p' | tr -s '\n\r' '  ')
+  expect_result="sample_overlay2 "
+  assert_equal "$actual_result" "$expect_result"
+
+  # Test with clear as false, no image added.
+  cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+            sed -Ee 's/\bclear:\s*true/clear: false/' \
+            -Ee 's/## add:/add:/' > \
+            $SAMPLES_DIR/config/tcbuild-clear-false.yaml
+
+  run torizoncore-builder build \
+          --file "$SAMPLES_DIR/config/tcbuild-clear-false.yaml" \
+          --set INPUT_IMAGE="$OVERLAY_IMAGE" \
+          --set OUTPUT_DIR="$DUMMY_OUTPUT" --force
+  assert_success
+
+  # Check if both base overlays are present.
+  run torizoncore-builder dto status
+  assert_success
+  actual_result=$(echo "$output" | sed -En -e 's/^\s*-\s*(\S+)\.dtbo/\1/p' | tr -s '\n\r' '  ')
+  expect_result="sample_overlay sample_overlay1 sample_overlay2 "
+  assert_equal "$actual_result" "$expect_result"
+
+  # Test with clear as default, adding one image.
+  cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+        sed -Ee '/\bclear:\s*true/d' -Ee 's/## add:/add:/' > \
+        $SAMPLES_DIR/config/tcbuild-clear-default.yaml
+
+  run torizoncore-builder build \
+          --file "$SAMPLES_DIR/config/tcbuild-clear-default.yaml" \
+          --set INPUT_IMAGE="$OVERLAY_IMAGE" \
+          --set OUTPUT_DIR="$DUMMY_OUTPUT" --force
+  assert_success
+
+  # Check if initial overlays and the added one are present.
+  run torizoncore-builder dto status
+  assert_success
+  actual_result=$(echo "$output" | sed -En -e 's/^\s*-\s*(\S+)\.dtbo/\1/p' | tr -s '\n\r' '  ')
+  expect_result="sample_overlay sample_overlay1 sample_overlay2 "
+  assert_equal "$actual_result" "$expect_result"
+
+  rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
+}
+

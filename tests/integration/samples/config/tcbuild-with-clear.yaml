@@ -1,0 +1,13 @@
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  device-tree:
+    overlays:
+      clear: true
+      ## add: [samples/dts/sample_overlay2.dts]
+
+output:
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"

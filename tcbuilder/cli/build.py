@@ -191,7 +191,7 @@ def handle_dt_customization(props, storage_dir=None):
                         include_dirs=props.get("include-dirs", []))
 
     overlay_props = props.get("overlays", {})
-    if overlay_props.get("clear", True):
+    if overlay_props.get("clear", False):
         dto_cli.dto_remove_all(storage_dir)
 
         if "remove" in overlay_props:
