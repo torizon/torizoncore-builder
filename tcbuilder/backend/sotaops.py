@@ -32,6 +32,7 @@ class ServerCredentials:
         self.client_id_ = None
         self.client_secret_ = None
         self.scope_ = None
+        self.provision_raw_ = None
         self._load()
 
     def _load(self):
@@ -50,6 +51,11 @@ class ServerCredentials:
                     log.debug(f"Loading '{item.filename}' from '{fname}'")
                     self.repo_url_ = archive.read(item).decode("utf-8").strip()
                     log.debug(f"repo_url: '{self.repo_url_}'")
+
+                elif item.filename == "provision.json":
+                    log.debug(f"Loading '{item.filename}' from '{fname}'")
+                    self.provision_raw_ = archive.read(item)
+                    log.debug(f"provision data (raw): {self.provision_raw_}")
 
         # Fill in derived data:
         self._parse_treehub()
@@ -120,6 +126,18 @@ class ServerCredentials:
     def scope(self):
         """scope field for OAuth2"""
         return self.scope_
+
+    @property
+    def provision_raw(self):
+        """Provisioning raw data"""
+        return self.provision_raw_
+
+    @property
+    def provision(self):
+        """Provisioning data"""
+        if self.provision_raw_:
+            return json.loads(self.provision_raw_.decode("utf-8"))
+        return None
 
     def __str__(self):
         """Get string representation of instance"""

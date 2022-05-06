@@ -101,3 +101,6 @@ class ImageUnpackError(TorizonCoreBuilderError):
 
 class FetchError(TorizonCoreBuilderError):
     pass
+
+class NoProvisioningDataInCredsFile(TorizonCoreBuilderError):
+    pass

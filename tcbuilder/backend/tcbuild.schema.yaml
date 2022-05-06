@@ -280,6 +280,7 @@ properties:
               online-data:
                 type: string
                 description: "string containing provisioning data specific to the online mode"
+            required: [mode]
           bundle:
             type: object
             description: "image bundling configuration"

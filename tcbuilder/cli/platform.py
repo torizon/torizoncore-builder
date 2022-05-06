@@ -3,9 +3,13 @@ CLI handling for platform subcommand
 """
 
 import argparse
+import base64
+import binascii
+import json
 import logging
 import os
 import shutil
+import sys
 
 from datetime import datetime, timezone
 
@@ -13,9 +17,9 @@ import dateutil.parser
 
 from tcbuilder.backend import platform, sotaops, common
 from tcbuilder.backend.platform import JSON_EXT, OFFLINE_SNAPSHOT_FILE
-from tcbuilder.errors import (PathNotExistError, InvalidStateError,
-                              InvalidDataError, InvalidArgumentError,
-                              TorizonCoreBuilderError)
+from tcbuilder.errors import \
+    (PathNotExistError, InvalidStateError, InvalidDataError, InvalidArgumentError,
+     TorizonCoreBuilderError, NoProvisioningDataInCredsFile)
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
@@ -310,6 +314,101 @@ def do_platform_lockbox(args):
         fetch_targets=args.fetch_targets)
 
 
+def _get_online_provdata_local(server_creds):
+    if not server_creds.provision:
+        raise NoProvisioningDataInCredsFile(
+            "Credentials file does not contain provisioning data (aborting).")
+
+    try:
+        jsonstr = server_creds.provision_raw
+        json.loads(jsonstr)
+        provstr = base64.b64encode(jsonstr).decode("utf-8")
+    except (binascii.Error, json.decoder.JSONDecodeError) as exc:
+        raise TorizonCoreBuilderError(
+            "Failure encoding online data: aborting.") from exc
+
+    return provstr
+
+
+def do_platform_provdata(args):
+    """Wrapper for 'platform provisioning-data' subcommand"""
+
+    _default_client_name = "DEFAULT"
+
+    creds_file = args.credentials
+    shared_data_file = None
+    server_creds = None
+    client_name = None
+
+    # Validate command line:
+    try:
+        if args.shared_data_file is not None:
+            if not args.shared_data_file.endswith(".tar.gz"):
+                raise InvalidArgumentError(
+                    "Shared-data archive must have the .tar.gz extension (aborting).")
+            assert args.shared_data_file   # Ensure not empty
+            shared_data_file = args.shared_data_file
+
+        if args.client_name is not None:
+            if args.client_name != _default_client_name:
+                raise InvalidArgumentError(
+                    "Currently the only supported client-name is \"DEFAULT\" (aborting).")
+            assert args.client_name        # Ensure not empty
+            client_name = args.client_name
+
+        if not (shared_data_file or client_name):
+            raise InvalidArgumentError(
+                "At least one of --shared-data or --online-data must be specified (aborting).")
+
+        server_creds = sotaops.ServerCredentials(creds_file)
+
+        # Check that shared file does not exist or force switch was passed.
+        if shared_data_file and os.path.exists(shared_data_file):
+            if not args.force:
+                raise InvalidArgumentError(
+                    f"Output file '{shared_data_file}' already exists (aborting).")
+            log.warning(f"Warning: Output file '{shared_data_file}' will be overwritten.")
+
+    except TorizonCoreBuilderError as exc:
+        log.error(f"Error: {str(exc)}")
+        sys.exit(1)
+
+    # Actual command execution:
+    try:
+        # Load credentials file.
+        sota_token = None
+
+        # Handle shared provisioning data:
+        if shared_data_file:
+            sota_token = sota_token or sotaops.get_access_token(server_creds)
+            platform.get_shared_provdata(
+                dest_file=shared_data_file,
+                repo_url=server_creds.repo_url,
+                director_url=server_creds.director_url,
+                access_token=sota_token)
+
+        if client_name:
+            if client_name == _default_client_name:
+                provstr = _get_online_provdata_local(server_creds)
+            # TODO: Implement fetching of online provisioning data from OTA server.
+            # else:
+                # sota_token = sota_token or sotaops.get_access_token(server_creds)
+                # provstr = platform.get_online_provdata(...)
+
+            # Use print here to be independent of log system.
+            print(f"\nOnline provisioning data:\n\n{provstr}")
+
+    except NoProvisioningDataInCredsFile as exc:
+        log.error(f"\nError: {str(exc)}")
+        log.info("Note: Downloading a more recent credentials.zip file "
+                 "from the OTA server should solve the above error.")
+        sys.exit(2)
+
+    except TorizonCoreBuilderError as exc:
+        log.error(f"Error: {str(exc)}")
+        sys.exit(2)
+
+
 def do_platform_push(args):
     """Wrapper for 'platform push' subcommand"""
 
@@ -416,11 +515,11 @@ def init_parser(subparsers):
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # platform lockbox
-    # TODO Include a link to the Documentation page describing offline-updates.
+    # TODO: Include a link to the Documentation page describing offline-updates.
     subparser = subparsers.add_parser(
         "lockbox",
         help=("Generate a Lockbox for secure offline updates, "
-              "in a format ready to copy to an SD Card or USB Stick"),
+              "in a format ready to copy to an SD Card or USB Stick."),
         epilog=("After the Lockbox is generated, the output directory "
                 "should be copied (and possibly renamed) to the "
                 "removable media used for the offline updates; the name "
@@ -470,6 +569,35 @@ def init_parser(subparsers):
         action="store_false", default=True)
 
     subparser.set_defaults(func=do_platform_lockbox)
+
+    # platform provisioning-data
+    subparser = subparsers.add_parser(
+        "provisioning-data",
+        help="Fetch provisioning data for secure updates.",
+        epilog=("Switch --shared-data is normally employed with \"offline\" "
+                "provisioning mode while with \"online\" provisioning both "
+                "--shared-data and --online-data switches are commonly used "
+                "together."))
+
+    subparser.add_argument(
+        "--credentials", dest="credentials",
+        help="Relative path to credentials.zip.",
+        required=True)
+    subparser.add_argument(
+        "--shared-data", dest="shared_data_file",
+        help=("Destination archive for shared provisioning data; currently, this "
+              "must have the \".tar.gz\" extension."))
+    subparser.add_argument(
+        "--online-data", dest="client_name",
+        help=("Client name for which online provisioning data will be obtained and "
+              "displayed; pass a value of DEFAULT (all capitals) to get the default "
+              "provisioning data from your credentials file."))
+    subparser.add_argument(
+        "--force",
+        dest="force", action="store_true",
+        help=("Overwrite output file if it already exists."),
+        default=False)
+    subparser.set_defaults(func=do_platform_provdata)
 
     # platform push
     subparser = subparsers.add_parser(

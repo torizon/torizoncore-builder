@@ -105,7 +105,7 @@ integration-tests:
     IMAGE_NAME: torizoncore-builder-amd64
   script:
     # setup environment for the tests
-    - apk update && apk add git sshpass zstd wget bash tar
+    - apk update && apk add git sshpass zstd wget bash tar openssl
     - cd tests/integration/
     - mkdir -p workdir/reports && rm -Rf workdir/reports/*
     - TCB_SKIP_PULL=1 ./setup.sh

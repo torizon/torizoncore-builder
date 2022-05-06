@@ -16,6 +16,7 @@ import zipfile
 
 from fnmatch import fnmatchcase
 from io import BytesIO, TextIOWrapper
+from tempfile import TemporaryDirectory
 from urllib.parse import urljoin
 
 import docker.errors
@@ -48,6 +49,9 @@ UNSAFE_FILENAME_CHARS = r'\/:*?"<>|'
 RESERVED_LOCKBOX_NAMES = [
     "root", "snapshot", "targets", "timestamp", "offline-snapshot"
 ]
+
+PROV_IMGREPO_DIRNAME = "repo"
+PROV_DIRECTOR_DIRNAME = "director"
 
 
 def load_metadata(fname, ftype=None, maxlen=DEFAULT_METADATA_MAXLEN):
@@ -1223,3 +1227,56 @@ def canonicalize_compose_file(compose_file, force=False):
     log.info(f"Canonicalized file '{canonical_compose_file_lock}' has been generated.")
 
     return canonical_compose_file_lock, canonical_data
+
+
+def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):
+    """Get shared provisioning data from OTA server."""
+
+    def restrict_perms(dirname):
+        for fname in os.listdir(dirname):
+            fullfname = os.path.join(dirname, fname)
+            assert os.path.isfile(fullfname)
+            os.chmod(fullfname, 0o644)
+            os.chown(fullfname, uid=0, gid=0)
+
+    with TemporaryDirectory() as tmpdir:
+        toplvl_entries = []
+
+        # Create destination subdir for image repo metadata.
+        image_root_dir = os.path.join(tmpdir, PROV_IMGREPO_DIRNAME)
+        os.mkdir(image_root_dir, 0o511)
+
+        # Fetch root metadata of image repo.
+        image_root_fname = ROOT_META_FILE
+        image_root_url = urljoin(repo_url + "/", f"api/v1/user_repo/{image_root_fname}")
+        log.info(f"Fetching '{image_root_fname}' from image repository.")
+        fetch_validate(image_root_url, image_root_fname, image_root_dir,
+                       access_token=access_token)
+        restrict_perms(image_root_dir)
+        toplvl_entries.append(PROV_IMGREPO_DIRNAME)
+
+        # Create destination subdir for director repo metadata.
+        direc_root_dir = os.path.join(tmpdir, PROV_DIRECTOR_DIRNAME)
+        os.mkdir(direc_root_dir, 0o511)
+
+        # Fetch root metadata of director repo.
+        direc_root_fname = ROOT_META_FILE
+        direc_root_url = urljoin(director_url + "/", f"api/v1/admin/repo/{direc_root_fname}")
+        log.info(f"Fetching '{direc_root_fname}' from director repository.")
+        fetch_validate(direc_root_url, direc_root_fname, direc_root_dir,
+                       access_token=access_token)
+        restrict_perms(direc_root_dir)
+        toplvl_entries.append(PROV_DIRECTOR_DIRNAME)
+
+        # Create final tarball:
+        assert dest_file.endswith(".tar.gz")
+        subprocess.check_output(
+            ["tar", "--numeric-owner", "--preserve-permissions",
+             "-czvf", os.path.abspath(dest_file),
+             "-C", tmpdir, *toplvl_entries])
+
+        set_output_ownership(dest_file)
+        log.info(f"Shared data archive '{dest_file}' successfully generated.")
+
+
+# EOF

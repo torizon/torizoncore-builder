@@ -148,3 +148,37 @@ skip-under-ci() {
     fi
 }
 export -f skip-under-ci
+
+skip-no-ota-credentials() {
+    if [ -z "$TCB_OTA_CREDENTIALS_PWD" ]; then
+        skip "TCB_OTA_CREDENTIALS_PWD not set"
+    fi
+}
+export -f skip-no-ota-credentials
+
+# Decrypt a file previously encrypted with key stored in variable TCB_OTA_CREDENTIALS_PWD
+# $1 = file to be decrypted
+# Output the name of the decrypted file
+decrypt-credentials-file() {
+    if [ -z "$TCB_OTA_CREDENTIALS_PWD" ]; then
+        echo "# TCB_OTA_CREDENTIALS_PWD not set" >&3
+        return 1
+    fi
+    if [ "${1##*.}" != "enc" ]; then
+        echo "# decrypt-credentials-file: input file must have a .enc extension" >&3
+        return 1
+    fi
+
+    local INFILE="$1"
+    local OUTFILE="${1%.enc}.dec"
+
+    # See https://stackoverflow.com/a/55975571/10335947
+    # To encrypt all .zip files in a directory:
+    # $ for fn in *.zip; do openssl enc -aes-256-cbc -pbkdf2 -iter 20000 -in "$fn" -out "${fn}.enc" -k "$TCB_OTA_CREDENTIALS_PWD"; done
+    openssl enc -d \
+        -aes-256-cbc -pbkdf2 -iter 20000 \
+        -in "$INFILE" -out "$OUTFILE" -k "$TCB_OTA_CREDENTIALS_PWD"
+
+	echo "$OUTFILE"
+}
+export -f decrypt-credentials-file
