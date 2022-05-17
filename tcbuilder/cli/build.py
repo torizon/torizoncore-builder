@@ -356,7 +356,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             # Do a combine "in place" to avoid creating another directory.
             combine_params = {
                 "image_dir": image_dir,
-                "bundle_dir": bundle_props['dir'],
+                "bundle_dir": bundle_dir,
                 "output_directory": None,
                 "tezi_props": translate_tezi_props(tezi_props)
             }

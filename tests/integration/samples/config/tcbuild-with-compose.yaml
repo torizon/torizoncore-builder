@@ -1,0 +1,11 @@
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+output:
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    description: "image with containers specified via compose"
+    bundle:
+      compose-file: "${COMPOSE_FILE:?Please specify compose file}"
+      platform: linux/arm/v7

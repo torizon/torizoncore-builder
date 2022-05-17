@@ -305,3 +305,26 @@ load 'lib/common.bash'
   rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
 }
 
+@test "build: basic tcbuild referencing a docker-compose file" {
+    local COMPOSE='docker-compose.yml'
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
+
+    local OUTDIR='customized_image'
+
+    run torizoncore-builder build \
+        --file "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" \
+        --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" \
+        --set COMPOSE_FILE="$COMPOSE" --force
+    assert_success
+    assert_output --partial 'Connecting to Docker Daemon'
+
+    # Check presence of container:
+    run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]
+    assert_success
+    rm -fr "$OUTDIR"
+}
