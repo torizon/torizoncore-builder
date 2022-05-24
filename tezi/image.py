@@ -216,6 +216,11 @@ class ImageConfig:
         with open(fname or self.fname, "w", encoding="utf-8") as outfile:
             json.dump(self.json_data, outfile, indent=4)
 
+    def get(self, key, default=None):
+        """JSON Data getter"""
+        assert self.json_data, "No config file loaded"
+        return self.json_data.get(key, default)
+
     def __getitem__(self, key):
         """Read value of internal JSON data at index `key`"""
         assert self.json_data, "No config file loaded"

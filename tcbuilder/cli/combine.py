@@ -62,6 +62,7 @@ def do_combine(args):
     tezi_props_args = {
         "name": args.image_name,
         "description": args.image_description,
+        "accept_licence": args.image_accept_licence,
         "autoinstall": args.image_autoinstall,
         "autoreboot": args.image_autoreboot,
         "licence_file": args.licence_file,
@@ -114,16 +115,6 @@ def init_parser(subparsers):
         default=False,
         help=argparse.SUPPRESS)
 
-    add_common_image_arguments(subparser)
-
-    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
-                           action=argparse.BooleanOptionalAction,
-                           help=("Automatically install image upon detection by "
-                                 "Toradex Easy Installer."))
-
-    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
-                           action=argparse.BooleanOptionalAction,
-                           help=("Enable automatic reboot after image is flashed by "
-                                 "Toradex Easy Installer."))
+    add_common_image_arguments(subparser, argparse)
 
     subparser.set_defaults(func=do_combine)

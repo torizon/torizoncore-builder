@@ -1,11 +1,8 @@
-import datetime
-import glob
 import ipaddress
 import json
 import logging
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -26,17 +23,12 @@ from tcbuilder.backend import ostree
 from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               PathNotExistError, TorizonCoreBuilderError,
                               InvalidStateError, InvalidDataError,
-                              GitRepoError, ImageUnpackError)
+                              GitRepoError, ImageUnpackError,
+                              LicenceAcceptanceError)
 
 log = logging.getLogger("torizon." + __name__)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
-TARGET_NAME_FILENAME = "target_name"
-DOCKER_FILES_TO_ADD = [
-    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-    DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true",
-    TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
-]
 
 # Mapping from architecture to a Docker platform.
 ARCH_TO_DOCKER_PLAT = {
@@ -46,26 +38,13 @@ ARCH_TO_DOCKER_PLAT = {
 
 DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
 
-TEZI_PROPS = [
-    "name",
-    "description",
-    "autoinstall",
-    "autoreboot",
-    "licence_file",
-    "release_notes_file"
-]
-
 
 def get_rootfs_tarball(tezi_image_dir):
     if not os.path.exists(tezi_image_dir):
         raise PathNotExistError(f"Source image {tezi_image_dir} directory does not exist")
 
-    image_files = glob.glob(os.path.join(tezi_image_dir, "image*.json"))
+    image_json_filepath = os.path.join(tezi_image_dir, "image.json")
 
-    if len(image_files) < 1:
-        raise FileNotFoundError("No image.json file found in image directory")
-
-    image_json_filepath = os.path.join(tezi_image_dir, image_files[0])
     with open(image_json_filepath, "r") as jsonfile:
         jsondata = json.load(jsonfile)
 
@@ -90,15 +69,29 @@ def add_bundle_directory_argument(parser):
         help="Container bundle directory")
 
 
-def add_common_image_arguments(subparser):
+def add_common_image_arguments(subparser, argparse):
     subparser.add_argument("--image-name", dest="image_name",
                            help="""Image name to be used in Easy Installer image json""")
     subparser.add_argument("--image-description", dest="image_description",
                            help="""Image description to be used in Easy Installer image json""")
     subparser.add_argument("--image-licence", dest="licence_file",
                            help="""Licence file which will be shown on image installation""")
+    subparser.add_argument("--image-accept-licence", dest="image_accept_licence",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Automatically accept the licence referenced in the image "
+                                 "(already present in the input image or being set via "
+                                 "--image-licence); Licence should be accepted every "
+                                 "time an image is generated"))
     subparser.add_argument("--image-release-notes", dest="release_notes_file",
                            help="""Release notes file which will be shown on image installation""")
+    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Automatically install image upon detection by "
+                                 "Toradex Easy Installer."))
+    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
+                           action=argparse.BooleanOptionalAction,
+                           help=("Enable automatic reboot after image is flashed by "
+                                 "Toradex Easy Installer."))
 
 
 def add_ssh_arguments(subparser):
@@ -124,96 +117,6 @@ def add_ssh_arguments(subparser):
                            help="SSH port (default value is 22)",
                            default=22,
                            type=int)
-
-
-# TODO: Consider moving this function to `backend.combine`.
-def add_files(tezidir, image_json_filename, filelist, tezi_props):
-
-    config_fname = os.path.join(tezidir, image_json_filename)
-    config = ImageConfig(config_fname)
-
-    if config.search_filelist(src=DOCKER_BUNDLE_FILENAME):
-        raise InvalidDataError(
-            "Currently it is not possible to customize the containers of a base "
-            "image already containing container images")
-
-    if filelist:
-        config.add_files(
-            filelist, image_dir=tezidir, update_size=True, fail_src_present=True)
-
-    # ---
-    # FIXME: The code below should be factored out (separate adding files from setting props):
-    # ---
-    if tezi_props.get("name") is None:
-        name_extra = ["", " with Containers"][bool(filelist)]
-        config["name"] = config["name"] + name_extra
-    else:
-        config["name"] = tezi_props["name"]
-
-    if tezi_props.get("description") is not None:
-        config["description"] = tezi_props["description"]
-
-    # Rather ad-hoc for now, we probably want to give the user more control
-    # FIXME: Here we assume that a filelist is always adding containers to the image.
-    version_extra = [".modified", ".container"][bool(filelist)]
-    config["version"] = config["version"] + version_extra
-    config["release_date"] = datetime.datetime.today().strftime("%Y-%m-%d")
-
-    if tezi_props.get("licence_file") is not None:
-        config["license"] = tezi_props["licence_file"]
-
-    if tezi_props.get("release_notes_file") is not None:
-        config["releasenotes"] = tezi_props["release_notes_file"]
-
-    if tezi_props.get("autoinstall") is not None:
-        config["autoinstall"] = tezi_props["autoinstall"]
-
-    config.save()
-
-    # Properties that are not in "image.json":
-    if tezi_props.get("autoreboot") is not None:
-        set_autoreboot(tezidir, tezi_props["autoreboot"])
-
-    return config["version"]
-
-
-# TODO: Consider moving this function to `backend.combine` along with add_files().
-def combine_single_image(bundle_dir, files_to_add, output_dir, tezi_props):
-    for prop in tezi_props:
-        assert prop in TEZI_PROPS, f"Unknown property {prop} to combine_single_image"
-
-    for filename in files_to_add:
-        filename = filename.split(":")[0]
-        shutil.copy(os.path.join(bundle_dir, filename),
-                    os.path.join(output_dir, filename))
-
-    licence_file_bn = None
-    if tezi_props.get("licence_file") is not None:
-        licence_file = tezi_props.get("licence_file")
-        licence_file_bn = os.path.basename(licence_file)
-        shutil.copy(licence_file, os.path.join(output_dir, licence_file_bn))
-        tezi_props["licence_file"] = licence_file_bn
-
-    release_notes_file_bn = None
-    if tezi_props.get("release_notes_file") is not None:
-        release_notes_file = tezi_props.get("release_notes_file")
-        release_notes_file_bn = os.path.basename(release_notes_file)
-        shutil.copy(release_notes_file,
-                    os.path.join(output_dir, release_notes_file_bn))
-        tezi_props["release_notes_file"] = release_notes_file_bn
-
-    version = None
-    # FIXME: Why do we have this glob here?
-    for image_file in glob.glob(os.path.join(output_dir, "image*.json")):
-        add_files_params = {
-            "tezidir": output_dir,
-            "image_json_filename": image_file,
-            "filelist": files_to_add,
-            "tezi_props": tezi_props
-        }
-        version = add_files(**add_files_params)
-
-    return version
 
 
 def get_unpack_command(filename):
@@ -247,7 +150,7 @@ def get_all_local_ip_addresses():
     for adapter in ifaddr.get_adapters():
         if not adapter.nice_name in ('lo', 'docker0'):
             for ipaddr in adapter.ips:
-                if isinstance(ipaddr.ip, str): # If it's an str it's an IPv4.
+                if isinstance(ipaddr.ip, str):  # If it's an str it's an IPv4.
                     local_ip_addresses.append(ipaddr.ip)
                 else:
                     local_ip_addresses.append(ipaddr.ip[0])
@@ -391,7 +294,7 @@ def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
         sys.stdout.flush()
     else:
         barsiz = int(min((blocknum * blocksiz) / (totsiz), 1.0) * totbarsiz)
-        sys.stdout.write("\r[" + ("=" * barsiz) + ("." * (totbarsiz - barsiz)) +  "] ")
+        sys.stdout.write("\r[" + ("=" * barsiz) + ("." * (totbarsiz - barsiz)) + "] ")
         sys.stdout.flush()
 
 
@@ -633,44 +536,25 @@ def get_own_network():
     return network
 
 
-def set_autoreboot(output_dir, include):
-    wrapup_sh = os.path.join(os.path.abspath(output_dir), 'wrapup.sh')
-
-    with open(wrapup_sh, "r", encoding="utf-8") as infile:
-        lines = infile.readlines()
-
-    exit_occurrences = [
-        (lineidx, line) for (lineidx, line) in enumerate(lines)
-        if re.match(r"^\s*exit\s+0\s*", line)
-    ]
-
-    if not exit_occurrences:
-        log.warning("no 'exit 0' found")
+def check_licence_acceptance(image_dir, tezi_props):
+    if tezi_props.get("accept_licence"):
         return
 
-    # Check if autoreboot is already set
-    autoreboot_occurrences = [
-        (lineidx, line) for (lineidx, line) in enumerate(lines)
-        if re.match(r"^\s*reboot\s+-f\s+#\s+torizoncore-builder\s+generated\s*", line)
-    ]
+    image_json_filepath = os.path.join(image_dir, "image.json")
 
-    if include:
-        if autoreboot_occurrences:
-            log.debug("autoreboot is already set")
-            return
-        last_exit_occurrence = exit_occurrences[-1]
+    if not os.path.exists(image_json_filepath):
+        log.warning("Missing \"image.json\" File")
+        return
 
-        if last_exit_occurrence[0] < len(lines) - 2:
-            log.warning("'exit 0' not at the end of the file")
-            return
+    image_json = ImageConfig(image_json_filepath)
 
-        # Add extra line(s) before last exit:
-        lines.insert(last_exit_occurrence[0], "reboot -f  # torizoncore-builder generated\n")
-    else:
-        if not autoreboot_occurrences:
-            log.debug("autoreboot is already unset")
-            return
-        lines.pop(autoreboot_occurrences[0][0])
+    if image_json.get("license") is None and tezi_props.get("licence_file") is None:
+        return
 
-    with open(wrapup_sh, "w", encoding="utf-8") as output:
-        output.writelines(lines)
+    licence_file = tezi_props.get("licence_file") or image_json.get("license")
+    licence_file = os.path.basename(licence_file)
+
+    if image_json.get("autoinstall") or tezi_props.get("autoinstall"):
+        raise LicenceAcceptanceError(
+            f"Error: To enable the auto-installation feature you must accept the licence "
+            f"\"{licence_file}\".")

@@ -132,6 +132,8 @@ load 'lib/common.bash'
 }
 
 @test "combine: check with --image-autoinstall" {
+  local LICENSE_FILE="license-fc.html"
+  local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
   local COMPOSE='docker-compose.yml'
   if [ "$TCB_UNDER_CI" = "1" ]; then
     cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
@@ -146,6 +148,15 @@ load 'lib/common.bash'
   local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
   local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
+  # Test if output licence filename will override current licence filename
+  # when passing --image-licence argument
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR \
+                                 --image-autoinstall \
+                                 --image-licence $LICENSE_DIR
+  assert_failure
+  assert_output --partial \
+      "Error: To enable the auto-installation feature you must accept the licence \"$LICENSE_FILE\""
+
   run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
   assert_success
   run grep autoinstall $OUTPUT_DIR/image.json
@@ -153,7 +164,8 @@ load 'lib/common.bash'
 
   rm -rf "$OUTPUT_DIR"
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoinstall
+  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoinstall \
+                                                         --image-accept-licence
   assert_success
   run grep autoinstall $OUTPUT_DIR/image.json
   assert_output --partial "true"

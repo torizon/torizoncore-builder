@@ -31,6 +31,9 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
 
     storage_dir_ = os.path.abspath(storage_dir)
     tezi_dir = os.path.join(storage_dir_, "tezi")
+
+    common.check_licence_acceptance(tezi_dir, tezi_props)
+
     src_sysroot_dir = os.path.join(storage_dir_, "sysroot")
     src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
 
@@ -66,11 +69,13 @@ def do_deploy_tezi_image(args):
     tezi_props_args = {
         "name": args.image_name,
         "description": args.image_description,
+        "accept_licence": args.image_accept_licence,
         "autoinstall": args.image_autoinstall,
         "autoreboot": args.image_autoreboot,
         "licence_file": args.licence_file,
         "release_notes_file": args.release_notes_file
     }
+
     deploy_tezi_image(ostree_ref=args.ref,
                       output_dir=args.output_directory,
                       storage_dir=args.storage_directory,
@@ -132,16 +137,6 @@ def init_parser(subparsers):
                                  "reliably work when using a Docker volume!"),
                            default=DEFAULT_DEPLOY_DIR)
 
-    common.add_common_image_arguments(subparser)
-
-    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
-                           action=argparse.BooleanOptionalAction,
-                           help=("Automatically install image upon detection by "
-                                 "Toradex Easy Installer."))
-
-    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
-                           action=argparse.BooleanOptionalAction,
-                           help=("Enable automatic reboot after image is flashed by "
-                                 "Toradex Easy Installer."))
+    common.add_common_image_arguments(subparser, argparse)
 
     subparser.set_defaults(func=do_deploy)

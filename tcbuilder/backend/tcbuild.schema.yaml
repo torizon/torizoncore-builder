@@ -256,6 +256,9 @@ properties:
           release-notes:
             type: string
             description: "path of an HTML file with the image release notes (accessible from the installer UI)"
+          accept-licence:
+            type: boolean
+            description: "automatically accept the licence"
           autoinstall:
             type: boolean
             description: "set autoinstall's value on image.json file"

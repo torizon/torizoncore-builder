@@ -77,11 +77,14 @@ output:
   easy-installer:
     # >> Output directory of the customized image (REQUIRED):
     local: output_directory
-    # >> Information shown by Toradex Easy Installer:
+    # >> Information used by Toradex Easy Installer:
     # name: "My customized image"
     # description: "My customized image (description)"
     # licence: files/custom-licence.html
     # release-notes: files/custom-release-notes.html
+    # accept-licence: true
+    # autoinstall: true
+    # autoreboot: true
     # bundle:
       # >> Choose one of the options:
       # >> (1) Specify a docker-compose file whose referenced images will be downloaded.
@@ -96,7 +99,7 @@ output:
       # dir: bundle/
     # >> Provisioning configuration:
     # provisioning:
-      # >> For "online" mode, properties "shared-data" and "online-data" must be specified. 
+      # >> For "online" mode, properties "shared-data" and "online-data" must be specified.
       # >> For "offline" mode, property "shared-data" must be specified alone.
       # mode: "online"
       # shared-data: "shared-data.tar.gz"

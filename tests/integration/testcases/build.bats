@@ -206,9 +206,28 @@ load 'lib/common.bash'
     local DUMMY_OUTPUT="dummy_output_directory"
     rm -rf $DUMMY_OUTPUT
 
-    run torizoncore-builder build \
+    # Check if licence is present in the image.
+    local licence=$(torizoncore-builder-shell "grep -E \
+                  -e '\s*\"license\"\s*:\s*\".*\"\s*,' /storage/tezi/image.json")
+
+    if [ -n "$licence" ]; then
+      licence=$(echo "$licence" | sed -En -e 's/\s*\"license\":\s*\"(.*)\",/\1/p')
+      run torizoncore-builder build \
           --file "$SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml" \
-          --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" --force
+          --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE"
+      assert_failure
+      assert_output --partial \
+          "Error: To enable the auto-installation feature you must accept the licence \"$licence\""
+    fi
+
+    # Enable `accept-licence`
+    cat $SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml | \
+              sed -Ee 's/## accept-licence/accept-licence/' > \
+              $SAMPLES_DIR/config/tcbuild-with-accept.yaml
+
+    run torizoncore-builder build \
+          --file "$SAMPLES_DIR/config/tcbuild-with-accept.yaml" \
+          --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE"
     assert_success
 
     run grep autoinstall $DUMMY_OUTPUT/image.json

@@ -13,7 +13,8 @@ from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.errors import (
     FileContentMissing, FeatureNotImplementedError, InvalidDataError,
-    InvalidStateError, TorizonCoreBuilderError, ParseError, ParseErrors)
+    InvalidStateError, LicenceAcceptanceError, TorizonCoreBuilderError,
+    ParseError, ParseErrors)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
@@ -73,6 +74,7 @@ def translate_tezi_props(tezi_props):
     return {
         "name": tezi_props.get("name"),
         "description": tezi_props.get("description"),
+        "accept_licence": tezi_props.get("accept-licence"),
         "autoinstall": tezi_props.get("autoinstall"),
         "autoreboot": tezi_props.get("autoreboot"),
         "licence_file": tezi_props.get("licence"),
@@ -486,6 +488,10 @@ def do_build(args):
         for error in exc.payload:
             log.warning(str(error))
         sys.exit(2)
+
+    except LicenceAcceptanceError as exc:
+        log.warning(f"{str(exc)}")
+        sys.exit(3)
 
     except (TorizonCoreBuilderError, TeziError) as exc:
         exc.msg = "Error: " + exc.msg

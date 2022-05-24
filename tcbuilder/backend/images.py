@@ -309,7 +309,6 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
 def prov_check_provdata_presence(input_dir):
     """Determine if input TEZI image already has provisioning data"""
 
-    # FIXME: Check why `combine_single_image()` iterates over image*.json file.
     config_fname = os.path.join(input_dir, DEFAULT_IMAGE_JSON_FILENAME)
     config = ImageConfig(config_fname)
     return config.search_filelist(src=PROV_DATA_FILENAME) is not None
@@ -373,7 +372,6 @@ def prov_gen_provdata_tarball(output_dir, shared_data, online_data):
 def prov_add_provdata_tarball(output_dir):
     """Add the provisioning tarball to the files copied to the device by TEZI."""
 
-    # FIXME: Check why `combine_single_image()` iterates over image*.json file.
     config_fname = os.path.join(output_dir, DEFAULT_IMAGE_JSON_FILENAME)
     config = ImageConfig(config_fname)
     config.add_files(

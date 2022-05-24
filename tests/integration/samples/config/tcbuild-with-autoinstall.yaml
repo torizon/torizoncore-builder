@@ -8,3 +8,4 @@ output:
     name: "test autoinstall && autoreboot"
     autoinstall: true
     autoreboot: true
+    ## accept-licence: true

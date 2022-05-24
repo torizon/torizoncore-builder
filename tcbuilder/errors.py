@@ -104,3 +104,6 @@ class FetchError(TorizonCoreBuilderError):
 
 class NoProvisioningDataInCredsFile(TorizonCoreBuilderError):
     pass
+
+class LicenceAcceptanceError(TorizonCoreBuilderError):
+    pass
