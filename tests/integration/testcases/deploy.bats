@@ -86,110 +86,110 @@ load 'lib/common.bash'
 }
 
 @test "deploy: check with --image-autoinstall" {
-  local LICENSE_FILE="license-fc.html"
-  local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
+    local LICENSE_FILE="license-fc.html"
+    local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
 
-  torizoncore-builder-clean-storage
-  run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-  assert_success
+    torizoncore-builder-clean-storage
+    run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    assert_success
 
-  run torizoncore-builder union branch1
-  assert_success
+    run torizoncore-builder union branch1
+    assert_success
 
-  # Check if licence is present in the image.
-  local licence=$(torizoncore-builder-shell "grep -E \
-                -e '\s*\"license\"\s*:\s*\".*\"\s*,' /storage/tezi/image.json")
+    # Check if licence is present in the image.
+    local licence=$(torizoncore-builder-shell "grep -E \
+                  -e '\s*\"license\"\s*:\s*\".*\"\s*,' /storage/tezi/image.json")
 
-  if [ -n "$licence" ]; then
+    if [ -n "$licence" ]; then
+      rm -rf some_dir
+
+      # Image has licence
+      run torizoncore-builder deploy --output-directory some_dir branch1 \
+                                     --image-autoinstall \
+                                     --image-accept-licence
+      assert_success
+
+      # Remove license from image
+      run torizoncore-builder-shell \
+          "sed -i '/\s*\"license\"\s*:\s\".*\"\s*,/d' /storage/tezi/image.json"
+      assert_success
+
+      run torizoncore-builder-shell "grep -E \
+          -e '\s*\"license\"\s*:\s*\".*\"\s*,' /storage/tezi/image.json"
+      assert_failure
+
+    fi
+
     rm -rf some_dir
 
-    # Image has licence
+    run torizoncore-builder deploy --output-directory some_dir branch1 \
+                                   --image-autoinstall
+    assert_success
+
+    rm -rf some_dir
+
     run torizoncore-builder deploy --output-directory some_dir branch1 \
                                    --image-autoinstall \
                                    --image-accept-licence
     assert_success
 
-    # Remove license from image
-    run torizoncore-builder-shell \
-        "sed -i '/\s*\"license\"\s*:\s\".*\"\s*,/d' /storage/tezi/image.json"
-    assert_success
+    rm -rf some_dir
 
-    run torizoncore-builder-shell "grep -E \
-        -e '\s*\"license\"\s*:\s*\".*\"\s*,' /storage/tezi/image.json"
+    run torizoncore-builder deploy --output-directory some_dir branch1 \
+                                   --image-autoinstall \
+                                   --image-licence "$LICENSE_DIR"
     assert_failure
+    assert_output --partial \
+        "Error: To enable the auto-installation feature you must accept the licence \"$LICENSE_FILE\""
 
-  fi
+    rm -rf some_dir
 
-  rm -rf some_dir
+    run torizoncore-builder deploy --output-directory some_dir branch1
+    assert_success
+    run grep autoinstall some_dir/image.json
+    assert_output --partial "false"
 
-  run torizoncore-builder deploy --output-directory some_dir branch1 \
-                                 --image-autoinstall
-  assert_success
+    rm -rf some_dir
 
-  rm -rf some_dir
+    run torizoncore-builder deploy --output-directory some_dir branch1 \
+                                   --image-autoinstall --image-accept-licence
+    assert_success
+    run grep autoinstall some_dir/image.json
+    assert_output --partial "true"
 
-  run torizoncore-builder deploy --output-directory some_dir branch1 \
-                                 --image-autoinstall \
-                                 --image-accept-licence
-  assert_success
+    rm -rf some_dir
+    run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoinstall
+    assert_success
+    run grep autoinstall some_dir/image.json
+    assert_output --partial "false"
 
-  rm -rf some_dir
-
-  run torizoncore-builder deploy --output-directory some_dir branch1 \
-                                 --image-autoinstall \
-                                 --image-licence "$LICENSE_DIR"
-  assert_failure
-  assert_output --partial \
-      "Error: To enable the auto-installation feature you must accept the licence \"$LICENSE_FILE\""
-
-  rm -rf some_dir
-
-  run torizoncore-builder deploy --output-directory some_dir branch1
-  assert_success
-  run grep autoinstall some_dir/image.json
-  assert_output --partial "false"
-
-  rm -rf some_dir
-
-  run torizoncore-builder deploy --output-directory some_dir branch1 \
-                                 --image-autoinstall --image-accept-licence
-  assert_success
-  run grep autoinstall some_dir/image.json
-  assert_output --partial "true"
-
-  rm -rf some_dir
-  run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoinstall
-  assert_success
-  run grep autoinstall some_dir/image.json
-  assert_output --partial "false"
-
-  rm -rf some_dir
+    rm -rf some_dir
 }
 
 @test "deploy: check with --image-autoreboot" {
-  local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
-  torizoncore-builder-clean-storage
-  torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-  torizoncore-builder union branch1
+    local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
+    torizoncore-builder-clean-storage
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder union branch1
 
-  rm -rf some_dir
+    rm -rf some_dir
 
-  run torizoncore-builder deploy --output-directory some_dir branch1
-  assert_success
-  run grep reboot some_dir/wrapup.sh
-  refute_output
+    run torizoncore-builder deploy --output-directory some_dir branch1
+    assert_success
+    run grep reboot some_dir/wrapup.sh
+    refute_output
 
-  rm -rf some_dir
+    rm -rf some_dir
 
-  run torizoncore-builder deploy --output-directory some_dir branch1 --image-autoreboot
-  assert_success
-  run grep -E $REG_EX_GENERATED some_dir/wrapup.sh
-  assert_success
+    run torizoncore-builder deploy --output-directory some_dir branch1 --image-autoreboot
+    assert_success
+    run grep -E $REG_EX_GENERATED some_dir/wrapup.sh
+    assert_success
 
-  rm -rf some_dir
-  run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoreboot
-  run grep -E $REG_EX_GENERATED some_dir/wrapup.sh
-  refute_output
+    rm -rf some_dir
+    run torizoncore-builder deploy --output-directory some_dir branch1 --no-image-autoreboot
+    run grep -E $REG_EX_GENERATED some_dir/wrapup.sh
+    refute_output
 
-  rm -rf some_dir
+    rm -rf some_dir
 }

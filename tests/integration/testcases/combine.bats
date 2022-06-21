@@ -132,88 +132,88 @@ load 'lib/common.bash'
 }
 
 @test "combine: check with --image-autoinstall" {
-  local LICENSE_FILE="license-fc.html"
-  local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
-  local COMPOSE='docker-compose.yml'
-  if [ "$TCB_UNDER_CI" = "1" ]; then
-    cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-  else
-    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
-  fi
+    local LICENSE_FILE="license-fc.html"
+    local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
+    local COMPOSE='docker-compose.yml'
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+      cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+      cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
-  rm -rf bundle
-  torizoncore-builder bundle $COMPOSE
+    rm -rf bundle
+    torizoncore-builder bundle $COMPOSE
 
-  unpack-image $DEFAULT_TEZI_IMAGE
-  local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
-  local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+    unpack-image $DEFAULT_TEZI_IMAGE
+    local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+    local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
-  # Test if output licence filename will override current licence filename
-  # when passing --image-licence argument
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR \
-                                 --image-autoinstall \
-                                 --image-licence $LICENSE_DIR
-  assert_failure
-  assert_output --partial \
-      "Error: To enable the auto-installation feature you must accept the licence \"$LICENSE_FILE\""
+    # Test if output licence filename will override current licence filename
+    # when passing --image-licence argument
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR \
+                                    --image-autoinstall \
+                                    --image-licence $LICENSE_DIR
+    assert_failure
+    assert_output --partial \
+        "Error: To enable the auto-installation feature you must accept the licence \"$LICENSE_FILE\""
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
-  assert_success
-  run grep autoinstall $OUTPUT_DIR/image.json
-  assert_output --partial "false"
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
+    assert_success
+    run grep autoinstall $OUTPUT_DIR/image.json
+    assert_output --partial "false"
 
-  rm -rf "$OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoinstall \
-                                                         --image-accept-licence
-  assert_success
-  run grep autoinstall $OUTPUT_DIR/image.json
-  assert_output --partial "true"
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoinstall \
+                                                           --image-accept-licence
+    assert_success
+    run grep autoinstall $OUTPUT_DIR/image.json
+    assert_output --partial "true"
 
-  rm -rf "$OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --no-image-autoinstall
-  assert_success
-  run grep autoinstall $OUTPUT_DIR/image.json
-  assert_output --partial "false"
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --no-image-autoinstall
+    assert_success
+    run grep autoinstall $OUTPUT_DIR/image.json
+    assert_output --partial "false"
 
-  rm -rf "$COMPOSE" "$OUTPUT_DIR" "$IMAGE_DIR"
+    rm -rf "$COMPOSE" "$OUTPUT_DIR" "$IMAGE_DIR"
 }
 
 @test "combine: check with --image-autoreboot" {
-  local COMPOSE='docker-compose.yml'
-  local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
-  if [ "$TCB_UNDER_CI" = "1" ]; then
-      cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-  else
-      cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
-  fi
+    local COMPOSE='docker-compose.yml'
+    local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
+    else
+        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+    fi
 
-  rm -rf bundle
-  torizoncore-builder bundle $COMPOSE
+    rm -rf bundle
+    torizoncore-builder bundle $COMPOSE
 
-  unpack-image $DEFAULT_TEZI_IMAGE
-  local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
-  local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
+    unpack-image $DEFAULT_TEZI_IMAGE
+    local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+    local OUTPUT_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
-  assert_success
-  run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
-  refute_output
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR
+    assert_success
+    run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
+    refute_output
 
-  rm -rf "$OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoreboot
-  assert_success
-  run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
-  assert_success
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --image-autoreboot
+    assert_success
+    run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
+    assert_success
 
-  rm -rf "$OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
 
-  run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --no-image-autoreboot
-  assert_success
-  run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
-  refute_output
+    run torizoncore-builder combine $IMAGE_DIR $OUTPUT_DIR --no-image-autoreboot
+    assert_success
+    run grep -E $REG_EX_GENERATED $OUTPUT_DIR/wrapup.sh
+    refute_output
 
-  rm -rf "$COMPOSE" "$OUTPUT_DIR" "$IMAGE_DIR"
+    rm -rf "$COMPOSE" "$OUTPUT_DIR" "$IMAGE_DIR"
 }
