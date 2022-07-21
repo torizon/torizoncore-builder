@@ -965,51 +965,29 @@ def find_imgrepo_target(targets_metadata, sha256, name=None, length=None):
     return None, None
 
 
-def update_targets(targets_file_path, packagename, commit, subject, body, metadata):
-    """Add Toradex specific metadata in targets.json"""
-
-    with open(targets_file_path, 'r') as targets_file:
-        data = json.load(targets_file)
-
-    target_name = f"{packagename}-{commit}"
-    if target_name not in data["targets"]:
-        raise TorizonCoreBuilderError(f"Target {target_name} not found in targets.json")
-
-    data["targets"][target_name]["custom"]["commitSubject"] = subject
-    data["targets"][target_name]["custom"]["commitBody"] = body
-    data["targets"][target_name]["custom"]["ostreeMetadata"] = metadata
-
-    if log.isEnabledFor(logging.DEBUG):
-        formatted_json_string = json.dumps(data["targets"][target_name], indent=2)
-        log.debug(f"targets.json for this commit: \"{formatted_json_string}\"")
-
-    with open(targets_file_path, 'w') as targets_file:
-        json.dump(data, targets_file, indent=2)
-
-
-def run_garage_command(command, verbose):
-    """Run a single command using garage-sign/garage-push"""
+def run_uptane_command(command, verbose):
+    """Run a single command using uptane-sign/uptane-push"""
     if verbose:
         command.append("--verbose")
-    garage_command = subprocess.run(command, check=False, capture_output=True)
+    uptane_command = subprocess.run(command, check=False, capture_output=True)
 
-    stdoutstr = garage_command.stdout.decode().strip()
+    stdoutstr = uptane_command.stdout.decode().strip()
     if verbose:
         if len(stdoutstr) > 0:
-            print("== garage-sign stdout:")
+            print("== uptane-sign stdout:")
             log.debug(stdoutstr)
 
     # Show warnings to user by default.
-    stderrstr = garage_command.stderr.decode()
+    stderrstr = uptane_command.stderr.decode()
     if len(stderrstr) > 0:
-        print("== garage-sign stderr:")
+        print("== uptane-sign stderr:")
         log.warning(stderrstr)
 
-    if garage_command.returncode != 0:
+    if uptane_command.returncode != 0:
         if not verbose:
             log.error(stdoutstr)
         raise TorizonCoreBuilderError(
-            f'Error ({str(garage_command.returncode)}) running garage command '
+            f'Error ({str(uptane_command.returncode)}) running uptane command '
             f'"{command[0]}" with arguments "{command[1:]}"')
 
 
@@ -1052,31 +1030,6 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
                    "--credentials", credentials,
                    "--repo", ostree_dir,
                    "--ref", commit]
-    if not verbose:
-        garage_push.extend(["--loglevel", "4"])
-    log.info(f"Pushing {ref} (commit checksum {commit}) to OTA server.")
-    run_garage_command(garage_push, verbose)
-
-    log.info(f"Pushed {ref} successfully.")
-
-    log.info(f"Signing OSTree package {package_name} (commit checksum {commit}) "
-             f"for Hardware Id(s) \"{module}\".")
-
-    run_garage_command(["garage-sign", "init",
-                        "--credentials", credentials,
-                        "--repo", tuf_repo], verbose)
-
-    run_garage_command(["garage-sign", "targets", "pull",
-                        "--repo", tuf_repo], verbose)
-
-    run_garage_command(["garage-sign", "targets", "add",
-                        "--repo", tuf_repo,
-                        "--name", package_name,
-                        "--format", "OSTREE",
-                        "--version", commit,
-                        "--length", "0",
-                        "--sha256", commit,
-                        "--hardwareids", module], verbose)
 
     # Extend target info with OSTree commit metadata
     # Remove some metadata keys which are already used otherwise or ar rather
@@ -1084,16 +1037,45 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
     for key in ["oe.garage-target-name", "oe.garage-target-version", "oe.sota-hardware-id",
                 "oe.layers", "oe.kargs-default"]:
         metadata.pop(key, None)
-    targets_file_path = os.path.join(tuf_repo, "roles/unsigned/targets.json")
 
-    update_targets(targets_file_path, package_name, commit, package_version,
-                   body, metadata)
+    custom_metadata = {
+        "commitSubject": package_version,
+        "commitBody": body,
+        "ostreeMetadata": metadata
+    }
 
-    run_garage_command(["garage-sign", "targets", "sign",
+    if not verbose:
+        garage_push.extend(["--loglevel", "4"])
+    log.info(f"Pushing {ref} (commit checksum {commit}) to OTA server.")
+    run_uptane_command(garage_push, verbose)
+
+    log.info(f"Pushed {ref} successfully.")
+
+    log.info(f"Signing OSTree package {package_name} (commit checksum {commit}) "
+             f"for Hardware Id(s) \"{module}\".")
+
+    run_uptane_command(["uptane-sign", "init",
+                        "--credentials", credentials,
+                        "--repo", tuf_repo], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "pull",
+                        "--repo", tuf_repo], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "add",
+                        "--repo", tuf_repo,
+                        "--name", package_name,
+                        "--format", "OSTREE",
+                        "--version", commit,
+                        "--length", "0",
+                        "--sha256", commit,
+                        "--hardwareids", module,
+                        "--customMeta", json.dumps(custom_metadata)], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "sign",
                         "--repo", tuf_repo,
                         "--key-name", "targets"], verbose)
 
-    run_garage_command(["garage-sign", "targets", "push",
+    run_uptane_command(["uptane-sign", "targets", "push",
                         "--repo", tuf_repo], verbose)
 
     log.info(f"Signed and pushed OSTree package {package_name} successfully.")

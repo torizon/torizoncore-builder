@@ -71,6 +71,7 @@ COPY avahi-conf/ /etc/avahi/
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     ostree \
     gir1.2-ostree-1.0 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Refrain dash from taking over the /bin/sh symlink.
@@ -80,6 +81,19 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install bash \
     && echo 'dash dash/sh boolean false' | debconf-set-selections \
     && DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true dpkg-reconfigure dash \
     ; test "$(realpath /bin/sh)" = '/bin/bash'
+
+# Install java dependencies for uptane
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install openjdk-11-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG UPTANE_SIGN_VER=2.0.2
+RUN wget -q -nv https://github.com/uptane/ota-tuf/releases/download/v$UPTANE_SIGN_VER/cli-$UPTANE_SIGN_VER.tgz -P /tmp
+
+RUN tar xvf /tmp/cli-$UPTANE_SIGN_VER.tgz -C /tmp \
+    && cp -a /tmp/uptane-sign/lib/. /usr/lib/ \
+    && mv /tmp/uptane-sign/bin/uptane-sign /usr/bin/uptane-sign \
+    && rm /tmp/cli-$UPTANE_SIGN_VER.tgz \
+    && rm -rf /tmp/uptane-sign
 
 # Copy and install SOTA tools from build stage
 COPY --from=sota-builder /root/aktualizr/build/garage_deploy.deb /
@@ -91,6 +105,9 @@ RUN apt-get -q -y update && ls && pwd \
     && dpkg -i ./garage_deploy.deb || apt-get -q -y --fix-broken --no-install-recommends install \
     && rm ./garage_deploy.deb \
     && rm -rf /var/lib/apt/lists/*
+
+# Removing all garage packages installed on the preivous command but garage-push
+RUN find /usr/bin -iname 'garage-[^p]*' -exec rm {} \;
 
 # Debian has old version of docker and docker-compose, which does not support some of
 # required functionality like escaping $ in compose file during serialization
@@ -126,7 +143,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
 
 FROM tcbuilder-base
 
-# put all the tools in the /builder directory 
+# put all the tools in the /builder directory
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
 COPY tezi /builder/tezi/
