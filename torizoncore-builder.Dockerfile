@@ -83,7 +83,9 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install bash \
     ; test "$(realpath /bin/sh)" = '/bin/bash'
 
 # Install java dependencies for uptane
-RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install openjdk-11-jre-headless \
+RUN apt-get -q -y update \
+    && mkdir -p /usr/share/man/man1/ \
+    && apt-get -q -y --no-install-recommends install openjdk-11-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 ARG UPTANE_SIGN_VER=2.0.2
@@ -100,13 +102,13 @@ COPY --from=sota-builder /root/aktualizr/build/garage_deploy.deb /
 
 # Try to install garage deploy, and then use apt-get to install actual dependencies
 # (the mkdir -p /usr/share/man/man1 is required to make JRE installation happy)
-RUN apt-get -q -y update && ls && pwd \
+RUN apt-get -q -y update \
     && mkdir -p /usr/share/man/man1 \
-    && dpkg -i ./garage_deploy.deb || apt-get -q -y --fix-broken --no-install-recommends install \
+    && dpkg -i ./garage_deploy.deb 2>/dev/null || apt-get -q -y --fix-broken --no-install-recommends install \
     && rm ./garage_deploy.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# Removing all garage packages installed on the preivous command but garage-push
+# Removing all garage packages installed on the previous command but garage-push
 RUN find /usr/bin -iname 'garage-[^p]*' -exec rm {} \;
 
 # Debian has old version of docker and docker-compose, which does not support some of
