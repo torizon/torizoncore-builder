@@ -89,9 +89,9 @@ RUN apt-get -q -y update \
     && rm -rf /var/lib/apt/lists/*
 
 ARG UPTANE_SIGN_VER=2.0.2
-RUN wget -q -nv https://github.com/uptane/ota-tuf/releases/download/v$UPTANE_SIGN_VER/cli-$UPTANE_SIGN_VER.tgz -P /tmp
 
-RUN tar xvf /tmp/cli-$UPTANE_SIGN_VER.tgz -C /tmp \
+RUN wget -q -nv https://github.com/uptane/ota-tuf/releases/download/v$UPTANE_SIGN_VER/cli-$UPTANE_SIGN_VER.tgz -P /tmp \
+    && tar xvf /tmp/cli-$UPTANE_SIGN_VER.tgz -C /tmp \
     && cp -a /tmp/uptane-sign/lib/. /usr/lib/ \
     && mv /tmp/uptane-sign/bin/uptane-sign /usr/bin/uptane-sign \
     && rm /tmp/cli-$UPTANE_SIGN_VER.tgz \
