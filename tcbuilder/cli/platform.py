@@ -419,7 +419,7 @@ def do_platform_push(args):
                 "Error: The '--no-canonicalize' and '--canonicalize-only' "
                 "options cannot be used at the same time. Please, run "
                 "'torizoncore-builder platform push --help' for more information.")
-        lock_file, _ = platform.canonicalize_compose_file(args.ref, args.force)
+        lock_file = platform.canonicalize_compose_file(args.ref, args.force)
         log.info(f"Not pushing '{os.path.basename(lock_file)}' to OTA server.")
         return
 
@@ -437,22 +437,23 @@ def do_platform_push(args):
                                        "\"docker-compose\"")
 
         version = args.version or datetime.today().strftime("%Y-%m-%d")
-        platform.push_compose(credentials, args.target, version, args.ref,
-                              args.canonicalize, args.force)
+        platform.push_compose(credentials=credentials, target=args.target, version=version,
+                              compose_file=args.ref, canonicalize=args.canonicalize,
+                              force=args.force, description=args.description,
+                              verbose=args.verbose)
     else:
         if args.ostree is not None:
             src_ostree_archive_dir = os.path.abspath(args.ostree)
         else:
             src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-        tuf_repo = os.path.join("/deploy", "tuf-repo")
-
         if not os.path.exists(storage_dir):
             raise PathNotExistError(f"{storage_dir} does not exist")
 
-        platform.push_ref(src_ostree_archive_dir, tuf_repo, credentials,
-                          args.ref, args.version, args.target, args.hardwareids,
-                          args.verbose)
+        platform.push_ref(ostree_dir=src_ostree_archive_dir, credentials=credentials,
+                          ref=args.ref, package_version=args.version, package_name=args.target,
+                          hardwareids=args.hardwareids, description=args.description,
+                          verbose=args.verbose)
 
 
 def add_common_push_arguments(subparser):
@@ -471,6 +472,10 @@ def add_common_push_arguments(subparser):
         help=("Hardware ID to use when pushing an OSTree package (can be specified "
               "multiple times). Will allow this package to be compatible with "
               "devices of the same Hardware ID."),
+        required=False, default=None)
+    subparser.add_argument(
+        "--description", dest="description",
+        help="Add a description to the package",
         required=False, default=None)
     subparser.add_argument(
         "--package-name", dest="target",

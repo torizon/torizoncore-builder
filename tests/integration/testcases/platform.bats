@@ -164,7 +164,7 @@ load 'lib/common.bash'
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
     local GOOD_YML="docker-compose-good"
     local P_VERSION="Test_Version"
-    local P_NAME="docker-test"
+    local P_NAME=$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')
 
     # Test-case: push a non-canonical file
     run torizoncore-builder platform push "$CANON_DIR/$GOOD_YML.yml" \
@@ -184,12 +184,13 @@ load 'lib/common.bash'
 
     # Test-case: push a canonicalized file with a non canonicalized package name
     run torizoncore-builder platform push "$CANON_DIR/$GOOD_YML.lock.yml" \
-        --package-version "$P_VERSION" --package-name "$P_NAME.ymal" \
-        --credentials "$CREDS_PROD_ZIP"
+        --package-version "$P_VERSION" --package-name "$P_NAME.yaml" \
+        --credentials "$CREDS_PROD_ZIP" --description "Test_docker-compose"
     assert_success
     assert_output --partial 'the package name must end with ".lock.yml"'
     assert_output --partial "package version $P_VERSION"
     assert_output --partial 'Successfully pushed'
+    assert_output --partial "Description for $P_NAME.yaml updated."
 }
 
 @test "platform: test push with images" {
@@ -224,7 +225,6 @@ load 'lib/common.bash'
     assert_output --partial "Pushing $IMG_NAME (commit checksum $UNION_HASH)"
     assert_output --regexp "Signing OSTree package $IMG_NAME.*Hardware Id\(s\) \"modelA,modelB\""
 
-
     run torizoncore-builder platform push "$IMG_NAME" --hardwareid "$METADATA_MACHINE" \
         --hardwareid "modelA" --credentials "$CREDS_PROD_ZIP"
     assert_success
@@ -248,14 +248,14 @@ load 'lib/common.bash'
     assert_failure
     assert_output "No hardware id found in OSTree metadata and none provided."
 
-
-    # Test with hardwareid defined
+    # Test with hardwareid defined and description
     local HARDWARE_ID="test-id"
     run torizoncore-builder platform push "$EXTRN_OSTREE_BRANCH" --repo "$EXTRN_OSTREE_DIR" \
-        --hardwareid "$HARDWARE_ID" --credentials "$CREDS_PROD_ZIP"
+        --hardwareid "$HARDWARE_ID" --credentials "$CREDS_PROD_ZIP" --description "Test"
     assert_success
     assert_output --regexp "The default hardware id .* is being overridden"
     assert_output --partial "Pushing $EXTRN_OSTREE_BRANCH (commit checksum $EXTRN_COMMIT_HASH)"
     assert_output --partial "for Hardware Id(s) \"$HARDWARE_ID\""
     assert_output --partial "OSTree package $EXTRN_OSTREE_BRANCH successfully"
+    assert_output --partial "Description for $EXTRN_OSTREE_BRANCH updated."
 }

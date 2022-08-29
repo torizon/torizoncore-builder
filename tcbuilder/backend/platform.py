@@ -12,7 +12,6 @@ import re
 import sys
 import shutil
 import subprocess
-import zipfile
 
 from fnmatch import fnmatchcase
 from io import BytesIO, TextIOWrapper
@@ -26,7 +25,7 @@ import yaml
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidDataError, OperationFailureError,
      FetchError)
-from tcbuilder.backend import ostree
+from tcbuilder.backend import ostree, sotaops
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
 from tcbuilder.backend.common import get_host_workdir, set_output_ownership
@@ -52,6 +51,9 @@ RESERVED_LOCKBOX_NAMES = [
 
 PROV_IMGREPO_DIRNAME = "repo"
 PROV_DIRECTOR_DIRNAME = "director"
+
+UPTANE_SIGN_UPLOAD_TIMEOUT = "60"
+TUF_REPO_DIR = "/deploy/tuf-repo"
 
 
 def load_metadata(fname, ftype=None, maxlen=DEFAULT_METADATA_MAXLEN):
@@ -992,8 +994,8 @@ def run_uptane_command(command, verbose):
 
 
 # pylint: disable=too-many-locals
-def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
-             package_name=None, hardwareids=None, verbose=False):
+def push_ref(ostree_dir, credentials, ref, package_version=None,
+             package_name=None, hardwareids=None, description=None, verbose=False):
     """Push OSTree reference to OTA server.
 
     Push given reference of a given archive OSTree repository to the OTA server
@@ -1056,13 +1058,13 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
 
     run_uptane_command(["uptane-sign", "init",
                         "--credentials", credentials,
-                        "--repo", tuf_repo], verbose)
+                        "--repo", TUF_REPO_DIR], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "pull",
-                        "--repo", tuf_repo], verbose)
+                        "--repo", TUF_REPO_DIR], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "add",
-                        "--repo", tuf_repo,
+                        "--repo", TUF_REPO_DIR,
                         "--name", package_name,
                         "--format", "OSTREE",
                         "--version", commit,
@@ -1072,43 +1074,28 @@ def push_ref(ostree_dir, tuf_repo, credentials, ref, package_version=None,
                         "--customMeta", json.dumps(custom_metadata)], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "sign",
-                        "--repo", tuf_repo,
+                        "--repo", TUF_REPO_DIR,
                         "--key-name", "targets"], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "push",
-                        "--repo", tuf_repo], verbose)
+                        "--repo", TUF_REPO_DIR], verbose)
 
     log.info(f"Signed and pushed OSTree package {package_name} successfully.")
 
+    if description is not None:
+        update_description(description, package_name, commit, credentials)
+# pylint: enable=too-many-arguments
 
+
+# pylint: disable=too-many-arguments
 def push_compose(credentials, target, version, compose_file,
-                 canonicalize=None, force=False):
+                 canonicalize=None, force=False, description=None, verbose=False):
     """Push docker-compose file to OTA server."""
 
-    zip_ref = zipfile.ZipFile(credentials, 'r')
-    treehub_creds = json.loads(zip_ref.read("treehub.json"))
-    auth_server = treehub_creds["oauth2"]["server"]
-    client_id = treehub_creds["oauth2"]["client_id"]
-    client_secret = treehub_creds["oauth2"]["client_secret"]
-
-    try:
-        response = requests.post(
-            f"{auth_server}/token",
-            data={"grant_type": "client_credentials"},
-            auth=(client_id, client_secret))
-        token = json.loads(response.text)["access_token"]
-    except TorizonCoreBuilderError as ex:
-        log.error(ex.msg)
-        log.error("Couldn't get access token")
-
-    reposerver = zip_ref.read("tufrepo.url").decode("utf-8")
-
     if canonicalize:
-        lock_file, data = canonicalize_compose_file(compose_file, force)
+        lock_file = canonicalize_compose_file(compose_file, force)
     else:
         lock_file = compose_file
-        with open(compose_file, encoding='utf-8') as compose_fd:
-            data = compose_fd.read()
 
     if target is None:
         target = os.path.basename(lock_file)
@@ -1125,17 +1112,60 @@ def push_compose(credentials, target, version, compose_file,
     log.info(f"Pushing '{os.path.basename(lock_file)}' with package version "
              f"{version} to OTA server. You should keep this file under your "
              "version control system.")
-    put = requests.put(f"{reposerver}/api/v1/user_repo/targets/{target}_{version}",
-                       params={"name": f"{target}", "version": f"{version}",
-                               "hardwareIds": "docker-compose"},
-                       headers={"Authorization": f"Bearer {token}", }, data=data)
 
-    if put.status_code == 204:
-        log.info(f"Successfully pushed {os.path.basename(lock_file)} to OTA server.")
-    else:
-        log.error(f"Could not upload {os.path.basename(lock_file)} to OTA server at this time:")
-        log.error(put.text)
+    run_uptane_command(["uptane-sign", "init",
+                        "--credentials", credentials,
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "pull",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "upload",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", lock_file,
+                        "--name", target,
+                        "--version", version,
+                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", lock_file,
+                        "--name", target,
+                        "--version", version,
+                        "--hardwareids", "docker-compose",
+                        "--customMeta", "{}"], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "sign",
+                        "--repo", TUF_REPO_DIR,
+                        "--key-name", "targets"], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "push",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    log.info(f"Successfully pushed {os.path.basename(lock_file)} to OTA server.")
+
+    if description is not None:
+        update_description(description, target, version, credentials)
+
+# pylint: disable=too-many-arguments
 # pylint: enable=too-many-locals
+
+
+def update_description(description, target, version, credentials):
+    """Update Package Description"""
+    server_creds = sotaops.ServerCredentials(credentials)
+    token = sotaops.get_access_token(server_creds)
+
+    put = requests.put(f"{server_creds.repo_url}/api/v1/user_repo/comments/{target}-{version}",
+                       data=json.dumps({"comment": f"{description}"}),
+                       headers={"Authorization": f"Bearer {token}",
+                                "Content-Type": "application/json"})
+
+    if put.status_code == requests.codes["ok"]:
+        log.info(f"Description for {target} updated.")
+    else:
+        log.error(f"Could not update description for {target}.")
+        log.error(put.text)
 
 
 def set_images_hash(compose_file_data):
@@ -1208,7 +1238,7 @@ def canonicalize_compose_file(compose_file, force=False):
     set_output_ownership(canonical_compose_file_lock)
     log.info(f"Canonicalized file '{canonical_compose_file_lock}' has been generated.")
 
-    return canonical_compose_file_lock, canonical_data
+    return canonical_compose_file_lock
 
 
 def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):
