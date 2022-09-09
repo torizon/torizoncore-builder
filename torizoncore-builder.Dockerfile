@@ -145,12 +145,18 @@ RUN groupadd --gid $USER_GID $USERNAME \
 
 FROM tcbuilder-base
 
-# put all the tools in the /builder directory
+# Put all the tools in the /builder directory
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
 COPY tezi /builder/tezi/
 COPY tcbuilder /builder/tcbuilder/
 COPY torizoncore-builder.py /builder/torizoncore-builder
+
+# Augment version string
+ARG VERSION_SUFFIX=""
+
+RUN sed -e 's/^VERSION_SUFFIX *= *["'"'"'].*$/VERSION_SUFFIX = "'"$VERSION_SUFFIX"'"/' \
+        -i /builder/torizoncore-builder
 
 WORKDIR /workdir
 

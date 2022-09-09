@@ -7,6 +7,10 @@ to create customized TorizonCore OSTree commits and Toradex Easy Installer image
 without rebuilding the complete operating system.
 """
 
+# Version information (as per PEP-8, it should be set before imports):
+__version_info__ = ('3', '5', '1')
+__version__ = '.'.join(__version_info__)
+
 import sys
 
 MIN_PYTHON = (3, 7)
@@ -14,7 +18,6 @@ if sys.version_info < MIN_PYTHON:
     sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
 # pylint: disable=wrong-import-position
-
 import argparse
 import logging
 import os
@@ -24,11 +27,10 @@ from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isol
                            kernel, ostree, platform, push, splash, union)
 
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
-
 # pylint: enable=wrong-import-position
 
-__version_info__ = ('3', '5', '1')
-__version__ = '.'.join(__version_info__)
+# IMPORTANT: This line may be edited by the build system.
+VERSION_SUFFIX = ''
 
 parser = argparse.ArgumentParser(
     description="TorizonCore Builder is an utility that allows to create "
@@ -108,7 +110,9 @@ parser.add_argument("--storage-directory",
                     help=argparse.SUPPRESS,
                     default=argparse.SUPPRESS)
 
-parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
+parser.add_argument('-v', '--version',
+                    action='version',
+                    version='%(prog)s ' + __version__ + VERSION_SUFFIX)
 
 # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
 parser.add_argument(

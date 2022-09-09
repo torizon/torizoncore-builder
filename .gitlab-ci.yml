@@ -1,78 +1,46 @@
+# TODO: GitLab's documentation recommends specifying a version:
+#       See https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-docker-in-docker
+#       Also in the services attribute.
 image: docker:latest
 
 variables:
+  RELEASE_TYPE:
+    value: "official"
+    description: "Type of pipeline to run. Allowed values: 'official', 'early-access' or 'internal'."
+
   DEBIAN_RELEASE: "bullseye-slim"
-  # container version
+  # Container version:
   TORIZONCORE_BUILDER_MAJOR: "3"
   TORIZONCORE_BUILDER_MINOR: "5"
   TORIZONCORE_BUILDER_PATCH: "1"
-
   # This should be set by docker image already, just to be sure...
   DOCKER_HOST: tcp://docker:2375
-  # Use overlayfs driver for better performance
   DOCKER_TLS_CERTDIR: ""
+  # Use overlayfs driver for better performance
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: 1
   GITLAB_DOCKERREGISTRY_SUFFIX: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
   GITLAB_DOCKERREGISTRY_SUFFIX_LATEST: ${CI_COMMIT_REF_SLUG}-latest
 
+  # Set to "echo" for dry running specific actions:
+  D: ""        # deployment actions
+  T: ""        # test actions
+  B: ""        # build actions
+
 services:
   - name: docker:dind
 
 stages:
+  - pre-build
   - build
   - test
   - build-multiarch
   - deploy
   - deploy-multiarch
+  - tag
 
-# Docker image builds
-#
-# Build the Docker images  specificd in DOCKERFILE_FOLDER/IMAGE_NAME and push
-# it to Gitlab's internal Docker registry
-.docker-build:
-  variables:
-    IMAGE_TAG: ${DEBIAN_RELEASE}
-  before_script:
-    - export DATE=$(date +%Y%m%d)
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker login -u $CI_DOCKER_HUB_PULL_USER -p $CI_DOCKER_HUB_PULL_PASSWORD
-  script:
-    - docker build -f ${DOCKERFILE_NAME}
-                     --build-arg IMAGE_ARCH=${IMAGE_ARCH} --build-arg IMAGE_TAG=${IMAGE_TAG}
-                     --label container.name=${IMAGE_NAME}
-                     --label container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}
-                     --label git.branch=${CI_COMMIT_BRANCH}
-                     --label git.hash=${CI_COMMIT_SHA}
-                     --label pipeline.id=${CI_PIPELINE_ID}
-                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-                     -t ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
-                     .
-    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-    - docker push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
-  stage: build
-
-pylint:
-  script:
-    # Refresh a cached image with pylint and all employed libraries.
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build --tag tcbuilder-dev-amd64 -f torizoncore-builder.Dockerfile --target tcbuilder-dev --build-arg IMAGE_ARCH=linux/amd64 --cache-from ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest .
-    - docker tag tcbuilder-dev-amd64 ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
-    - docker push ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
-    # Run the code linter disabling only docstring related warnings, use this run as exit code
-    # IMPORTANT: when running locally, DO NOT pass these --disable arguments to the program
-    - docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
-             pylint --output-format=colorized
-                    --disable=missing-module-docstring
-                    --disable=missing-class-docstring
-                    --disable=missing-function-docstring
-                    --disable=fixme
-                    $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
-    - exit ${exit_code}
-  stage: build
-
-lint_dockerfile:
-  stage: build
+lint-dockerfiles:
+  stage: pre-build
   image: hadolint/hadolint:latest-debian
   script:
     # Some rules cannot be applied in our specific cases.
@@ -82,25 +50,86 @@ lint_dockerfile:
     # - DL3008 (pin versions in apt-get install)
     # - DL3029 (do not use --platform flag with FROM)
     # - DL4006 (set the SHELL option -o pipefail before RUN with a pipe in it)
-    - hadolint *Dockerfile --failure-threshold warning --info DL3003 --info DL3008 --info DL3029 --info DL4006
+    - ${T} hadolint *Dockerfile
+           --failure-threshold warning
+           --info DL3003 --info DL3008 --info DL3029 --info DL4006
 
-docker-build-torizoncore-builder-amd64:
-  extends: .docker-build
+lint-python:
+  stage: pre-build
+  script:
+    # Refresh a cached image with pylint and all employed libraries.
+    - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${T} docker build -f torizoncore-builder.Dockerfile
+                        --cache-from "${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest"
+                        --build-arg IMAGE_ARCH=linux/amd64
+                        --target tcbuilder-dev
+                        --tag tcbuilder-dev-amd64
+                        .
+    - ${T} docker tag tcbuilder-dev-amd64 "${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest"
+    - ${T} docker push "${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest"
+    # Run the code linter disabling only docstring related warnings, use this run as exit code
+    # IMPORTANT: when running locally, DO NOT pass these --disable arguments to the program
+    - ${T} docker run --rm -v $(pwd):/work -w /work ${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest
+           pylint --output-format=colorized
+                  --disable=missing-module-docstring
+                  --disable=missing-class-docstring
+                  --disable=missing-function-docstring
+                  --disable=fixme
+                  $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
+    - exit ${exit_code}
+
+# Docker image builds
+#
+# Build the Docker images  specified in DOCKERFILE_FOLDER/IMAGE_NAME and push
+# it to Gitlab's internal Docker registry
+.build-base:
+  stage: build
+  variables:
+    IMAGE_TAG: ${DEBIAN_RELEASE}
+  before_script:
+    - export DATE=$(date +%Y%m%d)
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
+    - if [ "${RELEASE_TYPE}" = "official" ]; then
+         export VERSION_SUFFIX="";
+      else
+         export VERSION_SUFFIX="+${RELEASE_TYPE}";
+      fi
+  script:
+    - ${B} docker build -f "${DOCKERFILE_NAME}"
+                        --build-arg "IMAGE_ARCH=${IMAGE_ARCH}"
+                        --build-arg "IMAGE_TAG=${IMAGE_TAG}"
+                        --build-arg "VERSION_SUFFIX=${VERSION_SUFFIX}"
+                        --label "container.name=${IMAGE_NAME}"
+                        --label "container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}"
+                        --label "git.branch=${CI_COMMIT_BRANCH}"
+                        --label "git.hash=${CI_COMMIT_SHA}"
+                        --label "pipeline.id=${CI_PIPELINE_ID}"
+                        -t "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+                        -t "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+                        .
+    - ${B} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - ${B} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+
+build-amd64:
+  extends: .build-base
   variables:
     IMAGE_ARCH: linux/amd64
     IMAGE_NAME: torizoncore-builder-amd64
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
 
-docker-build-torizoncore-builder-arm64:
+# TODO: Consider removing arm64 completely.
+build-arm64:
+  extends: .build-base
   timeout: 5h
   when: manual
-  extends: .docker-build
   variables:
     IMAGE_ARCH: linux/arm64/v8
     IMAGE_NAME: torizoncore-builder-arm64
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
 
-integration-tests:
+test-integration:
+  stage: test
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
   script:
@@ -110,21 +139,29 @@ integration-tests:
     - mkdir -p workdir/reports && rm -Rf workdir/reports/*
     - TCB_SKIP_PULL=1 ./setup.sh
     # pull latest build of TorizonCore Builder
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+    - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
+    - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
+    # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
     # prepare images
+    - echo -e "\e[0Ksection_start:$(date +%s):download_tzimgs_section\r\e[0KDownload TorizonCore test images"
     - mkdir -p workdir/images
     - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_APALIS_IMX6} -O workdir/images/${TEST_IMAGE_APALIS_IMX6}'
     - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_VERDIN_IMX8MM} -O workdir/images/${TEST_IMAGE_VERDIN_IMX8MM}'
     - touch workdir/images/.images_downloaded
-    # run tests with Apalis iMX6 image
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=apalis-imx6 ./run.sh
-    # run tests with Verdin iMX8MM image
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=verdin-imx8mm ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
+    # run tests (32-bit device)
+    - echo -e "\e[0Ksection_start:$(date +%s):test_apalis_imx6_section\r\e[0KRun Apalis i.MX6 tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=apalis-imx6 ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_apalis_imx6_section\r\e[0K"
+    # run tests (64-bit device)
+    - echo -e "\e[0Ksection_start:$(date +%s):test_verdin_imx8mm_section\r\e[0KRun Verdin i.MX8 tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=verdin-imx8mm ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_verdin_imx8mm_section\r\e[0K"
     # check results
     - (! grep "^not ok" workdir/reports/*)
-  stage: test
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental
@@ -132,105 +169,373 @@ integration-tests:
     - "echo -e '{\n  \"experimental\": \"enabled\"\n}' | tee $HOME/.docker/config.json"
     - docker version
 
-.docker-build-multiarch:
-  when: manual
+.build-multiarch-base:
   before_script:
     - *do_docker_experimental
     - rm -rf ~/.docker/manifests/*
   script:
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-  - docker manifest create ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-  - docker manifest annotate ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST} ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}  --os linux --arch amd64
-  - docker manifest inspect -v ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
-  - docker manifest push ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+    - ${D} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${D} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - ${D} docker manifest create "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}" "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - ${D} docker manifest annotate "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}" "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${GITLAB_DOCKERREGISTRY_SUFFIX}" --os linux --arch amd64
+    - ${D} docker manifest inspect -v "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - ${D} docker manifest push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
 
-docker-build-torizoncore-builder-multiarch:
-  extends: .docker-build-multiarch
+# TODO: Note that this multiarch image is not actually used for anything at the moment.
+#       Maybe the goal is to allow debugging before pushing a (different) multi-arch image to DockerHub?
+build-multiarch:
+  extends: .build-multiarch-base
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: manual
   variables:
     IMAGE_NAME: torizoncore-builder
     IMAGE_NAME_AMD64: torizoncore-builder-amd64
   stage: build-multiarch
 
-# Docker deploy jobs
+# ---
+# Reusable deployment jobs
+# ---
+
+# Deploy to Docker Hub
 #
-# Make sure DOCKER_HUB_USER/DOCKER_HUB_TOKEN is properly set in the project
-# specific Gitlab CI settings.
-.docker-deploy:
-  when: manual
-  allow_failure: false
+# Inputs (variables):
+# - DOCKER_HUB_REPOSITORY
+# - DOCKER_HUB_USER
+# - DOCKER_HUB_TOKEN
+#
+# IMPORTANT: Make sure above variables are set properly in your Gitlab CI settings.
+#
+.deploy-dh-base:
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
     - *do_docker_experimental
-    - docker pull ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}
-    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_TOKEN;
+  script:
+    - ${D} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${D} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - ${D} docker login -u "${DOCKER_HUB_USER}" -p "${DOCKER_HUB_TOKEN}"
     - for tag in ${DOCKER_TAGS_CHECK};
         do
-          docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
-          (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && exit 1 ; fi);
+          ${D} docker manifest inspect "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}" > /dev/null && true; RESULT=$?;
+          (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && ${D} exit 1; fi);
         done
     - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
         do
-          docker tag ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
-          docker push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
+          ${D} docker tag "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}" "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}";
+          ${D} docker push "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}";
         done
 
-docker-deploy-torizoncore-builder-amd64:
-  extends: .docker-deploy
+.deploy-dh-multiarch-base:
+  before_script:
+    - *do_docker_experimental
+    - rm -rf ~/.docker/manifests/*
+  script:
+    - ${D} docker login -u "${DOCKER_HUB_USER}" -p "${DOCKER_HUB_TOKEN}"
+    - for tag in ${DOCKER_TAGS_CHECK};
+        do
+          ${D} docker manifest inspect "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}" > /dev/null && true; RESULT=$?;
+          (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && ${D} exit 1; fi);
+        done
+    - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
+        do
+          ${D} docker manifest create "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}" "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag}";
+          ${D} docker manifest annotate "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}" "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag}" --os linux --arch amd64;
+          ${D} docker manifest inspect -v "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}";
+          ${D} docker manifest push "${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag}";
+        done
+
+# Deploy to internal registry
+#
+.deploy-int-base:
+  before_script:
+    - *do_docker_experimental
+  script:
+    - ${D} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${D} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - for tag in ${DOCKER_TAGS_CHECK};
+        do
+          ${D} docker manifest inspect "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}" > /dev/null && true; RESULT=$?;
+          (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && ${D} exit 1; fi);
+        done
+    - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
+        do
+          ${D} docker tag "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}" "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}";
+          ${D} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}";
+        done
+
+.deploy-int-multiarch-base:
+  before_script:
+    - *do_docker_experimental
+    - rm -rf ~/.docker/manifests/*
+  script:
+    - ${D} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - for tag in ${DOCKER_TAGS_CHECK};
+        do
+          ${D} docker manifest inspect "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}" > /dev/null && true; RESULT=$?;
+          (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && ${D} exit 1; fi);
+        done
+    - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
+        do
+          ${D} docker manifest create "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}" "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${tag}";
+          ${D} docker manifest annotate "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}" "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AMD64}:${tag}" --os linux --arch amd64;
+          ${D} docker manifest inspect -v "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}";
+          ${D} docker manifest push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_DEST}:${tag}";
+        done
+
+# ---
+# Official deployment to Docker Hub (used when RELEASE_TYPE is "official")
+# ---
+
+deploy-official-amd64:
+  extends: .deploy-dh-base
+  stage: deploy
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "official"'
+      when: manual
+    - when: never
+  allow_failure: false
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
     - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
     - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
     - export DATE=$(date +%Y%m%d)
     - export DOCKER_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH} ${MAJOR}.${MINOR}.${PATCH}-${DATE}"
-    - export DOCKER_TAGS="${MAJOR} ${MAJOR}.${MINOR}"
+    - export DOCKER_TAGS="latest ${MAJOR} ${MAJOR}.${MINOR}"
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
-  stage: deploy
 
-docker-deploy-torizoncore-builder-arm64:
-  extends: .docker-deploy
+deploy-official-arm64:
+  extends: .deploy-dh-base
+  stage: deploy
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "official"'
+      when: manual
+    - when: never
+  allow_failure: true
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
     - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
     - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
     - export DATE=$(date +%Y%m%d)
     - export DOCKER_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH} ${MAJOR}.${MINOR}.${PATCH}-${DATE}"
-    - export DOCKER_TAGS="${MAJOR} ${MAJOR}.${MINOR}"
+    - export DOCKER_TAGS="latest ${MAJOR} ${MAJOR}.${MINOR}"
   variables:
     IMAGE_NAME: torizoncore-builder-arm64
-  stage: deploy
 
-.docker-deploy-multiarch:
-  script:
-  - *do_docker_experimental
-  - rm -rf ~/.docker/manifests/*
-  - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_TOKEN
-  - for tag in ${DOCKER_TAGS_CHECK};
-      do
-        docker manifest inspect ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} > /dev/null && true; RESULT=$?;
-        (if [ $RESULT == 0 ] ; then echo "Image with ${tag} tag already exists." && exit 1 ; fi);
-      done
-  - for tag in ${DOCKER_TAGS} ${DOCKER_TAGS_CHECK};
-      do
-        docker manifest create ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag};
-        docker manifest annotate ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag} ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME_AMD64}:${tag} --os linux --arch amd64;
-        docker manifest inspect -v ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
-        docker manifest push ${DOCKER_HUB_REPOSITORY}/${IMAGE_NAME}:${tag};
-      done
-
-docker-deploy-torizoncore-builder-multiarch:
-  extends: .docker-deploy-multiarch
-  needs: ["docker-deploy-torizoncore-builder-amd64"]
+deploy-official-multiarch:
+  extends: .deploy-dh-multiarch-base
+  stage: deploy-multiarch
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "official"'
+      when: manual
+    - when: never
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
     - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
     - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
     - export DATE=$(date +%Y%m%d)
     - export DOCKER_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH} ${MAJOR}.${MINOR}.${PATCH}-${DATE}"
-    - export DOCKER_TAGS="${MAJOR} ${MAJOR}.${MINOR}"
+    - export DOCKER_TAGS="latest ${MAJOR} ${MAJOR}.${MINOR}"
   variables:
     IMAGE_NAME: torizoncore-builder
     IMAGE_NAME_AMD64: torizoncore-builder-amd64
+
+# ---
+# Early-access deployment to Docker Hub (used when RELEASE_TYPE is "early-access")
+# ---
+
+deploy-ea-amd64:
+  extends: .deploy-dh-base
+  stage: deploy
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: never
+  allow_failure: false
+  before_script:
+    - export DOCKER_TAGS_CHECK=""
+    - export DOCKER_TAGS="early-access"
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
+
+# NOTE: arm64 is not being built for early-access ATM.
+#deploy-ea-arm64:
+#  extends: .deploy-dh-base
+#  stage: deploy
+#  rules:
+#    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+#      when: never
+#    - if: '$RELEASE_TYPE == "early-access"'
+#      when: on_success
+#    - when: never
+#  allow_failure: true
+#  before_script:
+#    - export DOCKER_TAGS_CHECK=""
+#    - export DOCKER_TAGS="early-access"
+#  variables:
+#    IMAGE_NAME: torizoncore-builder-arm64
+
+deploy-ea-multiarch:
+  extends: .deploy-dh-multiarch-base
   stage: deploy-multiarch
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: never
+  before_script:
+    - export DOCKER_TAGS_CHECK=""
+    - export DOCKER_TAGS="early-access"
+  variables:
+    IMAGE_NAME: torizoncore-builder
+    IMAGE_NAME_AMD64: torizoncore-builder-amd64
+
+# ---
+# Internal use deployment (used when RELEASE_TYPE is "internal")
+# ---
+
+deploy-int-amd64:
+  extends: .deploy-int-base
+  stage: deploy
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "internal"'
+      when: manual
+    - when: never
+  before_script:
+    - export DOCKER_TAGS_CHECK=""
+    - export DOCKER_TAGS="${TORIZONCORE_BUILDER_MAJOR} ${TORIZONCORE_BUILDER_MAJOR}-latest"
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
+    IMAGE_NAME_DEST: torizoncore-builder-internal-amd64
+
+# NOTE: arm64 is not being built for internal ATM.
+#deploy-int-arm64:
+#  extends: .deploy-int-base
+#  stage: deploy
+#  rules:
+#    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+#      when: never
+#    - if: '$RELEASE_TYPE == "internal"'
+#      when: manual
+#    - when: never
+#  before_script:
+#    - export DOCKER_TAGS_CHECK=""
+#    - export DOCKER_TAGS="${TORIZONCORE_BUILDER_MAJOR} ${TORIZONCORE_BUILDER_MAJOR}-latest"
+#  variables:
+#    IMAGE_NAME: torizoncore-builder-arm64
+#    IMAGE_NAME_DEST: torizoncore-builder-internal-arm64
+
+deploy-int-multiarch:
+  extends: .deploy-int-multiarch-base
+  stage: deploy-multiarch
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "internal"'
+      when: manual
+    - when: never
+  before_script:
+    - export DOCKER_TAGS_CHECK=""
+    - export DOCKER_TAGS="${TORIZONCORE_BUILDER_MAJOR} ${TORIZONCORE_BUILDER_MAJOR}-latest"
+  variables:
+    #IMAGE_NAME: torizoncore-builder
+    IMAGE_NAME_DEST: torizoncore-builder-internal
+    IMAGE_NAME_AMD64: torizoncore-builder-internal-amd64
+
+# ---
+# Git tagging
+# ---
+
+# Make sure to create a Project Access Token in "Settings/Access Tokens" section with
+# "write_repository" scope selected. Then in "Settings/CI/CD" section add a variable
+# with key "GIT_TOKEN" and a value of the access token; also mask the variable.
+#
+.tag-base:
+  before_script:
+    - if [ -z "${GIT_TOKEN}" ]; then echo "Missing variable GIT_TOKEN."; exit 1; fi
+  script:
+    - apk update && apk add git
+    - git remote set-url --push origin "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${GIT_TOKEN}@${CI_REPOSITORY_URL##*@}"
+    - REMOTE_TAGS="$(git ls-remote --tags origin)"
+    - for tag in ${GIT_TAGS_CHECK};
+        do
+          echo "Check existence of tag ${tag}";
+          if echo "${REMOTE_TAGS}" | grep "\\brefs/tags/${tag//./\\.}\$" >/dev/null; then
+            echo "Git tag ${tag} already exists.";
+            exit 1;
+          fi
+        done
+    - for tag in ${GIT_TAGS} ${GIT_TAGS_CHECK};
+        do
+          echo "Assigning tag ${tag} to HEAD";
+          git tag -f "${tag}";
+          git push -f -o ci.skip origin "refs/tags/${tag}";
+        done
+
+tag-official:
+  extends: .tag-base
+  stage: tag
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "official"'
+      when: manual
+    - when: never
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export GIT_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH}"
+    - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-${DATE}"
+
+tag-ea:
+  extends: .tag-base
+  stage: tag
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: never
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export GIT_TAGS_CHECK=""
+    - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-ea-${DATE}"
+
+tag-int:
+  extends: .tag-base
+  stage: tag
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$RELEASE_TYPE == "internal"'
+      when: manual
+    - when: never
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export GIT_TAGS_CHECK=""
+    - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-int-${DATE}"
