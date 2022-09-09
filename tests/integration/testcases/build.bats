@@ -221,9 +221,9 @@ load 'lib/common.bash'
     fi
 
     # Enable `accept-licence`
-    cat $SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml | \
+    cat "$SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml" | \
               sed -Ee 's/## accept-licence/accept-licence/' > \
-              $SAMPLES_DIR/config/tcbuild-with-accept.yaml
+              "$SAMPLES_DIR/config/tcbuild-with-accept.yaml"
 
     run torizoncore-builder build \
           --file "$SAMPLES_DIR/config/tcbuild-with-accept.yaml" \
@@ -247,11 +247,11 @@ load 'lib/common.bash'
     torizoncore-builder-clean-storage
 
     # Create input image, clearing all overlays and adding 2 dummy overlays.
-    cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
               sed -Ee 's/## add:/add:/' \
-              -Ee '/\badd:/ s/sample_overlay2/sample_overlay/' \
-              -Ee '/\badd:/ s@]@, samples/dts/sample_overlay1.dts]@' > \
-              $SAMPLES_DIR/config/tcbuild-modified.yaml
+                  -Ee '/\badd:/ s/sample_overlay2/sample_overlay/' \
+                  -Ee '/\badd:/ s@]@, samples/dts/sample_overlay1.dts]@' > \
+              "$SAMPLES_DIR/config/tcbuild-modified.yaml"
 
     run torizoncore-builder build \
               --file "$SAMPLES_DIR/config/tcbuild-modified.yaml" \
@@ -267,9 +267,9 @@ load 'lib/common.bash'
     assert_equal "$actual_result" "$expect_result"
 
     # Test with clear as true, Adding just one overlay.
-    cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
               sed -Ee 's/## add:/add:/' > \
-              $SAMPLES_DIR/config/tcbuild-clear-true.yaml
+              "$SAMPLES_DIR/config/tcbuild-clear-true.yaml"
 
     run torizoncore-builder build \
             --file "$SAMPLES_DIR/config/tcbuild-clear-true.yaml" \
@@ -285,10 +285,10 @@ load 'lib/common.bash'
     assert_equal "$actual_result" "$expect_result"
 
     # Test with clear as false, no image added.
-    cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
               sed -Ee 's/\bclear:\s*true/clear: false/' \
-              -Ee 's/## add:/add:/' > \
-              $SAMPLES_DIR/config/tcbuild-clear-false.yaml
+                  -Ee 's/## add:/add:/' > \
+              "$SAMPLES_DIR/config/tcbuild-clear-false.yaml"
 
     run torizoncore-builder build \
             --file "$SAMPLES_DIR/config/tcbuild-clear-false.yaml" \
@@ -304,9 +304,9 @@ load 'lib/common.bash'
     assert_equal "$actual_result" "$expect_result"
 
     # Test with clear as default, adding one image.
-    cat $SAMPLES_DIR/config/tcbuild-with-clear.yaml | \
+    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
           sed -Ee '/\bclear:\s*true/d' -Ee 's/## add:/add:/' > \
-          $SAMPLES_DIR/config/tcbuild-clear-default.yaml
+          "$SAMPLES_DIR/config/tcbuild-clear-default.yaml"
 
     run torizoncore-builder build \
             --file "$SAMPLES_DIR/config/tcbuild-clear-default.yaml" \
@@ -326,21 +326,35 @@ load 'lib/common.bash'
 
 @test "build: basic tcbuild referencing a docker-compose file" {
     local COMPOSE='docker-compose.yml'
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
-    fi
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
     local OUTDIR='customized_image'
+    local FILE="$SAMPLES_DIR/config/tcbuild-with-compose.yaml"
+    local if_ci=""
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        if_ci="1"
+        cat "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" | \
+              sed -Ee 's/## username:/username:/' \
+                  -Ee 's/## password:/password:/' > \
+              "$SAMPLES_DIR/config/tcbuild-with-compose-login.yaml"
+        FILE="$SAMPLES_DIR/config/tcbuild-with-compose-login.yaml"
+    fi
 
     run torizoncore-builder build \
-        --file "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" \
+        --file "$FILE" --force \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" \
-        --set COMPOSE_FILE="$COMPOSE" --force
+        --set COMPOSE_FILE="$COMPOSE" \
+        ${if_ci:+--set "USERNAME=$CI_DOCKER_HUB_PULL_USER"
+                 --set "PASSWORD=$CI_DOCKER_HUB_PULL_PASSWORD"}
+
     assert_success
     assert_output --partial 'Connecting to Docker Daemon'
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     # Check presence of container:
     run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]

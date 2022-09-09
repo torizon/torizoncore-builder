@@ -5,14 +5,22 @@ load 'lib/common.bash'
 
 
 @test "combine: check if image directory has a valid tezi image" {
+    local if_ci=""
     local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
+
     rm -rf bundle
-    torizoncore-builder bundle $COMPOSE
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     local FILES="image.json *.zst"
     for FILE in $FILES
@@ -33,15 +41,22 @@ load 'lib/common.bash'
 }
 
 @test "combine: run with the deprecated --image-directory switch" {
+    local if_ci=""
     local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
 
     rm -rf bundle
-    torizoncore-builder bundle $COMPOSE
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
@@ -57,15 +72,22 @@ load 'lib/common.bash'
 }
 
 @test "combine: run with the deprecated --output-directory switch" {
+    local if_ci=""
     local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
 
     rm -rf bundle
-    torizoncore-builder bundle $COMPOSE
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
@@ -81,15 +103,22 @@ load 'lib/common.bash'
 }
 
 @test "combine: check without --bundle-directory parameter" {
+    local if_ci=""
     local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
 
     rm -rf bundle
-    torizoncore-builder bundle $COMPOSE
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
@@ -106,15 +135,23 @@ load 'lib/common.bash'
 }
 
 @test "combine: check with --bundle-directory parameters" {
+    local if_ci=""
     local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
+
     local BUNDLE_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
-    torizoncore-builder bundle --bundle-directory $BUNDLE_DIR $COMPOSE
+    run torizoncore-builder bundle --bundle-directory "$BUNDLE_DIR" "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
@@ -134,15 +171,22 @@ load 'lib/common.bash'
 @test "combine: check with --image-autoinstall" {
     local LICENSE_FILE="license-fc.html"
     local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
+    local if_ci=""
     local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-      cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-      cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
 
     rm -rf bundle
-    torizoncore-builder bundle $COMPOSE
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
@@ -182,15 +226,22 @@ load 'lib/common.bash'
 
 @test "combine: check with --image-autoreboot" {
     local COMPOSE='docker-compose.yml'
+    local if_ci=""
     local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
     if [ "$TCB_UNDER_CI" = "1" ]; then
-        cp "$SAMPLES_DIR/compose/hello/docker-compose-proxy.yml" "$COMPOSE"
-    else
-        cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+        if_ci="1"
     fi
 
     rm -rf bundle
-    torizoncore-builder bundle $COMPOSE
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
+
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
 
     unpack-image $DEFAULT_TEZI_IMAGE
     local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')

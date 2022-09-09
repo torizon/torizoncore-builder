@@ -1,4 +1,0 @@
-version: '2.4'
-services:
-  hello-world:
-    image: artifactory-horw.int.toradex.com/dockerhub-proxy-horw/hello-world
