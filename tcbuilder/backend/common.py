@@ -340,9 +340,9 @@ def get_own_container_id(
     # Try to find container with a certain image name:
     container_id = None
     for container in docker_client.containers.list():
-        assert container_id is None, \
-            f"Found more than one *{image_name}* container"
         if image_name in container.attrs["Config"]["Image"]:
+            assert container_id is None, \
+                f"Found more than one *{image_name}* container"
             container_id = container.attrs["Id"]
 
     if container_id is not None:

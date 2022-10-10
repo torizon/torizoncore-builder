@@ -197,3 +197,21 @@ load 'lib/common.bash'
     rm -f "$COMPOSE"
     rm -rf "$BUNDLE_DIR"
 }
+
+@test "bundle: check registry pattern" {
+    local COMPOSE_FILE="$SAMPLES_DIR/compose/hello/docker-compose.yml"
+    local INVALID_REGISTRIES=(
+      "http://registry.com"
+      "tcp://registry/something"
+      "https://registry.com")
+
+    for registry in "${INVALID_REGISTRIES[@]}"; do
+      run torizoncore-builder bundle --login-to "${registry}" None None "${COMPOSE_FILE}"
+      assert_failure
+      assert_output --partial "invalid registry specified"
+
+      run torizoncore-builder bundle --cacert "${registry}" None "${COMPOSE_FILE}"
+      assert_failure
+      assert_output --partial "invalid registry specified"
+    done
+}

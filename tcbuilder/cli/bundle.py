@@ -7,6 +7,7 @@ import argparse
 import logging
 import os
 import shutil
+import re
 
 from tcbuilder.backend import common
 from tcbuilder.backend import bundle as bundle_be
@@ -14,10 +15,13 @@ from tcbuilder.errors import InvalidArgumentError, InvalidStateError
 
 log = logging.getLogger("torizon." + __name__)
 
+REGISTRY_REGEX = re.compile((r"^((?!.*://).*|"
+                             r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+                             r"(:[0-9]*)?$"))
 
 # pylint: disable=too-many-arguments
 def bundle(bundle_dir, compose_file, force=False, platform=None,
-           logins=None, dind_params=None):
+           logins=None, cacerts=None, dind_params=None):
     """Main handler of the bundle command (CLI layer)
 
     :param bundle_dir: Name of bundle directory (that will be created in the
@@ -30,6 +34,8 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
     :param logins: List of logins to perform: each element of the list must
                    be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
                    (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
+    :param cacerts: List of CAcerts to perform: each element on the list must
+                    be a 2-tuple with: (REGISTRY, CERTIFICATE)
     :param dind_params: Extra parameters to pass to Docker-in-Docker (list).
     """
 
@@ -50,7 +56,7 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
     bundle_be.download_containers_by_compose_file(
         bundle_dir, compose_file, host_workdir, logins,
         output_filename=common.DOCKER_BUNDLE_FILENAME,
-        platform=platform,
+        cacerts=cacerts, platform=platform,
         dind_params=dind_params)
 
     log.info(f"Successfully created Docker Container bundle in \"{bundle_dir}\"!")
@@ -84,10 +90,24 @@ def do_bundle(args):
         raise InvalidArgumentError(
             "Error: the COMPOSE_FILE positional argument is required.")
 
+    def check_registry_names(registries):
+        if registries is None:
+            return
+        for registry in registries:
+            if not REGISTRY_REGEX.match(registry[0]):
+                raise InvalidArgumentError(
+                    f"Error: invalid registry specified: '{registry[0]}'; "
+                    "the registry can be specified as a domain name or an IP "
+                    "address possibly followed by :<port-number>")
+
+    check_registry_names(args.cacerts)
+    check_registry_names(args.extra_logins)
+
     # Build list of logins:
     logins = []
     if args.main_login:
         logins.append(args.main_login)
+
     if args.extra_logins:
         logins.extend(args.extra_logins)
 
@@ -96,6 +116,7 @@ def do_bundle(args):
            force=args.force,
            platform=args.platform,
            logins=logins,
+           cacerts=args.cacerts,
            dind_params=args.dind_params)
 
     common.set_output_ownership(args.bundle_directory)
@@ -144,6 +165,12 @@ def init_parser(subparsers):
         metavar=('REGISTRY', 'USERNAME', 'PASSWORD'),
         help=("Request that the tool logs in to registry REGISTRY using "
               "specified USERNAME and PASSWORD (can be employed multiple times)."))
+    subparser.add_argument(
+        "--cacert-to", nargs=2, action="append", dest="cacerts",
+        metavar=('REGISTRY', 'CERTIFICATE'),
+        help=("Define a root CA CERTIFICATE (path to file in PEM format) "
+              "to be used for validating the certificate of the specified "
+              "secure REGISTRY (when connecting to it). "))
     subparser.add_argument(
         "--dind-param", action="append", dest="dind_params", metavar="DIND_PARAM",
         help=("Parameter to forward to the Docker-in-Docker container executed by the "

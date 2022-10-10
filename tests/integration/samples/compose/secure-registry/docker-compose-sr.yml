@@ -1,0 +1,14 @@
+version: '2.4'
+services:
+  hello-world:
+    image: hello-world
+  # @NAME1@:
+    # image: @IMAGE1@
+  # @NAME2@:
+    # image: @IMAGE2@
+  # @NAME3@:
+    # image: @IMAGE3@
+  # @NAME4@:
+    # image: @IMAGE4@
+  # @NAME5@:
+    # image: @IMAGE5@

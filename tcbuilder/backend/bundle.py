@@ -19,7 +19,7 @@ import docker
 import docker.errors
 import docker.types
 
-from tcbuilder.errors import OperationFailureError
+from tcbuilder.errors import InvalidArgumentError, OperationFailureError
 from tcbuilder.backend.common import get_own_network
 
 log = logging.getLogger("torizon." + __name__)
@@ -101,6 +101,9 @@ class DockerManager:
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.output_dir, check=True)
+
+    def add_cacerts(self, cacerts):
+        assert cacerts is None, "`cacerts` should be used with DindManager"
 
 # pylint: enable=no-self-use
 
@@ -369,6 +372,35 @@ class DindManager(DockerManager):
             os.remove(output_filepath)
         subprocess.run(compression_command, cwd=self.bundle_dir, check=True)
 
+    def add_cacerts(self, cacerts):
+        """Add the required certificate files for a secure registry
+        to the container
+
+        :param cacerts: List of CAcerts to perform: each element on the list must
+                        be a 2-tuple with: (REGISTRY, CERTIFICATE)
+        """
+        if not cacerts:
+            return
+
+        for cacert in cacerts:
+            registry, cert = cacert
+
+            if not os.path.exists(cert):
+                raise InvalidArgumentError(
+                    f"Error: CAcert File '{cert}' not found.")
+
+            file_name = os.path.basename(cert)
+            file, _ = os.path.splitext(file_name)
+
+            log.info(f"Adding CAcert file '{file_name}' to "
+                     f"'{registry}' registry")
+            self.dind_container.exec_run(
+                f'mkdir -p /etc/docker/certs.d/{registry}/')
+
+            self.dind_container.exec_run(
+                f'cp /workdir/{cert} '
+                f'/etc/docker/certs.d/{registry}/{file}.crt')
+
 # pylint: enable=too-many-instance-attributes
 
 
@@ -446,7 +478,8 @@ def login_to_registries(client, logins):
 # pylint: disable=too-many-arguments,too-many-locals
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, logins, output_filename,
-        platform=None, dind_params=None, use_host_docker=False, show_progress=True):
+        cacerts=None, platform=None, dind_params=None, use_host_docker=False,
+        show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -459,6 +492,8 @@ def download_containers_by_compose_file(
                    (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
     :param output_filename: Output filename of the processed Docker Compose
                             YAML.
+    :param cacerts: List of CAcerts to perform: each element on the list must
+                    be a 2-tuple with: (REGISTRY, CERTIFICATE)
     :param platform: Container Platform to fetch (if an image is multi-arch
                         capable)
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
@@ -508,6 +543,7 @@ def download_containers_by_compose_file(
 
     try:
         manager.start(network, default_platform=platform, dind_params=dind_params)
+        manager.add_cacerts(cacerts)
 
         dind_client = manager.get_client()
         if dind_client is None:
