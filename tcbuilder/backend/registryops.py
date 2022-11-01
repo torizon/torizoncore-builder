@@ -7,7 +7,8 @@ import re
 from urllib.parse import urljoin
 
 import requests
-from tcbuilder.errors import TorizonCoreBuilderError
+from requests.auth import HTTPBasicAuth
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -114,9 +115,12 @@ class ParsedImageName:
     def get_name_with_tag(self):
         """Get name of the image including the tag or digest"""
         _tag = self.tag or "latest"
-        if _tag.startswith(SHA256_PREFIX):
-            return f"{self.name}@{_tag}"
-        return f"{self.name}:{_tag}"
+        separator = "@" if _tag.startswith(SHA256_PREFIX) else ":"
+
+        if self.registry:
+            return f"{self.registry}/{self.name}{separator}{_tag}"
+
+        return f"{self.name}{separator}{_tag}"
 
     def set_tag(self, tag, is_digest=True):
         if is_digest:
@@ -169,7 +173,9 @@ def parse_image_name(image_name):
         comps = name_with_tag.split("/")
         if registry is None and len(comps) == 2:
             # E.g. fedora/httpd:latest, localhost:8000/httpd:latest
-            if ":" in comps[0]:
+            # E.g. registry.azurecr.io/testing
+            # E.g. 192.168.0.1/testing
+            if ":" in comps[0] or "." in comps[0]:
                 registry, name_with_tag = comps
         elif registry is None and len(comps) == 3:
             # E.g. gcr.io/fedora/httpd:latest
@@ -196,6 +202,7 @@ class RegistryOperations:
     """Class providing operations on a Docker registry"""
 
     LOGINS = []
+    CACERTS = []
 
     @classmethod
     def set_logins(cls, logins):
@@ -208,13 +215,58 @@ class RegistryOperations:
         """
         cls.LOGINS = logins.copy()
 
-    def __init__(self, regurl=None):
+    @classmethod
+    def set_cacerts(cls, cacerts):
+        """Set the cacert used in secure private registries
+
+        :param cacerts: A list-like object where one element is a pair (REGISTRY, CACERT)
+                        to be used with private secure registries.
+        """
+        cls.CACERTS = cacerts.copy()
+        for cacert in cls.CACERTS:
+
+            cacert_path = os.path.abspath(cacert[1])
+            if not os.path.isfile(cacert_path):
+                raise InvalidArgumentError(
+                    f"Error: CA certificate file '{cacert[1]}' must exist and be a file.")
+
+            cacert[1] = cacert_path
+
+    def __init__(self, regurl=None, registry=None):
+        if regurl and registry:
+            assert False, "'regurl' and 'registry' are multually exclusives."
         # Ensure registry URL ends with a slash.
-        if regurl and regurl[-1] == "/":
+        if regurl and regurl[-1] != "/":
             regurl += "/"
         self.regurl = regurl or DEFAULT_REGISTRY
         self.token_cache = {}
+        self.registry = registry
+        self.cacert = None
+        self.login = None
         # TODO: Ensure regurl specifies a scheme.
+
+        if registry:
+            self._init_priv_registry_vars()
+
+    def _init_priv_registry_vars(self):
+        """Sort through the LOGINS list, list with 3-tuple: (REGISTRY, USERNAME, PASSWORD),
+        and the CACERTS list, list with a 2-tuple: (REGISTRY, CACERT). Assigning the cacert and
+        login variables to the instance.
+        """
+        known_schemes = ["http://", "https://"]
+        for cacert in self.CACERTS:
+            if cacert[0] == self.registry:
+                self.cacert = cacert[1]
+
+        for _login in self.LOGINS:
+            if len(_login) == 2:
+                continue
+            reg, username, password = _login
+            if reg == self.registry:
+                self.login = (username, password)
+
+        protocol = known_schemes[1] if self.cacert or self.login else known_schemes[0]
+        self.regurl = f"{protocol}{self.registry}"
 
     # pylint:disable=no-self-use
     def _parse_www_auth_header(self, headers):
@@ -307,10 +359,9 @@ class RegistryOperations:
         headers.update(DEFAULT_GET_MANIFEST_HEADERS)
 
         parsed_name = parse_image_name(image_name)
-        assert not parsed_name.registry, \
-            "Registry name cannot be passed to get_manifest()"
+
         # Define name for building the manifest's URL.
-        if not parsed_name.get_repo():
+        if self.regurl == DEFAULT_REGISTRY and not parsed_name.get_repo():
             name = "library/" + parsed_name.name
         else:
             name = parsed_name.name
@@ -322,7 +373,7 @@ class RegistryOperations:
         url = urljoin(self.regurl, f"v2/{name}/manifests/{tag}")
 
         # Helper to do the request setting the headers.
-        def _do_request():
+        def _do_request(cacert=None, login=None):
             nonlocal headers
             _scope = f"repository:{name}:pull"
             if _scope in self.token_cache:
@@ -334,12 +385,17 @@ class RegistryOperations:
                 })
             else:
                 log.debug(f"No token cached for scope {_scope}")
-            res = requests.get(url, headers=headers)
+
+            auth = None
+            if login:
+                auth = HTTPBasicAuth(*login)
+
+            res = requests.get(url, headers=headers, verify=cacert, auth=auth)
             # log.debug(f"Response: {res.text}")
             return res
 
         # Perform request.
-        res = _do_request()
+        res = _do_request(self.cacert, self.login)
         # Perform request with an access token (if needed).
         if res.status_code == requests.codes["unauthorized"]:
             self._request_token(headers=res.headers)
@@ -347,6 +403,17 @@ class RegistryOperations:
 
         if res.status_code != requests.codes["ok"]:
             return (res, None) if ret_digest else res
+
+        media_types = [MANIFEST_MEDIA_TYPE, MANIFEST_LIST_MEDIA_TYPE]
+        if res.headers["content-type"] not in media_types:
+            assert False, \
+                f"Unexpected content-type for manifest of '{image_name}'"
+
+        response_json = res.json()
+        assert response_json["mediaType"] in media_types, \
+                f"Wrong mediaType on manifest ({response_json['mediaType']})"
+        assert response_json["schemaVersion"] == 2, \
+                f"Wrong schemaVersion on manifest ({response_json['schemaVersion']})"
 
         if val_digest or ret_digest:
             digest_ = hashlib.sha256()

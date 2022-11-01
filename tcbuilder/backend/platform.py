@@ -1175,8 +1175,6 @@ def set_images_hash(compose_file_data):
     :param compose_file_data: The Docker compose file data.
     """
 
-    registry = RegistryOperations()
-
     if not isinstance(compose_file_data.get('services'), dict):
         raise InvalidDataError("Error: No 'services' section in compose file.")
 
@@ -1184,13 +1182,11 @@ def set_images_hash(compose_file_data):
         image_name = svc_spec.get('image')
         if not image_name:
             raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
-        # TODO: Support registry name specification in the compose file.
+
         image = parse_image_name(image_name)
-        if image.registry:
-            raise TorizonCoreBuilderError(
-                "Error: Registry name specification is not supported yet "
-                f"(at service '{svc_name}').")
+        registry = RegistryOperations(registry=image.registry)
         response, image_digest = registry.get_manifest(image_name, ret_digest=True)
+
         if response.status_code != 200:
             raise InvalidDataError(f"Error: Can't determine digest for image '{image_name}'.")
         # Replace tag by digest:

@@ -20,7 +20,7 @@ function remove_registries() {
 
     # Removing existing containers and networks
     if [ -n "$(docker container ls -qaf name="^${DIND_CONTAINER}\$")" ]; then
-      docker container rm -f "${DIND_CONTIANER}"
+      docker container rm -f "${DIND_CONTAINER}"
     fi
 
     if [ -n "$(docker container ls -qaf name="^${SR_NO_AUTH}\$")" ]; then

@@ -155,22 +155,7 @@ def init_parser(subparsers):
         help=("Default platform for fetching container images when multi-"
               "platform images are specified in the compose file (e.g. "
               "linux/arm/v7 or linux/arm64)."))
-    subparser.add_argument(
-        "--login", nargs=2, dest="main_login",
-        metavar=('USERNAME', 'PASSWORD'),
-        help=("Request that the tool logs in to the default [Docker Hub] "
-              "registry using specified USERNAME and PASSWORD."))
-    subparser.add_argument(
-        "--login-to", nargs=3, action="append", dest="extra_logins",
-        metavar=('REGISTRY', 'USERNAME', 'PASSWORD'),
-        help=("Request that the tool logs in to registry REGISTRY using "
-              "specified USERNAME and PASSWORD (can be employed multiple times)."))
-    subparser.add_argument(
-        "--cacert-to", nargs=2, action="append", dest="cacerts",
-        metavar=('REGISTRY', 'CERTIFICATE'),
-        help=("Define a root CA CERTIFICATE (path to file in PEM format) "
-              "to be used for validating the certificate of the specified "
-              "secure REGISTRY (when connecting to it). "))
+    common.add_common_registry_arguments(subparser)
     subparser.add_argument(
         "--dind-param", action="append", dest="dind_params", metavar="DIND_PARAM",
         help=("Parameter to forward to the Docker-in-Docker container executed by the "

@@ -206,7 +206,7 @@ def platform_lockbox(
                        lockbox image.
     :param creds_file: Name of the `credentials.zip` file.
     :param output_dir: Directory where the lockbox image will be created.
-    :param docker_logins: A list-like object where one element is a pai
+    :param docker_logins: A list-like object where one element is a pair
                           (username, password) to be used with the default
                           registry and the other items are 3-tuples
                           (registry, username, password) with authentication
@@ -412,6 +412,22 @@ def do_platform_provdata(args):
 def do_platform_push(args):
     """Wrapper for 'platform push' subcommand"""
 
+    if args.cacerts or args.extra_logins:
+        if not args.canonicalize and not args.canonicalize_only:
+            log.warning("Warning: The '--login', '--login-to', and '--cacert-to' "
+                        "parameters are optional with no canonicalization.")
+
+    RegistryOperations.set_cacerts(args.cacerts)
+
+    # Build list of logins:
+    logins = []
+    if args.main_login:
+        logins.append(args.main_login)
+
+    logins.extend(args.extra_logins)
+
+    RegistryOperations.set_logins(logins)
+
     if args.canonicalize_only:
         # pylint: disable=singleton-comparison
         if args.canonicalize == False:
@@ -497,6 +513,7 @@ def add_common_push_arguments(subparser):
               "its extension to '.lock.yml' or '.lock.yaml' and pushing it to Torizon "
               "OTA; The package name is the name of the generated file if no package "
               "name is provided."))
+    common.add_common_registry_arguments(subparser)
     subparser.add_argument(
         "--canonicalize-only", dest="canonicalize_only", action="store_true",
         help="Canonicalize the docker-compose.yml file but do not send it to OTA server.",

@@ -119,6 +119,32 @@ def add_ssh_arguments(subparser):
                            type=int)
 
 
+def add_common_registry_arguments(subparser):
+    """
+    Add the registry arguments: login, login-to and cacert-to.
+
+    --login (USERNAME PASSWORD)
+    --login-to (REGISTRY USERNAME PASSWORD)
+    --cacert-to (REGISTRY CACERT)
+    """
+    subparser.add_argument(
+        "--login", nargs=2, dest="main_login",
+        metavar=('USERNAME', 'PASSWORD'),
+        help=("Request that the tool logs in to the default [Docker Hub] "
+              "registry using specified USERNAME and PASSWORD."))
+    subparser.add_argument(
+        "--login-to", nargs=3, action="append", dest="extra_logins", default=[],
+        metavar=('REGISTRY', 'USERNAME', 'PASSWORD'),
+        help=("Request that the tool logs in to registry REGISTRY using "
+              "specified USERNAME and PASSWORD (can be employed multiple times)."))
+    subparser.add_argument(
+        "--cacert-to", nargs=2, action="append", dest="cacerts", default=[],
+        metavar=('REGISTRY', 'CERTIFICATE'),
+        help=("Define a root CA CERTIFICATE (path to file in PEM format) "
+              "to be used for validating the certificate of the specified "
+              "secure REGISTRY (when connecting to it)."))
+
+
 def get_unpack_command(filename):
     """Get shell command to unpack a given file format"""
     cmd = "cat"
