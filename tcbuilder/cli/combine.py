@@ -83,7 +83,8 @@ def init_parser(subparsers):
         help=("Combines a container bundle with a specified Toradex Easy "
               "Installer image."),
         epilog=("NOTE: the switches --image-directory and --output_directory "
-                "have been removed."))
+                "have been removed."),
+        allow_abbrev=False)
 
     add_bundle_directory_argument(subparser)
 

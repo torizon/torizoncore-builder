@@ -29,7 +29,8 @@ def init_parser(subparsers):
         help="Push artifact to OTA server as a new update package.",
         description=("Warning: The \"push\" command is deprecated and will be "
                      "removed in an upcoming major release of TorizonCore Builder; "
-                     "please use \"platform push\" instead."))
+                     "please use \"platform push\" instead."),
+        allow_abbrev=False)
 
     platform_cli.add_common_push_arguments(subparser)
 

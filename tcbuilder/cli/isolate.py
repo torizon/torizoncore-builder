@@ -71,8 +71,10 @@ def init_parser(subparsers):
     Parse for "isolate" command.
     """
 
-    subparser = subparsers.add_parser("isolate",
-                                      help="capture /etc changes.")
+    subparser = subparsers.add_parser(
+        "isolate",
+        help="capture /etc changes.",
+        allow_abbrev=False)
 
     subparser.add_argument("--changes-directory",
                            dest="changes_dir",

@@ -38,7 +38,8 @@ parser = argparse.ArgumentParser(
                 "Installer images without rebuilding the complete operating "
                 "system.",
     epilog="Learn more on "
-           "https://developer.toradex.com/knowledge-base/torizoncore-builder-tool")
+           "https://developer.toradex.com/knowledge-base/torizoncore-builder-tool",
+    allow_abbrev=False)
 
 
 def setup_logging(arg_level, verbose, file):

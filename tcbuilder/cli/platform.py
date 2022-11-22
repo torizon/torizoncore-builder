@@ -533,7 +533,8 @@ def init_parser(subparsers):
     parser = subparsers.add_parser(
         "platform",
         help=("Execute operations that interact with the Torizon Platform Services "
-              "(app.torizon.io) or a compatible server"))
+              "(app.torizon.io) or a compatible server"),
+        allow_abbrev=False)
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # platform lockbox
@@ -546,7 +547,8 @@ def init_parser(subparsers):
                 "should be copied (and possibly renamed) to the "
                 "removable media used for the offline updates; the name "
                 "of the directory in the media should be in accordance "
-                "with the update client (aktualizr) configuration."))
+                "with the update client (aktualizr) configuration."),
+        allow_abbrev=False)
     subparser.add_argument(
         dest="lockbox_name",
         metavar="LOCKBOX_NAME",
@@ -599,7 +601,8 @@ def init_parser(subparsers):
         epilog=("Switch --shared-data is normally employed with \"offline\" "
                 "provisioning mode while with \"online\" provisioning both "
                 "--shared-data and --online-data switches are commonly used "
-                "together."))
+                "together."),
+        allow_abbrev=False)
 
     subparser.add_argument(
         "--credentials", dest="credentials",
@@ -630,7 +633,8 @@ def init_parser(subparsers):
                 "form; this can be achieved by passing the "
                 "'--canonicalize' switch to the program in which case "
                 "the file will be translated into canonical "
-                "form before being uploaded to the server."))
+                "form before being uploaded to the server."),
+        allow_abbrev=False)
 
     add_common_push_arguments(subparser)
 

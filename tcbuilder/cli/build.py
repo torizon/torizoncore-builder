@@ -504,7 +504,8 @@ def init_parser(subparsers):
     parser = subparsers.add_parser(
         "build",
         help=("Customize a Toradex Easy Installer image based on settings "
-              "specified via a configuration file."))
+              "specified via a configuration file."),
+        allow_abbrev=False)
 
     parser.add_argument(
         "--create-template", dest="create_template",

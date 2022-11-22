@@ -126,21 +126,26 @@ def init_parser(subparsers):
     '''Initializes the 'dt' subcommands command line interface.'''
 
     parser = subparsers.add_parser(
-        "dt", description="Manage device trees", help="Manage device trees")
+        "dt",
+        description="Manage device trees",
+        help="Manage device trees",
+        allow_abbrev=False)
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # dt status
     subparser = subparsers.add_parser(
         "status",
         description="Show the currently enabled device tree",
-        help="Show the currently enabled device tree")
+        help="Show the currently enabled device tree",
+        allow_abbrev=False)
     subparser.set_defaults(func=do_dt_status)
 
     # dt checkout
     subparser = subparsers.add_parser(
         "checkout",
         description="Checkout Toradex device tree and overlays repository",
-        help="Checkout Toradex device tree and overlays repository")
+        help="Checkout Toradex device tree and overlays repository",
+        allow_abbrev=False)
     subparser.add_argument(
         "--update", dest="update", action="store_true",
         help="Update device-trees repository (if existing)",
@@ -151,7 +156,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "apply",
         description="Compile and enable a device tree",
-        help="Compile and enable a device tree")
+        help="Compile and enable a device tree",
+        allow_abbrev=False)
     subparser.add_argument(
         metavar="DEVICE_TREE", dest="dts_path", help="Path to the device tree source file")
     subparser.add_argument(

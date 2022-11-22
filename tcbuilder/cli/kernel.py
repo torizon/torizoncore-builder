@@ -251,13 +251,17 @@ def assert_custom_kargs_compat_image(storage_dir):
 def init_parser(subparsers):
     """Initialize 'kernel' subcommands command line interface."""
 
-    parser = subparsers.add_parser("kernel", help="Manage and modify TorizonCore Linux Kernel.")
+    parser = subparsers.add_parser(
+        "kernel",
+        help="Manage and modify TorizonCore Linux Kernel.",
+        allow_abbrev=False)
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
     # kernel build_module
-    subparser = subparsers.add_parser("build_module",
-                                      help="""Build the kernel module at the provided
-                                      source directory.""")
+    subparser = subparsers.add_parser(
+        "build_module",
+        help="Build the kernel module at the provided source directory.",
+        allow_abbrev=False)
     subparser.add_argument(metavar="SRC_DIR", dest="source_directory", nargs='?',
                            help="Path to directory with kernel module source code.")
     subparser.add_argument("--autoload", dest="autoload", action="store_true",
@@ -265,18 +269,24 @@ def init_parser(subparsers):
     subparser.set_defaults(func=do_kernel_build_module)
 
     # kernel set_custom_args
-    subparser = subparsers.add_parser("set_custom_args",
-                                      help="Set the TorizonCore kernel arguments.")
+    subparser = subparsers.add_parser(
+        "set_custom_args",
+        help="Set the TorizonCore kernel arguments.",
+        allow_abbrev=False)
     subparser.add_argument(metavar="KERNEL_ARGS", dest="kernel_args", nargs='+',
                            help="Kernel arguments to be added.")
     subparser.set_defaults(func=do_kernel_set_custom_args)
 
     # kernel get_custom_args
-    subparser = subparsers.add_parser("get_custom_args",
-                                      help="Get the TorizonCore kernel arguments.")
+    subparser = subparsers.add_parser(
+        "get_custom_args",
+        help="Get the TorizonCore kernel arguments.",
+        allow_abbrev=False)
     subparser.set_defaults(func=do_kernel_get_custom_args)
 
     # kernel clear_custom_args
-    subparser = subparsers.add_parser("clear_custom_args",
-                                      help="Clear the TorizonCore kernel arguments.")
+    subparser = subparsers.add_parser(
+        "clear_custom_args",
+        help="Clear the TorizonCore kernel arguments.",
+        allow_abbrev=False)
     subparser.set_defaults(func=do_kernel_clear_custom_args)

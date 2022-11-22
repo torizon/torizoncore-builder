@@ -73,7 +73,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "splash",
         help="change splash screen",
-        epilog="NOTE: the switches --image and --work-dir have been removed.")
+        epilog="NOTE: the switches --image and --work-dir have been removed.",
+        allow_abbrev=False)
 
     subparser.add_argument(
         dest="splash_image",

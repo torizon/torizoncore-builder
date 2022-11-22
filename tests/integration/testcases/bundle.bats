@@ -210,7 +210,7 @@ load 'lib/common.bash'
       assert_failure
       assert_output --partial "invalid registry specified"
 
-      run torizoncore-builder bundle --cacert "${registry}" None "${COMPOSE_FILE}"
+      run torizoncore-builder bundle --cacert-to "${registry}" None "${COMPOSE_FILE}"
       assert_failure
       assert_output --partial "invalid registry specified"
     done

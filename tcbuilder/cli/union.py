@@ -267,7 +267,9 @@ def init_parser(subparsers):
         help=("Create a commit out of isolated changes for unpacked "
               "Toradex Easy Installer Image"),
         epilog=("NOTE: the switch --extra-changes-directory has been "
-                "removed; please use --changes-directory instead."))
+                "removed; please use --changes-directory instead."),
+        allow_abbrev=False)
+
     subparser.add_argument(
         "--changes-directory", dest="changes_dirs", action='append',
         help=("Path to the directory containing user changes (can be "

@@ -297,26 +297,27 @@ function teardown() {
         done
     done
 
-  run torizoncore-builder platform push --canonicalize-only \
-                                        --cacert "${SR_NO_AUTH_IP}" "${SR_NO_AUTH_CERTS}/cacert.crt" \
-                                        --login-to "${SR_WITH_AUTH_IP}" toradex test \
-                                        --cacert "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
-                                        --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER"
-                                                           "$CI_DOCKER_HUB_PULL_PASSWORD"}
-  assert_success
-
-  # Same image was used in the creation of all the images on the private registries.
-  # The manifest should be the same for all of them.
-  run docker exec "${DIND_CONTAINER}" /bin/ash -c "\
-        docker image ls --digests --format "{{.Digest}}" ${SR_NO_AUTH_IP}/test1"
-  assert_success
-
-  local DIGEST="${output}"
-
-  for i in {1..4}; do
-    run grep -A1 "test${i}:" "${SR_COMPOSE_FOLDER}/docker-compose.lock.yml"
+    run torizoncore-builder platform push \
+        --canonicalize-only \
+        --cacert-to "${SR_NO_AUTH_IP}" "${SR_NO_AUTH_CERTS}/cacert.crt" \
+        --login-to "${SR_WITH_AUTH_IP}" toradex test \
+        --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
+        --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER"
+                          "$CI_DOCKER_HUB_PULL_PASSWORD"}
     assert_success
-    assert_output --partial "${DIGEST}"
-  done
+
+    # Same image was used in the creation of all the images on the private registries.
+    # The manifest should be the same for all of them.
+    run docker exec "${DIND_CONTAINER}" /bin/ash -c "\
+          docker image ls --digests --format "{{.Digest}}" ${SR_NO_AUTH_IP}/test1"
+    assert_success
+
+    local DIGEST="${output}"
+
+    for i in {1..4}; do
+      run grep -A1 "test${i}:" "${SR_COMPOSE_FOLDER}/docker-compose.lock.yml"
+      assert_success
+      assert_output --partial "${DIGEST}"
+    done
 }

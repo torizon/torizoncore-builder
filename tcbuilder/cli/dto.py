@@ -387,7 +387,8 @@ def init_parser(subparsers):
     parser = subparsers.add_parser(
         "dto",
         description="Manage device tree overlays",
-        help="Manage device tree overlays")
+        help="Manage device tree overlays",
+        allow_abbrev=False)
 
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
 
@@ -395,7 +396,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "apply",
         description="Apply a device tree overlay",
-        help="Apply a device tree overlay")
+        help="Apply a device tree overlay",
+        allow_abbrev=False)
     subparser.add_argument(
         metavar="OVERLAY", dest="dtos_path",
         help="Path to the device tree overlay source file")
@@ -418,7 +420,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "list",
         description="List the device tree overlays compatible with the current device tree",
-        help="List the device tree overlays compatible with the current device tree")
+        help="List the device tree overlays compatible with the current device tree",
+        allow_abbrev=False)
     subparser.add_argument(
         "--device-tree",
         metavar="FILE", dest="device_tree",
@@ -430,14 +433,16 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "status",
         description="List the applied device tree overlays",
-        help="List the applied device tree overlays")
+        help="List the applied device tree overlays",
+        allow_abbrev=False)
     subparser.set_defaults(func=do_dto_status)
 
     # dto remove
     subparser = subparsers.add_parser(
         "remove",
         description="Remove a device tree overlay",
-        help="Remove a device tree overlay")
+        help="Remove a device tree overlay",
+        allow_abbrev=False)
     subparser.add_argument(
         metavar="OVERLAY", dest="dtob_basename", nargs='?',
         help="Name of the device tree overlay")
@@ -451,7 +456,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "deploy",
         description="Deploy a device tree overlay in the device",
-        help="Deploy a device tree overlay in the device")
+        help="Deploy a device tree overlay in the device",
+        allow_abbrev=False)
     subparser.add_argument(
         "--remote-host",
         dest="remote_host",

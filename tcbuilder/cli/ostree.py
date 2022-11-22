@@ -62,7 +62,8 @@ def init_parser(subparsers):
 
     parser = subparsers.add_parser(
         "ostree",
-        help="OSTree operational commands")
+        help="OSTree operational commands",
+        allow_abbrev=False)
 
     subparsers = parser.add_subparsers(
         title='Commands',
@@ -72,7 +73,8 @@ def init_parser(subparsers):
     # serve command
     subparser = subparsers.add_parser(
         "serve",
-        help="Serve OSTree on the local network using http")
+        help="Serve OSTree on the local network using http",
+        allow_abbrev=False)
 
     subparser.add_argument(
         "--ostree-repo-directory",

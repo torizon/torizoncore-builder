@@ -133,7 +133,8 @@ def init_parser(subparsers):
         epilog=(
             "NOTE: following switches have been removed: --docker-username, "
             "--docker-password, --registry, --host-workdir and --file (-f); "
-            "please review your command line if using any of them."))
+            "please review your command line if using any of them."),
+        allow_abbrev=False)
 
     common.add_bundle_directory_argument(subparser)
 

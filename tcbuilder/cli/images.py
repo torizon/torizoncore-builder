@@ -150,7 +150,10 @@ def do_images_unpack(args):
 def init_parser(subparsers):
     """Initialize 'images' subcommands command line interface."""
 
-    parser = subparsers.add_parser("images", help="Manage Toradex Easy Installer Images.")
+    parser = subparsers.add_parser(
+        "images",
+        help="Manage Toradex Easy Installer Images.",
+        allow_abbrev=False)
     # FIXME: This should be moved to "images unpack" and "images download"
     parser.add_argument("--remove-storage", dest="remove_storage", action="store_true",
                         help="""Automatically clear storage prior to unpacking a new Easy
@@ -160,7 +163,8 @@ def init_parser(subparsers):
     # images download
     subparser = subparsers.add_parser(
         "download",
-        help="Download image from Toradex Artifactory and unpack it.")
+        help="Download image from Toradex Artifactory and unpack it.",
+        allow_abbrev=False)
     subparser.add_argument(
         "--remote-host", dest="remote_host",
         help="Hostname/IP address to target device.", required=True)
@@ -176,7 +180,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "provision",
         help=("Generate a Toradex Easy Installer image with provisioning data "
-              "for secure updates."))
+              "for secure updates."),
+        allow_abbrev=False)
     subparser.add_argument(
         metavar="INPUT_DIRECTORY",
         dest="input_directory",
@@ -207,7 +212,9 @@ def init_parser(subparsers):
     # images serve
     subparser = subparsers.add_parser(
         "serve",
-        help="Serve TorizonCore Toradex Easy Installer images via HTTP.")
+        help="Serve TorizonCore Toradex Easy Installer images via HTTP.",
+        allow_abbrev=False)
+
     subparser.add_argument(
         metavar="IMAGES_DIRECTORY",
         dest="images_directory",
@@ -218,7 +225,8 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "unpack",
         help=("Unpack a specified Toradex Easy Installer image so it can be "
-              "modified with the union subcommand."))
+              "modified with the union subcommand."),
+        allow_abbrev=False)
     subparser.add_argument(
         metavar="IMAGE", dest="image_directory", nargs='?',
         help="Path to Easy Installer file or directory.")

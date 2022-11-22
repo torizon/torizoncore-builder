@@ -107,7 +107,8 @@ def do_deploy(args):
 def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "deploy",
-        help="Deploy the current image as a Toradex Easy Installer image.")
+        help="Deploy the current image as a Toradex Easy Installer image.",
+        allow_abbrev=False)
 
     subparser.add_argument("--output-directory", dest="output_directory",
                            help="Output path for TorizonCore Toradex Easy Installer image.")
