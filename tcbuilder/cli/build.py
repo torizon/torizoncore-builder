@@ -11,6 +11,7 @@ from datetime import datetime
 from tezi.errors import TeziError
 from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
+from tcbuilder.backend.registryops import RegistryOperations
 from tcbuilder.errors import (
     FileContentMissing, FeatureNotImplementedError, InvalidDataError,
     InvalidStateError, LicenceAcceptanceError, TorizonCoreBuilderError,
@@ -335,7 +336,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
         try:
             # Download bundle to temporary directory - currently that directory
             # must be relative to the work directory.
-            logins = None
+            logins = []
             if bundle_props.get("registry") and bundle_props.get("username"):
                 logins = [(bundle_props.get("registry"),
                            bundle_props.get("username"),
@@ -344,12 +345,13 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
                 logins = [(bundle_props.get("username"),
                            bundle_props.get("password", ""))]
 
+            RegistryOperations.set_logins(logins)
+
             download_params = {
                 "output_dir": bundle_dir,
                 "compose_file": bundle_props["compose-file"],
                 "host_workdir": common.get_host_workdir()[0],
                 "use_host_docker": False,
-                "logins": logins,
                 "output_filename": common.DOCKER_BUNDLE_FILENAME,
                 "platform": platform
             }

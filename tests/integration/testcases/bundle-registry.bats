@@ -14,13 +14,8 @@ function teardown() {
     run build_registries
     assert_success
 
-    # Test if the registry container is running in the right IP address
-    run docker container ls -qf name="${SR_NO_AUTH}$"
+    run check_registries
     assert_success
-    assert_equal $(
-      docker inspect -f \
-          '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $output) \
-          "${SR_NO_AUTH_IP}"
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \
         "${SR_COMPOSE_FOLDER}/docker-compose.yml"
@@ -48,13 +43,8 @@ function teardown() {
     run build_registries
     assert_success
 
-    # Check if the container IP matches the assigned value
-    run docker container ls -qf name="${SR_WITH_AUTH}$"
+    run build_registries
     assert_success
-    assert_equal $(
-      docker inspect -f \
-          '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $output) \
-          "${SR_WITH_AUTH_IP/:[0-9]*/}"
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \
         "${SR_COMPOSE_FOLDER}/docker-compose.yml"
@@ -81,6 +71,8 @@ function teardown() {
 @test "bundle-registries: check with with all registries" {
     local if_ci=""
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
+    local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
+    local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
       if_ci="1"
@@ -89,17 +81,8 @@ function teardown() {
     run build_registries
     assert_success
 
-    local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
-    local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
-
-    for i in {0..1}; do
-      run docker container ls -qf name="${CONTAINERS[i]}$"
-      assert_success
-      assert_equal $(
-        docker inspect -f \
-        '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $output) \
-        "${REGISTRIES[i]/:[0-9]*/}"
-    done
+    run check_registries
+    assert_success
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \
         "${SR_COMPOSE_FOLDER}/docker-compose.yml"

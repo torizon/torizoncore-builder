@@ -21,6 +21,7 @@ import docker.types
 
 from tcbuilder.errors import InvalidArgumentError, OperationFailureError
 from tcbuilder.backend.common import get_own_network
+from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -377,7 +378,8 @@ class DindManager(DockerManager):
         to the container
 
         :param cacerts: List of CAcerts to perform: each element on the list must
-                        be a 2-tuple with: (REGISTRY, CERTIFICATE)
+                        be a 2-tuple with: (REGISTRY, CERTIFICATE). CERTIFICATE must
+                        be an absolute path.
         """
         if not cacerts:
             return
@@ -391,14 +393,13 @@ class DindManager(DockerManager):
 
             file_name = os.path.basename(cert)
             file, _ = os.path.splitext(file_name)
-
             log.info(f"Adding CAcert file '{file_name}' to "
                      f"'{registry}' registry")
             self.dind_container.exec_run(
                 f'mkdir -p /etc/docker/certs.d/{registry}/')
 
             self.dind_container.exec_run(
-                f'cp /workdir/{cert} '
+                f'cp {cert} '
                 f'/etc/docker/certs.d/{registry}/{file}.crt')
 
 # pylint: enable=too-many-instance-attributes
@@ -477,8 +478,8 @@ def login_to_registries(client, logins):
 
 # pylint: disable=too-many-arguments,too-many-locals
 def download_containers_by_compose_file(
-        output_dir, compose_file, host_workdir, logins, output_filename,
-        cacerts=None, platform=None, dind_params=None, use_host_docker=False,
+        output_dir, compose_file, host_workdir, output_filename,
+        platform=None, dind_params=None, use_host_docker=False,
         show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
@@ -487,13 +488,8 @@ def download_containers_by_compose_file(
     :param compose_file: Docker Compose YAML file or path
     :param host_workdir: Working directory location on the Docker Host (the
                             system where dockerd we are accessing is running)
-    :param logins: List of logins to perform: each element of the list must
-                   be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
-                   (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
     :param output_filename: Output filename of the processed Docker Compose
                             YAML.
-    :param cacerts: List of CAcerts to perform: each element on the list must
-                    be a 2-tuple with: (REGISTRY, CERTIFICATE)
     :param platform: Container Platform to fetch (if an image is multi-arch
                         capable)
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
@@ -540,7 +536,8 @@ def download_containers_by_compose_file(
         manager = DindManager(output_dir, host_workdir)
 
     network = get_own_network()
-
+    cacerts = RegistryOperations.get_cacerts()
+    logins = RegistryOperations.get_logins()
     try:
         manager.start(network, default_platform=platform, dind_params=dind_params)
         manager.add_cacerts(cacerts)

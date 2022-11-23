@@ -391,10 +391,8 @@ def fetch_manifests(images, manifests_dir,
         if verbose:
             log.info(f"\nFetching manifests for {image}...")
         image_parsed = parse_image_name(image)
-        assert image_parsed.registry is None, \
-            f"{image}: Specifying a registry is not currently supported"
 
-        ops = RegistryOperations()
+        ops = RegistryOperations(registry=image_parsed.registry)
         digests_saved, manifests_info = ops.save_all_manifests(
             image_parsed.get_name_with_tag(), manifests_dir,
             platforms=req_platforms,
@@ -556,7 +554,7 @@ def select_unique_images(image_platform_pairs, manifests_per_image,
 
 # pylint:disable=too-many-locals
 def build_docker_tarballs(unique_images, target_dir, host_workdir,
-                          verbose=True, logins=None, dind_params=None):
+                          verbose=True, dind_params=None):
     """Build the docker tarballs of a lockbox image
 
     :param unique_images: Iterable giving the pairs (image, digest) for which
@@ -566,9 +564,6 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
     :param host_workdir: Working directory location on the Docker Host (the
                          system where dockerd we are accessing is running).
     :param verbose: Whether to show verbose output/progress information.
-    :param logins: List of logins to perform: each element of the list must
-                   be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
-                   (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
     """
 
@@ -583,10 +578,13 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
     log.info("\nStarting DIND container")
     manager = DindManager(target_dir, host_workdir)
     tarballs = None
+    cacerts = RegistryOperations.get_cacerts()
+    logins = RegistryOperations.get_logins()
 
     try:
         # Start DinD container on host.
         manager.start("host", dind_params=dind_params)
+        manager.add_cacerts(cacerts)
         # Get DinD client to be used on the pulling operations.
         dind_client = manager.get_client()
         if dind_client is None:
@@ -662,7 +660,8 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
 # pylint: disable=too-many-arguments,too-many-locals
 def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
                          sha256=None, length=None, req_platforms=None,
-                         access_token=None, name=None, version=None):
+                         access_token=None, name=None, version=None,
+                         dind_params=None):
     """Fetch compose file target from the TUF repo along with referenced artifacts
 
     Parameter `req_platforms` should be a list of the platforms to select
@@ -699,7 +698,8 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     docker_dir = os.path.join(images_dir, sha256 + ".images")
     os.mkdir(docker_dir)
     build_docker_tarballs(
-        images_selection, docker_dir, host_workdir=get_host_workdir())
+        images_selection, docker_dir, host_workdir=get_host_workdir(),
+        dind_params=dind_params)
 # pylint: enable=too-many-arguments,too-many-locals
 
 

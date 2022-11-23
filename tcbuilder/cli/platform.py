@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 
 import dateutil.parser
 
+from tcbuilder.cli.bundle import add_dind_param_arguments
 from tcbuilder.backend import platform, sotaops, common
 from tcbuilder.backend.platform import JSON_EXT, OFFLINE_SNAPSHOT_FILE
 from tcbuilder.errors import \
@@ -117,12 +118,12 @@ def load_offupd_metadata(lockbox_name, source_dir):
     return offupd_targets_info, offupd_snapshot_info
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-arguments
 def fetch_offupdt_targets(
         offupdt_targets_info, imgrepo_targets_info,
         images_dir, docker_metadata_dir,
         ostree_url=None, repo_url=None, access_token=None,
-        docker_platforms=None):
+        docker_platforms=None, dind_params=None):
     """Fetch all targets referenced by the offline-update targets metadata
 
     :param offupdt_targets_info: Targets metadata of the offline-update.
@@ -136,6 +137,7 @@ def fetch_offupdt_targets(
                          the user at the OTA server.
     :param docker_platforms: List of platforms for fetching Docker images by
                              default.
+    :param dind_params: Parameters to pass to Docker-in-Docker (list).
     """
 
     # offupdt_targets = offupdt_targets_info["parsed"]["signed"]["targets"]
@@ -182,7 +184,8 @@ def fetch_offupdt_targets(
             if "docker-compose" in imgrepo_meta["custom"]["hardwareIds"]:
                 params.update({
                     "req_platforms": docker_platforms,
-                    "metadata_dir": docker_metadata_dir
+                    "metadata_dir": docker_metadata_dir,
+                    "dind_params": dind_params
                 })
                 platform.fetch_compose_target(**params)
             else:
@@ -191,14 +194,15 @@ def fetch_offupdt_targets(
         else:
             assert False, \
                 f"Do not know how to handle target of type {tgtformat}"
-# pylint: enable=too-many-locals
+# pylint: enable=too-many-locals,too-many-arguments
 
 
 # pylint: disable=too-many-locals
 def platform_lockbox(
         lockbox_name, creds_file, output_dir,
-        docker_logins=None, docker_platforms=None,
-        force=False, validate=True, fetch_targets=True):
+        docker_platforms=None, force=False,
+        validate=True, fetch_targets=True,
+        dind_params=None):
     """Main handler for the 'platform lockbox' subcommand
 
     :param lockbox_name: Name of the lockbox image as defined at the OTA server
@@ -206,14 +210,10 @@ def platform_lockbox(
                        lockbox image.
     :param creds_file: Name of the `credentials.zip` file.
     :param output_dir: Directory where the lockbox image will be created.
-    :param docker_logins: A list-like object where one element is a pair
-                          (username, password) to be used with the default
-                          registry and the other items are 3-tuples
-                          (registry, username, password) with authentication
-                          information to be used with other registries.
     :param force: Whether to force the generation of the output directory.
     :param validate: Whether to validate the Uptane metadata.
     :param fetch_targets: Whether to fetch the actual targets.
+    :param dind_params: Parameters to pass to Docker-in-Docker (list).
     """
 
     # Create output directory or abort:
@@ -240,9 +240,6 @@ def platform_lockbox(
     os.makedirs(dockermeta_dir)
 
     try:
-        # Configure Docker "operations" class.
-        RegistryOperations.set_logins(docker_logins)
-
         # Load credentials file.
         server_creds = sotaops.ServerCredentials(creds_file)
         # log.debug(server_creds)
@@ -281,7 +278,8 @@ def platform_lockbox(
                 images_dir=images_dir,
                 access_token=sota_token,
                 docker_metadata_dir=dockermeta_dir,
-                docker_platforms=docker_platforms)
+                docker_platforms=docker_platforms,
+                dind_params=dind_params)
         else:
             log.info(l1_pref("Handle Uptane targets [skipped]"))
 
@@ -300,18 +298,24 @@ def platform_lockbox(
 def do_platform_lockbox(args):
     """Wrapper for 'platform lockbox' subcommand"""
 
+    RegistryOperations.set_cacerts(args.cacerts)
+
     # Build list of logins:
     logins = []
     if args.main_login:
         logins.append(args.main_login)
 
+    logins.extend(args.extra_logins)
+
+    RegistryOperations.set_logins(logins)
+
     platform_lockbox(
         args.lockbox_name, args.credentials, args.output_directory,
-        docker_logins=logins,
         docker_platforms=(args.platforms or DEFAULT_PLATFORMS),
         force=args.force,
         validate=args.validate,
-        fetch_targets=args.fetch_targets)
+        fetch_targets=args.fetch_targets,
+        dind_params=args.dind_params)
 
 
 def _get_online_provdata_local(server_creds):
@@ -568,11 +572,8 @@ def init_parser(subparsers):
         dest="platforms",
         help=("Define platform to select when not specified in the compose file "
               f"(can be specified multiple times; default: {', '.join(DEFAULT_PLATFORMS)})."))
-    subparser.add_argument(
-        "--login", nargs=2, dest="main_login",
-        metavar=('USERNAME', 'PASSWORD'),
-        help=("Request that the tool logs in to the default [Docker Hub] "
-              "registry using specified USERNAME and PASSWORD."))
+    common.add_common_registry_arguments(subparser)
+    add_dind_param_arguments(subparser)
     subparser.add_argument(
         "--output-directory",
         help=("Relative path to the output directory (default: update/). If "

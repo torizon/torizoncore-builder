@@ -40,6 +40,23 @@ function remove_registries() {
 
 }
 
+function check_registries() {
+  (
+    set -eo pipefail
+
+    local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
+    local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
+
+    # Check if the containers IP address are correct.
+    for i in {0..1}; do
+        test "${REGISTRIES[i]/:[0-9]*/}" = \
+          "$(docker inspect -f \
+          '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+           $(docker container ls -qf name="${CONTAINERS[i]}$"))"
+    done
+  )
+}
+
 function build_registries() {
   remove_registries
 

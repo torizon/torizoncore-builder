@@ -38,6 +38,9 @@ WWW_AUTH_SCHEME_RE = re.compile(
     " *(?P<scheme>[" + WWW_AUTH_TOKEN_CHARS + "]+) *")
 WWW_AUTH_ATTRIB_SEP_RE = re.compile("( *, *| *$)")
 
+REGISTRY_REGEX = re.compile((r"^((?!.*://).*|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+                             r"(:[0-9]*)?$"))
+
 
 def parse_www_auth_header(header):
     """Basic parsing of the WWW-Authenticate HTTP header
@@ -198,6 +201,18 @@ def parse_image_name(image_name):
             f"Cannot parse image name {image_name}")
 
 
+def validate_registries(registries):
+    if registries is None:
+        return
+
+    for registry in registries:
+        if not REGISTRY_REGEX.match(registry[0]):
+            raise InvalidArgumentError(
+                f"Error: invalid registry specified: '{registry[0]}'; "
+                "the registry can be specified as a domain name or an IP "
+                "address possibly followed by :<port-number>")
+
+
 class RegistryOperations:
     """Class providing operations on a Docker registry"""
 
@@ -213,7 +228,14 @@ class RegistryOperations:
                        (registry, username, password) with authentication information to
                        be used with other registries.
         """
+
+        validate_registries(logins)
         cls.LOGINS = logins.copy()
+
+    @classmethod
+    def get_logins(cls):
+        """Get the list-like object 'LOGINS'."""
+        return cls.LOGINS
 
     @classmethod
     def set_cacerts(cls, cacerts):
@@ -222,6 +244,7 @@ class RegistryOperations:
         :param cacerts: A list-like object where one element is a pair (REGISTRY, CACERT)
                         to be used with private secure registries.
         """
+        validate_registries(cacerts)
         cls.CACERTS = cacerts.copy()
         for cacert in cls.CACERTS:
 
@@ -231,6 +254,11 @@ class RegistryOperations:
                     f"Error: CA certificate file '{cacert[1]}' must exist and be a file.")
 
             cacert[1] = cacert_path
+
+    @classmethod
+    def get_cacerts(cls):
+        """Get the list-like object 'CACERTS'."""
+        return cls.CACERTS
 
     def __init__(self, regurl=None, registry=None):
         if regurl and registry:
@@ -478,9 +506,9 @@ class RegistryOperations:
         if top_res.headers["content-type"] == MANIFEST_LIST_MEDIA_TYPE:
             top_data = top_res.json()
             assert top_data["mediaType"] == MANIFEST_LIST_MEDIA_TYPE, \
-                "Wrong mediaType of top-level manifest ({top_data['mediaType']})"
+                f"Wrong mediaType of top-level manifest ({top_data['mediaType']})"
             assert top_data["schemaVersion"] == 2, \
-                "Wrong schemaVersion of top-level manifest ({top_data['schemaVersion']})"
+                f"Wrong schemaVersion of top-level manifest ({top_data['schemaVersion']})"
             for child in top_data["manifests"]:
                 child_platform = platform_str(child["platform"])
                 if platforms is not None and not platform_in(child_platform, platforms):
@@ -489,6 +517,9 @@ class RegistryOperations:
                 child_res = self.get_manifest(
                     f"{name}@{child['digest']}",
                     headers=headers, ret_digest=False, val_digest=val_digest)
+                assert child_res.headers["content-type"] == MANIFEST_MEDIA_TYPE, \
+                    (f"Child manifests of type {child_res.headers['content-type']}"
+                     "are not supported.")
                 child_info = _mkinfo(
                     "manifest",
                     digest=child["digest"], platform=child_platform,

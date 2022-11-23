@@ -7,21 +7,19 @@ import argparse
 import logging
 import os
 import shutil
-import re
 
 from tcbuilder.backend import common
 from tcbuilder.backend import bundle as bundle_be
 from tcbuilder.errors import InvalidArgumentError, InvalidStateError
 
+from tcbuilder.backend.registryops import RegistryOperations
+
 log = logging.getLogger("torizon." + __name__)
 
-REGISTRY_REGEX = re.compile((r"^((?!.*://).*|"
-                             r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
-                             r"(:[0-9]*)?$"))
 
 # pylint: disable=too-many-arguments
 def bundle(bundle_dir, compose_file, force=False, platform=None,
-           logins=None, cacerts=None, dind_params=None):
+           dind_params=None):
     """Main handler of the bundle command (CLI layer)
 
     :param bundle_dir: Name of bundle directory (that will be created in the
@@ -31,11 +29,6 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
                   if it already exists.
     :param platform: Default platform to use when fetching multi-platform
                      container images.
-    :param logins: List of logins to perform: each element of the list must
-                   be either a 2-tuple: (USERNAME, PASSWORD) or a 3-tuple:
-                   (REGISTRY, USERNAME, PASSWORD) or equivalent iterable.
-    :param cacerts: List of CAcerts to perform: each element on the list must
-                    be a 2-tuple with: (REGISTRY, CERTIFICATE)
     :param dind_params: Extra parameters to pass to Docker-in-Docker (list).
     """
 
@@ -54,9 +47,9 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
     log.info("Creating Docker Container bundle...")
 
     bundle_be.download_containers_by_compose_file(
-        bundle_dir, compose_file, host_workdir, logins,
+        bundle_dir, compose_file, host_workdir,
         output_filename=common.DOCKER_BUNDLE_FILENAME,
-        cacerts=cacerts, platform=platform,
+        platform=platform,
         dind_params=dind_params)
 
     log.info(f"Successfully created Docker Container bundle in \"{bundle_dir}\"!")
@@ -90,19 +83,6 @@ def do_bundle(args):
         raise InvalidArgumentError(
             "Error: the COMPOSE_FILE positional argument is required.")
 
-    def check_registry_names(registries):
-        if registries is None:
-            return
-        for registry in registries:
-            if not REGISTRY_REGEX.match(registry[0]):
-                raise InvalidArgumentError(
-                    f"Error: invalid registry specified: '{registry[0]}'; "
-                    "the registry can be specified as a domain name or an IP "
-                    "address possibly followed by :<port-number>")
-
-    check_registry_names(args.cacerts)
-    check_registry_names(args.extra_logins)
-
     # Build list of logins:
     logins = []
     if args.main_login:
@@ -111,16 +91,30 @@ def do_bundle(args):
     if args.extra_logins:
         logins.extend(args.extra_logins)
 
+    RegistryOperations.set_logins(logins)
+    RegistryOperations.set_cacerts(args.cacerts)
+
     bundle(bundle_dir=args.bundle_directory,
            compose_file=args.compose_file,
            force=args.force,
            platform=args.platform,
-           logins=logins,
-           cacerts=args.cacerts,
            dind_params=args.dind_params)
 
     common.set_output_ownership(args.bundle_directory)
 
+def add_dind_param_arguments(subparser):
+    """
+    Add the --dind_param argument to a parser of a command.
+
+    :param subparser: A parser of a command line.
+    """
+    subparser.add_argument(
+        "--dind-param", action="append", dest="dind_params",
+        metavar="DIND_PARAM",
+        help=("Parameter to forward to the Docker-in-Docker container executed by the "
+              "tool (can be employed multiple times). The parameter will be processed "
+              "by the Docker daemon (dockerd) running in the container. Please see "
+              "Docker documentation for more information."))
 
 def init_parser(subparsers):
     """Initialize argument parser"""
@@ -157,12 +151,7 @@ def init_parser(subparsers):
               "platform images are specified in the compose file (e.g. "
               "linux/arm/v7 or linux/arm64)."))
     common.add_common_registry_arguments(subparser)
-    subparser.add_argument(
-        "--dind-param", action="append", dest="dind_params", metavar="DIND_PARAM",
-        help=("Parameter to forward to the Docker-in-Docker container executed by the "
-              "tool (can be employed multiple times). The parameter will be processed "
-              "by the Docker daemon (dockerd) running in the container. Please see "
-              "Docker documentation for more information."))
+    add_dind_param_arguments(subparser)
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-25).
     subparser.add_argument(

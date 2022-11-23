@@ -264,6 +264,8 @@ function teardown() {
 @test "platform: test with private registries" {
     local if_ci=""
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
+    local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
+    local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
 
     if [ "${TCB_UNDER_CI}" = "1" ]; then
       if_ci="1"
@@ -272,17 +274,8 @@ function teardown() {
     run build_registries
     assert_success
 
-    local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
-    local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
-
-    for i in {0..1}; do
-        run docker container ls -qf name="${CONTAINERS[i]}$"
-        assert_success
-        assert_equal $(
-          docker inspect -f \
-          '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $output) \
-          "${REGISTRIES[i]/:[0-9]*/}"
-    done
+    run check_registries
+    assert_success
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \
        "${SR_COMPOSE_FOLDER}/docker-compose.yml"
@@ -304,7 +297,7 @@ function teardown() {
         --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
         --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
         ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER"
-                          "$CI_DOCKER_HUB_PULL_PASSWORD"}
+                           "$CI_DOCKER_HUB_PULL_PASSWORD"}
     assert_success
 
     # Same image was used in the creation of all the images on the private registries.
@@ -320,4 +313,31 @@ function teardown() {
       assert_success
       assert_output --partial "${DIGEST}"
     done
+}
+
+@test "platform lockbox: test advanced registry access" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+    local if_ci=""
+    local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
+
+    if [ "${TCB_UNDER_CI}" = "1" ]; then
+      if_ci="1"
+    fi
+
+    run build_registries
+    assert_success
+
+    run check_registries
+    assert_success
+
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}"  \
+        --cacert-to "${SR_NO_AUTH_IP}" "${SR_NO_AUTH_CERTS}/cacert.crt" \
+        --login-to "${SR_WITH_AUTH_IP}" toradex test \
+        --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
+        --force LockBox-Test \
+        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER"
+                           "$CI_DOCKER_HUB_PULL_PASSWORD"}
+    assert_success
 }
