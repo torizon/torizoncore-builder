@@ -55,6 +55,9 @@ PROV_DIRECTOR_DIRNAME = "director"
 UPTANE_SIGN_UPLOAD_TIMEOUT = "60"
 TUF_REPO_DIR = "/deploy/tuf-repo"
 
+# SHA256 Hash Regex
+HASH_REGEX = re.compile(r"^[0-9a-f]{64}$")
+
 
 def load_metadata(fname, ftype=None, maxlen=DEFAULT_METADATA_MAXLEN):
     """Load metadata file and determine some of its attributes (size, sha256).
@@ -717,7 +720,7 @@ def fetch_binary_target(target, repo_url, images_dir,
                       access_token=access_token, name=name, version=version)
 
 
-def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None):
+def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None, verbose=True):
     """Fetch all the required metadata from an Uptane image repo
 
     :param repo_url: Base URL of the TUF repository as it appears in the
@@ -734,7 +737,8 @@ def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None):
 
     # NOTE: We do no validations in the snapshot metadata ATM (the device
     #       will do all required validations in the end).
-    log.info(f"Fetching '{SNAPSHOT_META_FILE}'")
+    if verbose:
+        log.info(f"Fetching '{SNAPSHOT_META_FILE}'")
 
     url = urljoin(repo_url + "/", f"api/v1/user_repo/{SNAPSHOT_META_FILE}")
     snapshot_meta = fetch_validate(
@@ -761,8 +765,8 @@ def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None):
             if not fname.startswith("tdx-"):
                 log.warning(f"Assuming file {fname} to be a delegation")
             url = urljoin(repo_url + "/", f"api/v1/user_repo/delegations/{fname}")
-
-        log.info(f"Fetching '{fname}'")
+        if verbose:
+            log.info(f"Fetching '{fname}'")
         # NOTE: The sha256 in the metadata does not seem to match the actual files.
         fetch_validate(
             url, fname, dest_dir,
@@ -775,7 +779,8 @@ def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None):
     for version in range(1, last_root_version + 1):
         fname = f"{version}.root.json"
         url = urljoin(repo_url + "/", f"api/v1/user_repo/{fname}")
-        log.info(f"Fetching '{fname}'")
+        if verbose:
+            log.info(f"Fetching '{fname}'")
         # It seems we cannot check the SHA and length of previous root data.
         fetch_validate(url, fname, dest_dir, access_token=access_token)
 
@@ -862,12 +867,13 @@ def fetch_director_metadata(lockbox_name, director_url, dest_dir, access_token=N
                 f"Error: Could not fetch metadata file '{fname}' from server")
 
 
-def load_imgrepo_targets(source_dir):
+def load_imgrepo_targets(source_dir, verbose=True):
     """Load Uptane lockbox image repo targets metadata (top-level and delegations)"""
 
     # Load top-level targets:
     targets_file = os.path.join(source_dir, TARGETS_META_FILE)
-    log.info(f"Loading image-repo targets metadata from '{targets_file}'")
+    if verbose:
+        log.info(f"Loading image-repo targets metadata from '{targets_file}'")
     targets_metadata = load_metadata(
         targets_file, ftype="json", maxlen=TARGETS_METADATA_MAXLEN)
     assert targets_metadata["parsed"]["signed"]["_type"] == "Targets"
@@ -876,20 +882,21 @@ def load_imgrepo_targets(source_dir):
     # Helper for parsing delegations (depth-first recursion).
     n_loaded = 0
 
-    def _load_delegations(node):
+    def _load_delegations(node, verbose=True):
         nonlocal n_loaded
         children = {}
         for deleg in node["parsed"]["signed"]["delegations"]["roles"]:
             deleg_name = deleg["name"]
             deleg_file = os.path.join(source_dir, deleg_name + JSON_EXT)
-            log.info(f"Loading image-repo delegated targets metadata from '{deleg_file}'")
+            if verbose:
+                log.info(f"Loading image-repo delegated targets metadata from '{deleg_file}'")
             deleg_metadata = load_metadata(
                 deleg_file, ftype="json", maxlen=TARGETS_METADATA_MAXLEN)
             assert deleg_metadata["parsed"]["signed"]["_type"] == "Targets"
             children[deleg_name] = deleg_metadata
             # Recursion:
             if "delegations" in deleg_metadata["parsed"]["signed"]:
-                _load_delegations(deleg_metadata)
+                _load_delegations(deleg_metadata, verbose)
             # Limit total number of delegations files loaded (protect from loops in metadata).
             n_loaded += 1
             assert n_loaded < 32, "Too many delegation files"
@@ -897,7 +904,7 @@ def load_imgrepo_targets(source_dir):
         node["children"] = children
 
     if "delegations" in targets_metadata["parsed"]["signed"]:
-        _load_delegations(targets_metadata)
+        _load_delegations(targets_metadata, verbose)
 
     # print(json.dumps(targets_metadata, indent=4))
     return targets_metadata
@@ -1087,9 +1094,74 @@ def push_ref(ostree_dir, credentials, ref, package_version=None,
 # pylint: enable=too-many-arguments
 
 
+def validate_package_selection_criteria(criteria):
+    """Validate the search criterion and search term
+    :param criteria: List of dicts with a search criterion as the key
+                     and the search term as the value. (e.g. {<criterion>: <term>}).
+    """
+    valid_criterion_keys = ["sha256"]
+    for criterion in criteria:
+        for key, value in criterion.items():
+            if key not in valid_criterion_keys:
+                raise InvalidDataError(
+                    "Error: Invalid Criterion, please select a supported criterion: "
+                    f"{valid_criterion_keys}")
+
+            if key == "sha256" and not HASH_REGEX.match(value):
+                raise InvalidDataError(
+                    f"Invalid SHA256 specified: '{', '.join(value)}'; The complete "
+                    "SHA256 should have 64 lowercase hexadecimal characters.")
+
+
+def translate_compatible_packages(credentials, criteria):
+    """Find the target packages using the search criterion and the search term. The
+    found packages are translated into the 'compatibleWith' information required by
+    the package.
+
+    :param credentials: Name of the `credentials.zip` file.
+    :param criteria: List of dicts with a search criterion as the key
+                     and the search term as the value. (e.g. {<criterion>: <term>}).
+    :return: Found packages' information and the 'compatibleWith' value.
+    """
+
+    server_creds = sotaops.ServerCredentials(credentials)
+    token = sotaops.get_access_token(server_creds)
+
+    with TemporaryDirectory() as tmpdir:
+        fetch_imgrepo_metadata(server_creds.repo_url, tmpdir, token, verbose=False)
+        targets_metadata = load_imgrepo_targets(tmpdir, verbose=False)
+
+    package_info = []
+    compatible_with = []
+
+    for criterion in criteria:
+        target_hash = criterion.get("sha256")
+        _, metadata_value = find_imgrepo_target(targets_metadata, target_hash)
+
+        if metadata_value is None:
+            raise InvalidDataError(
+                f"Error: Unable to find any packages with the 'sha256={target_hash}'")
+
+        package_name = None
+        package_version = None
+
+        if metadata_value.get("custom"):
+            package_name = metadata_value["custom"].get("name")
+            package_version = metadata_value["custom"].get("commitSubject")
+
+        package_info.append({
+            "name": package_name,
+            "version": package_version})
+
+        compatible_with.append({"sha256": target_hash})
+
+    return package_info, compatible_with
+
+
 # pylint: disable=too-many-arguments
 def push_compose(credentials, target, version, compose_file,
-                 canonicalize=None, force=False, description=None, verbose=False):
+                 canonicalize=None, force=False, description=None,
+                 compatible_with=None, verbose=False):
     """Push docker-compose file to OTA server."""
 
     if canonicalize:
@@ -1108,6 +1180,11 @@ def push_compose(credentials, target, version, compose_file,
     elif re.match(r".+\.lock\.ya?ml$", target) is None:
         log.info("Warning: For usage of this package with offline updates, the "
                  "package name must end with \".lock.yml\" or \".lock.yaml\".")
+
+    custom_metadata = {}
+
+    if compatible_with:
+        custom_metadata["compatibleWith"] = compatible_with
 
     log.info(f"Pushing '{os.path.basename(lock_file)}' with package version "
              f"{version} to OTA server. You should keep this file under your "
@@ -1133,7 +1210,7 @@ def push_compose(credentials, target, version, compose_file,
                         "--name", target,
                         "--version", version,
                         "--hardwareids", "docker-compose",
-                        "--customMeta", "{}"], verbose)
+                        "--customMeta", json.dumps(custom_metadata)], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "sign",
                         "--repo", TUF_REPO_DIR,

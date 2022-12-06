@@ -192,6 +192,17 @@ function teardown() {
     assert_output --partial "package version ${TIME_AND_NAME}"
     assert_output --partial 'Successfully pushed'
     assert_output --partial "Description for ${P_NAME}.yml updated."
+
+    local V1_SHA256="44ebe00783ae397562e3a9ef099249bd9f6b3cd8c01daff46618e85420f59c37"
+    local MCI_SHA256="2ba50085b4db59b2103ecb15526b3f2317d49a61bddd2bc28af67bd17e584068"
+
+    # Test-case: push a docker-compose with compatibilities defined.
+    run torizoncore-builder platform push  --credentials "${CREDS_PROD_ZIP}" \
+        --compatible-with "sha256=${V1_SHA256}" --compatible-with "sha256=${MCI_SHA256}" \
+        --package-version "$(date +'%H%M%S')" "${CANON_DIR}/${GOOD_YML}.lock.yml"
+    assert_success
+    assert_output --partial "Package v1 with version"
+    assert_output --partial "Package my_custom_image with version"
 }
 
 @test "platform: test push with images" {

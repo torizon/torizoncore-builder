@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sys
+import re
 
 from datetime import datetime, timezone
 
@@ -17,7 +18,9 @@ import dateutil.parser
 
 from tcbuilder.cli.bundle import add_dind_param_arguments
 from tcbuilder.backend import platform, sotaops, common
-from tcbuilder.backend.platform import JSON_EXT, OFFLINE_SNAPSHOT_FILE
+from tcbuilder.backend.platform import \
+    (JSON_EXT, OFFLINE_SNAPSHOT_FILE, validate_package_selection_criteria,
+     translate_compatible_packages)
 from tcbuilder.errors import \
     (PathNotExistError, InvalidStateError, InvalidDataError, InvalidArgumentError,
      TorizonCoreBuilderError, NoProvisioningDataInCredsFile)
@@ -456,12 +459,33 @@ def do_platform_push(args):
                                        "docker-compose package can only be "
                                        "\"docker-compose\"")
 
+        if not all(re.match("[a-z0-9]+=", string) for string in args.compatible_with):
+            raise InvalidArgumentError(
+                "Error: Search criterion must be specified; please specify the "
+                "hash of the desired compatible package by passing 'sha256=<hash>' "
+                "to the --compatible-with switch.")
+
+        criteria = [entry.split('=', 1) for entry in set(args.compatible_with)]
+        criteria = [dict([item]) for item in criteria]
+
+        validate_package_selection_criteria(criteria)
+        package_info, compatible_with = translate_compatible_packages(credentials, criteria)
+
+        for package in package_info:
+            package_name = package.get("name")
+            package_version = package.get("version")
+            log.info(f"Package {package_name} with version {package_version} added as compatible.")
+
         version = args.version or datetime.today().strftime("%Y-%m-%d")
         platform.push_compose(credentials=credentials, target=args.target, version=version,
                               compose_file=args.ref, canonicalize=args.canonicalize,
                               force=args.force, description=args.description,
-                              verbose=args.verbose)
+                              compatible_with=compatible_with, verbose=args.verbose)
     else:
+        if args.compatible_with:
+            raise InvalidArgumentError(
+                "Error: The '--compatible-with' is only valid when pushing a "
+                "docker-compose package.")
         if args.ostree is not None:
             src_ostree_archive_dir = os.path.abspath(args.ostree)
         else:
@@ -508,6 +532,13 @@ def add_common_push_arguments(subparser):
               "following the 'yyyy-mm-dd' format) or OSTree reference "
               "(default: OSTree subject)."),
         required=False, default=None)
+    subparser.add_argument(
+        "--compatible-with", action='append', dest="compatible_with", metavar='SHA256',
+        help=("Restrict an application package so it can only be installed with "
+              "a compatible OS image. OS image hash must be accessible in your Platforms "
+              "account; Pass the string 'sha256=<hash>' as parameter to this switch; "
+              "The switch can be used multiple times."),
+        required=False, default=[])
     subparser.add_argument(
         metavar="REF", dest="ref",
         help="OSTree reference or docker-compose file to push to Torizon OTA.")
