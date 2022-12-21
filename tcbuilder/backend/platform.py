@@ -578,7 +578,6 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
         elif not (_term.startswith('xterm') or _term.startswith('rxvt')):
             show_progress = False
 
-    log.info("\nStarting DIND container")
     manager = DindManager(target_dir, host_workdir)
     tarballs = None
     cacerts = RegistryOperations.get_cacerts()
@@ -646,7 +645,6 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
             f"Error: container images download failed: {str(exc)}") from exc
 
     finally:
-        log.info("Stopping DIND container")
         manager.stop()
 
     if tarballs and verbose:

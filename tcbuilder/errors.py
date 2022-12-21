@@ -107,3 +107,6 @@ class NoProvisioningDataInCredsFile(TorizonCoreBuilderError):
 
 class LicenceAcceptanceError(TorizonCoreBuilderError):
     pass
+
+class InvalidStorageDriverError(TorizonCoreBuilderError):
+    pass
