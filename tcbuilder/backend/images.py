@@ -32,6 +32,10 @@ PROV_IMPORT_DIRNAME = "import"
 PROV_ONLINE_DATA_FILENAME = "auto-provisioning.json"
 PROV_DATA_FILENAME = "provisioning-data.tar.gz"
 
+VERSION_TO_YOCTO_MAP = {
+    "dunfell": "dunfell-5.x.y",
+    "kirkstone": "kirkstone-6.x.y"
+}
 
 def serve(images_directory):
     """
@@ -163,8 +167,12 @@ def download_tezi(r_host, r_username, r_password, r_port,
         prod = "torizoncore-oe-prod-frankfurt"
         devel = ""
 
-    if "dunfell" in version:
-        yocto = "dunfell-5.x.y"
+    for key in VERSION_TO_YOCTO_MAP:
+        if key in version:
+            yocto = VERSION_TO_YOCTO_MAP[key]
+            break
+    else:
+        assert False, "Missing the Yocto reference"
 
     date = re.findall(r'.*-(.*?)\+', version)
     if not date:
