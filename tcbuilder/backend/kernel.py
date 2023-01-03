@@ -16,6 +16,11 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
+MAJOR_TO_GCC_MAP = {
+    5: "gcc-arm-9.2-2019.12",
+    6: "arm-gnu-toolchain-11.3.rel1"
+}
+
 
 def get_kernel_changes_dir(storage_dir):
     """Return directory containing kernel related changes"""
@@ -30,30 +35,39 @@ def build_module(src_dir, linux_src, src_mod_dir,
 
     # Figure out ARCH based on linux source
     config = os.path.join(linux_src, ".config")
-    file = open(config, 'r')
-    lines = file.readlines()
-    for line in lines:
-        if re.search("CONFIG_ARM=y", line):
-            arch = "arm"
-            break
-        if re.search("CONFIG_ARM64=y", line):
-            arch = "arm64"
-            break
+    with open(config, 'r') as file:
+        lines = file.read()
+
+    if re.search("CONFIG_ARM=y", lines, re.MULTILINE):
+        arch = "arm"
+    elif re.search("CONFIG_ARM64=y", lines, re.MULTILINE):
+        arch = "arm64"
+    else:
+        assert False, "Achitecture could not be determined from .config"
+
+    version_gcc = None
+    version_major = re.search(r"CONFIG_LOCALVERSION=\"-(\d+)\.\d+\.\d+", lines,
+                              re.MULTILINE)
+    if version_major:
+        version_major = int(version_major.group(1))
+        version_gcc = MAJOR_TO_GCC_MAP[version_major]
+
+    assert version_gcc, "Unable to determine the GCC toolchain version"
 
     # Set CROSS_COMPILE and toolchain based on ARCH
     toolchain_path = os.path.join(os.path.dirname(linux_src), "toolchain")
     if arch == "arm":
         c_c = "arm-none-linux-gnueabihf-"
         toolchain = os.path.join(toolchain_path,
-                                 "gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf/bin")
+                                 f"{version_gcc}-x86_64-arm-none-linux-gnueabihf/bin")
     if arch == "arm64":
         c_c = "aarch64-none-linux-gnu-"
         toolchain = os.path.join(toolchain_path,
-                                 "gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu/bin")
+                                 f"{version_gcc}-x86_64-aarch64-none-linux-gnu/bin")
 
     # Download toolchain if needed
     if not os.path.exists(toolchain):
-        download_toolchain(c_c, toolchain_path)
+        download_toolchain(c_c, toolchain_path, version_gcc)
 
     # Run modules_prepare on kernel source
     subprocess.check_output(f"""PATH=$PATH:{toolchain} make -C {linux_src} ARCH={arch} \
@@ -110,14 +124,14 @@ def autoload_module(module, kernel_changes_dir):
         file.write(f"{module_name} \n")
 
 
-def download_toolchain(toolchain, toolchain_path):
+def download_toolchain(toolchain, toolchain_path, version_gcc):
     """Download toolchain from online if it doesn't already exist"""
 
     url_prefix = "http://sources.toradex.com/tcb/toolchains/"
     if toolchain == "arm-none-linux-gnueabihf-":
-        tarball = "gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf.tar.xz"
+        tarball = f"{version_gcc}-x86_64-arm-none-linux-gnueabihf.tar.xz"
     if toolchain == "aarch64-none-linux-gnu-":
-        tarball = "gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz"
+        tarball = f"{version_gcc}-x86_64-aarch64-none-linux-gnu.tar.xz"
     url = url_prefix + tarball
 
     log.info("A toolchain is required to build the module.\n"

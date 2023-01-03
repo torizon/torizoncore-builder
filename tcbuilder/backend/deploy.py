@@ -283,7 +283,7 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
 
     # Get the dynamic port the HTTP server is listening on
     local_ostree_server_port = http_server_thread.server_port
-    log.info(f'OSTree server listening on "localhost:{local_ostree_server_port}."')
+    log.info(f'OSTree server listening on "localhost:{local_ostree_server_port}".')
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
