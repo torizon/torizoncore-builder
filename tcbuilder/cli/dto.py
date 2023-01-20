@@ -353,6 +353,7 @@ def do_dto_deploy(args):
 
     # Download TEZI image and checkout Device Tree files.
     args.remove_storage = True
+    setattr(args, 'update', False)
     images_cli.do_images_download(args)
     dt_cli.do_dt_checkout(args)
 

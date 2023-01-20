@@ -17,7 +17,14 @@ load 'bats/bats-file/load.bash'
 @test "dto: list compatible overlays without images unpack" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     rm -rf device-trees
-    torizoncore-builder dt checkout
+
+    run torizoncore-builder dt checkout --update
+    if is_major_version_6; then
+        assert_failure
+        skip "device-trees not available on TC6"
+    fi
+    assert_success
+
     torizoncore-builder-clean-storage
 
     run torizoncore-builder dto list
@@ -29,7 +36,14 @@ load 'bats/bats-file/load.bash'
 @test "dto: list compatible overlays" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     rm -rf device-trees
-    torizoncore-builder dt checkout
+
+    run torizoncore-builder dt checkout --update
+    if is_major_version_6; then
+        assert_failure
+        skip "device-trees not available on TC6"
+    fi
+    assert_success
+
 
     run torizoncore-builder dto list
 

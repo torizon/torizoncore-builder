@@ -179,6 +179,12 @@ decrypt-credentials-file() {
         -aes-256-cbc -pbkdf2 -iter 20000 \
         -in "$INFILE" -out "$OUTFILE" -k "$TCB_OTA_CREDENTIALS_PWD"
 
-	echo "$OUTFILE"
+    echo "$OUTFILE"
 }
 export -f decrypt-credentials-file
+
+function is_major_version_6() {
+    local MAJOR_VERSION=$(echo "${DEFAULT_TEZI_IMAGE}" | sed 's/.*Tezi_\([0-9]\).*/\1/')
+    [ "${MAJOR_VERSION}" -eq "6" ]
+}
+export -f is_major_version_6

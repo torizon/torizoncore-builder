@@ -255,7 +255,11 @@ def resolve_remote_host(remote_host, mdns_source=None):
         return ip_addr
 
 
-def get_branch_from_metadata(storage_dir):
+def get_branch_and_major_from_metadata(storage_dir):
+    """Get the kernel branch and image major version from the OSTree metadata
+
+    :param storage_dir: The directory where the OSTree repository is located
+    """
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, _kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
@@ -267,7 +271,8 @@ def get_branch_from_metadata(storage_dir):
             "--branch to manually specify the kernel branch used by this image.")
 
     _kernel_repo, kernel_branch, _kernel_revision = metadata["oe.kernel-source"]
-    return kernel_branch
+    version_major = int(metadata['oe.tdx-major'])
+    return kernel_branch, version_major
 
 
 def update_dt_git_repo():
@@ -286,9 +291,28 @@ def update_dt_git_repo():
 
 
 def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
+    """Checkout the device-trees Git repository
+
+    This function will clone a git_repo and checkout a chosen branch. If no
+    git repo is given, the default device-trees repository will be used. If no branch
+    is given, the branch name will be read from the OSTree metadata.
+
+    :param storage_dir: The directory where the OSTree repository is located
+    :param git_repo: The git repository to clone from. If None, the default
+    :param git_branch: The git branch to checkout.
+    """
 
     if git_branch is None:
-        git_branch = get_branch_from_metadata(storage_dir)
+        git_branch, image_major_version = get_branch_and_major_from_metadata(storage_dir)
+
+    if image_major_version == 6:
+        raise TorizonCoreBuilderError(
+            "The TorizonCore Builder team is re-evaluating the device tree and device "
+            "tree overlays workflow, and the dt checkout command is currently not "
+            "supported on TorizonCore 6. Learn how to clone the device trees and "
+            "overlays repositories on "
+            "https://developer.toradex.com/torizon/os-customization/use-cases"
+            "/device-tree-overlays-on-torizon/#clone-toradex-device-tree-and-overlays-repository.")
 
     if git_repo is None:
         repo_obj = git.Repo.clone_from("https://github.com/toradex/device-trees",

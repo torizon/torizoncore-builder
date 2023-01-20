@@ -51,12 +51,15 @@ def do_dt_checkout(args):
         return
     try:
         checkout_dt_git_repo(storage_dir, None, None)
-        set_output_ownership("device-trees")
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
         if ex.det is not None:
             log.info(ex.det)  # more elaborative message
         log.debug(traceback.format_exc())  # full traceback to be shown for debugging only
+        sys.exit(1)
+    finally:
+        if os.path.exists(os.path.abspath("device-trees")):
+            set_output_ownership("device-trees")
 
 
 def dt_apply(dts_path, storage_dir, include_dirs=None):

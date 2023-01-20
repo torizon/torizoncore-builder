@@ -30,6 +30,11 @@ load 'lib/common.bash'
     rm -rf device-trees
 
     run torizoncore-builder dt checkout
+    if is_major_version_6; then
+        assert_failure
+        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        return 0
+    fi
     assert_success
     refute_output
 
@@ -50,6 +55,11 @@ load 'lib/common.bash'
     rm -rf device-trees
 
     run torizoncore-builder dt checkout --update
+    if is_major_version_6; then
+        assert_failure
+        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        return 0
+    fi
     assert_success
     refute_output
 
@@ -107,6 +117,17 @@ load 'lib/common.bash'
 @test "dt: apply device tree in the image" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
+    rm -rf device-trees
+
+    run torizoncore-builder dt checkout --update
+    if is_major_version_6; then
+        assert_failure
+        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        return 0
+    fi
+    assert_success
+    refute_output
+
     run torizoncore-builder-shell "ls /storage/sysroot/boot/ostree/torizon-*/dtb/*.dtb"
     local DTB=$(basename "${lines[0]}")
     local DTS="${DTB%.*}.dts"
@@ -126,6 +147,17 @@ load 'lib/common.bash'
 
 @test "dt: deploy device tree in the device" {
     requires-device
+
+    rm -rf device-trees
+
+    run torizoncore-builder dt checkout --update
+    if is_major_version_6; then
+        assert_failure
+        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        return 0
+    fi
+    assert_success
+    refute_output
 
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
