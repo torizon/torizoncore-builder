@@ -305,6 +305,9 @@ properties:
                   registry:
                     type: string
                     description: "Alternative container registry used to access container image"
+                  ca-certificate:
+                    type: string
+                    description: "CA certificate path of alternative container registry"
                 required: [compose-file]
                 additionalProperties: false
               - properties:

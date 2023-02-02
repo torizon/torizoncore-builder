@@ -347,6 +347,12 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
 
             RegistryOperations.set_logins(logins)
 
+            ## CA Certificate of registry
+            if bundle_props.get("registry") and bundle_props.get("ca-certificate"):
+                cacerts = [[bundle_props.get("registry"),
+                           bundle_props.get("ca-certificate")]]
+                RegistryOperations.set_cacerts(cacerts)
+
             download_params = {
                 "output_dir": bundle_dir,
                 "compose_file": bundle_props["compose-file"],
