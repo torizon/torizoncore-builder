@@ -350,7 +350,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             ## CA Certificate of registry
             if bundle_props.get("registry") and bundle_props.get("ca-certificate"):
                 cacerts = [[bundle_props.get("registry"),
-                           bundle_props.get("ca-certificate")]]
+                            bundle_props.get("ca-certificate")]]
                 RegistryOperations.set_cacerts(cacerts)
 
             download_params = {
