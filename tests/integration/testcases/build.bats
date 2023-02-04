@@ -1,6 +1,7 @@
 load 'bats/bats-support/load.bash'
 load 'bats/bats-assert/load.bash'
 load 'bats/bats-file/load.bash'
+load 'lib/registries.sh'
 load 'lib/common.bash'
 
 @test "build: check help output" {
@@ -355,6 +356,46 @@ load 'lib/common.bash'
     if [ "$TCB_UNDER_CI" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
+
+    # Check presence of container:
+    run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]
+    assert_success
+    rm -fr "$OUTDIR"
+}
+
+@test "build: check with secure registry with authentication" {
+    local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
+    local COMPOSE="${SR_COMPOSE_FOLDER}/docker-compose.yml"
+    local OUTDIR='customized_image'
+    local FILE="$SAMPLES_DIR/config/tcbuild-with-cacert-registry.yaml"
+    local USERNAME="toradex"
+    local PASSWORD="test"
+    local REGISTRY="${SR_WITH_AUTH_IP}"
+    local CA_CERTIFICATE="${SR_WITH_AUTH_CERTS}/cacert.crt"
+
+    run build_registries
+    assert_success
+
+    cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" "${COMPOSE}"
+
+    sed -i -E -e "s/# @NAME1@/test/" \
+              -e "s/# image: @IMAGE5@/ image: ${SR_WITH_AUTH_IP}\/test1/" \
+              "${COMPOSE}"
+
+    run torizoncore-builder build \
+        --file "$FILE" --force \
+        --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" \
+        --set COMPOSE_FILE="$COMPOSE" \
+        --set "USERNAME=$USERNAME" \
+        --set "PASSWORD=$PASSWORD" \
+        --set "REGISTRY=$REGISTRY" \
+        --set "CA_CERTIFICATE=$CA_CERTIFICATE"
+
+    assert_success
+    assert_output --partial "Fetching container image ${SR_WITH_AUTH_IP}/test"
+    assert_output --partial 'Connecting to Docker Daemon'
+    assert_output --partial "Attempting to log in to"
 
     # Check presence of container:
     run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]
