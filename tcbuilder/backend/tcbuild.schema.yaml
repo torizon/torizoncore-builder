@@ -308,6 +308,7 @@ properties:
                   ca-certificate:
                     type: string
                     description: "CA certificate path of alternative container registry"
+                    tdxMeta: "file;cer,crt"
                 required: [compose-file]
                 additionalProperties: false
               - properties:
