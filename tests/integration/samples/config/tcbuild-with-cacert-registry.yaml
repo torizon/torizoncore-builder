@@ -7,7 +7,7 @@ output:
     local: "${OUTPUT_DIR:?Please specify output directory}"
     description: "image with containers specified via compose"
     bundle:
-      username: "${USERNAME:?Please specify a user name}"
+      username: "${USERNAME:?Please specify a username}"
       password: "${PASSWORD:?Please specify a password}"
       compose-file: "${COMPOSE_FILE:?Please specify compose file}"
       platform: linux/arm/v7

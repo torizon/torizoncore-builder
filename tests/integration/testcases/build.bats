@@ -366,13 +366,14 @@ load 'lib/common.bash'
 @test "build: check with secure registry with authentication" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
     local COMPOSE="${SR_COMPOSE_FOLDER}/docker-compose.yml"
-    local OUTDIR='customized_image'
-    local FILE="$SAMPLES_DIR/config/tcbuild-with-cacert-registry.yaml"
+    local OUTDIR="customized_image"
+    local FILE="${SAMPLES_DIR}/config/tcbuild-with-cacert-registry.yaml"
     local USERNAME="toradex"
     local PASSWORD="test"
     local REGISTRY="${SR_WITH_AUTH_IP}"
     local CA_CERTIFICATE="${SR_WITH_AUTH_CERTS}/cacert.crt"
 
+    rm -fr "$OUTDIR"
     run build_registries
     assert_success
 
@@ -384,9 +385,9 @@ load 'lib/common.bash'
 
     run torizoncore-builder build \
         --file "$FILE" --force \
-        --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
-        --set OUTPUT_DIR="$OUTDIR" \
-        --set COMPOSE_FILE="$COMPOSE" \
+        --set "INPUT_IMAGE=$DEFAULT_TEZI_IMAGE" \
+        --set "OUTPUT_DIR=$OUTDIR" \
+        --set "COMPOSE_FILE=$COMPOSE" \
         --set "USERNAME=$USERNAME" \
         --set "PASSWORD=$PASSWORD" \
         --set "REGISTRY=$REGISTRY" \
@@ -394,11 +395,11 @@ load 'lib/common.bash'
 
     assert_success
     assert_output --partial "Fetching container image ${SR_WITH_AUTH_IP}/test"
-    assert_output --partial 'Connecting to Docker Daemon'
+    assert_output --partial "Connecting to Docker Daemon"
     assert_output --partial "Attempting to log in to"
 
     # Check presence of container:
-    run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]
+    run [ -e "${OUTDIR}/docker-storage.tar.xz" -a -e "${OUTDIR}/docker-compose.yml" ]
     assert_success
     rm -fr "$OUTDIR"
 }
