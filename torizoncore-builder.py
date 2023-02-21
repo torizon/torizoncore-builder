@@ -202,6 +202,9 @@ if __name__ == "__main__":
 
     setup_logging(mainargs.log_level, mainargs.verbose, mainargs.log_file)
 
+    if VERSION_SUFFIX == '+early-access':
+        sys.stderr.write("You are running an early access version of TorizonCore Builder.\n")
+
     # Check if "--storage-directory" was provided in the command line.
     if "storage_directory" in mainargs:
         logging.warning("WARNING: The parameter --storage-directory is being "
