@@ -14,6 +14,56 @@ function teardown() {
     assert_output --partial 'usage: torizoncore-builder platform push'
 }
 
+@test "platform: multibyte characters in arguments" {
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip \
+        --package-name "name-with-emojis-😀-😁" "SOME_REF"
+    assert_failure
+    assert_output --partial 'Error: the passed package name contains multibyte character(s)'
+
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip \
+        --package-version "version-with-emojis-😀-😁" "SOME_REF"
+    assert_failure
+    assert_output --partial 'Error: the passed package version contains multibyte character(s)'
+
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip \
+        --description "description-with-emojis-😀-😁" "SOME_REF"
+    assert_failure
+    assert_output --partial 'Error: the passed description contains multibyte character(s)'
+
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip "SOME_REF_WITH_EMOJIS_😀_😁"
+    assert_failure
+    assert_output --partial 'Error: the passed REF contains multibyte character(s)'
+}
+
+@test "platform: control characters in arguments" {
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip \
+        --package-name "name-with-ctrlchrs-$(echo -e '\a')" "SOME_REF"
+    assert_failure
+    assert_output --partial 'Error: the passed package name contains control character(s)'
+
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip \
+        --package-version "version-with-ctrlchrs-$(echo -e '\b')" "SOME_REF"
+    assert_failure
+    assert_output --partial 'Error: the passed package version contains control character(s)'
+
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip \
+        --description "description-with-ctrlchrs-$(echo -e '\v')" "SOME_REF"
+    assert_failure
+    assert_output --partial 'Error: the passed description contains control character(s)'
+
+    run torizoncore-builder platform push \
+        --credentials fake-creds.zip "SOME_REF_WITH_CTRLCHRS_$(echo -e '\v')"
+    assert_failure
+    assert_output --partial 'Error: the passed REF contains control character(s)'
+}
+
 @test "platform: docker-compose canonicalization" {
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
     local GOOD_YML="docker-compose-good"

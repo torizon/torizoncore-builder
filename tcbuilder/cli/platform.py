@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import re
+import unicodedata
 
 from datetime import datetime, timezone
 
@@ -416,23 +417,50 @@ def do_platform_provdata(args):
         sys.exit(2)
 
 
+def _stop_on_invalid_chars(param_name, param_value):
+    """Throw an exception if multibyte or control characters are found
+
+    :param param_name: name of the parameter being checked.
+    :param param_value: value being checked.
+    """
+    if not param_value:
+        return
+
+    multibyte_chars = []
+    control_chars = []
+    for _chr in param_value:
+        if ord(_chr) >= 128:
+            multibyte_chars.append(_chr)
+        if unicodedata.category(_chr) == "Cc":
+            control_chars.append(_chr)
+
+    if multibyte_chars:
+        raise TorizonCoreBuilderError(
+            f"Error: the passed {param_name} contains multibyte character(s) "
+            f"({''.join(multibyte_chars)}) which are currently not allowed; please use only"
+            " non-control ASCII characters.")
+
+    if control_chars:
+        raise TorizonCoreBuilderError(
+            f"Error: the passed {param_name} contains control character(s) which are currently"
+            " not allowed; please use only non-control ASCII characters.")
+
+
 def do_platform_push(args):
     """Wrapper for 'platform push' subcommand"""
 
+    # Define certificates to use:
     if args.cacerts or args.extra_logins:
         if not args.canonicalize and not args.canonicalize_only:
             log.warning("Warning: The '--login', '--login-to', and '--cacert-to' "
                         "parameters are optional with no canonicalization.")
-
     RegistryOperations.set_cacerts(args.cacerts)
 
-    # Build list of logins:
+    # Define logins to use:
     logins = []
     if args.main_login:
         logins.append(args.main_login)
-
     logins.extend(args.extra_logins)
-
     RegistryOperations.set_logins(logins)
 
     if args.canonicalize_only:
@@ -442,9 +470,16 @@ def do_platform_push(args):
                 "Error: The '--no-canonicalize' and '--canonicalize-only' "
                 "options cannot be used at the same time. Please, run "
                 "'torizoncore-builder platform push --help' for more information.")
+        # pylint: enable=singleton-comparison
         lock_file = platform.canonicalize_compose_file(args.ref, args.force)
         log.info(f"Not pushing '{os.path.basename(lock_file)}' to OTA server.")
         return
+
+    # Validate text input:
+    _stop_on_invalid_chars("package name", args.package_name)
+    _stop_on_invalid_chars("package version", args.package_version)
+    _stop_on_invalid_chars("description", args.description)
+    _stop_on_invalid_chars("REF", args.ref)
 
     if not args.credentials:
         raise TorizonCoreBuilderError("--credentials parameter is required.")
@@ -454,10 +489,9 @@ def do_platform_push(args):
 
     if args.ref.endswith(".yml") or args.ref.endswith(".yaml"):
         if args.hardwareids and any(hwid != "docker-compose" for hwid in args.hardwareid):
-            raise InvalidArgumentError("Error: --hardware is only valid when pushing "
-                                       "OSTree reference. The hardware id for a "
-                                       "docker-compose package can only be "
-                                       "\"docker-compose\"")
+            raise InvalidArgumentError(
+                "Error: --hardwareid is only valid when pushing an OSTree reference. "
+                "The hardware id for a docker-compose package can only be \"docker-compose\"")
 
         if not all(re.match("[a-z0-9]+=", string) for string in args.compatible_with):
             raise InvalidArgumentError(
@@ -472,15 +506,17 @@ def do_platform_push(args):
         package_info, compatible_with = translate_compatible_packages(credentials, criteria)
 
         for package in package_info:
-            package_name = package.get("name")
-            package_version = package.get("version")
-            log.info(f"Package {package_name} with version {package_version} added as compatible.")
+            log.info(f"Package {package.get('name')} with version {package.get('version')}"
+                     " added as compatible.")
 
-        version = args.version or datetime.today().strftime("%Y-%m-%d")
-        platform.push_compose(credentials=credentials, target=args.target, version=version,
-                              compose_file=args.ref, canonicalize=args.canonicalize,
-                              force=args.force, description=args.description,
-                              compatible_with=compatible_with, verbose=args.verbose)
+        platform.push_compose(
+            credentials=credentials,
+            target=args.package_name,
+            version=args.package_version or datetime.today().strftime("%Y-%m-%d"),
+            description=args.description,
+            compose_file=args.ref,
+            compatible_with=compatible_with,
+            canonicalize=args.canonicalize, force=args.force, verbose=args.verbose)
     else:
         if args.compatible_with:
             raise InvalidArgumentError(
@@ -494,10 +530,15 @@ def do_platform_push(args):
         if not os.path.exists(storage_dir):
             raise PathNotExistError(f"{storage_dir} does not exist")
 
-        platform.push_ref(ostree_dir=src_ostree_archive_dir, credentials=credentials,
-                          ref=args.ref, package_version=args.version, package_name=args.target,
-                          hardwareids=args.hardwareids, description=args.description,
-                          verbose=args.verbose)
+        platform.push_ref(
+            credentials=credentials,
+            package_name=args.package_name,
+            package_version=args.package_version,
+            description=args.description,
+            ostree_dir=src_ostree_archive_dir,
+            ref=args.ref,
+            hardwareids=args.hardwareids,
+            verbose=args.verbose)
 
 
 def add_common_push_arguments(subparser):
@@ -522,12 +563,12 @@ def add_common_push_arguments(subparser):
         help="Add a description to the package",
         required=False, default=None)
     subparser.add_argument(
-        "--package-name", dest="target",
+        "--package-name",
         help=("Package name for docker-compose file (default: name of file being "
               "pushed to OTA) or OSTree reference (default: same as REF)."),
         required=False, default=None)
     subparser.add_argument(
-        "--package-version", dest="version",
+        "--package-version",
         help=("Package version for docker-compose file (default: current date "
               "following the 'yyyy-mm-dd' format) or OSTree reference "
               "(default: OSTree subject)."),
