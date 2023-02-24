@@ -17,7 +17,7 @@ load 'lib/common.bash'
 
 @test "dt: checkout device tree overlays directory without images unpack" {
     torizoncore-builder-clean-storage
-    rm -rf device-trees
+    torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout
     assert_failure
@@ -27,7 +27,7 @@ load 'lib/common.bash'
 
 @test "dt: checkout device tree overlays directory" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    rm -rf device-trees
+    torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout
     if is_major_version_6; then
@@ -52,7 +52,7 @@ load 'lib/common.bash'
 
 @test "dt: checkout updates device tree directory" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    rm -rf device-trees
+    torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
     if is_major_version_6; then
@@ -116,8 +116,7 @@ load 'lib/common.bash'
 
 @test "dt: apply device tree in the image" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-
-    rm -rf device-trees
+    torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
     if is_major_version_6; then
@@ -147,8 +146,7 @@ load 'lib/common.bash'
 
 @test "dt: deploy device tree in the device" {
     requires-device
-
-    rm -rf device-trees
+    torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
     if is_major_version_6; then

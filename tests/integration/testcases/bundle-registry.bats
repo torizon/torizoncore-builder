@@ -8,7 +8,7 @@ function teardown() {
     remove_registries
 }
 
-@test "bundle-registries: check with secure registries without authentication" {
+@test "bundle-registry: check with secure registries without authentication" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run build_registries
@@ -37,7 +37,7 @@ function teardown() {
     assert_output --partial "Fetching container image ${SR_NO_AUTH_IP}/test"
 }
 
-@test "bundle-registries: check with secure registry with authentication" {
+@test "bundle-registry: check with secure registry with authentication" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run build_registries
@@ -68,7 +68,7 @@ function teardown() {
     assert_output --partial "Fetching container image ${SR_WITH_AUTH_IP}/test"
 }
 
-@test "bundle-registries: check with with all registries" {
+@test "bundle-registry: check with with all registries" {
     local if_ci=""
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
     local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
