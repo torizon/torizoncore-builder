@@ -60,7 +60,7 @@ FROM common-base AS tcbuilder-base
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     python3 python3-pip python3-setuptools python3-wheel python3-gi \
     file curl gzip xz-utils lz4 lzop zstd cpio jq acl libmpc-dev \
-    device-tree-compiler cpp  bzip2 flex bison kmod libgmp-dev \
+    device-tree-compiler cpp  bzip2 flex bison kmod libgmp3-dev \
     && apt-get -q -y --no-install-recommends install python3-paramiko \
     python3-dnspython python3-ifaddr python3-git avahi-daemon && \
     rm -rf /var/lib/apt/lists/*

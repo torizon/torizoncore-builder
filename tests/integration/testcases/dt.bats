@@ -32,7 +32,7 @@ load 'lib/common.bash'
     run torizoncore-builder dt checkout
     if is_major_version_6; then
         assert_failure
-        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
@@ -57,7 +57,7 @@ load 'lib/common.bash'
     run torizoncore-builder dt checkout --update
     if is_major_version_6; then
         assert_failure
-        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
@@ -122,7 +122,7 @@ load 'lib/common.bash'
     run torizoncore-builder dt checkout --update
     if is_major_version_6; then
         assert_failure
-        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
@@ -153,7 +153,7 @@ load 'lib/common.bash'
     run torizoncore-builder dt checkout --update
     if is_major_version_6; then
         assert_failure
-        assert_output --partial "The 'dt checkout' command is not compatible with TorizonCore 6 images"
+        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success

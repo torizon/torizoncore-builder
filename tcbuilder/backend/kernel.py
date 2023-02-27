@@ -69,9 +69,19 @@ def build_module(src_dir, linux_src, src_mod_dir,
     if not os.path.exists(toolchain):
         download_toolchain(c_c, toolchain_path, version_gcc)
 
+    # Hotfix for the 6.2 version of the kernel
+    version_major_minor = re.search(r"CONFIG_LOCALVERSION=\"-(\d+\.\d+)\.\d+", lines,
+                                    re.MULTILINE).group(1)
+    if version_major_minor == '6.2':
+        _pattern = r"s/\$(build)=\. prepare/$(build)=./g"
+        subprocess.check_output(
+            f"sed -i '{_pattern}' {linux_src}/Makefile",
+            stderr=subprocess.STDOUT, shell=True)
+
     # Run modules_prepare on kernel source
     subprocess.check_output(f"""PATH=$PATH:{toolchain} make -C {linux_src} ARCH={arch} \
-        CROSS_COMPILE={c_c} modules_prepare""", shell=True, stderr=subprocess.STDOUT)
+        CROSS_COMPILE={c_c} modules_prepare""", shell=True,
+                            stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
     # Build kernel module source
     try:
@@ -147,7 +157,7 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
     log.info("Unpacking downloaded toolchain into storage")
     os.makedirs(toolchain_path, exist_ok=True)
     tarcmd = "cat '{0}' | {1} | tar -xf - -C {2}".format(
-                tarball, get_unpack_command(tarball), toolchain_path)
+        tarball, get_unpack_command(tarball), toolchain_path)
     subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
     os.remove(tarball)
     log.info("Toolchain successfully unpacked.\n")
