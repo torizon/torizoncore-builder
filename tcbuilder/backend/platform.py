@@ -1046,7 +1046,7 @@ def push_ref(ostree_dir, credentials, ref, package_version=None,
         metadata.pop(key, None)
 
     custom_metadata = {
-        "commitSubject": package_version,
+        "commitSubject": subject,
         "commitBody": body,
         "ostreeMetadata": metadata
     }
@@ -1072,7 +1072,7 @@ def push_ref(ostree_dir, credentials, ref, package_version=None,
                         "--repo", TUF_REPO_DIR,
                         "--name", package_name,
                         "--format", "OSTREE",
-                        "--version", commit,
+                        "--version", package_version,
                         "--length", "0",
                         "--sha256", commit,
                         "--hardwareids", module,
