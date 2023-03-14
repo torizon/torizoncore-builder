@@ -4,17 +4,18 @@ load 'bats/bats-file/load.bash'
 load 'lib/registries.sh'
 load 'lib/common.bash'
 
-function teardown() {
-    remove_registries
+setup_file() {
+    start-registries
+}
+
+teardown_file() {
+    stop-registries
 }
 
 @test "bundle-registry: check with secure registries without authentication" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
-    run build_registries
-    assert_success
-
-    run check_registries
+    run check-registries
     assert_success
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \
@@ -40,10 +41,7 @@ function teardown() {
 @test "bundle-registry: check with secure registry with authentication" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
-    run build_registries
-    assert_success
-
-    run build_registries
+    run check-registries
     assert_success
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \
@@ -78,10 +76,7 @@ function teardown() {
       if_ci="1"
     fi
 
-    run build_registries
-    assert_success
-
-    run check_registries
+    run check-registries
     assert_success
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" \

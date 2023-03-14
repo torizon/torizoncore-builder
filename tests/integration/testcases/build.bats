@@ -4,6 +4,10 @@ load 'bats/bats-file/load.bash'
 load 'lib/registries.sh'
 load 'lib/common.bash'
 
+teardown_file() {
+    stop-registries
+}
+
 @test "build: check help output" {
     run torizoncore-builder build --help
     assert_success
@@ -374,7 +378,12 @@ load 'lib/common.bash'
     local CA_CERTIFICATE="${SR_WITH_AUTH_CERTS}/cacert.crt"
 
     rm -fr "$OUTDIR"
-    run build_registries
+    # At the time of writing, this is the only testcase in this module that requires the registries
+    # to be running; because of that we start the registry here. Later if we have more testcases
+    # requiring the registries we may consider moving the call to start-registries to a setup_file()
+    # function.
+    start-registries || true
+    run check-registries
     assert_success
 
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" "${COMPOSE}"

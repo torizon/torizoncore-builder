@@ -1,0 +1,30 @@
+# Images from GCR (Google Container Registry).
+# This evaluates accesses to a secure registry whose certificate is already trusted by the distro
+# inside the TorizonCore Builder container; in this case, no certificate needs to be passed to the
+# tool.
+services:
+  # ---
+  # Images openly accessible.
+  # ---
+  svc1:
+    image: gcr.io/google-containers/alpine-with-bash:1.0
+  svc2:
+    image: gcr.io:443/google-containers/alpine-with-bash:1.0
+  svc3:
+    image: gcr.io/google-containers/alpine-with-bash@sha256:0955672451201896cf9e2e5ce30bec0c7f10757af33bf78b7a6afa5672c596f5
+  svc4:
+    image: gcr.io:443/google-containers/alpine-with-bash@sha256:0955672451201896cf9e2e5ce30bec0c7f10757af33bf78b7a6afa5672c596f5
+
+  # ---
+  # TODO: Images only accessible after authentication.
+  # ---
+
+  # ---
+  # TODO: Images having a v1 manifest.
+  # ---
+  # svc1:
+  #   image: gcr.io/google-containers/dnsmasq:1.0
+  # svc2:
+  #   image: gcr.io:443/google-containers/dnsmasq:1.0
+
+version: '2.4'

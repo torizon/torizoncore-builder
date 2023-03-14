@@ -1,0 +1,42 @@
+  # ---
+  # Tests with internally-hosted images (i.e. coming from registries run by the user).
+  # ---
+
+services:
+  # ---
+  # Images openly accessible.
+  # ---
+  svc1:
+    # Global namespace / no tag.
+    image: @REGISTRY@/test1
+  svc2:
+    # Global namespace / with tag.
+    image: @REGISTRY@/test1:dummy-tag
+  svc3:
+    # Global namespace / with digest.
+    image: @REGISTRY@/test1@sha256:f54a58bc1aac5ea1a25d796ae155dc228b3f0e11d046ae276b39c4bf2f13d8c4
+  svc4:
+    # Inside 1-level namespace / no tag.
+    image: @REGISTRY@/levelone/test1
+  svc5:
+    # Inside 1-level namespace / with tag.
+    image: @REGISTRY@/levelone/test1:dummy-tag
+  svc6:
+    # Inside 1-level namespace / with digest.
+    image: @REGISTRY@/levelone/test1@sha256:f54a58bc1aac5ea1a25d796ae155dc228b3f0e11d046ae276b39c4bf2f13d8c4
+  svc7:
+    # Inside 2-level namespace / no tag.
+    image: @REGISTRY@/levelone/leveltwo/test1
+  svc8:
+    # Inside 2-level namespace / with tag.
+    image: @REGISTRY@/levelone/leveltwo/test1:dummy-tag
+  svc9:
+    # Inside 2-level namespace / with digest.
+    image: @REGISTRY@/levelone/leveltwo/test1@sha256:f54a58bc1aac5ea1a25d796ae155dc228b3f0e11d046ae276b39c4bf2f13d8c4
+
+  # ---
+  # TODO: Images only accessible after authentication.
+  # TODO: Images having a v1 manifest.
+  # ---
+
+version: '2.4'

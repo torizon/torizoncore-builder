@@ -1,6 +1,0 @@
-services:
-  svc1:
-    image: torizon/torizoncore-builder:3
-  svc6:
-    image: http://127.0.0.1/torizon/weston:2
-version: '2.4'
