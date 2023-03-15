@@ -7,15 +7,16 @@ import re
 from urllib.parse import urljoin
 
 import requests
+from requests.exceptions import RequestException
 from requests.auth import HTTPBasicAuth
-from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
+from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError, InvalidDataError
 
 log = logging.getLogger("torizon." + __name__)
 
 # As per https://docs.docker.com/engine/reference/commandline/tag/,
 # default registry is "registry-1.docker.io".
 # TODO: Determine why docker info shows "https://index.docker.io/"
-DEFAULT_REGISTRY = "https://registry-1.docker.io/"
+DEFAULT_REGISTRY = "registry-1.docker.io"
 
 MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
 MANIFEST_LIST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.list.v2+json"
@@ -55,10 +56,11 @@ def parse_www_auth_header(header):
                   ("service", "registry.docker.io"),
                   ("scope", "repository:samalba/my-app:pull,push")]
 
-    :param header: Value of the WWW-Authenticate header to parse in the form
-                   `Bearer attr1=value1,attr2=value2,...
-    :return: (scheme, attributes) where scheme is always "Bearer" and attributes
-             is a list of pairs (attr, value).
+    :param header: Value of the WWW-Authenticate header to be parsed in the form
+                   `scheme attr1=value1,attr2=value2,...
+    :return: (scheme, attributes) where scheme is extracted verbatim from the header
+             and attributes is a list of pairs (attr, value) representing the data in
+             the header.
     """
 
     log.debug(f"WWW-Authenticate header='{header}'")
@@ -101,6 +103,8 @@ class ParsedImageName:
     """"Output of parse_image_name()"""
 
     def __init__(self, registry, name, tag):
+        assert not registry.endswith("/"), \
+            "The registry name should not end with a slash"
         self.registry = registry
         self.name = name
         self.tag = tag
@@ -115,12 +119,12 @@ class ParsedImageName:
             return comps[0]
         return None
 
-    def get_name_with_tag(self):
+    def get_name_with_tag(self, include_registry=True):
         """Get name of the image including the tag or digest"""
         _tag = self.tag or "latest"
         separator = "@" if _tag.startswith(SHA256_PREFIX) else ":"
 
-        if self.registry:
+        if self.registry and include_registry:
             return f"{self.registry}/{self.name}{separator}{_tag}"
 
         return f"{self.name}{separator}{_tag}"
@@ -144,61 +148,49 @@ def parse_image_name(image_name):
     image name is made up of slash-separated name components, optionally
     prefixed by a registry hostname.
 
-    parse_image_name('ubuntu:latest')
-    => ParsedImageName(registry=None, name='ubuntu', tag='latest')
-    parse_image_name('linux/ubuntu:latest')
-    => ParsedImageName(registry=None, name='linux/ubuntu', tag='latest')
-    parse_image_name('localhost:8000/ubuntu:latest')
-    => ParsedImageName(registry='localhost:8000', name='ubuntu', tag='latest')
-    parse_image_name('http://localhost/ubuntu:latest')
-    => ParsedImageName(registry='http://localhost/', name='ubuntu', tag='latest')
-    parse_image_name('http://localhost:8000/ubuntu:latest')
-    => ParsedImageName(registry='http://localhost:8000/', name='ubuntu', tag='latest')
-    parse_image_name('http://localhost/linux/ubuntu:latest')
-    => ParsedImageName(registry='http://localhost/', name='linux/ubuntu', tag='latest')
-    parse_image_name('http://localhost/linux/ubuntu@sha256:1234')
-    => ParsedImageName(registry='http://localhost/', name='linux/ubuntu', tag='sha256:1234')
+    >>> parse_image_name('http://localhost/ubuntu:latest')
+    <Exception thrown>
+
+    # Without a registry:
+    >>> parse_image_name('ubuntu:latest')
+    ImageName(registry='', name='ubuntu', tag='latest')
+    >>> parse_image_name('linux/ubuntu:latest')
+    ImageName(registry='', name='linux/ubuntu', tag='latest')
+    >>> parse_image_name('localhost/ubuntu:latest@sha256:123456')
+    ImageName(registry='', name='localhost/ubuntu:latest', tag='sha256:123456')
+
+    # With a registry:
+    >>> parse_image_name('localhost:8000/ubuntu:latest')
+    ImageName(registry='localhost:8000', name='ubuntu', tag='latest')
+    >>> parse_image_name('gcr.io/ubuntu:latest')
+    ImageName(registry='gcr.io', name='ubuntu', tag='latest')
     """
 
-    try:
-        known_schemes = ["http://", "https://"]
-        registry = None
-        name_with_tag = image_name
-        # Get scheme and registry name if possible.
-        for _scheme in known_schemes:
-            if name_with_tag.lower().startswith(_scheme):
-                registry = name_with_tag[:len(_scheme)]
-                name_with_tag = name_with_tag[len(_scheme):]
-                registry_, name_with_tag = name_with_tag.split("/", 1)
-                registry += registry_ + "/"
-
-        # Parse the rest (repo/name):
-        comps = name_with_tag.split("/")
-        if registry is None and len(comps) == 2:
-            # E.g. fedora/httpd:latest, localhost:8000/httpd:latest
-            # E.g. registry.azurecr.io/testing
-            # E.g. 192.168.0.1/testing
-            if ":" in comps[0] or "." in comps[0]:
-                registry, name_with_tag = comps
-        elif registry is None and len(comps) == 3:
-            # E.g. gcr.io/fedora/httpd:latest
-            registry, name_with_tag = name_with_tag.split("/", 1)
-
-        if "@" in name_with_tag:
-            # E.g. ubuntu@sha256:1234...
-            name, tag = name_with_tag.split("@")
-        elif ":" in name_with_tag:
-            # E.g. ubuntu:latest
-            name, tag = name_with_tag.split(":")
-        else:
-            # E.g. ubuntu
-            name, tag = name_with_tag, None
-
-        return ParsedImageName(registry, name, tag)
-
-    except ValueError as _exc:
+    mres = re.match(r"^([a-zA-Z][-+.a-zA-Z0-9]+)://", image_name)
+    if mres:
         raise TorizonCoreBuilderError(
-            f"Cannot parse image name {image_name}")
+            f"Image '{image_name}' is specifying a scheme which is not allowed.")
+
+    registry = ""
+    name_with_tag = image_name
+    if "/" in image_name:
+        comps = image_name.split("/", 1)
+        # If the first part before the slash has a dot or a colon we assume it
+        # is a server (registry) name.
+        if "." in comps[0] or ":" in comps[0]:
+            registry, name_with_tag = comps
+
+    if "@" in name_with_tag:
+        # E.g. ubuntu@sha256:1234...
+        name, tag = name_with_tag.split("@")
+    elif ":" in name_with_tag:
+        # E.g. ubuntu:latest
+        name, tag = name_with_tag.split(":")
+    else:
+        # E.g. ubuntu
+        name, tag = name_with_tag, None
+
+    return ParsedImageName(registry, name, tag)
 
 
 def validate_registries(registries):
@@ -211,6 +203,35 @@ def validate_registries(registries):
                 f"Error: invalid registry specified: '{registry[0]}'; "
                 "the registry can be specified as a domain name or an IP "
                 "address possibly followed by :<port-number>")
+
+
+def get_registry_url(registry, scheme):
+    """Get the registry URL from the registry hostname:port
+
+    >>> get_registry_url("https://10.0.0.1:8000/", "http")
+    <Exception thrown>
+    >>> get_registry_url("10.0.0.1", "http")
+    'http://10.0.0.1/'
+    >>> get_registry_url("10.0.0.1:8000", "http")
+    'http://10.0.0.1:8000/'
+    >>> get_registry_url("gitlab.com:8000/", "https")
+    'https://gitlab.com:8000/'
+    >>> get_registry_url("gitlab.com:8000/", "https")
+    'https://gitlab.com:8000/'
+    >>> get_registry_url("gitlab.com:8000/a/b/c", "https")
+    'https://gitlab.com:8000/a/b/c/'
+    """
+
+    mres = re.match(r"^([a-zA-Z][-+.a-zA-Z0-9]+)://", registry)
+    if mres:
+        raise TorizonCoreBuilderError(
+            f"Registry '{registry}' is specifying a scheme which is not allowed.")
+
+    resurl = f"{scheme}://{registry}"
+    if not resurl.endswith("/"):
+        resurl += "/"
+
+    return resurl
 
 
 class RegistryOperations:
@@ -247,7 +268,6 @@ class RegistryOperations:
         validate_registries(cacerts)
         cls.CACERTS = cacerts.copy()
         for cacert in cls.CACERTS:
-
             cacert_path = os.path.abspath(cacert[1])
             if not os.path.isfile(cacert_path):
                 raise InvalidArgumentError(
@@ -260,47 +280,38 @@ class RegistryOperations:
         """Get the list-like object 'CACERTS'."""
         return cls.CACERTS
 
-    def __init__(self, regurl=None, registry=None):
-        if regurl and registry:
-            assert False, "'regurl' and 'registry' are multually exclusives."
-        # Ensure registry URL ends with a slash.
-        if regurl and regurl[-1] != "/":
-            regurl += "/"
-        self.regurl = regurl or DEFAULT_REGISTRY
-        self.token_cache = {}
+    def __init__(self, registry=None):
         self.registry = registry
+        self.token_cache = {}
         self.cacert = None
         self.login = None
-        # TODO: Ensure regurl specifies a scheme.
+        self._setup_credentials()
 
-        if registry:
-            self._init_priv_registry_vars()
-
-    def _init_priv_registry_vars(self):
-        """Sort through the LOGINS list, list with 3-tuple: (REGISTRY, USERNAME, PASSWORD),
-        and the CACERTS list, list with a 2-tuple: (REGISTRY, CACERT). Assigning the cacert and
-        login variables to the instance.
-        """
-        known_schemes = ["http://", "https://"]
-        for cacert in self.CACERTS:
-            if cacert[0] == self.registry:
-                self.cacert = cacert[1]
+    def _setup_credentials(self):
+        """Set up the username/password and certificate to access the registry"""
+        for _cacert in self.CACERTS:
+            if _cacert[0] == self.registry:
+                self.cacert = _cacert[1]
 
         for _login in self.LOGINS:
             if len(_login) == 2:
-                continue
-            reg, username, password = _login
-            if reg == self.registry:
-                self.login = (username, password)
+                username, password = _login
+                if not self.registry or self.registry == DEFAULT_REGISTRY:
+                    self.login = (username, password)
+            elif len(_login) == 3:
+                reg, username, password = _login
+                if reg == self.registry:
+                    self.login = (username, password)
+            else:
+                assert False, "Unhandled condition in _setup_credentials()"
 
-        protocol = known_schemes[1] if self.cacert or self.login else known_schemes[0]
-        self.regurl = f"{protocol}{self.registry}"
+        log.debug(f"Using certificate file '{self.cacert or 'None'}' and user name "
+                  f"'{self.login[0] if self.login else 'None'}' to access registry "
+                  f"'{self.registry}'")
 
-    # pylint:disable=no-self-use
-    def _parse_www_auth_header(self, headers):
-        """Parse the WWW-Authenticate header extracting realm, service, scopes"""
+    def _get_oauth2_token(self, attribs):
+        """Get the OAuth2 token required for accessing some resources"""
 
-        scheme, attribs = parse_www_auth_header(headers["www-authenticate"])
         # --
         # Expected format (https://docs.docker.com/registry/spec/auth/token/):
         # Bearer realm="https://auth.docker.io/token",
@@ -308,8 +319,7 @@ class RegistryOperations:
         #        scope="repository:samalba/my-app:pull,push"
         # With scope being a space-separated list of scopes.
         # --
-        assert scheme == 'Bearer', \
-            f"Only supported authorization scheme is 'Bearer' != '{scheme}'"
+
         # Helper function:
         def _consume_attrib(key, unique=True):
             nonlocal attribs
@@ -330,6 +340,7 @@ class RegistryOperations:
                          f"({len(values_)} found)")
                 return values_[0]
             return values_
+
         # Parse attributes:
         realm = _consume_attrib("realm")
         service = _consume_attrib("service")
@@ -337,42 +348,101 @@ class RegistryOperations:
         scopes = scope.split(" ")
         if attribs:
             log.warning(f"Attributes not processed in the WWW-Authenticate header: {attribs}")
-        return realm, service, scopes
-    # pylint:enable=no-self-use
 
-    def _request_token(self, headers):
-        """Get the OAuth2 token required for accessing some resources"""
-
-        realm, service, scopes = self._parse_www_auth_header(headers)
-        auth_url = urljoin(self.regurl, realm)
+        regurl = get_registry_url(self.registry or DEFAULT_REGISTRY, "https")
+        auth_url = urljoin(regurl, realm)
         auth_parms = []
         auth_parms.append(("service", service))
         for scope in scopes:
             auth_parms.append(("scope", scope))
 
-        if self.regurl == DEFAULT_REGISTRY:
-            # Handler username/password authentication with default registry.
-            logins = [login for login in self.LOGINS if len(login) == 2]
-            assert len(logins) < 2, "Multiple logins for the same registry!"
-            if logins:
-                _auth = tuple(logins[0])
-                res = requests.get(auth_url, params=auth_parms, auth=_auth)
-            else:
-                res = requests.get(auth_url, params=auth_parms)
-        else:
-            # TODO: Handle non-default registry.
-            assert False
+        # Request token to authorization end-point.
+        assert regurl.startswith("https://"), \
+            "This code needs review for dealing with Bearer token requests via HTTP."
 
+        auth_login = None
+        if self.login:
+            log.debug("Using Basic Authentication credentials to access authorization end-point")
+            auth_login = HTTPBasicAuth(*self.login)
+
+        res = requests.get(auth_url, params=auth_parms, auth=auth_login)
         res_json = res.json()
         for scope in scopes:
-            self.token_cache[scope] = res_json["token"]
+            if "token" in res_json:
+                self.token_cache[scope] = res_json["token"]
+                continue
+            log.debug(
+                f"Could not get token for scope {scope}, registry {self.registry or 'default'}.")
+
+    def _do_get_helper(self, url, repo_name, headers=None, send_auth_if_secure=False):
+        headers = (headers or {}).copy()
+        secure = url.startswith("https://")
+        cacert = self.cacert if secure else None
+        auth = None
+
+        if send_auth_if_secure and secure:
+            # Define Bearer (authorization) token for the request.
+            scope = f"repository:{repo_name}:pull"
+            if scope in self.token_cache:
+                # If this scope is in the cache it means this end-point was accessed with a
+                # Bearer token previously.
+                log.debug(f"Using cached token for scope '{scope}'")
+                headers.update({"Authorization": f"Bearer {self.token_cache[scope]}"})
+            elif self.login:
+                # Using Basic Authentication for the request.
+                log.debug("Using Basic Authentication credentials")
+                auth = HTTPBasicAuth(*self.login)
+            else:
+                log.debug(f"No token cached for scope {scope}")
+
+        res = None
+        try:
+            res = requests.get(url, headers=headers, verify=cacert, auth=auth)
+        except RequestException as exc:
+            log.debug(f"GET '{url}' raised exception: {exc}")
+
+        return res
+
+    def _do_get(self, url, repo_name, headers=None):
+        # Try initially without sending username/password.
+        res = self._do_get_helper(url, repo_name, headers=headers, send_auth_if_secure=False)
+
+        if res is not None and res.status_code == requests.codes["unauthorized"]:
+            if "www-authenticate" in res.headers:
+                auth_scheme, auth_attribs = parse_www_auth_header(res.headers["www-authenticate"])
+                auth_scheme = auth_scheme.lower()
+
+                # Determine the type of authentication being requested by the server.
+                if auth_scheme == "basic":
+                    if not self.login:
+                        raise TorizonCoreBuilderError(
+                            f"Error: registry {self.registry or DEFAULT_REGISTRY} requires"
+                            " authentication but no credentials were provided.")
+                    res = self._do_get_helper(
+                        url, repo_name, headers=headers, send_auth_if_secure=True)
+
+                elif auth_scheme == "bearer":
+                    # Request and cache token before repeating the request.
+                    self._get_oauth2_token(auth_attribs)
+                    res = self._do_get_helper(
+                        url, repo_name, headers=headers, send_auth_if_secure=True)
+
+                else:
+                    raise TorizonCoreBuilderError(
+                        f"Error: registry {self.registry or DEFAULT_REGISTRY} uses "
+                        f"authentication scheme '{auth_scheme}' which is not supported.")
+            else:
+                log.debug(f"GET to '{url}' got unauthorized but no www-authenticate header "
+                          "was present in response.")
+
+        return res
 
     def get_manifest(self, image_name, headers=None, ret_digest=False, val_digest=True):
         """Get the manifest of the specified image
 
         :param image_name: Name of the image such as ubuntu:latest or fedora/httpd:latest;
-                           the name should not contain a registry name (the registry is
-                           specified to the constructor of the class).
+                           if the name contains a registry then it should match the one
+                           specified in the constructor of the class.
         :param headers: Dict with extra headers to send to the server.
         :param ret_digest: Whether or not to return the digest of the manifest as part
                            of the function's output.
@@ -382,14 +452,19 @@ class RegistryOperations:
         :return: (response, digest) if ret_digest=True or only the response otherwise.
         """
 
-        headers = headers or {}
-        headers = headers.copy()
+        headers = (headers or {}).copy()
         headers.update(DEFAULT_GET_MANIFEST_HEADERS)
 
         parsed_name = parse_image_name(image_name)
 
-        # Define name for building the manifest's URL.
-        if self.regurl == DEFAULT_REGISTRY and not parsed_name.get_repo():
+        if parsed_name.registry:
+            assert parsed_name.registry == self.registry, \
+                f"Internal error: passed in image name '{image_name}' does not match " \
+                f"expected registry name '{self.registry}'."
+
+        # Define name for building the manifest's URL. The default registry (empty) is
+        # handled specially here.
+        if not self.registry and not parsed_name.get_repo():
             name = "library/" + parsed_name.name
         else:
             name = parsed_name.name
@@ -397,40 +472,27 @@ class RegistryOperations:
         # Define tag for building the manifest's URL.
         tag = parsed_name.tag or "latest"
 
-        # Get absolute URL.
-        url = urljoin(self.regurl, f"v2/{name}/manifests/{tag}")
+        # Try accessing manifest through HTTPS first.
+        reg = get_registry_url(self.registry or DEFAULT_REGISTRY, "https")
+        url = urljoin(reg, f"v2/{name}/manifests/{tag}")
+        log.debug(f"Getting manifest from '{url}'.")
+        res = self._do_get(url, name, headers)
 
-        # Helper to do the request setting the headers.
-        def _do_request(cacert=None, login=None):
-            nonlocal headers
-            _scope = f"repository:{name}:pull"
-            if _scope in self.token_cache:
-                log.debug(f"Using cached token for scope {_scope}")
-                _token = self.token_cache[_scope]
-                # Add header:
-                headers.update({
-                    "Authorization": f"Bearer {self.token_cache[_scope]}"
-                })
-            else:
-                log.debug(f"No token cached for scope {_scope}")
+        if res is not None and res.status_code == requests.codes["unauthorized"]:
+            log.warning(f"Access to manifest for image '{image_name}' was not authorized;"
+                        " be sure to pass a proper username/password pair for the registry.")
 
-            auth = None
-            if login:
-                auth = HTTPBasicAuth(*login)
+        elif res is None or res.status_code != requests.codes["ok"]:
+            # Fall back to HTTP.
+            log.debug("Attempt to access manifest via HTTPS failed with code "
+                      f"{res.status_code if res else 'unknown'} - falling back to HTTP.")
+            reg = get_registry_url(self.registry or DEFAULT_REGISTRY, "http")
+            url = urljoin(reg, f"v2/{name}/manifests/{tag}")
+            log.debug(f"Getting manifest from {url}")
+            res = self._do_get(url, name, headers)
 
-            res = requests.get(url, headers=headers, verify=cacert, auth=auth)
-            # log.debug(f"Response: {res.text}")
-            return res
-
-        # Perform request.
-        res = _do_request(self.cacert, self.login)
-        # Perform request with an access token (if needed).
-        if res.status_code == requests.codes["unauthorized"]:
-            self._request_token(headers=res.headers)
-            res = _do_request()
-
-        if res.status_code != requests.codes["ok"]:
-            return (res, None) if ret_digest else res
+        if res is None or res.status_code != requests.codes["ok"]:
+            raise InvalidDataError(f"Error: Could not determine digest for image '{image_name}'.")
 
         media_types = [MANIFEST_MEDIA_TYPE, MANIFEST_LIST_MEDIA_TYPE]
         if res.headers["content-type"] not in media_types:

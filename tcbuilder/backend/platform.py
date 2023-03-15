@@ -395,7 +395,7 @@ def fetch_manifests(images, manifests_dir,
             log.info(f"\nFetching manifests for {image}...")
         image_parsed = parse_image_name(image)
 
-        ops = RegistryOperations(registry=image_parsed.registry)
+        ops = RegistryOperations(image_parsed.registry)
         digests_saved, manifests_info = ops.save_all_manifests(
             image_parsed.get_name_with_tag(), manifests_dir,
             platforms=req_platforms,
@@ -1250,7 +1250,8 @@ def set_images_hash(compose_file_data):
     :param compose_file_data: The Docker compose file data.
     """
 
-    if not isinstance(compose_file_data.get('services'), dict):
+    if not (isinstance(compose_file_data, dict) and
+            isinstance(compose_file_data.get('services'), dict)):
         raise InvalidDataError("Error: No 'services' section in compose file.")
 
     for svc_name, svc_spec in compose_file_data['services'].items():
@@ -1258,15 +1259,16 @@ def set_images_hash(compose_file_data):
         if not image_name:
             raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
 
-        image = parse_image_name(image_name)
-        registry = RegistryOperations(registry=image.registry)
-        response, image_digest = registry.get_manifest(image_name, ret_digest=True)
+        image_parsed = parse_image_name(image_name)
+        log.debug(f"Parsed {image_name} into {image_parsed}.")
+        registry = RegistryOperations(image_parsed.registry)
+        response, image_digest = registry.get_manifest(
+            image_parsed.get_name_with_tag(), ret_digest=True)
+        assert response.status_code == requests.codes["ok"]
 
-        if response.status_code != 200:
-            raise InvalidDataError(f"Error: Can't determine digest for image '{image_name}'.")
         # Replace tag by digest:
-        image.set_tag(image_digest, is_digest=True)
-        svc_spec['image'] = image.get_name_with_tag()
+        image_parsed.set_tag(image_digest, is_digest=True)
+        svc_spec['image'] = image_parsed.get_name_with_tag()
 
 
 def canonicalize_compose_file(compose_file, force=False):
