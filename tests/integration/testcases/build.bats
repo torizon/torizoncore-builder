@@ -330,15 +330,15 @@ teardown_file() {
 }
 
 @test "build: basic tcbuild referencing a docker-compose file" {
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
     local OUTDIR='customized_image'
     local FILE="$SAMPLES_DIR/config/tcbuild-with-compose.yaml"
-    local if_ci=""
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
+
+    if [ "${if_ci}" = "1" ]; then
         cat "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" | \
               sed -Ee 's/## username:/username:/' \
                   -Ee 's/## password:/password:/' > \
@@ -351,8 +351,8 @@ teardown_file() {
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" \
         --set COMPOSE_FILE="$COMPOSE" \
-        ${if_ci:+--set "USERNAME=$CI_DOCKER_HUB_PULL_USER"
-                 --set "PASSWORD=$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+--set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
+                 --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_success
     assert_output --partial 'Connecting to Docker Daemon'

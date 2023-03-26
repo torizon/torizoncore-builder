@@ -9,6 +9,9 @@ variables:
     description: "Type of pipeline to run. Allowed values: 'official', 'early-access' or 'internal'."
 
   DEBIAN_RELEASE: "bullseye-slim"
+  # Pipeline Settings
+  GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_CONCURRENT_ID/$CI_PROJECT_PATH
+  GET_SOURCES_ATTEMPTS: 3
   # Container version:
   TORIZONCORE_BUILDER_MAJOR: "3"
   TORIZONCORE_BUILDER_MINOR: "7"
@@ -21,7 +24,13 @@ variables:
   DOCKER_BUILDKIT: 1
   GITLAB_DOCKERREGISTRY_SUFFIX: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
   GITLAB_DOCKERREGISTRY_SUFFIX_LATEST: ${CI_COMMIT_REF_SLUG}-latest
-
+  # TC image default versions:
+  TEST_IMAGES_TC5_VERSION: "5.2.0"
+  TEST_IMAGE_TC5_32BIT: "torizon-core-docker-apalis-imx6-Tezi_5.2.0-devel-20210325+build.255.tar"
+  TEST_IMAGE_TC5_64BIT: "torizon-core-docker-verdin-imx8mm-Tezi_5.2.0-devel-20210325+build.255.tar"
+  TEST_IMAGES_TC6_VERSION: "6.2.0"
+  TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.2.0-devel-20230324+build.220.tar"
+  TEST_IMAGE_TC6_64BIT: "torizon-core-docker-apalis-imx8-Tezi_6.2.0-devel-20230324+build.220.tar"
   # Set to "echo" for dry running specific actions:
   D: ""        # deployment actions
   T: ""        # test actions
@@ -59,6 +68,7 @@ lint-python:
   script:
     # Refresh a cached image with pylint and all employed libraries.
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${T} docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
     - ${T} docker build -f torizoncore-builder.Dockerfile
                         --cache-from "${CI_REGISTRY_IMAGE}/tcbuilder-dev-latest"
                         --build-arg IMAGE_ARCH=linux/amd64
@@ -128,11 +138,12 @@ build-arm64:
     IMAGE_NAME: torizoncore-builder-arm64
     DOCKERFILE_NAME: torizoncore-builder.Dockerfile
 
-test-integration:
+.test-base:
   stage: test
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
-  script:
+    TCB_TESTCASES_64BIT: "dt dto kernel"
+  before_script:
     # setup environment for the tests
     - apk update && apk add git sshpass zstd wget bash tar openssl
     - cd tests/integration/
@@ -146,23 +157,40 @@ test-integration:
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+  script:
     # prepare images
     - echo -e "\e[0Ksection_start:$(date +%s):download_tzimgs_section\r\e[0KDownload TorizonCore test images"
     - mkdir -p workdir/images
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_APALIS_IMX6} -O workdir/images/${TEST_IMAGE_APALIS_IMX6}'
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGE_VERSION}/${TEST_IMAGE_VERDIN_IMX8MM} -O workdir/images/${TEST_IMAGE_VERDIN_IMX8MM}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_VERSION}/${TEST_IMAGE_32BIT} -O workdir/images/${TEST_IMAGE_32BIT}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_VERSION}/${TEST_IMAGE_64BIT} -O workdir/images/${TEST_IMAGE_64BIT}'
     - touch workdir/images/.images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
     # run tests (32-bit device)
-    - echo -e "\e[0Ksection_start:$(date +%s):test_apalis_imx6_section\r\e[0KRun Apalis i.MX6 tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=apalis-imx6 ${T} ./run.sh
-    - echo -e "\e[0Ksection_end:$(date +%s):test_apalis_imx6_section\r\e[0K"
-    # run tests (64-bit device)
-    - echo -e "\e[0Ksection_start:$(date +%s):test_verdin_imx8mm_section\r\e[0KRun Verdin i.MX8 tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=verdin-imx8mm ${T} ./run.sh
-    - echo -e "\e[0Ksection_end:$(date +%s):test_verdin_imx8mm_section\r\e[0K"
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_32BIT}" | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')
+    - echo -e "\e[0Ksection_start:$(date +%s):test_32bit_section\r\e[0KRun ${TCB_MACHINE} tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_32bit_section\r\e[0K"
+    # run test (64-bit device)
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_64BIT}" | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')
+    - echo -e "\e[0Ksection_start:$(date +%s):test_64bit_section\r\e[0KRun ${TCB_MACHINE} tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_64bit_section\r\e[0K"
     # check results
     - (! grep "^not ok" workdir/reports/*)
+
+test-torizoncore5:
+  extends: .test-base
+  variables:
+    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC5_VERSION}
+    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC5_32BIT}
+    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC5_64BIT}
+
+test-torizoncore6:
+    extends: .test-base
+    variables:
+      TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
+      TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
+      TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental

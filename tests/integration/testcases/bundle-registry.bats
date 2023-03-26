@@ -13,6 +13,7 @@ teardown_file() {
 }
 
 @test "bundle-registry: check with secure registries without authentication" {
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run check-registries
@@ -27,18 +28,24 @@ teardown_file() {
 
     run torizoncore-builder bundle --cacert-to "${SR_NO_AUTH_IP}" \
                                    "${SR_NO_AUTH_CERTS}/server.key" \
-                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml"
+                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
+                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                                      "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+
     assert_failure
     assert_output --partial "x509: certificate signed by unknown authority"
 
     run torizoncore-builder bundle --cacert-to "${SR_NO_AUTH_IP}" \
                                    "${SR_NO_AUTH_CERTS}/cacert.crt" \
-                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml"
+                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
+                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                                      "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Fetching container image ${SR_NO_AUTH_IP}/test"
 }
 
 @test "bundle-registry: check with secure registry with authentication" {
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run check-registries
@@ -54,27 +61,28 @@ teardown_file() {
     run torizoncore-builder bundle --login-to "${SR_WITH_AUTH_IP}" toradex wrong \
                                    --cacert-to "${SR_WITH_AUTH_IP}" \
                                    "${SR_WITH_AUTH_CERTS}/cacert.crt" \
-                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml"
+                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
+                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                                      "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+
     assert_failure
     assert_output --partial "Unauthorized"
 
     run torizoncore-builder bundle --login-to "${SR_WITH_AUTH_IP}" toradex test \
                                    --cacert-to "${SR_WITH_AUTH_IP}" \
                                    "${SR_WITH_AUTH_CERTS}/cacert.crt" \
-                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml"
+                                   --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
+                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                                      "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Fetching container image ${SR_WITH_AUTH_IP}/test"
 }
 
 @test "bundle-registry: check with with all registries" {
-    local if_ci=""
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
     local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
     local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
-
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-      if_ci="1"
-    fi
 
     run check-registries
     assert_success
@@ -102,8 +110,8 @@ teardown_file() {
                                    --cacert-to "${SR_NO_AUTH_IP}" \
                                    "${SR_NO_AUTH_CERTS}/cacert.crt" \
                                    --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                   ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER"
-                                                      "$CI_DOCKER_HUB_PULL_PASSWORD"}
+                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                                      "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     for i in {1..2}; do
         for y in {0..1}; do

@@ -5,17 +5,13 @@ load 'lib/common.bash'
 
 
 @test "combine: check if image directory has a valid tezi image" {
-    local if_ci=""
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
-
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
@@ -41,17 +37,13 @@ load 'lib/common.bash'
 }
 
 @test "combine: run with the deprecated --image-directory switch" {
-    local if_ci=""
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
-
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
@@ -72,17 +64,13 @@ load 'lib/common.bash'
 }
 
 @test "combine: run with the deprecated --output-directory switch" {
-    local if_ci=""
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
-
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
@@ -103,17 +91,13 @@ load 'lib/common.bash'
 }
 
 @test "combine: check without --bundle-directory parameter" {
-    local if_ci=""
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
-
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
@@ -135,18 +119,14 @@ load 'lib/common.bash'
 }
 
 @test "combine: check with --bundle-directory parameters" {
-    local if_ci=""
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
-
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
 
     local BUNDLE_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
     run torizoncore-builder bundle --bundle-directory "$BUNDLE_DIR" "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
@@ -169,19 +149,15 @@ load 'lib/common.bash'
 }
 
 @test "combine: check with --image-autoinstall" {
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local LICENSE_FILE="license-fc.html"
     local LICENSE_DIR="$SAMPLES_DIR/installer/$LICENSE_FILE"
-    local if_ci=""
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
-
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then
@@ -225,18 +201,14 @@ load 'lib/common.bash'
 }
 
 @test "combine: check with --image-autoreboot" {
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local COMPOSE='docker-compose.yml'
-    local if_ci=""
     local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
-        if_ci="1"
-    fi
-
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER" "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
     if [ "$TCB_UNDER_CI" = "1" ]; then

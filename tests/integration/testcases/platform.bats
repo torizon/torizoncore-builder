@@ -102,26 +102,34 @@ test_canonicalize_only_success() {
 }
 
 @test "platform push: docker-compose canonicalization errors" {
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
 
     # Test-case: file with no yml/yaml extension
-    run torizoncore-builder platform push "$CANON_DIR/docker-compose-good" --canonicalize-only --force
+    run torizoncore-builder platform push "$CANON_DIR/docker-compose-good" \
+                                          --canonicalize-only --force
+
     assert_failure
     assert_output --partial "'$CANON_DIR/docker-compose-good' does not seem like a Docker compose file."
 
     # Test-case: error present
-    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-services.yml" --canonicalize-only --force
+    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-services.yml" \
+                                          --canonicalize-only --force
     assert_failure
     assert_output --partial "No 'services' section in compose file"
 
     # Test-case: error present
-    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-image.yml" --canonicalize-only --force
+    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-image.yml" \
+                                          --canonicalize-only --force \
+                                          ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_failure
     assert_output --partial "No image specified for service"
 
     # Test-case: with file already present and no --force
     touch "$CANON_DIR/docker-compose-no-image.lock.yml"
-    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-image.yml" --canonicalize-only
+    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-image.yml" \
+                                          --canonicalize-only
     assert_failure
     assert_output --partial "'$CANON_DIR/docker-compose-no-image.lock.yml' already exists. Please use the '--force' parameter"
 }
@@ -423,13 +431,9 @@ test_canonicalize_only_success() {
 
 @test "platform lockbox: test advanced registry access" {
     skip-no-ota-credentials
+    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
-    local if_ci=""
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
-
-    if [ "${TCB_UNDER_CI}" = "1" ]; then
-        if_ci="1"
-    fi
 
     run check-registries
     assert_success
@@ -440,7 +444,7 @@ test_canonicalize_only_success() {
         --login-to "${SR_WITH_AUTH_IP}" toradex test \
         --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
         --force LockBox-Test \
-        ${if_ci:+"--login" "$CI_DOCKER_HUB_PULL_USER"
-                           "$CI_DOCKER_HUB_PULL_PASSWORD"}
+        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                           "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 }

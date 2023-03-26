@@ -32,7 +32,15 @@ $TESTCASES_DIR/splash.bats \
 
 # test case to run
 if [ ! -z "$TCB_TESTCASE" ]; then
-    TESTCASES="$TESTCASES_DIR/$TCB_TESTCASE.bats"
+    TESTCASES=""
+    for test in $TCB_TESTCASE; do
+        if [ -e "$TESTCASES_DIR/$test.bats" ]; then
+            TESTCASES+="$TESTCASES_DIR/$test.bats "
+        else
+            echo "Group of tests '$test' not found. Ensure the '$test.bats' file" \
+                 "is present in the 'tests/integration/testcases' folder."
+        fi
+    done
 fi
 
 # BATS command
