@@ -4,6 +4,7 @@ import hashlib
 import logging
 import os
 import re
+from copy import deepcopy
 from urllib.parse import urljoin
 
 import requests
@@ -541,19 +542,20 @@ class RegistryOperations:
                  - response is an HTTPResponse object.
         """
 
-        _parsed = parse_image_name(image_name)
-        name = _parsed.name
+        top_parsed = parse_image_name(image_name)
 
         def _mkinfo(mtype, /, digest=None, platform=None, size=None):
-            nonlocal name
+            # Here we use the fact that the top-level and the child images have
+            # the same name; just the digests are different.
             return {
-                "name": name, "type": mtype, "digest": digest,
+                "name": top_parsed.name, "type": mtype, "digest": digest,
                 "platform": platform, "size": size
             }
 
         # Handle top-level manifest which can be a simple manifest or a manifest list.
         top_res, top_digest = self.get_manifest(
-            image_name, headers=headers, ret_digest=True, val_digest=val_digest)
+            top_parsed.get_name_with_tag(),
+            headers=headers, ret_digest=True, val_digest=val_digest)
         assert top_res.status_code == requests.codes["ok"], \
             f"Could not fetch manifest of '{image_name}'"
         if top_res.headers["content-type"] == MANIFEST_LIST_MEDIA_TYPE:
@@ -576,8 +578,10 @@ class RegistryOperations:
                 if platforms is not None and not platform_in(child_platform, platforms):
                     log.debug(f"Skipping manifest for platform {child_platform}")
                     continue
+                child_parsed = deepcopy(top_parsed)
+                child_parsed.set_tag(child["digest"])
                 child_res = self.get_manifest(
-                    f"{name}@{child['digest']}",
+                    child_parsed.get_name_with_tag(),
                     headers=headers, ret_digest=False, val_digest=val_digest)
                 assert child_res.headers["content-type"] == MANIFEST_MEDIA_TYPE, \
                     (f"Child manifests of type {child_res.headers['content-type']}"
