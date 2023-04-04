@@ -633,9 +633,9 @@ class RegistryOperations:
             })
 
             # Save file:
-            log.info(f"Saving {info['type']} of {info['name']} [{info['platform']}]")
-            # log.info(f"Saving {info['type']} of {info['name']} [{info['platform']}]\n"
-            # f"  into {_dest}")
+            _plattxt = f" [{info['platform']}]" if info['platform'] else ""
+            log.info(f"Saving {info['type']} of {info['name']}{_plattxt}")
+            # log.debug(f"Saving {info['type']} of {info['name']}{_plattxt} into {_dest}")
             with open(_dest, "wb") as fileh:
                 fileh.write(resp.content)
             saved_digests.append(info["digest"])

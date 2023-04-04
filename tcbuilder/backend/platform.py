@@ -522,7 +522,8 @@ def select_images(image_platform_pairs, manifests_per_image, req_platforms=None,
     if verbose:
         log.info("\n=> Digests selected per image:")
         for (req_image, req_platform), cur_selection in images_selection_per_image:
-            log.info(f"{req_image}, platform '{req_platform}':")
+            _plattxt = f", platform '{req_platform}'" if req_platform else ""
+            log.info(f"{req_image}{_plattxt}:")
             for sel in cur_selection:
                 log.info(f" * {sel[1]} [{sel[2]}]")
 
