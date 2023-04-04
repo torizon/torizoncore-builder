@@ -156,7 +156,6 @@ def fetch_offupdt_targets(
                 f"Could not find target '{offupdt_name}' in image-repo metadata")
 
         tgtformat = imgrepo_meta["custom"]["targetFormat"]
-        # TODO: Allow custom URIs ('uri' field?)
         # Handle each type of target.
         if tgtformat == "OSTREE":
             params = {
@@ -168,6 +167,9 @@ def fetch_offupdt_targets(
                 "version": imgrepo_meta["custom"]["version"],
                 "access_token": access_token
             }
+            if "uri" in imgrepo_meta["custom"].keys():
+                params["ostree_url"] = imgrepo_meta["custom"]["uri"]
+                params["access_token"] = None
             platform.fetch_ostree_target(**params)
 
         elif tgtformat == "BINARY":
@@ -179,6 +181,8 @@ def fetch_offupdt_targets(
                 "version": imgrepo_meta["custom"]["version"],
                 "access_token": access_token
             }
+            if "uri" in imgrepo_meta["custom"].keys():
+                params["custom_uri"] = imgrepo_meta["custom"]["uri"]
             # Currently we always check the sha and length of binary targets.
             params.update({
                 "sha256": imgrepo_meta["hashes"]["sha256"],

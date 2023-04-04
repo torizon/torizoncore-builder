@@ -307,7 +307,7 @@ def fetch_validate(url, fname, dest_dir,
 # pylint: disable=too-many-arguments
 def fetch_file_target(target, repo_url, images_dir,
                       sha256=None, length=None, access_token=None, parse=None,
-                      name=None, version=None):
+                      name=None, version=None, custom_uri=None):
     """Fetch a generic file target from the TUF repo
 
     :param target: Target as it appears in the Uptane metadata.
@@ -323,10 +323,15 @@ def fetch_file_target(target, repo_url, images_dir,
                  metadata.
     :param version: Version of the target visible to the user as it appears in
                     the Uptane metadata.
+    :custom_uri: Full URL to file when stored outside of the OTA server.
     """
 
     # Build URL to file at OTA server:
-    url = urljoin(repo_url + "/", f"api/v1/user_repo/targets/{target}")
+    if custom_uri:
+        url = custom_uri
+        access_token = None
+    else:
+        url = urljoin(repo_url + "/", f"api/v1/user_repo/targets/{target}")
 
     log.info(f"Fetching target '{target}' from '{url}'...")
     log.info(f"Uptane info: target '{name}', version: '{version}'")
@@ -663,7 +668,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
 def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
                          sha256=None, length=None, req_platforms=None,
                          access_token=None, name=None, version=None,
-                         dind_params=None):
+                         dind_params=None, custom_uri=None):
     """Fetch compose file target from the TUF repo along with referenced artifacts
 
     Parameter `req_platforms` should be a list of the platforms to select
@@ -676,7 +681,7 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     compose = fetch_file_target(
         target, repo_url, images_dir,
         sha256=sha256, length=length, access_token=access_token, parse="yaml",
-        name=name, version=version)
+        name=name, version=version, custom_uri=custom_uri)
 
     # Get the list of images being referenced by the compose-file with their
     # requested platforms.
@@ -707,7 +712,8 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
 
 def fetch_binary_target(target, repo_url, images_dir,
                         sha256=None, length=None,
-                        access_token=None, name=None, version=None):
+                        access_token=None, name=None, version=None,
+                        custom_uri=None):
     """Fetch a binary file target from the TUF repo
 
     For details on the parameters, see :func:`fetch_file_target`.
@@ -715,8 +721,8 @@ def fetch_binary_target(target, repo_url, images_dir,
 
     log.info(f"Fetching binary target '{target}'")
     fetch_file_target(target, repo_url, images_dir,
-                      sha256=sha256, length=length,
-                      access_token=access_token, name=name, version=version)
+                      sha256=sha256, length=length, access_token=access_token,
+                      name=name, version=version, custom_uri=custom_uri)
 
 
 def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None, verbose=True):
