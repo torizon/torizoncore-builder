@@ -254,8 +254,15 @@ def fetch_validate(url, fname, dest_dir,
     # Make sure there are no unsafe characters in the filename:
     # https://superuser.com/questions/358855/
     # what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
-    assert all(ch not in UNSAFE_FILENAME_CHARS for ch in fname), \
-        f"Target '{fname}' contains unsafe characters"
+    #
+    # To support offline bootloader updates, we need to allow / in the filename.
+    # In this case, we will create the directory represented as needed. We add a
+    # check for `../` to protect against directory traversal, but it should not be
+    # a great concern: this is user-supplied data, and the directory traversal
+    # would be on the user's own machine.
+
+    assert all(ch not in UNSAFE_FILENAME_CHARS.replace('/', '') for ch in fname) \
+        and "../" not in fname, f"Target '{fname}' contains unsafe characters"
 
     # Fetch the file:
     if access_token:
@@ -287,6 +294,7 @@ def fetch_validate(url, fname, dest_dir,
 
     # Write file into destination:
     fname = os.path.join(dest_dir, fname)
+    os.makedirs(os.path.dirname(fname), exist_ok=True)
     with open(fname, "wb") as cmph:
         cmph.write(res.content)
     log.debug(f"Written file '{fname}' with {length} bytes, sha256='{sha256}'")
@@ -710,6 +718,7 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
 # pylint: enable=too-many-arguments,too-many-locals
 
 
+# pylint: disable=too-many-arguments
 def fetch_binary_target(target, repo_url, images_dir,
                         sha256=None, length=None,
                         access_token=None, name=None, version=None,
@@ -723,6 +732,7 @@ def fetch_binary_target(target, repo_url, images_dir,
     fetch_file_target(target, repo_url, images_dir,
                       sha256=sha256, length=length, access_token=access_token,
                       name=name, version=version, custom_uri=custom_uri)
+# pylint: enable=too-many-arguments
 
 
 def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None, verbose=True):
@@ -772,7 +782,9 @@ def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None, verbose=True):
             url = urljoin(repo_url + "/", f"api/v1/user_repo/delegations/{fname}")
         if verbose:
             log.info(f"Fetching '{fname}'")
-        # NOTE: The sha256 in the metadata does not seem to match the actual files.
+        # NOTE: The sha256 in the metadata does not match the actual files returned.
+        # This is because the sha256 is calculated against the canonicalized JSON,
+        # and the server does not return the JSON in canonicalized form.
         fetch_validate(
             url, fname, dest_dir,
             # sha256=fmeta["hashes"].get("sha256"),
