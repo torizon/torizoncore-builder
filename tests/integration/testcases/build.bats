@@ -386,7 +386,7 @@ teardown_file() {
     run check-registries
     assert_success
 
-    cp "${SR_COMPOSE_FOLDER}/docker-compose-sr.yml" "${COMPOSE}"
+    cp "${SR_COMPOSE_FOLDER}/docker-compose-sr-only.yml" "${COMPOSE}"
 
     sed -i -E -e "s/# @NAME1@/test/" \
               -e "s/# image: @IMAGE5@/ image: ${SR_WITH_AUTH_IP}\/test1/" \
