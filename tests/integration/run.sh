@@ -64,9 +64,9 @@ fi
 
 # machine defines the default tezi image used in test cases
 if [ ! -z "$TCB_MACHINE" ]; then
-    MACHINE=$TCB_MACHINE
+    export MACHINE=$TCB_MACHINE
 else
-    MACHINE="apalis-imx6"
+    export MACHINE="apalis-imx6"
 fi
 
 # check if setup.sh was sourced.

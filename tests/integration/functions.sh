@@ -188,3 +188,8 @@ function is_major_version_6() {
     [ "${MAJOR_VERSION}" -eq "6" ]
 }
 export -f is_major_version_6
+
+function get_current_time() {
+    date -u +"%Y-%m-%dT%H:%M:%S"
+}
+export -f get_current_time

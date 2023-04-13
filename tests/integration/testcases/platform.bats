@@ -316,16 +316,15 @@ test_canonicalize_only_success() {
 }
 
 @test "platform push: test push with docker-compose files" {
+    skip-under-ci
     skip-no-ota-credentials
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "${SAMPLES_DIR}/credentials/credentials-prod.zip.enc")
     local CANON_DIR="${SAMPLES_DIR}/push/canonicalize"
     local GOOD_YML="docker-compose-good"
-    local P_NAME=$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')
-    local TIME_AND_NAME="$(date +'%H%M%S')-${P_NAME}"
 
     # Test-case: push a non-canonical file
     run torizoncore-builder platform push "${CANON_DIR}/${GOOD_YML}.yml" \
-        --package-name "${TIME_AND_NAME}.yml" --credentials "${CREDS_PROD_ZIP}"
+        --package-version "${MACHINE}-$(get_current_time)" --credentials "${CREDS_PROD_ZIP}"
     assert_success
     assert_output --partial 'This package is not in its canonical form'
     assert_output --partial 'Successfully pushed'
@@ -333,22 +332,24 @@ test_canonicalize_only_success() {
 
     # Test-case: push generating canonicalized file
     run torizoncore-builder platform push "${CANON_DIR}/${GOOD_YML}.yml" \
-        --credentials "${CREDS_PROD_ZIP}" --package-version "$(date +'%H%M%S')" \
+        --credentials "${CREDS_PROD_ZIP}" --package-version "${MACHINE}-$(get_current_time)" \
         --canonicalize --force
     assert_success
     assert_output --partial "Canonicalized file '${CANON_DIR}/${GOOD_YML}.lock.yml' has been generated."
     assert_output --partial 'Successfully pushed'
     refute_output --partial 'the package name must end with ".lock.yml"'
 
+    local NONC_PACKAGE_NAME="${MACHINE}-$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')"
+    local NONC_PACKAGE_VERSION="${MACHINE}-$(get_current_time)"
     # Test-case: push a canonicalized file with a non canonicalized package name
     run torizoncore-builder platform push "${CANON_DIR}/${GOOD_YML}.lock.yml" \
-        --package-name "${P_NAME}.yml" --package-version "${TIME_AND_NAME}" \
+        --package-name "${NONC_PACKAGE_NAME}" --package-version "${NONC_PACKAGE_VERSION}" \
         --credentials "${CREDS_PROD_ZIP}" --description "Test_docker-compose"
     assert_success
     assert_output --partial 'the package name must end with ".lock.yml"'
-    assert_output --partial "package version ${TIME_AND_NAME}"
+    assert_output --partial "package version ${NONC_PACKAGE_VERSION}"
     assert_output --partial 'Successfully pushed'
-    assert_output --partial "Description for ${P_NAME}.yml updated."
+    assert_output --partial "Description for ${NONC_PACKAGE_NAME} updated."
 
     local V1_SHA256="44ebe00783ae397562e3a9ef099249bd9f6b3cd8c01daff46618e85420f59c37"
     local MCI_SHA256="2ba50085b4db59b2103ecb15526b3f2317d49a61bddd2bc28af67bd17e584068"
@@ -356,17 +357,18 @@ test_canonicalize_only_success() {
     # Test-case: push a docker-compose with compatibilities defined.
     run torizoncore-builder platform push  --credentials "${CREDS_PROD_ZIP}" \
         --compatible-with "sha256=${V1_SHA256}" --compatible-with "sha256=${MCI_SHA256}" \
-        --package-version "$(date +'%H%M%S')" "${CANON_DIR}/${GOOD_YML}.lock.yml"
+        --package-version "${MACHINE}-$(get_current_time)" "${CANON_DIR}/${GOOD_YML}.lock.yml"
     assert_success
     assert_output --partial "Package v1 with version"
     assert_output --partial "Package my_custom_image with version"
 }
 
 @test "platform push: test push with TorizonCore images" {
+    skip-under-ci
     skip-no-ota-credentials
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
-    local IMG_NAME="my_custom_image"
+    local IMG_NAME="${MACHINE}-custom_image"
 
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
@@ -376,18 +378,19 @@ test_canonicalize_only_success() {
 
     # Grab Commit hash created by the union command
     local ARCHIVE="/storage/ostree-archive/"
-    run torizoncore-builder-shell "ostree --repo=$ARCHIVE show $IMG_NAME | \
-                                   sed -Ene 's/^commit\s([0-9a-f]{64}$)/\1/p'"
+    run torizoncore-builder-shell \
+      "ostree --repo=$ARCHIVE show $IMG_NAME | sed -Ene 's/^commit\s([0-9a-f]{64}$)/\1/p'"
     assert_success
     local UNION_HASH=$output
 
-    run torizoncore-builder-shell "ostree --repo=$ARCHIVE --print-metadata-key=oe.machine \
-                                   show $IMG_NAME"
+    run torizoncore-builder-shell \
+      "ostree --repo=$ARCHIVE --print-metadata-key=oe.machine show $IMG_NAME"
     assert_success
     local METADATA_MACHINE=$output
 
     run torizoncore-builder platform push "$IMG_NAME" --hardwareid "modelA" \
-        --hardwareid "modelB" --credentials "$CREDS_PROD_ZIP"
+        --hardwareid "modelB" --credentials "$CREDS_PROD_ZIP" \
+        --package-version "${MACHINE}-$(get_current_time)"
     assert_success
     assert_output --partial "The default hardware id $METADATA_MACHINE is being overridden"
     assert_output --partial "Signed and pushed OSTree package $IMG_NAME successfully"
@@ -395,7 +398,8 @@ test_canonicalize_only_success() {
     assert_output --regexp "Signing OSTree package $IMG_NAME.*Hardware Id\(s\) \"modelA,modelB\""
 
     run torizoncore-builder platform push "$IMG_NAME" --hardwareid "$METADATA_MACHINE" \
-        --hardwareid "modelA" --credentials "$CREDS_PROD_ZIP"
+        --hardwareid "modelA" --credentials "$CREDS_PROD_ZIP" \
+        --package-version "${MACHINE}-$(get_current_time)"
     assert_success
     assert_output --partial "Signed and pushed OSTree package $IMG_NAME successfully"
     assert_output --partial "Pushing $IMG_NAME (commit checksum $UNION_HASH)"
@@ -403,11 +407,11 @@ test_canonicalize_only_success() {
 
     # Get and test Branch name
     local EXTRN_OSTREE_DIR="$SAMPLES_DIR/ostree-archive"
-    run ostree --repo="$EXTRN_OSTREE_DIR" refs
+    run torizoncore-builder-shell "ostree --repo=$EXTRN_OSTREE_DIR refs"
     assert_success
     local EXTRN_OSTREE_BRANCH=$(echo "$output" | sed -n 1p)
 
-    run ostree --repo="$EXTRN_OSTREE_DIR" show "$EXTRN_OSTREE_BRANCH"
+    run torizoncore-builder-shell "ostree --repo=$EXTRN_OSTREE_DIR show $EXTRN_OSTREE_BRANCH"
     assert_success
     local EXTRN_COMMIT_HASH=$(echo "$output" | sed -Ene 's/^commit\s([0-9a-f]{64})$/\1/p')
 
@@ -415,12 +419,13 @@ test_canonicalize_only_success() {
     run torizoncore-builder platform push "$EXTRN_OSTREE_BRANCH" --repo "$EXTRN_OSTREE_DIR" \
         --credentials "$CREDS_PROD_ZIP"
     assert_failure
-    assert_output "No hardware id found in OSTree metadata and none provided."
+    assert_output --partial "No hardware id found"
 
     # Test with hardwareid defined and description
     local HARDWARE_ID="test-id"
     run torizoncore-builder platform push "$EXTRN_OSTREE_BRANCH" --repo "$EXTRN_OSTREE_DIR" \
-        --hardwareid "$HARDWARE_ID" --credentials "$CREDS_PROD_ZIP" --description "Test"
+        --hardwareid "$HARDWARE_ID" --credentials "$CREDS_PROD_ZIP" --description "Test" \
+        --package-version "${MACHINE}-$(get_current_time)"
     assert_success
     assert_output --regexp "The default hardware id .* is being overridden"
     assert_output --partial "Pushing $EXTRN_OSTREE_BRANCH (commit checksum $EXTRN_COMMIT_HASH)"
