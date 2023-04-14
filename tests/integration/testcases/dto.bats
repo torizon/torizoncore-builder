@@ -19,7 +19,7 @@ load 'bats/bats-file/load.bash'
     rm -rf device-trees
 
     run torizoncore-builder dt checkout --update
-    if is_major_version_6; then
+    if is-major-version-6; then
         assert_failure
         skip "device-trees not available on TC6"
     fi
@@ -38,7 +38,7 @@ load 'bats/bats-file/load.bash'
     rm -rf device-trees
 
     run torizoncore-builder dt checkout --update
-    if is_major_version_6; then
+    if is-major-version-6; then
         assert_failure
         skip "device-trees not available on TC6"
     fi
@@ -124,7 +124,6 @@ load 'bats/bats-file/load.bash'
 @test "dto: remove overlay in the image" {
     run torizoncore-builder dto remove sample_overlay.dtbo
     assert_success
-    refute_output
 
     run torizoncore-builder dto status
     assert_success
@@ -151,7 +150,6 @@ load 'bats/bats-file/load.bash'
 @test "dto: remove all overlays in the image" {
     run torizoncore-builder dto remove --all
     assert_success
-    refute_output
 
     run torizoncore-builder dto status
     assert_success

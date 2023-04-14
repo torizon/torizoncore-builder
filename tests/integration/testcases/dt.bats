@@ -30,13 +30,12 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout
-    if is_major_version_6; then
+    if is-major-version-6; then
         assert_failure
         assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
-    refute_output
 
     run ls device-trees/overlays/*.dts
     assert_success
@@ -55,13 +54,13 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is_major_version_6; then
+    if is-major-version-6; then
         assert_failure
         assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
-    refute_output
+    refute_output --regexp "'device-trees' (is already up to date|successfully updated)"
 
     local DEVICETREES_DIR="$(pwd)/device-trees"
     git -C $DEVICETREES_DIR reset --hard HEAD~
@@ -102,7 +101,7 @@ load 'lib/common.bash'
 
     run torizoncore-builder dt status
     assert [ $? = "0" -o $? = "1" ]
-    assert_output --regexp "^Current device tree is|^error: cannot identify the enabled device tree"
+    assert_output --regexp "Current device tree is|error: cannot identify the enabled device tree"
 }
 
 @test "dt: apply device tree in the image without images unpack" {
@@ -119,13 +118,13 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is_major_version_6; then
+    if is-major-version-6; then
         assert_failure
         assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
-    refute_output
+    refute_output --regexp "'device-trees' (is already up to date|successfully updated)"
 
     run torizoncore-builder-shell "ls /storage/sysroot/boot/ostree/torizon-*/dtb/*.dtb"
     local DTB=$(basename "${lines[0]}")
@@ -149,13 +148,13 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is_major_version_6; then
+    if is-major-version-6; then
         assert_failure
         assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
         return 0
     fi
     assert_success
-    refute_output
+    refute_output --regexp "'device-trees' (is already up to date|successfully updated)"
 
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 

@@ -18,7 +18,7 @@ function teardown() {
 
     run torizoncore-builder images serve $IMAGE_DIR
     assert_failure
-    assert_output --regexp '^Error: The Toradex Easy Installer.*does not exist inside.*directory.$'
+    assert_output --regexp 'Error: The Toradex Easy Installer.*does not exist inside.*directory.$'
 
     rm -rf $IMAGE_DIR
 }

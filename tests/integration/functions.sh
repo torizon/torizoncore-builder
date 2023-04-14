@@ -183,13 +183,13 @@ decrypt-credentials-file() {
 }
 export -f decrypt-credentials-file
 
-function is_major_version_6() {
+function is-major-version-6() {
     local MAJOR_VERSION=$(echo "${DEFAULT_TEZI_IMAGE}" | sed 's/.*Tezi_\([0-9]\).*/\1/')
     [ "${MAJOR_VERSION}" -eq "6" ]
 }
-export -f is_major_version_6
+export -f is-major-version-6
 
-function get_current_time() {
-    date -u +"%Y-%m-%dT%H:%M:%S"
+function get-unique-version() {
+    echo "${MACHINE}-${EPOCHSECONDS}"
 }
-export -f get_current_time
+export -f get-unique-version

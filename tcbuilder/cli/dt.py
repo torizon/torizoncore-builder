@@ -17,7 +17,7 @@ from tcbuilder.backend.common import (checkout_dt_git_repo,
                                       images_unpack_executed,
                                       update_dt_git_repo)
 from tcbuilder.errors import (
-    TorizonCoreBuilderError, InvalidArgumentError)
+    TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -43,14 +43,13 @@ def do_dt_checkout(args):
     images_unpack_executed(storage_dir)
 
     # Retrieve the Toradex device-tree repository, if not already retrieved.
-    if os.path.exists(os.path.abspath("device-trees")):
-        if args.update:
+    try:
+        if os.path.exists(os.path.abspath("device-trees")):
+            if not args.update:
+                raise InvalidStateError("'device-trees' directory already exists")
             update_dt_git_repo()
         else:
-            log.error("'device-trees' directory already exists")
-        return
-    try:
-        checkout_dt_git_repo(storage_dir, None, None)
+            checkout_dt_git_repo(storage_dir, None, None)
     except TorizonCoreBuilderError as ex:
         log.error(ex.msg)  # msg from all kinds of Exceptions
         if ex.det is not None:

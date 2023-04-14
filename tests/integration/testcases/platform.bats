@@ -324,7 +324,7 @@ test_canonicalize_only_success() {
 
     # Test-case: push a non-canonical file
     run torizoncore-builder platform push "${CANON_DIR}/${GOOD_YML}.yml" \
-        --package-version "${MACHINE}-$(get_current_time)" --credentials "${CREDS_PROD_ZIP}"
+        --package-version "$(get-unique-version)" --credentials "${CREDS_PROD_ZIP}"
     assert_success
     assert_output --partial 'This package is not in its canonical form'
     assert_output --partial 'Successfully pushed'
@@ -332,7 +332,7 @@ test_canonicalize_only_success() {
 
     # Test-case: push generating canonicalized file
     run torizoncore-builder platform push "${CANON_DIR}/${GOOD_YML}.yml" \
-        --credentials "${CREDS_PROD_ZIP}" --package-version "${MACHINE}-$(get_current_time)" \
+        --credentials "${CREDS_PROD_ZIP}" --package-version "$(get-unique-version)" \
         --canonicalize --force
     assert_success
     assert_output --partial "Canonicalized file '${CANON_DIR}/${GOOD_YML}.lock.yml' has been generated."
@@ -340,7 +340,7 @@ test_canonicalize_only_success() {
     refute_output --partial 'the package name must end with ".lock.yml"'
 
     local NONC_PACKAGE_NAME="${MACHINE}-$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')"
-    local NONC_PACKAGE_VERSION="${MACHINE}-$(get_current_time)"
+    local NONC_PACKAGE_VERSION="$(get-unique-version)"
     # Test-case: push a canonicalized file with a non canonicalized package name
     run torizoncore-builder platform push "${CANON_DIR}/${GOOD_YML}.lock.yml" \
         --package-name "${NONC_PACKAGE_NAME}" --package-version "${NONC_PACKAGE_VERSION}" \
@@ -357,7 +357,7 @@ test_canonicalize_only_success() {
     # Test-case: push a docker-compose with compatibilities defined.
     run torizoncore-builder platform push  --credentials "${CREDS_PROD_ZIP}" \
         --compatible-with "sha256=${V1_SHA256}" --compatible-with "sha256=${MCI_SHA256}" \
-        --package-version "${MACHINE}-$(get_current_time)" "${CANON_DIR}/${GOOD_YML}.lock.yml"
+        --package-version "$(get-unique-version)" "${CANON_DIR}/${GOOD_YML}.lock.yml"
     assert_success
     assert_output --partial "Package v1 with version"
     assert_output --partial "Package my_custom_image with version"
@@ -390,7 +390,7 @@ test_canonicalize_only_success() {
 
     run torizoncore-builder platform push "$IMG_NAME" --hardwareid "modelA" \
         --hardwareid "modelB" --credentials "$CREDS_PROD_ZIP" \
-        --package-version "${MACHINE}-$(get_current_time)"
+        --package-version "$(get-unique-version)"
     assert_success
     assert_output --partial "The default hardware id $METADATA_MACHINE is being overridden"
     assert_output --partial "Signed and pushed OSTree package $IMG_NAME successfully"
@@ -399,7 +399,7 @@ test_canonicalize_only_success() {
 
     run torizoncore-builder platform push "$IMG_NAME" --hardwareid "$METADATA_MACHINE" \
         --hardwareid "modelA" --credentials "$CREDS_PROD_ZIP" \
-        --package-version "${MACHINE}-$(get_current_time)"
+        --package-version "$(get-unique-version)"
     assert_success
     assert_output --partial "Signed and pushed OSTree package $IMG_NAME successfully"
     assert_output --partial "Pushing $IMG_NAME (commit checksum $UNION_HASH)"
@@ -425,7 +425,7 @@ test_canonicalize_only_success() {
     local HARDWARE_ID="test-id"
     run torizoncore-builder platform push "$EXTRN_OSTREE_BRANCH" --repo "$EXTRN_OSTREE_DIR" \
         --hardwareid "$HARDWARE_ID" --credentials "$CREDS_PROD_ZIP" --description "Test" \
-        --package-version "${MACHINE}-$(get_current_time)"
+        --package-version "$(get-unique-version)"
     assert_success
     assert_output --regexp "The default hardware id .* is being overridden"
     assert_output --partial "Pushing $EXTRN_OSTREE_BRANCH (commit checksum $EXTRN_COMMIT_HASH)"
