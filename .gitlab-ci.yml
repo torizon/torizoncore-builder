@@ -31,6 +31,16 @@ variables:
   TEST_IMAGES_TC6_VERSION: "6.2.0"
   TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.2.0-devel-20230324+build.220.tar"
   TEST_IMAGE_TC6_64BIT: "torizon-core-docker-apalis-imx8-Tezi_6.2.0-devel-20230324+build.220.tar"
+  # TC custom image parameters
+  INTERNAL_ARTIFACTORY_URL: "" # "https://artifactory-horw.int.toradex.com/artifactory"
+  ARTIFACTORY_SRC_REPO: "" # "devtorizoncore-oe-prerelease-horw"
+  BUILD_DISTRO: "" # "torizon-upstream"
+  BUILD_MACHINE: "" # "colibri-imx6"
+  BUILD_MANIFEST_BRANCH: "" # "dunfell-5.x.y"
+  BUILD_PIPELINETYPE: "" # "nightly"
+  BUILD_RECIPE: "" # "torizon-core-docker""
+  DISTRO_VERSION: "" # "5.7.3-devel-20230502+build.25"
+  MATRIX_BUILD_NUMBER: "" # "25""
   # Set to "echo" for dry running specific actions:
   D: ""        # deployment actions
   T: ""        # test actions
@@ -140,6 +150,14 @@ build-arm64:
 
 .test-base:
   stage: test
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    - when: on_success
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
     TCB_TESTCASES_64BIT: "dt dto kernel"
@@ -186,11 +204,46 @@ test-torizoncore5:
     TEST_IMAGE_64BIT: ${TEST_IMAGE_TC5_64BIT}
 
 test-torizoncore6:
-    extends: .test-base
-    variables:
-      TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
-      TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
-      TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
+  extends: .test-base
+  variables:
+    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
+    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
+    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
+
+# Job mostly triggered by Jenkins.
+test-torizoncore:
+  extends: .test-base
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: $BUILD_MACHINE
+  script:
+    - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit1; fi
+    - if [ -z ${ARTIFACTORY_SRC_REPO} ]; then echo "Missing variable ARTIFACTORY_SRC_REPO." && exit 1; fi
+    - if [ -z ${BUILD_MANIFEST_BRANCH} ]; then echo "Missing variable BUILD_MANIFEST_BRANCH." && exit 1; fi
+    - if [ -z ${BUILD_PIPELINETYPE} ]; then echo "Missing variable BUILD_PIPELINETYPE." && exit 1; fi
+    - if [ -z ${BUILD_MACHINE} ]; then echo "Missing variable BUILD_MACHINE." && exit 1; fi
+    - if [ -z ${BUILD_RECIPE} ]; then echo "Missing variable BUILD_RECIPE." && exit 1; fi
+    - if [ -z ${BUILD_DISTRO} ]; then echo "Missing variable BUILD_DISTRO." && exit 1; fi
+    - if [ -z ${DISTRO_VERSION} ]; then echo "Missing variable DISTRO_VERSION." && exit 1; fi
+    - if [ -z ${MATRIX_BUILD_NUMBER} ]; then echo "Missing variable MATRIX_BUILD_NUMBER." && exit 1; fi
+    # prepare images
+    - echo -e "\e[0Ksection_start:$(date +%s):download_tzimgs_section\r\e[0KDownload TorizonCore test images"
+    - mkdir -p workdir/images
+    - "TEST_IMAGE_TORIZONCORE_URL=${INTERNAL_ARTIFACTORY_URL}/${ARTIFACTORY_SRC_REPO}\
+        /${BUILD_MANIFEST_BRANCH}/${BUILD_PIPELINETYPE}/${MATRIX_BUILD_NUMBER}\
+        /${BUILD_MACHINE}/${BUILD_DISTRO}/torizon-core-docker/oedeploy\
+        /${BUILD_RECIPE}-${BUILD_MACHINE}-Tezi_${DISTRO_VERSION}.tar"
+    - 'wget --progress=dot:giga ${TEST_IMAGE_TORIZONCORE_URL} -P workdir/images/'
+    - touch workdir/images/.images_downloaded
+    - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
+    # run tests (32-bit device)
+    - echo -e "\e[0Ksection_start:$(date +%s):test_section\r\e[0KRun ${BUILD_MACHINE} tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
+    # check results
+    - (! grep "^not ok" workdir/reports/*)
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental
@@ -217,6 +270,9 @@ build-multiarch:
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
@@ -325,6 +381,9 @@ deploy-official-amd64:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
     - if: '$RELEASE_TYPE == "official"'
       when: manual
     - when: never
@@ -346,6 +405,9 @@ deploy-official-arm64:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
     - if: '$RELEASE_TYPE == "official"'
       when: manual
     - when: never
@@ -366,6 +428,9 @@ deploy-official-multiarch:
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "official"'
       when: manual
@@ -391,6 +456,9 @@ deploy-ea-amd64:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
     - when: never
@@ -408,6 +476,9 @@ deploy-ea-amd64:
 #  rules:
 #    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 #      when: never
+#    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+#    - if: $BUILD_MACHINE
+#      when: never
 #    - if: '$RELEASE_TYPE == "early-access"'
 #      when: on_success
 #    - when: never
@@ -423,6 +494,9 @@ deploy-ea-multiarch:
   stage: deploy-multiarch
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
@@ -444,6 +518,9 @@ deploy-int-amd64:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
     - if: '$RELEASE_TYPE == "internal"'
       when: manual
     - when: never
@@ -461,6 +538,9 @@ deploy-int-amd64:
 #  rules:
 #    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 #      when: never
+#    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+#    - if: $BUILD_MACHINE
+#      when: never
 #    - if: '$RELEASE_TYPE == "internal"'
 #      when: manual
 #    - when: never
@@ -476,6 +556,9 @@ deploy-int-multiarch:
   stage: deploy-multiarch
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "internal"'
       when: manual
@@ -524,6 +607,9 @@ tag-official:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
     - if: '$RELEASE_TYPE == "official"'
       when: manual
     - when: never
@@ -540,6 +626,9 @@ tag-ea:
   stage: tag
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
@@ -558,6 +647,9 @@ tag-int:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
     - if: '$RELEASE_TYPE == "internal"'
       when: manual
     - when: never
@@ -568,3 +660,40 @@ tag-int:
     - export DATE=$(date +%Y%m%d)
     - export GIT_TAGS_CHECK=""
     - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-int-${DATE}"
+
+on-custom-test-error:
+  stage: .post
+  when: on_failure
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition for execution with custom TorizonCore images only (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+  variables:
+    ERROR_TEXT: |
+      🔴🔴** TCB Pipeline ERROR **🔴🔴
+      The ${BUILD_PIPELINETYPE} CI Pipeline failed:
+      Link: ${CI_PROJECT_URL}/pipelines/${CI_PIPELINE_ID}
+      Distro Version: ${DISTRO_VERSION} (${BUILD_MANIFEST_BRANCH})
+      Machine: ${BUILD_MACHINE}
+  script:
+    - apk update && apk add curl jq
+    - >
+      MESSAGE=$(jq -n \
+        --arg channel "${SLACK_CHANNEL}" \
+        --arg slack_text "${ERROR_TEXT}" \
+        '{channel: $channel,
+          blocks: [{
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: $slack_text
+            }
+          }]
+        }')
+    - >
+      curl -H "Content-type: application/json; charset=utf-8" \
+           -H "Authorization: Bearer ${SLACK_TOKEN}" \
+           -X POST https://slack.com/api/chat.postMessage \
+           --data "${MESSAGE}"
