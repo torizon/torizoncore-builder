@@ -68,11 +68,10 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
 # Copy Avahi files.
 COPY avahi-conf/ /etc/avahi/
 
-RUN apt-get -q -y update && apt-get -q -y --allow-downgrades --no-install-recommends install \
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     ostree \
     gir1.2-ostree-1.0 \
     wget \
-    git=1:2.30.2-1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Refrain dash from taking over the /bin/sh symlink.
@@ -152,6 +151,9 @@ ENV PATH=$PATH:/builder
 COPY tezi /builder/tezi/
 COPY tcbuilder /builder/tcbuilder/
 COPY torizoncore-builder.py /builder/torizoncore-builder
+
+# Workaround for failure when updating device-trees directory with the "dt checkout" command.
+RUN git config --global --add safe.directory '/workdir/device-trees'
 
 # Augment version string
 ARG VERSION_SUFFIX=""
