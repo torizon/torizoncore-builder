@@ -44,11 +44,10 @@ load 'bats/bats-file/load.bash'
     fi
     assert_success
 
-
     run torizoncore-builder dto list
 
     if grep -q "Could not determine default device tree" <<< $output; then
-        local DTB=$(echo "${lines[2]}" | cut -d' ' -f 2)
+        local DTB=$(echo "$output" | sed -nE -e 's/^- (.*\.dtb)/\1/p' | head -1)
         run torizoncore-builder dto list --device-tree $DTB
     fi
 
