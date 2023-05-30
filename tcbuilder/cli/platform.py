@@ -509,6 +509,11 @@ def do_platform_push(args):
                 "options cannot be used at the same time. Please, run "
                 "'torizoncore-builder platform push --help' for more information.")
         # pylint: enable=singleton-comparison
+        if re.match(r".+\.lock\.ya?ml$", os.path.basename(args.ref)):
+            raise InvalidArgumentError(
+                "Error: Unable to canonicalize files with the '.lock' extension "
+                "as it would result in overwriting the existing input.")
+
         lock_file = platform.canonicalize_compose_file(args.ref, args.force)
         log.info(f"Not pushing '{os.path.basename(lock_file)}' to OTA server.")
         return

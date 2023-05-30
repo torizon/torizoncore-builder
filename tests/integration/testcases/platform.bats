@@ -108,7 +108,6 @@ test_canonicalize_only_success() {
     # Test-case: file with no yml/yaml extension
     run torizoncore-builder platform push "$CANON_DIR/docker-compose-good" \
                                           --canonicalize-only --force
-
     assert_failure
     assert_output --partial "'$CANON_DIR/docker-compose-good' does not seem like a Docker compose file."
 
@@ -127,11 +126,27 @@ test_canonicalize_only_success() {
     assert_output --partial "No image specified for service"
 
     # Test-case: with file already present and no --force
-    touch "$CANON_DIR/docker-compose-no-image.lock.yml"
-    run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-image.yml" \
+    touch "$CANON_DIR/docker-compose-good.lock.yml"
+    run torizoncore-builder platform push "$CANON_DIR/docker-compose-good.yml" \
                                           --canonicalize-only
     assert_failure
-    assert_output --partial "'$CANON_DIR/docker-compose-no-image.lock.yml' already exists. Please use the '--force' parameter"
+    assert_output --partial "'$CANON_DIR/docker-compose-good.lock.yml' already exists. Please use the '--force' parameter"
+
+    # Test-case: canonicalize-only with .lock extension
+    run torizoncore-builder platform push "$CANON_DIR/docker-compose-good.lock.yml" \
+                                          --canonicalize-only
+    assert_failure
+    assert_output --partial "Unable to canonicalize files with the '.lock' extension"
+
+    rm -f "$CANON_DIR/docker-compose-good.lock.yml"
+}
+
+@test "platform push: docker-compose canonicalization with canonical compose files" {
+  run torizoncore-builder platform push "$SAMPLES_DIR/push/canonicalize/docker-compose-canonical.yml" \
+                                        --canonicalize-only
+  assert_success
+  assert_output --partial "already in canonical form"
+  assert_output --partial "Not pushing 'docker-compose-canonical.yml' to OTA server"
 }
 
 @test "platform push: docker-compose canonicalization (DockerHub without authentication)" {
@@ -355,7 +370,27 @@ test_canonicalize_only_success() {
     assert_success
     assert_output --partial "Canonicalized file '${CANON_DIR}/${GOOD_YML}.lock.yml' has been generated."
     assert_output --partial 'Successfully pushed'
-    refute_output --partial 'the package name must end with ".lock.yml"'
+    refute_output --partial 'This package is not in its canonical form'
+
+    # Test-case: push not canonicalized file with '.lock' extension
+    cp "${CANON_DIR}/${GOOD_YML}.lock.yml" "${CANON_DIR}/invalid_canon.lock.yml"
+    sed -i "2i\\ " "${CANON_DIR}/invalid_canon.lock.yml"
+
+    run torizoncore-builder platform push "${CANON_DIR}/invalid_canon.lock.yml" \
+        --credentials "${CREDS_PROD_ZIP}"
+    assert_failure
+
+    run torizoncore-builder platform push "${CANON_DIR}/invalid_canon.lock.yml" \
+        --credentials "${CREDS_PROD_ZIP}" --canonicalize
+    assert_failure
+
+    # Test-case: push a canonicalized file with no lock extension and no --canonicalize
+    cp "${CANON_DIR}/${GOOD_YML}.lock.yml" "${CANON_DIR}/canonicalized.yml"
+    run torizoncore-builder platform push "${CANON_DIR}/canonicalized.yml" \
+        --package-version "$(get-unique-version)" --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    refute_output --partial 'This package is not in its canonical form'
+    refute_output --partial 'Canonicalized file'
 
     local NONC_PACKAGE_NAME="${MACHINE}-$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')"
     local NONC_PACKAGE_VERSION="$(get-unique-version)"
@@ -364,7 +399,6 @@ test_canonicalize_only_success() {
         --package-name "${NONC_PACKAGE_NAME}" --package-version "${NONC_PACKAGE_VERSION}" \
         --credentials "${CREDS_PROD_ZIP}" --description "Test_docker-compose"
     assert_success
-    assert_output --partial 'the package name must end with ".lock.yml"'
     assert_output --partial "package version ${NONC_PACKAGE_VERSION}"
     assert_output --partial 'Successfully pushed'
     assert_output --partial "Description for ${NONC_PACKAGE_NAME} updated."

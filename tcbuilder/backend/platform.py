@@ -1163,29 +1163,48 @@ def push_compose(credentials, target, version, compose_file,
                  compatible_with=None, verbose=False):
     """Push docker-compose file to OTA server."""
 
-    if canonicalize:
-        lock_file = canonicalize_compose_file(compose_file, force)
+    if not compose_file.endswith('.yml') and not compose_file.endswith('.yaml'):
+        raise TorizonCoreBuilderError(
+            f"File '{compose_file}' does not seem like a Docker compose file. "
+            "It does not end with '.yml' or '.yaml'.")
+
+    is_lockfile = bool(re.match(r".+\.lock\.ya?ml$", os.path.basename(compose_file)))
+    is_canonical = False
+
+    # Only check if the file is already in a canonical form if the input is a lock
+    # file or if the canonicalize parameter was not passed.
+    if not canonicalize or is_lockfile:
+        is_canonical = is_canonicalized(compose_file)
+
+    # The lock file must be in its canonical form
+    if not is_canonical and is_lockfile:
+        raise TorizonCoreBuilderError(
+            f"Error: '{compose_file}' is not in canonical form, which is expected "
+            "for files with the '.lock' extension.")
+
+    if canonicalize and not is_lockfile:
+        push_file = canonicalize_compose_file(compose_file, force)
+        is_canonical = True
     else:
-        lock_file = compose_file
+        push_file = compose_file
 
     if target is None:
-        target = os.path.basename(lock_file)
+        target = os.path.basename(push_file)
 
-    if re.match(r".+\.lock\.ya?ml$", os.path.basename(lock_file)) is None:
+    if not is_canonical:
         log.info("Warning: This package is not in its canonical form. Canonical "
                  "form is required with offline updates (see help for details); "
                  "future versions of the tool will canonicalize the file by "
                  "default as this is considered a good practice.")
-    elif re.match(r".+\.lock\.ya?ml$", target) is None:
-        log.info("Warning: For usage of this package with offline updates, the "
-                 "package name must end with \".lock.yml\" or \".lock.yaml\".")
 
     custom_metadata = {}
+
+    custom_metadata["canonical_compose_file"] = is_canonical
 
     if compatible_with:
         custom_metadata["compatibleWith"] = compatible_with
 
-    log.info(f"Pushing '{os.path.basename(lock_file)}' with package version "
+    log.info(f"Pushing '{os.path.basename(push_file)}' with package version "
              f"{version} to OTA server. You should keep this file under your "
              "version control system.")
 
@@ -1198,14 +1217,14 @@ def push_compose(credentials, target, version, compose_file,
 
     run_uptane_command(["uptane-sign", "targets", "upload",
                         "--repo", TUF_REPO_DIR,
-                        "--input", lock_file,
+                        "--input", push_file,
                         "--name", target,
                         "--version", version,
                         "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "add-uploaded",
                         "--repo", TUF_REPO_DIR,
-                        "--input", lock_file,
+                        "--input", push_file,
                         "--name", target,
                         "--version", version,
                         "--hardwareids", "docker-compose",
@@ -1218,7 +1237,7 @@ def push_compose(credentials, target, version, compose_file,
     run_uptane_command(["uptane-sign", "targets", "push",
                         "--repo", TUF_REPO_DIR], verbose)
 
-    log.info(f"Successfully pushed {os.path.basename(lock_file)} to OTA server.")
+    log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
 
     if description is not None:
         update_description(description, target, version, credentials)
@@ -1302,10 +1321,9 @@ def update_description(description, target, version, credentials):
         log.error(f"Could not update description for {target}.")
         log.error(put.text)
 
-
-def set_images_hash(compose_file_data):
+def validate_compose_file(compose_file_data):
     """
-    Set hash for the images defined in the Docker compose file.
+    Validate the Docker compose file and throw an exception if the file is invalid.
 
     :param compose_file_data: The Docker compose file data.
     """
@@ -1319,8 +1337,22 @@ def set_images_hash(compose_file_data):
         if not image_name:
             raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
 
+
+def set_images_hash(compose_file_data):
+    """
+    Set hash for the images defined in the Docker compose file.
+
+    :param compose_file_data: The Docker compose file data.
+    """
+
+    validate_compose_file(compose_file_data)
+
+    for svc_spec in compose_file_data['services'].values():
+        image_name = svc_spec.get('image')
         image_parsed = parse_image_name(image_name)
         log.debug(f"Parsed {image_name} into {image_parsed}.")
+        if image_parsed.uses_digest():
+            continue
         registry = RegistryOperations(image_parsed.registry)
         response, image_digest = registry.get_manifest(
             image_parsed.get_name_with_tag(), ret_digest=True)
@@ -1348,14 +1380,11 @@ def canonicalize_compose_file(compose_file, force=False):
             f"File '{compose_file}' does not seem like a Docker compose file. "
             "It does not end with '.yml' or '.yaml'.")
 
-    with open(compose_file, encoding='utf-8') as compose_fd:
-        compose_file_data = yaml.load(compose_fd, Loader=yaml.FullLoader)
+    is_canonical, compose_file_data = is_canonicalized(compose_file, True)
 
-    # TODO: We should check if this file is really in canonical form and not
-    # only relying on the extension name.
-    if compose_file.endswith(".lock.yml") or compose_file.endswith(".lock.yaml"):
-        log.info(f"File '{compose_file}' (already in canonical form).")
-        return compose_file, yaml.dump(compose_file_data, Dumper=yaml.Dumper)
+    if is_canonical:
+        log.info(f"File '{compose_file}' is already in canonical form.")
+        return compose_file
 
     canonical_compose_file_lock = re.sub(r"(.ya?ml)$", r".lock\1", compose_file)
     if os.path.exists(canonical_compose_file_lock) and not force:
@@ -1372,6 +1401,40 @@ def canonicalize_compose_file(compose_file, force=False):
     log.info(f"Canonicalized file '{canonical_compose_file_lock}' has been generated.")
 
     return canonical_compose_file_lock
+
+
+def is_canonicalized(compose_file, ret_parsed=False):
+    """
+    Check if a docker-compose file is canonicalized.
+
+    :param compose_file: The Docker Compose file to be checked.
+    :param ret_parsed: Add the parsed object to the return.
+    :returns:
+        Wether or not the input is canonicalized.
+        If the 'ret_parsed' argument is set to True, the parsed version
+        of the docker compose file will be added to the return.
+    """
+    def images_with_digest(data):
+        services = data.get('services', {})
+        _uses_digest = []
+        for service in services.values():
+            if service.get('image'):
+                _uses_digest.append(parse_image_name(service.get('image')).uses_digest())
+        return all(_uses_digest)
+
+    with open(compose_file, encoding='utf-8') as file:
+        compose_file_data = yaml.load(file, Loader=yaml.FullLoader)
+        file.seek(0)
+        original_yaml_string = file.read()
+
+    is_canonical = False
+    # Checking for correct file structure and adherence to image references with digests
+    validate_compose_file(compose_file_data)
+    if images_with_digest(compose_file_data):
+        is_canonical = original_yaml_string == yaml.dump(
+            compose_file_data, Dumper=yaml.Dumper)
+
+    return (is_canonical, compose_file_data) if ret_parsed else is_canonical
 
 
 def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):

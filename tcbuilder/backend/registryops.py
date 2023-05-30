@@ -137,6 +137,10 @@ class ParsedImageName:
                 f"Tag {tag} doesn't look like a digest"
         self.tag = tag
 
+    def uses_digest(self):
+        """Check if the image tag is a digest"""
+        return False if self.tag is None else self.tag.startswith(SHA256_PREFIX)
+
     def __repr__(self):
         return (f"ImageName(registry='{self.registry}', "
                 f"name='{self.name}', tag='{self.tag}')")
