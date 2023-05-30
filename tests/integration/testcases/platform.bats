@@ -381,6 +381,40 @@ test_canonicalize_only_success() {
     assert_output --partial "Package my_custom_image with version"
 }
 
+@test "platform push: test push with generic package files" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "${SAMPLES_DIR}/credentials/credentials-prod.zip.enc")
+    local GENERIC_DIR="${SAMPLES_DIR}/push/generic"
+    local GOOD_GENERIC="generic-package-good"
+    local P_NAME=$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')
+    local TIME_AND_NAME="$(date +'%H%M%S')-${P_NAME}"
+    local HWID="tcb-test"
+
+    # Test-case: push a generic package file
+    run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
+        --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial 'Successfully pushed'
+}
+
+@test "platform push: test push with generic package files and custom-metadata" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "${SAMPLES_DIR}/credentials/credentials-prod.zip.enc")
+    local GENERIC_DIR="${SAMPLES_DIR}/push/generic"
+    local GOOD_GENERIC="generic-package-good"
+    local P_NAME=$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')
+    local TIME_AND_NAME="$(date +'%H%M%S')-${P_NAME}"
+    local HWID="tcb-test-custom"
+    local CUSTOM_META="{\"fw_ver\": \"000007\"}"
+
+    # Test-case: push a generic package file with custom metadata
+    run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
+        --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} \
+        --custom-meta "${CUSTOM_META}" --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial 'Successfully pushed'
+}
+
 @test "platform push: test push with TorizonCore images" {
     skip-under-ci
     skip-no-ota-credentials

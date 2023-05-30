@@ -490,8 +490,8 @@ def do_platform_push(args):
     if args.ref.endswith(".yml") or args.ref.endswith(".yaml"):
         if args.hardwareids and any(hwid != "docker-compose" for hwid in args.hardwareid):
             raise InvalidArgumentError(
-                "Error: --hardwareid is only valid when pushing an OSTree reference. "
-                "The hardware id for a docker-compose package can only be \"docker-compose\"")
+                "Error: The hardware ID for a docker-compose package can "
+                "only be \"docker-compose\".")
 
         if not all(re.match("[a-z0-9]+=", string) for string in args.compatible_with):
             raise InvalidArgumentError(
@@ -517,6 +517,20 @@ def do_platform_push(args):
             compose_file=args.ref,
             compatible_with=compatible_with,
             canonicalize=args.canonicalize, force=args.force, verbose=args.verbose)
+    elif os.path.isfile(args.ref):
+        if args.custom_meta:
+            try:
+                json.loads(args.custom_meta)
+            except (binascii.Error, json.decoder.JSONDecodeError) as exc:
+                raise TorizonCoreBuilderError(
+                    "Failure encoding custom-metadata: aborting.") from exc
+
+        platform.push_generic(
+            credentials=credentials, target=args.package_name,
+            version=args.package_version or datetime.today().strftime("%Y-%m-%d-%H%M%S"),
+            generic_file=args.ref, custom_meta=args.custom_meta,
+            hardwareids=args.hardwareids,
+            description=args.description, verbose=args.verbose)
     else:
         if args.compatible_with:
             raise InvalidArgumentError(
@@ -554,9 +568,8 @@ def add_common_push_arguments(subparser):
         help="OSTree repository to push from.", required=False)
     subparser.add_argument(
         "--hardwareid", dest="hardwareids", action="append",
-        help=("Hardware ID to use when pushing an OSTree package (can be specified "
-              "multiple times). Will allow this package to be compatible with "
-              "devices of the same Hardware ID."),
+        help=("Define the hardware ID which the package is compatible with; this can be "
+              "specified multiple times. Use only with OSTree and generic packages."),
         required=False, default=None)
     subparser.add_argument(
         "--description", dest="description",
@@ -564,14 +577,13 @@ def add_common_push_arguments(subparser):
         required=False, default=None)
     subparser.add_argument(
         "--package-name",
-        help=("Package name for docker-compose file (default: name of file being "
-              "pushed to OTA) or OSTree reference (default: same as REF)."),
+        help=("Package name for docker-compose or generic package file (default: name of file "
+              "being pushed to OTA) or OSTree reference (default: same as REF)."),
         required=False, default=None)
     subparser.add_argument(
         "--package-version",
-        help=("Package version for docker-compose file (default: current date "
-              "following the 'yyyy-mm-dd' format) or OSTree reference "
-              "(default: OSTree subject)."),
+        help=("Package version for docker-compose or generic package file (default: current "
+              "date in the 'yyyy-mm-dd' format) or OSTree reference (default: OSTree subject)."),
         required=False, default=None)
     subparser.add_argument(
         "--compatible-with", action='append', dest="compatible_with", metavar='SHA256',
@@ -582,7 +594,8 @@ def add_common_push_arguments(subparser):
         required=False, default=[])
     subparser.add_argument(
         metavar="REF", dest="ref",
-        help="OSTree reference or docker-compose file to push to Torizon OTA.")
+        help="OSTree reference or file (docker-compose or generic package) to push to "
+             "Torizon OTA.")
     subparser.add_argument(
         "--canonicalize", dest="canonicalize", action=argparse.BooleanOptionalAction,
         help=("Generates a canonicalized version of the docker-compose file, changing "
@@ -601,7 +614,10 @@ def add_common_push_arguments(subparser):
         "--verbose", dest="verbose",
         action="store_true",
         help="Show more output", required=False)
-
+    subparser.add_argument(
+        "--custom-meta", dest="custom_meta",
+        action="store",
+        help="Custom Uptane metadata for the package.", required=False)
 
 def init_parser(subparsers):
     """Initialize 'platform' subcommands command line interface."""

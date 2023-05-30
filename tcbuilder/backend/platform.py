@@ -1226,6 +1226,59 @@ def push_compose(credentials, target, version, compose_file,
 # pylint: disable=too-many-arguments
 # pylint: enable=too-many-locals
 
+def push_generic(credentials, target, version, generic_file,
+                 custom_meta, hardwareids, description=None,
+                 verbose=False):
+    """Push Generic package file to OTA server."""
+
+    assert hardwareids, "'hardwareids' must be a non-empty list"
+
+    if target is None:
+        target = generic_file
+
+    hardwareids_str = ' '.join(hardwareids)
+
+    custom_meta = custom_meta or "{}"
+
+    log.info(f"Pushing '{os.path.basename(generic_file)}' with package version "
+             f"{version} to OTA server.")
+
+    run_uptane_command(["uptane-sign", "init",
+                        "--credentials", credentials,
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "pull",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "upload",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", generic_file,
+                        "--name", target,
+                        "--version", version,
+                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", generic_file,
+                        "--name", target,
+                        "--version", version,
+                        "--hardwareids", hardwareids_str,
+                        "--customMeta", custom_meta], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "sign",
+                        "--repo", TUF_REPO_DIR,
+                        "--key-name", "targets"], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "push",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    log.info(f"Successfully pushed {os.path.basename(generic_file)} to OTA server.")
+
+    if description is not None:
+        update_description(description, target, version, credentials)
+
+# pylint: disable=too-many-arguments
+# pylint: enable=too-many-locals
 
 def update_description(description, target, version, credentials):
     """Update Package Description"""
