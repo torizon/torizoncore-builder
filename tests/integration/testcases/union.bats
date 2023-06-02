@@ -57,10 +57,9 @@ load 'lib/union.bash'
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder "union --changes-directory $SAMPLES_DIR/changes \
-                                  --changes-directory $SAMPLES_DIR/changes2 \
-                                  --subject integration-tests --body my-customizations \
-                                  branch2"
+    run torizoncore-builder union --changes-directory "$SAMPLES_DIR/changes" \
+        --changes-directory "$SAMPLES_DIR/changes2" \
+        --subject integration-tests --body my-customizations branch2
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 

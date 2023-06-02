@@ -7,7 +7,7 @@
 # run torizoncore-builder
 torizoncore-builder() {
     local CMD=$(eval echo $TCBCMD)
-    $CMD $@
+    $CMD "$@"
 }
 export -f torizoncore-builder
 
