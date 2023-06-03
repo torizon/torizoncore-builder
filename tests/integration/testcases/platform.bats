@@ -166,6 +166,24 @@ test_canonicalize_only_success() {
     skip "not implemented"
 }
 
+@test "platform push: docker-compose canonicalization (OCI images)" {
+    skip "OCI images do not work yet"
+
+    # NOTE: This test relies on the manifest-test images being already present in the "torizon"
+    # repository on DockerHub (which was done before-hand). For using other images or repository,
+    # take a look at the 'prep-manifest-test-images.sh' script.
+    local MANIFEST_TEST_REPO="torizon"
+    local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
+    local ORG_FILE="$CANON_DIR/docker-compose-oci.yml"
+    local MOD_FILE="$CANON_DIR/docker-compose-oci_tmp.yml"
+    sed 's/@PREFIX@/'"${MANIFEST_TEST_REPO}"'/g' "$ORG_FILE" > "$MOD_FILE"
+
+    test_canonicalize_only_success \
+        "${MOD_FILE##*/}" --force \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+}
+
 @test "platform push: docker-compose canonicalization (insecure registry)" {
     run check-registries
     assert_success
@@ -438,7 +456,6 @@ test_canonicalize_only_success() {
     skip-no-ota-credentials
     local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
-    local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run check-registries
     assert_success
@@ -451,5 +468,20 @@ test_canonicalize_only_success() {
         --force LockBox-Test \
         ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                            "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+}
+
+@test "platform lockbox: generate lockbox with OCI and non-OCI images" {
+    skip "OCI images do not work yet"
+    skip-no-ota-credentials
+
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}"  \
+        --force LockBox-With-OCI-Images \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 }
