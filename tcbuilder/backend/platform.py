@@ -1228,7 +1228,7 @@ def push_compose(credentials, target, version, compose_file,
 
 def push_generic(credentials, target, version, generic_file,
                  custom_meta, hardwareids, description=None,
-                 verbose=False):
+                 compatible_with=None, verbose=False):
     """Push Generic package file to OTA server."""
 
     assert hardwareids, "'hardwareids' must be a non-empty list"
@@ -1238,7 +1238,13 @@ def push_generic(credentials, target, version, generic_file,
 
     hardwareids_str = ' '.join(hardwareids)
 
-    custom_meta = custom_meta or "{}"
+    if custom_meta:
+        custom_meta = json.loads(custom_meta)
+    else:
+        custom_meta = {}
+
+    if compatible_with:
+        custom_meta["compatibleWith"] = compatible_with
 
     log.info(f"Pushing '{os.path.basename(generic_file)}' with package version "
              f"{version} to OTA server.")
@@ -1263,7 +1269,7 @@ def push_generic(credentials, target, version, generic_file,
                         "--name", target,
                         "--version", version,
                         "--hardwareids", hardwareids_str,
-                        "--customMeta", custom_meta], verbose)
+                        "--customMeta", json.dumps(custom_meta)], verbose)
 
     run_uptane_command(["uptane-sign", "targets", "sign",
                         "--repo", TUF_REPO_DIR,

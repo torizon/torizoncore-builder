@@ -445,7 +445,7 @@ def _stop_on_invalid_chars(param_name, param_value):
             f"Error: the passed {param_name} contains control character(s) which are currently"
             " not allowed; please use only non-control ASCII characters.")
 
-
+# pylint: disable=too-many-branches,too-many-statements
 def do_platform_push(args):
     """Wrapper for 'platform push' subcommand"""
 
@@ -487,23 +487,23 @@ def do_platform_push(args):
     storage_dir = os.path.abspath(args.storage_directory)
     credentials = os.path.abspath(args.credentials)
 
+    if not all(re.match("[a-z0-9]+=", string) for string in args.compatible_with):
+        raise InvalidArgumentError(
+            "Error: Search criterion must be specified; please specify the "
+            "hash of the desired compatible package by passing 'sha256=<hash>' "
+            "to the --compatible-with switch.")
+
+    criteria = [entry.split('=', 1) for entry in set(args.compatible_with)]
+    criteria = [dict([item]) for item in criteria]
+
+    validate_package_selection_criteria(criteria)
+    package_info, compatible_with = translate_compatible_packages(credentials, criteria)
+
     if args.ref.endswith(".yml") or args.ref.endswith(".yaml"):
         if args.hardwareids and any(hwid != "docker-compose" for hwid in args.hardwareid):
             raise InvalidArgumentError(
                 "Error: The hardware ID for a docker-compose package can "
                 "only be \"docker-compose\".")
-
-        if not all(re.match("[a-z0-9]+=", string) for string in args.compatible_with):
-            raise InvalidArgumentError(
-                "Error: Search criterion must be specified; please specify the "
-                "hash of the desired compatible package by passing 'sha256=<hash>' "
-                "to the --compatible-with switch.")
-
-        criteria = [entry.split('=', 1) for entry in set(args.compatible_with)]
-        criteria = [dict([item]) for item in criteria]
-
-        validate_package_selection_criteria(criteria)
-        package_info, compatible_with = translate_compatible_packages(credentials, criteria)
 
         for package in package_info:
             log.info(f"Package {package.get('name')} with version {package.get('version')}"
@@ -518,19 +518,29 @@ def do_platform_push(args):
             compatible_with=compatible_with,
             canonicalize=args.canonicalize, force=args.force, verbose=args.verbose)
     elif os.path.isfile(args.ref):
-        if args.custom_meta:
-            try:
-                json.loads(args.custom_meta)
-            except (binascii.Error, json.decoder.JSONDecodeError) as exc:
-                raise TorizonCoreBuilderError(
-                    "Failure encoding custom-metadata: aborting.") from exc
+        try:
+            if args.custom_meta:
+                if not isinstance(json.loads(args.custom_meta), dict):
+                    raise InvalidArgumentError(
+                        "Error: The custom metadata string must represent "
+                        "a JSON object at its top-level.")
+        except (binascii.Error, json.decoder.JSONDecodeError):
+            raise InvalidArgumentError("Error: Failure parsing the custom metadata "
+                                       "(which must be a valid JSON string).")
+
+        for package in package_info:
+            log.info(f"Package {package.get('name')} with version {package.get('version')}"
+                     " added as compatible.")
 
         platform.push_generic(
             credentials=credentials, target=args.package_name,
             version=args.package_version or datetime.today().strftime("%Y-%m-%d-%H%M%S"),
-            generic_file=args.ref, custom_meta=args.custom_meta,
+            generic_file=args.ref,
+            custom_meta=args.custom_meta,
             hardwareids=args.hardwareids,
-            description=args.description, verbose=args.verbose)
+            description=args.description,
+            compatible_with=compatible_with,
+            verbose=args.verbose)
     else:
         if args.compatible_with:
             raise InvalidArgumentError(
@@ -553,7 +563,7 @@ def do_platform_push(args):
             ref=args.ref,
             hardwareids=args.hardwareids,
             verbose=args.verbose)
-
+# pylint: enable=too-many-branches,too-many-statements
 
 def add_common_push_arguments(subparser):
     """

@@ -389,28 +389,43 @@ test_canonicalize_only_success() {
     local P_NAME=$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')
     local TIME_AND_NAME="$(date +'%H%M%S')-${P_NAME}"
     local HWID="tcb-test"
+    local CUSTOM_META="{\"fw_ver\": \"000007\"}"
+    local INVALID_CUSTOM_META="{\"fw_ver\": \"000007\""
+    local V1_SHA256="44ebe00783ae397562e3a9ef099249bd9f6b3cd8c01daff46618e85420f59c37"
 
     # Test-case: push a generic package file
     run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
         --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} --credentials "${CREDS_PROD_ZIP}"
     assert_success
     assert_output --partial 'Successfully pushed'
-}
 
-@test "platform push: test push with generic package files and custom-metadata" {
-    skip-no-ota-credentials
-    local CREDS_PROD_ZIP=$(decrypt-credentials-file "${SAMPLES_DIR}/credentials/credentials-prod.zip.enc")
-    local GENERIC_DIR="${SAMPLES_DIR}/push/generic"
-    local GOOD_GENERIC="generic-package-good"
-    local P_NAME=$(git rev-parse --short HEAD 2>/dev/null || date +'%m%d%H%M%S')
-    local TIME_AND_NAME="$(date +'%H%M%S')-${P_NAME}"
-    local HWID="tcb-test-custom"
-    local CUSTOM_META="{\"fw_ver\": \"000007\"}"
-
-    # Test-case: push a generic package file with custom metadata
+    # Test-case: push a generic package file with custom-metadata   
     run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
         --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} \
         --custom-meta "${CUSTOM_META}" --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial 'Successfully pushed'
+
+    # Test-case: push a generic package file with compatibility defined
+    run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
+        --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} \
+        --compatible-with "sha256=${V1_SHA256}" \
+        --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial 'Successfully pushed'
+
+    # Test-case: push a generic package file invalid custom-metadata
+    run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
+        --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} \
+        --custom-meta "${INVALID_CUSTOM_META}" --credentials "${CREDS_PROD_ZIP}"
+    assert_failure
+    assert_output --partial 'Failure parsing the custom metadata (which must be a valid JSON string)'
+
+    # Test-case: push a generic package file with custom-metadata and compatibility defined
+    run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
+        --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} \
+        --compatible-with "sha256=${V1_SHA256}" --custom-meta "${CUSTOM_META}" \
+        --credentials "${CREDS_PROD_ZIP}"
     assert_success
     assert_output --partial 'Successfully pushed'
 }
