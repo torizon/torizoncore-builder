@@ -4,6 +4,7 @@
 import os
 import logging
 import signal
+import subprocess
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import images_unpack_executed
@@ -22,6 +23,8 @@ def serve_ostree(storage_dir, repo_dir=None):
         storage_dir_ = os.path.abspath(storage_dir)
         src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
         images_unpack_executed(storage_dir_)
+        summary_cmd = ['ostree', 'summary', '--repo', src_ostree_archive_dir, '-u']
+        subprocess.check_output(summary_cmd, stderr=subprocess.STDOUT)
     else:
         src_ostree_archive_dir = os.path.abspath(repo_dir)
 

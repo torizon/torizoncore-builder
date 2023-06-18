@@ -306,7 +306,9 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
     log.info(f"Importing OSTree revision {csum} from local repository...")
     repo = ostree.create_ostree(src_ostree_archive_dir)
     src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
-    ostree.pull_local_ref(repo, src_ostree_dir, csum, remote="torizon")
+
+    target_refs = ostree.get_reference_dict(src_ostree_dir, base_csum=csum)
+    ostree.pull_local_refs(repo, src_ostree_dir, refs=target_refs, remote="torizon")
     metadata, _, _ = ostree.get_metadata_from_checksum(src_sysroot.repo(), csum)
 
     log.info("Unpacked OSTree from Toradex Easy Installer image:")

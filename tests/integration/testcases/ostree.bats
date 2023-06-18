@@ -36,15 +36,30 @@ function teardown() {
 
 @test "ostree serve: serve repo from storage" {
     skip-under-ci
-
+    ORIGINAL_REFERENCES=("base")
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
+
+    run torizoncore-builder-shell "ostree --repo=/storage/sysroot/ostree/repo refs"
+    assert_success
+    while IFS= read -r line; do
+      ORIGINAL_REFERENCES+=("${line#*:}")
+    done < <(echo "$output" | sed -E '/ostree\/[0-9]+\/[0-9]+\/[0-9]+/d')
 
     torizoncore-builder-bg ostree serve
 
     run curl http://localhost:8080/config
     assert_success
+
+    run torizoncore-builder-shell "ostree --repo=/repo init && \
+      ostree --repo=/repo remote add srv1 http://localhost:8080 && \
+      ostree --repo=/repo remote refs srv1"
+    assert_success
+
+    for ref in "${ORIGINAL_REFERENCES[@]}"; do
+      assert_line --partial "$ref"
+    done
     stop-torizoncore-builder-bg
 }
 

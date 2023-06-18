@@ -48,7 +48,7 @@ export -f stop-torizoncore-builder-bg
 # $@ = command to be executed
 torizoncore-builder-shell() {
     local TCB=$(echo ${TCBCMD##* })
-    docker run --rm -v $(pwd):/workdir -v storage:/storage --entrypoint /bin/bash $TCB -c "$@"
+    docker run --rm -v $(pwd):/workdir -v storage:/storage --net=host --entrypoint /bin/bash $TCB -c "$@"
 }
 export -f torizoncore-builder-shell
 

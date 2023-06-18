@@ -151,6 +151,12 @@ teardown_file() {
     # Check presence of container:
     run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]
     assert_success
+
+    # Check the ostree branch ref-binding:
+    run torizoncore-builder-shell \
+      "ostree --repo=$ARCHIVE show --print-metadata-key='ostree.ref-binding' $COMMIT"
+    assert_success
+    assert_output --partial "['$COMMIT']"
 }
 
 @test "build: full customization checked on device" {

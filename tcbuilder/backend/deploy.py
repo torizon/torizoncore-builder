@@ -200,7 +200,9 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     log.info(f"  TorizonCore Version: {srcmeta['version']}")
     log.info(f"  Default kernel arguments: {srckargs}\n")
 
-    ostree.pull_local_ref(repo, src_ostree_archive_dir, csumdeploy, remote="torizon")
+    target_refs = {ref: csumdeploy}
+    ostree.pull_local_refs(repo, src_ostree_archive_dir, refs=target_refs,
+                           remote="torizon")
     log.info("Pulling done.")
 
     log.info(f"Deploying OSTree with checksum {csumdeploy}")

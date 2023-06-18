@@ -5,6 +5,7 @@ Helper functions for commonly used OSTree functions.
 
 import logging
 import os
+import re
 import subprocess
 import traceback
 import threading
@@ -113,21 +114,36 @@ def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
         raise TorizonCoreBuilderError("Error pulling contents from local repository.")
 
 
-def pull_local_ref(repo, repopath, csum, remote=None):
-    """ fetches reference from local repository
-
-        args:
-
-            repo(OSTree.Repo) - repo object
-            repopath(str) - absolute path of local repository to pull from
-            ref(str) - remote reference to pull
-            remote = remote name used in refspec
-
-        raises:
-            Exception - for failure to perform operations
+def get_reference_dict(repopath, base_csum=None):
     """
-    log.debug(f"Pulling from local repository {repopath} commit checksum {csum}")
+    Get all the references in a ostree repo, excluding the OSTree generated ref.
 
+    :param repopath: Absolute path of local repository to pull from.
+    :param base_csum: Checksum that will be assinged to the 'base' ref.
+    :returns:
+        A dict with the reference as key and the checksum as value.
+        e.g: {'base': <checksum>}
+    """
+    ref_dict = {} if base_csum is None else {OSTREE_BASE_REF: base_csum}
+    sysroot_repo = open_ostree(repopath)
+    for ref_name, ref_csum in sysroot_repo.list_refs().out_all_refs.items():
+        # Filter out the remote and the OSTree generated ref
+        if re.match(r"ostree/[0-9]+/[0-9]+/[0-9]+", ref_name) is None:
+            ref_name = ref_name.split(":", 1)[-1].lstrip()
+            ref_dict[ref_name] = ref_csum
+
+    return ref_dict
+
+
+def pull_local_refs(repo: OSTree.Repo, repopath: str, refs: str, remote=None):
+    """
+    Fetches references from local repository.
+
+    :param repo: OSTree.Repo object.
+    :param repopath: Absolute path of local repository to pull from.
+    :param refs: Remote reference to pull.
+    :param remote: Remote name used in refspec.
+    """
     # With Bullseye's ostree version 2020.7, the following snippet fails with:
     # gi.repository.GLib.GError: g-io-error-quark: Remote "torizon" not found (1)
     #
@@ -143,27 +159,30 @@ def pull_local_ref(repo, repopath, csum, remote=None):
     # Work around by employing the ostree CLI instead.
     repo_fd = repo.get_dfd()
     repo_str = os.readlink(f"/proc/self/fd/{repo_fd}")
+
     try:
-        subprocess.run(
-            [arg for arg in [
-                "ostree",
-                "pull-local",
-                f"--repo={repo_str}",
-                f"--remote={remote}" if remote else None,
-                repopath,
-                csum] if arg],
-            check=True)
-        repo.reload_config()
+        for ref_name, ref_csum in refs.items():
+            log.debug(f"Pulling from local repository {repopath} commit checksum {ref_csum}")
+            subprocess.run(
+                [arg for arg in [
+                    "ostree",
+                    "pull-local",
+                    f"--repo={repo_str}",
+                    f"--remote={remote}" if remote else None,
+                    repopath,
+                    ref_csum] if arg],
+                check=True)
+            repo.reload_config()
+            # Note: In theory we can do this with two options in one go, but that seems
+            # to validate ref-bindings... (has probably something to do with Collection IDs etc..)
+            #"refs": GLib.Variant.new_strv(["base"]),
+            #"override-commit-ids": GLib.Variant.new_strv([ref]),
+            repo.set_collection_ref_immediate(OSTree.CollectionRef.new(None, ref_name), ref_csum)
     except subprocess.CalledProcessError as exc:
         logging.error(traceback.format_exc())
         raise TorizonCoreBuilderError(
             f"Error pulling contents from local repository {repopath}.") from exc
 
-    # Note: In theory we can do this with two options in one go, but that seems
-    # to validate ref-bindings... (has probably something to do with Collection IDs etc..)
-    #"refs": GLib.Variant.new_strv(["base"]),
-    #"override-commit-ids": GLib.Variant.new_strv([ref]),
-    repo.set_collection_ref_immediate(OSTree.CollectionRef.new(None, OSTREE_BASE_REF), csum)
 
 
 def _convert_gio_file_type(gio_file_type):

@@ -102,7 +102,7 @@ def commit_changes(repo, ref, changes_dirs, branch_name,
     timestamp = datetime.datetime.now()
     for ind in range(metadata.n_children()):
         val = metadata.get_child_value(ind)
-        # Adjust the "version" metadata, and pass everything else transparently
+        # Adjust the "version" metadata
         if val.get_child_value(0).get_string() == 'version':
             # Version itself is a Variant, which just contains a string...
             version = val.get_child_value(1).get_child_value(0).get_string()
@@ -111,6 +111,13 @@ def commit_changes(repo, ref, changes_dirs, branch_name,
                 GLib.Variant.new_dict_entry(
                     GLib.Variant("s", "version"),
                     GLib.Variant('v', GLib.Variant("s", version))))
+        # Adjust the "ostree.ref-binding" metadata, to avoid ref bindings mismatch
+        elif val.get_child_value(0).get_string() == 'ostree.ref-binding':
+            newmetadata.append(
+                GLib.Variant.new_dict_entry(
+                    GLib.Variant("s", "ostree.ref-binding"),
+                    GLib.Variant('v', GLib.Variant("as", [branch_name]))))
+        # Pass everything else transparently
         else:
             newmetadata.append(val)
 
