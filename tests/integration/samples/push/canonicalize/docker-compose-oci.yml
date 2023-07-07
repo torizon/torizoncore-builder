@@ -1,0 +1,26 @@
+# ---
+# Test with OCI and non-OCI (Docker images).
+# ---
+
+services:
+  svc1-docker:
+    # Docker, single-platform (linux/arm/v7), no manifest list.
+    image: @PREFIX@/manifest-test-armv7-vnddck
+  svc2-docker:
+    # Docker, single-platform (linux/arm64/v8), no manifest list.
+    image: @PREFIX@/manifest-test-arm64v8-vnddck
+  svc3-docker:
+    # Docker, multi-platform, with a manifest list.
+    image: @PREFIX@/manifest-test-multi-vnddck-manlst
+
+  svc1-oci:
+    # OCI, single-platform (linux/arm/v7), no OCI image index.
+    image: @PREFIX@/manifest-test-armv7-vndoci
+  svc2-oci:
+    # OCI, single-platform (linux/arm64/v8), no OCI image index.
+    image: @PREFIX@/manifest-test-arm64v8-vndoci
+  svc3-oci:
+    # OCI, multi-platform, with an OCI image index.
+    image: @PREFIX@/manifest-test-multi-vndoci-imgidx
+
+version: '2.4'
