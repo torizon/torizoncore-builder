@@ -182,8 +182,6 @@ test_canonicalize_only_success() {
 }
 
 @test "platform push: docker-compose canonicalization (OCI images)" {
-    skip "OCI images do not work yet"
-
     # NOTE: This test relies on the manifest-test images being already present in the "torizon"
     # repository on DockerHub (which was done before-hand). For using other images or repository,
     # take a look at the 'prep-manifest-test-images.sh' script.
@@ -433,7 +431,7 @@ test_canonicalize_only_success() {
     assert_success
     assert_output --partial 'Successfully pushed'
 
-    # Test-case: push a generic package file with custom-metadata   
+    # Test-case: push a generic package file with custom-metadata
     run torizoncore-builder platform push "${GENERIC_DIR}/${GOOD_GENERIC}" \
         --package-name "${TIME_AND_NAME}.bin" --hardwareid ${HWID} \
         --custom-meta "${CUSTOM_META}" --credentials "${CREDS_PROD_ZIP}"
@@ -555,7 +553,6 @@ test_canonicalize_only_success() {
 }
 
 @test "platform lockbox: generate lockbox with OCI and non-OCI images" {
-    skip "OCI images do not work yet"
     skip-no-ota-credentials
 
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")

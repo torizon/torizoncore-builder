@@ -18,14 +18,6 @@ log = logging.getLogger("torizon." + __name__)
 # default registry is "registry-1.docker.io".
 # TODO: Determine why docker info shows "https://index.docker.io/"
 DEFAULT_REGISTRY = "registry-1.docker.io"
-
-MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
-MANIFEST_LIST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.list.v2+json"
-DEFAULT_GET_MANIFEST_HEADERS = {
-    "Accept": ("application/vnd.docker.distribution.manifest.list.v2+json,"
-               "application/vnd.docker.distribution.manifest.v2+json")
-}
-
 SHA256_PREFIX = "sha256:"
 
 # https://stackoverflow.com/questions/19512317/
@@ -98,6 +90,48 @@ def parse_www_auth_header(header):
         raise AssertionError(f"Failed to parse www-authenticate header at {current}")
 
     return scheme, attribs
+
+
+# pylint: disable=too-few-public-methods
+class DockerManifestProps:
+    MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
+    MANIFEST_LIST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.list.v2+json"
+    MEDIA_TYPES_OBJECT = {
+        MANIFEST_MEDIA_TYPE: "manifest",
+        MANIFEST_LIST_MEDIA_TYPE: "manifest-list"
+    }
+    ALL_MEDIA_TYPES = [MANIFEST_MEDIA_TYPE, MANIFEST_LIST_MEDIA_TYPE]
+    ALL_SCHEMA_VERSIONS = [2]
+
+
+class OCIManifestProps:
+    MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json"
+    MANIFEST_LIST_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json"
+    MEDIA_TYPES_OBJECT = {
+        MANIFEST_MEDIA_TYPE: "manifest",
+        MANIFEST_LIST_MEDIA_TYPE: "manifest-list"
+    }
+    ALL_MEDIA_TYPES = [MANIFEST_MEDIA_TYPE, MANIFEST_LIST_MEDIA_TYPE]
+    ALL_SCHEMA_VERSIONS = [2]
+# pylint: enable=too-few-public-methods
+
+
+def make_request_headers(man_props):
+    """Build headers for manifest request"""
+    if man_props is None:
+        return {"Accept": ', '.join(OCIManifestProps.ALL_MEDIA_TYPES +
+                                    DockerManifestProps.ALL_MEDIA_TYPES)}
+    return {"Accept": ', '.join(man_props.ALL_MEDIA_TYPES)}
+
+
+def get_manifest_props(content_type, image_name):
+    """Determine the manifest type"""
+    if content_type in OCIManifestProps.ALL_MEDIA_TYPES:
+        return OCIManifestProps
+    if content_type in DockerManifestProps.ALL_MEDIA_TYPES:
+        return DockerManifestProps
+    raise InvalidDataError(
+        f"Error: Unexpected content-type for manifest of '{image_name}'.")
 
 
 class ParsedImageName:
@@ -380,6 +414,14 @@ class RegistryOperations:
                 f"Could not get token for scope {scope}, registry {self.registry or 'default'}.")
 
     def _do_get_helper(self, url, repo_name, headers=None, send_auth_if_secure=False):
+        """
+        Do GET requests helper.
+
+        :param url: target url.
+        :param repo_name: image name without a tag.
+        :param headers: Dict with extra headers to send to the server.
+        :send_auth_if_secure: Enable Token and BasicAuth authentication.
+        """
         headers = (headers or {}).copy()
         secure = url.startswith("https://")
         cacert = self.cacert if secure else None
@@ -409,6 +451,13 @@ class RegistryOperations:
         return res
 
     def _do_get(self, url, repo_name, headers=None):
+        """
+        Do GET requests, authenticating if required.
+
+        :param url: target url.
+        :param repo_name: image name without a tag.
+        :param headers: Dict with extra headers to send to the server
+        """
         # Try initially without sending username/password.
         res = self._do_get_helper(url, repo_name, headers=headers, send_auth_if_secure=False)
 
@@ -442,13 +491,16 @@ class RegistryOperations:
 
         return res
 
-    def get_manifest(self, image_name, headers=None, ret_digest=False, val_digest=True):
+    # pylint: disable=too-many-locals
+    def get_manifest(self, image_name, headers=None, man_props=None, ret_digest=False,
+                     val_digest=True):
         """Get the manifest of the specified image
 
         :param image_name: Name of the image such as ubuntu:latest or fedora/httpd:latest;
                            if the name contains a registry then it should match the one
                            specified in the constructor of the class.
         :param headers: Dict with extra headers to send to the server.
+        :param man_props: Manifest header properties class.
         :param ret_digest: Whether or not to return the digest of the manifest as part
                            of the function's output.
         :param val_digest: Whether or not to validate the digest of the manifest (only
@@ -456,9 +508,9 @@ class RegistryOperations:
                            "ubuntu@sha256:123123..."
         :return: (response, digest) if ret_digest=True or only the response otherwise.
         """
-
+        man_headers = make_request_headers(man_props)
         headers = (headers or {}).copy()
-        headers.update(DEFAULT_GET_MANIFEST_HEADERS)
+        headers.update(man_headers)
 
         parsed_name = parse_image_name(image_name)
 
@@ -499,16 +551,17 @@ class RegistryOperations:
         if res is None or res.status_code != requests.codes["ok"]:
             raise InvalidDataError(f"Error: Could not determine digest for image '{image_name}'.")
 
-        media_types = [MANIFEST_MEDIA_TYPE, MANIFEST_LIST_MEDIA_TYPE]
-        if res.headers["content-type"] not in media_types:
-            assert False, \
-                f"Unexpected content-type for manifest of '{image_name}'"
+        res_man_props = get_manifest_props(content_type=res.headers["content-type"],
+                                           image_name=image_name)
+        if man_props:
+            assert man_props is res_man_props, \
+                "Server returned a manifest with a type not compatible with the request."
 
         response_json = res.json()
-        assert response_json["mediaType"] in media_types, \
-                f"Wrong mediaType on manifest ({response_json['mediaType']})"
-        assert response_json["schemaVersion"] == 2, \
-                f"Wrong schemaVersion on manifest ({response_json['schemaVersion']})"
+        assert response_json["mediaType"] in res_man_props.ALL_MEDIA_TYPES, \
+            f"Wrong mediaType on manifest ({response_json['mediaType']})"
+        assert response_json["schemaVersion"] in res_man_props.ALL_SCHEMA_VERSIONS, \
+            f"Wrong schemaVersion on manifest ({response_json['schemaVersion']})"
 
         if val_digest or ret_digest:
             digest_ = hashlib.sha256()
@@ -525,13 +578,14 @@ class RegistryOperations:
 
         return res
 
-    def get_all_manifests(self, image_name,
-                          headers=None, platforms=None, val_digest=True):
+    def get_all_manifests(self, image_name, headers=None, man_props=None,
+                          platforms=None, val_digest=True):
         """Iterate over all manifests of the given image
 
         :param image_name: Name of the image such as ubuntu:latest or fedora/httpd:latest;
                            the name should not contain a registry name (the registry is
                            specified to the constructor of the class).
+        :param man_props: Manifest header properties class.
         :param headers: Dict with extra headers to send to the server.
         :param platforms: If not None, an iterable indicating for which platforms to
                           fetch the manifests (by default).
@@ -559,23 +613,18 @@ class RegistryOperations:
         # Handle top-level manifest which can be a simple manifest or a manifest list.
         top_res, top_digest = self.get_manifest(
             top_parsed.get_name_with_tag(),
-            headers=headers, ret_digest=True, val_digest=val_digest)
-        assert top_res.status_code == requests.codes["ok"], \
-            f"Could not fetch manifest of '{image_name}'"
-        if top_res.headers["content-type"] == MANIFEST_LIST_MEDIA_TYPE:
-            yield _mkinfo("manifest-list", digest=top_digest), top_res
-        elif top_res.headers["content-type"] == MANIFEST_MEDIA_TYPE:
-            yield _mkinfo("manifest", digest=top_digest), top_res
-        else:
-            assert False, \
-                f"Unexpected content-type for manifest of '{image_name}'"
+            headers=headers, man_props=man_props, ret_digest=True, val_digest=val_digest)
+        res_man_props = get_manifest_props(content_type=top_res.headers["content-type"],
+                                           image_name=image_name)
+        yield _mkinfo(res_man_props.MEDIA_TYPES_OBJECT.get(top_res.headers["content-type"]),
+                      digest=top_digest), top_res
 
         # Handle "child" manifests:
-        if top_res.headers["content-type"] == MANIFEST_LIST_MEDIA_TYPE:
+        if top_res.headers["content-type"] == res_man_props.MANIFEST_LIST_MEDIA_TYPE:
             top_data = top_res.json()
-            assert top_data["mediaType"] == MANIFEST_LIST_MEDIA_TYPE, \
+            assert top_data["mediaType"] == res_man_props.MANIFEST_LIST_MEDIA_TYPE, \
                 f"Wrong mediaType of top-level manifest ({top_data['mediaType']})"
-            assert top_data["schemaVersion"] == 2, \
+            assert top_data["schemaVersion"] in res_man_props.ALL_SCHEMA_VERSIONS, \
                 f"Wrong schemaVersion of top-level manifest ({top_data['schemaVersion']})"
             for child in top_data["manifests"]:
                 child_platform = platform_str(child["platform"])
@@ -587,7 +636,11 @@ class RegistryOperations:
                 child_res = self.get_manifest(
                     child_parsed.get_name_with_tag(),
                     headers=headers, ret_digest=False, val_digest=val_digest)
-                assert child_res.headers["content-type"] == MANIFEST_MEDIA_TYPE, \
+                res_man_props = get_manifest_props(
+                    content_type=child_res.headers["content-type"],
+                    image_name=image_name)
+                assert child_res.headers["content-type"] == \
+                    res_man_props.MANIFEST_MEDIA_TYPE, \
                     (f"Child manifests of type {child_res.headers['content-type']}"
                      "are not supported.")
                 child_info = _mkinfo(
@@ -595,6 +648,7 @@ class RegistryOperations:
                     digest=child["digest"], platform=child_platform,
                     size=child["size"])
                 yield child_info, child_res
+    # pylint: enable=too-many-locals
 
     def save_all_manifests(self, image_name, dest_dir,
                            headers=None, platforms=None, val_digest=True):
