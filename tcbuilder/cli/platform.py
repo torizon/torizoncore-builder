@@ -183,7 +183,6 @@ def fetch_offupdt_targets(
             }
             if "uri" in imgrepo_meta["custom"].keys():
                 params["custom_uri"] = imgrepo_meta["custom"]["uri"]
-                params["access_token"] = None
             # Currently we always check the sha and length of binary targets.
             params.update({
                 "sha256": imgrepo_meta["hashes"]["sha256"],
