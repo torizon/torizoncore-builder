@@ -1,6 +1,7 @@
 FROM --platform=$TARGETPLATFORM alpine:latest
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
+ARG MANIFESTTYPE="Unknown"
 
 # Create some layers:
 RUN apk add --no-cache python3
@@ -10,5 +11,9 @@ RUN apk add --no-cache py3-pip
 
 RUN echo "Building on $BUILDPLATFORM to run on $TARGETPLATFORM"
 RUN mkdir -p bin/ && \
-    echo -e "#!/bin/sh\n\necho 'Built on $BUILDPLATFORM to run on $TARGETPLATFORM'" > /bin/run.sh && \
+    echo "#!/bin/sh" > /bin/run.sh && \
+    echo "echo 'Built on $BUILDPLATFORM to run on $TARGETPLATFORM, $MANIFESTTYPE manifest.'" >> /bin/run.sh && \
+    echo "sleep 10m" >> /bin/run.sh && \
     chmod a+x /bin/run.sh
+
+CMD /bin/run.sh

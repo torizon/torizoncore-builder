@@ -15,7 +15,7 @@ create-builder() {
     [ -n "${OLD_BUILDER}${CUR_BUILDER}" ] && return 0
 
     OLD_BUILDER=$(docker buildx ls | sed -ne 's/^\([-_[:alnum:]]\+\)[[:space:]]*\*.*$/\1/p')
-    
+
     if ! docker buildx ls | grep -e "^${MAN_BUILDER_NAME}[[:space:]]*\*" >/dev/null; then
 	echo "Creating builder ${MAN_BUILDER_NAME}."
 	docker buildx create \
@@ -58,83 +58,130 @@ build-images() {
     trap 'echo -e "\nStopping..."; delete-builder;' INT TERM
     create-builder
 
-    ##if false; then
+##if false; then
     echo "Generating single-platform (linux/arm/v7) image with a Docker manifest."
     image="${DOCKER_REPO}/manifest-test-armv7-vnddck"
     docker buildx build \
            --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=Docker" \
            --platform linux/arm/v7 \
            --provenance=false \
            --output="type=registry,oci-mediatypes=false" \
            -t "${image}" .
- 
+
     media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
     ensure [ "application/vnd.docker.distribution.manifest.v2+json" = "${media_type}" ]
- 
+
     echo "Generating single-platform (linux/arm/v7) image with an OCI manifest."
     image="${DOCKER_REPO}/manifest-test-armv7-vndoci"
     docker buildx build \
            --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=OCI" \
            --platform linux/arm/v7 \
            --provenance=false \
            --output="type=registry,oci-mediatypes=true" \
            -t "${image}" .
- 
+
     media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
     ensure [ "application/vnd.oci.image.manifest.v1+json" = "${media_type}" ]
-    ##fi
+##fi
 
-    ##if false; then
+##if false; then
     echo "Generating single-platform (linux/arm64/v8) image with a Docker manifest."
     image="${DOCKER_REPO}/manifest-test-arm64v8-vnddck"
     docker buildx build \
            --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=Docker" \
            --platform linux/arm64/v8 \
            --provenance=false \
            --output="type=registry,oci-mediatypes=false" \
            -t "${image}" .
- 
+
     media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
     ensure [ "application/vnd.docker.distribution.manifest.v2+json" = "${media_type}" ]
- 
+
     echo "Generating single-platform (linux/arm64/v8) image with an OCI manifest."
     image="${DOCKER_REPO}/manifest-test-arm64v8-vndoci"
     docker buildx build \
            --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=OCI" \
            --platform linux/arm64/v8 \
            --provenance=false \
            --output="type=registry,oci-mediatypes=true" \
            -t "${image}" .
- 
+
     media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
     ensure [ "application/vnd.oci.image.manifest.v1+json" = "${media_type}" ]
-    ##fi
+##fi
 
-    ##if false; then
+##if false; then
     echo "Generating multi-platform image with a Docker manifest list."
     image="${DOCKER_REPO}/manifest-test-multi-vnddck-manlst"
     docker buildx build \
            --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=Docker" \
            --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
            --provenance=false \
            --output="type=registry,oci-mediatypes=false" \
            -t "${image}" .
- 
+
     media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
-    ensure [ "${media_type}" = "application/vnd.docker.distribution.manifest.list.v2+json" ]
- 
+    ensure [ "application/vnd.docker.distribution.manifest.list.v2+json" = "${media_type}" ]
+
     echo "Generating multi-platform image with an OCI image index."
     image="${DOCKER_REPO}/manifest-test-multi-vndoci-imgidx"
     docker buildx build \
            --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=OCI" \
            --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
            --provenance=false \
            --output="type=registry,oci-mediatypes=true" \
            -t "${image}" .
- 
+
     media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
-    ensure [ "${media_type}" = "application/vnd.oci.image.index.v1+json" ]
-    ##fi
+    ensure [ "application/vnd.oci.image.index.v1+json" = "${media_type}" ]
+##fi
+
+##if false; then
+    echo "Generating single-platform (linux/arm/v7) image with an OCI manifest and provenance enabled."
+    image="${DOCKER_REPO}/manifest-test-armv7-vndoci-prov"
+    docker buildx build \
+           --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=OCI+provenance" \
+           --platform linux/arm/v7 \
+           --provenance=true \
+           --output="type=registry,oci-mediatypes=true" \
+           -t "${image}" .
+
+    media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
+    ensure [ "application/vnd.oci.image.index.v1+json" = "${media_type}" ]
+
+    echo "Generating single-platform (linux/arm64/v8) image with an OCI manifest and provenance enabled."
+    image="${DOCKER_REPO}/manifest-test-arm64v8-vndoci-prov"
+    docker buildx build \
+           --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=OCI+provenance" \
+           --platform linux/arm64/v8 \
+           --provenance=true \
+           --output="type=registry,oci-mediatypes=true" \
+           -t "${image}" .
+
+    media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
+    ensure [ "application/vnd.oci.image.index.v1+json" = "${media_type}" ]
+
+    echo "Generating multi-platform image with an OCI image index and provenance enabled."
+    image="${DOCKER_REPO}/manifest-test-multi-vndoci-imgidx-prov"
+    docker buildx build \
+           --file ./manifest-test.Dockerfile \
+           --build-arg "MANIFESTTYPE=OCI+provenance" \
+           --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
+           --provenance=true \
+           --output="type=registry,oci-mediatypes=true" \
+           -t "${image}" .
+
+    media_type=$(docker buildx imagetools inspect --raw "${image}" | jq -r ".mediaType")
+    ensure [ "application/vnd.oci.image.index.v1+json" = "${media_type}" ]
+##fi
 
     delete-builder
     return 0
