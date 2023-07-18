@@ -11,7 +11,8 @@ import traceback
 import urllib.request
 
 from tcbuilder.backend import ostree
-from tcbuilder.backend.common import get_unpack_command, progress
+from tcbuilder.backend.common import (get_unpack_command, progress,
+                                      set_output_ownership)
 from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -43,7 +44,7 @@ def build_module(src_dir, linux_src, src_mod_dir,
     elif re.search("CONFIG_ARM64=y", lines, re.MULTILINE):
         arch = "arm64"
     else:
-        assert False, "Achitecture could not be determined from .config"
+        assert False, "Architecture could not be determined from .config"
 
     version_gcc = None
     version_major = re.search(r"CONFIG_LOCALVERSION=\"-(\d+)\.\d+\.\d+", lines,
@@ -69,10 +70,10 @@ def build_module(src_dir, linux_src, src_mod_dir,
     if not os.path.exists(toolchain):
         download_toolchain(c_c, toolchain_path, version_gcc)
 
-    # Hotfix for the 6.2 version of the kernel
-    version_major_minor = re.search(r"CONFIG_LOCALVERSION=\"-(\d+\.\d+)\.\d+", lines,
-                                    re.MULTILINE).group(1)
-    if version_major_minor == '6.2':
+    # Hotfix for the 6 version of the kernel
+    version_major = re.search(r"CONFIG_LOCALVERSION=\"-(\d+)\.\d+\.\d+", lines,
+                              re.MULTILINE).group(1)
+    if version_major == '6':
         _pattern = r"s/\$(build)=\. prepare/$(build)=./g"
         subprocess.check_output(
             f"sed -i '{_pattern}' {linux_src}/Makefile",
@@ -92,6 +93,8 @@ def build_module(src_dir, linux_src, src_mod_dir,
     except:
         logging.error(traceback.format_exc())
         raise TorizonCoreBuilderError("Error building kernel module(s)!")
+    finally:
+        set_output_ownership(src_dir)
 
     # Get kernel version for future operations
     repo = ostree.open_ostree(src_ostree_archive_dir)
@@ -123,7 +126,7 @@ def build_module(src_dir, linux_src, src_mod_dir,
 
 
 def autoload_module(module, kernel_changes_dir):
-    """Write module name to /etc/modules-load.d to be autloaded on boot"""
+    """Write module name to /etc/modules-load.d to be autoloaded on boot"""
 
     conf_dir = os.path.join(kernel_changes_dir, "usr/etc/modules-load.d")
     os.makedirs(conf_dir, exist_ok=True)

@@ -12,7 +12,6 @@ import subprocess
 from tcbuilder.errors import PathNotExistError
 from tcbuilder.errors import FileContentMissing
 from tcbuilder.backend.common import (get_unpack_command,
-                                      set_output_ownership,
                                       images_unpack_executed)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
@@ -94,7 +93,6 @@ def kernel_build_module(source_dir, storage_dir, autoload):
     kernel.build_module(
         src_dir, extracted_src, src_mod_dir, src_ostree_archive_dir, mod_path,
         kernel_changes_dir)
-    set_output_ownership(src_dir)
     log.info("Kernel module(s) successfully built and ready to deploy.")
 
     # Set built kernel modules to be autoloaded on boot
