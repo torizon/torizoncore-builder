@@ -23,4 +23,14 @@ services:
     # OCI, multi-platform, with an OCI image index.
     image: @PREFIX@/manifest-test-multi-vndoci-imgidx
 
+  svc1-oci-prov:
+    # OCI, single-platform (linux/arm/v7), provenance enabled.
+    image: @PREFIX@/manifest-test-armv7-vndoci-prov
+  svc2-oci-prov:
+    # OCI, single-platform (linux/arm64/v8), provenance enabled.
+    image: @PREFIX@/manifest-test-arm64v8-vndoci-prov
+  svc3-oci-prov:
+    # OCI, multi-platform, provenance enabled.
+    image: @PREFIX@/manifest-test-multi-vndoci-imgidx-prov
+
 version: '2.4'
