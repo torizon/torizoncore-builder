@@ -7,19 +7,14 @@ services:
     # Docker, single-platform (linux/arm/v7), no manifest list.
     image: @PREFIX@/manifest-test-armv7-vnddck
   svc2-docker:
-    # Docker, single-platform (linux/arm64/v8), no manifest list.
-    image: @PREFIX@/manifest-test-arm64v8-vnddck
-  svc3-docker:
     # Docker, multi-platform, with a manifest list.
     image: @PREFIX@/manifest-test-multi-vnddck-manlst
 
   svc1-oci:
     # OCI, single-platform (linux/arm/v7), no OCI image index.
     image: @PREFIX@/manifest-test-armv7-vndoci
+    platform: linux/arm/v7
   svc2-oci:
-    # OCI, single-platform (linux/arm64/v8), no OCI image index.
-    image: @PREFIX@/manifest-test-arm64v8-vndoci
-  svc3-oci:
     # OCI, multi-platform, with an OCI image index.
     image: @PREFIX@/manifest-test-multi-vndoci-imgidx
 
@@ -27,9 +22,6 @@ services:
     # OCI, single-platform (linux/arm/v7), provenance enabled.
     image: @PREFIX@/manifest-test-armv7-vndoci-prov
   svc2-oci-prov:
-    # OCI, single-platform (linux/arm64/v8), provenance enabled.
-    image: @PREFIX@/manifest-test-arm64v8-vndoci-prov
-  svc3-oci-prov:
     # OCI, multi-platform, provenance enabled.
     image: @PREFIX@/manifest-test-multi-vndoci-imgidx-prov
 

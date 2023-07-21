@@ -456,7 +456,7 @@ def get_compatible_images(manifests, platform, sort=True):
         if len(manifests_with_grade) >= 2:
             log.debug(f"manifests_with_grade: {manifests_with_grade}")
             assert manifests_with_grade[0][0] < manifests_with_grade[1][0], \
-                "There are multiple Lockboxes equally appropriate for platform"
+                "There are multiple images equally appropriate for platform"
 
     return list(mwg[1] for mwg in manifests_with_grade)
 
@@ -475,7 +475,7 @@ def select_images(image_platform_pairs, manifests_per_image, req_platforms=None,
         # Get manifests available for requested image (exclude manifest lists):
         manifests_all = manifests_per_image[req_image]
         manifests = [man for man in manifests_all if man["type"] == "manifest"]
-        multi_platform = len(manifests_all) > len(manifests)
+        multi_platform = any(item["type"] == "manifest-list" for item in manifests_all)
         assert manifests, f"No manifest for image {req_image}"
 
         cur_selection = []
@@ -486,8 +486,9 @@ def select_images(image_platform_pairs, manifests_per_image, req_platforms=None,
             if multi_platform and req_platforms is None:
                 # Multi-platform image and no default platform defined (select all):
                 for child in manifests:
-                    cur_selection.append(
-                        ((req_image, req_platform), child["digest"], child["platform"]))
+                    if child["platform"] != "unknown/unknown":
+                        cur_selection.append(
+                            ((req_image, req_platform), child["digest"], child["platform"]))
 
             elif multi_platform and req_platforms is not None:
                 # Multi-platform image and default platforms defined (select only them):

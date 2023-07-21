@@ -187,12 +187,21 @@ test_canonicalize_only_success() {
     # take a look at the 'prep-manifest-test-images.sh' script.
     local MANIFEST_TEST_REPO="torizon"
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
-    local ORG_FILE="$CANON_DIR/docker-compose-oci.yml"
-    local MOD_FILE="$CANON_DIR/docker-compose-oci_tmp.yml"
-    sed 's/@PREFIX@/'"${MANIFEST_TEST_REPO}"'/g' "$ORG_FILE" > "$MOD_FILE"
+    local ORG_32BIT_FILE="$CANON_DIR/docker-compose-oci-32bit.yml"
+    local MOD_32BIT_FILE="$CANON_DIR/docker-compose-oci-32bit_tmp.yml"
+    sed 's/@PREFIX@/'"${MANIFEST_TEST_REPO}"'/g' "$ORG_32BIT_FILE" > "$MOD_32BIT_FILE"
 
     test_canonicalize_only_success \
-        "${MOD_FILE##*/}" --force \
+        "${MOD_32BIT_FILE##*/}" --force \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+
+    local ORG_64BIT_FILE="$CANON_DIR/docker-compose-oci-64bit.yml"
+    local MOD_64BIT_FILE="$CANON_DIR/docker-compose-oci-64bit_tmp.yml"
+    sed 's/@PREFIX@/'"${MANIFEST_TEST_REPO}"'/g' "$ORG_64BIT_FILE" > "$MOD_64BIT_FILE"
+
+    test_canonicalize_only_success \
+        "${MOD_64BIT_FILE##*/}" --force \
         ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
 }
@@ -559,8 +568,15 @@ test_canonicalize_only_success() {
 
     # TODO: Consider generating the Lockbox as part of the test with the new platform API.
     run torizoncore-builder platform lockbox \
-        --credentials "${CREDS_PROD_ZIP}"  \
-        --force LockBox-With-OCI-Images \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
+        --force LockBox-With-OCI-32bit-Images \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm64 \
+        --force  LockBox-With-OCI-64bit-Images \
         ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
