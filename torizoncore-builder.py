@@ -8,7 +8,7 @@ without rebuilding the complete operating system.
 """
 
 # Version information (as per PEP-8, it should be set before imports):
-__version_info__ = ('3', '7', '0')
+__version_info__ = ('3', '8', '0')
 __version__ = '.'.join(__version_info__)
 
 import sys
