@@ -229,7 +229,7 @@ if __name__ == "__main__":
         sys.exit(-1)
     except Exception as ex:
         logging.fatal(
-            "An unexpected Exception occured. Please provide the following stack trace to\n"
+            "An unexpected Exception occurred. Please provide the following stack trace to\n"
             "the Toradex TorizonCore support team:\n\n")
         logging.error(traceback.format_exc())
         sys.exit(-2)

@@ -167,7 +167,7 @@ def fetch_offupdt_targets(
                 "version": imgrepo_meta["custom"]["version"],
                 "access_token": access_token
             }
-            if "uri" in imgrepo_meta["custom"].keys():
+            if imgrepo_meta["custom"].get("uri"):
                 params["ostree_url"] = imgrepo_meta["custom"]["uri"]
                 params["access_token"] = None
             platform.fetch_ostree_target(**params)
@@ -181,7 +181,7 @@ def fetch_offupdt_targets(
                 "version": imgrepo_meta["custom"]["version"],
                 "access_token": access_token
             }
-            if "uri" in imgrepo_meta["custom"].keys():
+            if imgrepo_meta["custom"].get("uri"):
                 params["custom_uri"] = imgrepo_meta["custom"]["uri"]
             # Currently we always check the sha and length of binary targets.
             params.update({
