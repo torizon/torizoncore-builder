@@ -28,7 +28,7 @@ from tcbuilder.errors import \
 from tcbuilder.backend import ostree, sotaops
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
-from tcbuilder.backend.common import get_host_workdir, set_output_ownership
+from tcbuilder.backend.common import get_host_workdir, get_own_network, set_output_ownership
 from tcbuilder.backend.registryops import \
     (RegistryOperations, SHA256_PREFIX, parse_image_name, platform_matches)
 
@@ -593,6 +593,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
         elif not (_term.startswith('xterm') or _term.startswith('rxvt')):
             show_progress = False
 
+    network = get_own_network()
     manager = DindManager(target_dir, host_workdir)
     tarballs = None
     cacerts = RegistryOperations.get_cacerts()
@@ -600,7 +601,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
 
     try:
         # Start DinD container on host.
-        manager.start("host", dind_params=dind_params)
+        manager.start(network, dind_params=dind_params)
         manager.add_cacerts(cacerts)
         # Get DinD client to be used on the pulling operations.
         dind_client = manager.get_client()
