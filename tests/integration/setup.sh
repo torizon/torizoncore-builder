@@ -24,7 +24,7 @@ tcb_tests_install_bats() {
 
     rm -Rf $DIR
 
-    for REPO in bats-core:v1.3.0 bats-assert:v2.0.0 bats-file:v0.3.0 bats-support:v0.3.0; do
+    for REPO in bats-core:v1.8.0 bats-assert:v2.0.0 bats-file:v0.3.0 bats-support:v0.3.0; do
         NAME=$(echo $REPO | cut -d':' -f 1)
         VERSION=$(echo $REPO | cut -d':' -f 2)
         if ! tcb_tests_install_bats_clone $DIR $NAME $VERSION; then

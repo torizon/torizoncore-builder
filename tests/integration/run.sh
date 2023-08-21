@@ -127,6 +127,7 @@ else
 fi
 
 # prepare tests
+export BATS_LIB_PATH="$WORK_DIR"
 cd $WORK_DIR
 rm -rf $SAMPLES_DIR && cp -a ../$SAMPLES_DIR .
 mkdir -p $REPORT_DIR

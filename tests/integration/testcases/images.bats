@@ -1,6 +1,6 @@
-load 'bats/bats-support/load.bash'
-load 'bats/bats-assert/load.bash'
-load 'bats/bats-file/load.bash'
+bats_load_library 'bats/bats-support/load.bash'
+bats_load_library 'bats/bats-assert/load.bash'
+bats_load_library 'bats/bats-file/load.bash'
 
 @test "images: check help output" {
     run torizoncore-builder images --help
