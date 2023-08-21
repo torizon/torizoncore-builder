@@ -159,6 +159,7 @@ teardown_file() {
     assert_output --partial "['$COMMIT']"
 }
 
+# bats test_tags=requires-device
 @test "build: full customization checked on device" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
     requires-device

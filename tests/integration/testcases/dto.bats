@@ -99,6 +99,7 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_output --partial "sample_overlay.dtbo"
 }
 
+# bats test_tags=requires-device
 @test "dto: deploy overlay on the device" {
     requires-device
 
@@ -129,6 +130,7 @@ bats_load_library 'bats/bats-file/load.bash'
     refute_output --partial "sample_overlay.dtbo"
 }
 
+# bats test_tags=requires-device
 @test "dto: remove overlay from the device" {
     requires-device
 

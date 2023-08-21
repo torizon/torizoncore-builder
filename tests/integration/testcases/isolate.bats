@@ -17,6 +17,7 @@ load 'lib/isolate.bash'
     assert_output --partial "usage: torizoncore-builder isolate"
 }
 
+# bats test_tags=requires-device
 @test "isolate: create output directory when it doesn't exist and --changes-directory is used" {
     requires-device
 
@@ -45,6 +46,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: remove the output directory when it exists and both, --changes-directory and --force are used" {
     requires-device
 
@@ -70,6 +72,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: don't remove the output directory if it exists, --changes-directory is used and --force was not passed" {
     requires-device
 
@@ -93,6 +96,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: don't remove the output directory if 'storage' is being used and --force was not passed" {
     requires-device
 
@@ -118,6 +122,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: remove the output directory if 'storage' is being used and --force was passed" {
     requires-device
 
@@ -144,6 +149,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: isolate changes using workdir" {
     requires-device
 
@@ -186,6 +192,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: isolate changes using storage" {
     requires-device
 
@@ -210,6 +217,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: isolate changes and save credentials using storage" {
     requires-device
 
@@ -230,6 +238,7 @@ load 'lib/isolate.bash'
     check-isolated-files "storage" "$STORAGE_DIR"
 }
 
+# bats test_tags=requires-device
 @test "isolate: isolate changes and save credentials using --changes-directory" {
     requires-device
 
@@ -253,6 +262,7 @@ load 'lib/isolate.bash'
     check-rm-output-file $ISOLATE_DIR $TMPFILE
 }
 
+# bats test_tags=requires-device
 @test "isolate: isolate symbolic links using storage" {
     requires-device
     create-links-in-device
@@ -266,6 +276,7 @@ load 'lib/isolate.bash'
     assert_success
 }
 
+# bats test_tags=requires-device
 @test "isolate: isolate symbolic links using --changes-directory" {
     requires-device
     create-links-in-device

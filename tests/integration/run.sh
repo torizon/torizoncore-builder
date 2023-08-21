@@ -43,10 +43,6 @@ if [ ! -z "$TCB_TESTCASE" ]; then
     done
 fi
 
-# BATS command
-BATS_BIN="./bats/bats-core/bin/bats"
-BATS_CMD="$BATS_BIN --timing $TESTCASES"
-
 # directory with samples files to use in the tests
 export SAMPLES_DIR=samples
 
@@ -68,6 +64,36 @@ if [ ! -z "$TCB_MACHINE" ]; then
 else
     export MACHINE="apalis-imx6"
 fi
+
+# test tag filters
+FILTER_TAGS=""
+if [ -v TCB_TAGS ]; then
+    case "$TCB_TAGS" in
+        "")
+            echo "Running untagged tests"
+            FILTER_TAGS='--filter-tags ,'
+            ;;
+        "all")
+            echo "Running all tests."
+            ;;
+        *all*)
+            echo "Error: 'all' filter cannot be used with other filters"
+            exit 1
+            ;;
+        *)
+            TCB_TAGS=$(echo "$TCB_TAGS" | sed 's/^\s*//;s/\s*$//;s/\s\+/ /g')
+            FILTER_TAGS=${TCB_TAGS// /" --filter-tags "}
+            FILTER_TAGS="--filter-tags $FILTER_TAGS"
+
+            FILTER_MSG=${TCB_TAGS// /" or "}
+            echo -e "Running tests tagged with: $FILTER_MSG."
+            ;;
+    esac
+fi
+
+# BATS command
+BATS_BIN="./bats/bats-core/bin/bats"
+BATS_CMD="$BATS_BIN --timing ${FILTER_TAGS} $TESTCASES"
 
 # check if setup.sh was sourced.
 if [ -z "$TCBCMD" ]; then

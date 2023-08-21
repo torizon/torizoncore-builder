@@ -49,6 +49,7 @@ load 'lib/common.bash'
     cd .. && rm -rf $ROOTFS my_new_image
 }
 
+# bats test_tags=requires-device
 @test "deploy: deploy changes to device without images unpack" {
     requires-device
     torizoncore-builder-clean-storage
@@ -63,6 +64,7 @@ load 'lib/common.bash'
     assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
 }
 
+# bats test_tags=requires-device
 @test "deploy: deploy changes to device" {
     requires-device
 

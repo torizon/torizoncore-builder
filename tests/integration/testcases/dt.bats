@@ -143,6 +143,7 @@ load 'lib/common.bash'
     assert_output --partial "$DTB"
 }
 
+# bats test_tags=requires-device
 @test "dt: deploy device tree in the device" {
     requires-device
     torizoncore-builder-shell "rm -rf device-trees"

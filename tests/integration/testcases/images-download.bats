@@ -14,6 +14,7 @@ load 'lib/common.bash'
     assert_output --partial "usage: torizoncore-builder images download"
 }
 
+# bats test_tags=requires-device
 @test "images download: download image based on device" {
     requires-device
     torizoncore-builder-clean-storage

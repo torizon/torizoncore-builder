@@ -79,6 +79,9 @@ TCB_REPORT:       If set to '1', it will enable the generation of a test
                   report in $PWD/workdir/reports.
 TCB_UNDER_CI:     If set to '1', some tests not appropriate for running
                   under CI will be skipped.
+TCB_TAGS:         Only run tests that match all the tags in the list (&&).
+                  Separating the lists by space allows for logical or (||):
+                  `a,b x,y` matches tags (a && b) || (x && y)
 
 Following are some examples of running the test cases.
 
@@ -114,3 +117,12 @@ require device access, using a local torizoncore-builder container
 tagged with 'v1':
 
 $ TCB_CUSTOM_IMAGE=torizoncore-builder:v1 TCB_DEVICE=192.168.1.210 ./run.sh
+
+The command below will execute all the tests:
+$ TCB_TAGS="all" ./run.sh
+
+The command below will execute untagged tests:
+$ TCB_TAGS="" ./run.sh
+
+The command below will execute tests tagged as 'requires-device':
+$ TCB_TAGS="requires-device" TCB_DEVICE=192.168.1.210 ./run.sh

@@ -82,6 +82,7 @@ load 'lib/union.bash'
     assert_output --partial "my-customizations"
 }
 
+# bats test_tags=requires-device
 @test "union: create branch using storage and check credentials" {
     requires-device
 
@@ -111,6 +112,7 @@ load 'lib/union.bash'
     check-tcattr-files-removal $ROOTFS
 }
 
+# bats test_tags=requires-device
 @test "union: create branch using --changes-directory and check credentials" {
     requires-device
 
