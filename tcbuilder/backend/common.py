@@ -311,8 +311,9 @@ def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
             "tree overlays workflow, and the dt checkout command is currently not "
             "supported on TorizonCore 6. Learn how to clone the device trees and "
             "overlays repositories on "
-            "https://developer.toradex.com/torizon/os-customization/use-cases"
-            "/device-tree-overlays-on-torizon/#clone-toradex-device-tree-and-overlays-repository.")
+            "https://developer.toradex.com/torizon/os-customization/use-cases/"
+            "device-tree-overlays-on-torizon/"
+            "#clone-the-toradex-repository-and-check-the-available-device-trees-and-overlays")
 
     if git_repo is None:
         repo_obj = git.Repo.clone_from("https://github.com/toradex/device-trees",
