@@ -581,3 +581,37 @@ test_canonicalize_only_success() {
                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 }
+
+# bats test_tags=static-delta
+@test "platform static-delta: generate static delta without pushing to platform" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+    local EXTRN_OSTREE_DIR="$SAMPLES_DIR/ostree-archive"
+
+    local FIRST_REF="3bfc8a2094114b14166ea299287510d0f95171b08c7d3f4f50fd6f1c683e423d"
+    local SECOND_REF="fd04d7bfa3ce3ccae572ddb5b596341c4ac914f0c86eca71ace9aaf8e1a395d6"
+
+    # push small ostree commits for static delta generation"
+    run torizoncore-builder platform push --repo "$EXTRN_OSTREE_DIR" \
+        --package-name "test-static-delta" \
+        --hardwareid "test-id" --credentials "$CREDS_PROD_ZIP" \
+        --package-version "1" "$FIRST_REF"
+    assert_success
+    assert_output --partial "Pushed $FIRST_REF successfully."
+
+    run torizoncore-builder platform push --repo "$EXTRN_OSTREE_DIR" \
+        --package-name "test-static-delta" \
+        --hardwareid "test-id" --credentials "$CREDS_PROD_ZIP" \
+        --package-version "2" "$SECOND_REF"
+    assert_success
+    assert_output --partial "Pushed $SECOND_REF successfully."
+
+    # create static delta without uploading to platform
+    run torizoncore-builder platform static-delta create \
+        --credentials "$CREDS_PROD_ZIP" \
+        "$FIRST_REF" \
+        "$SECOND_REF" \
+        --no-upload
+    assert_success
+    assert_output --partial "Static delta creation for $FIRST_REF-$SECOND_REF complete"
+}
