@@ -1341,6 +1341,53 @@ def update_description(description, target, version, credentials):
         log.error(f"Could not update description for {target}.")
         log.error(put.text)
 
+
+def upload_static_delta_parts(delta_dir, ostree_url, delta_id, headers):
+    """
+    Upload static delta parts to treehub.
+
+    :param delta_dir: A path to static delta parts.
+    :param ostree_url: OStree server url.
+    :param delta_id: Computed static delta identifier.
+    :param headers: http headers.
+    """
+
+    log.info("Uploading static delta parts to treehub...")
+    for item in os.listdir(delta_dir):
+        if not re.match(r'\d+', item):
+            continue
+
+        post = requests.post(f"{ostree_url}/deltas/{delta_id}/{item}",
+                             data=item,
+                             headers=headers)
+
+        if post.status_code == requests.codes["ok"]:
+            log.info(f"Static delta part {item} uploaded.")
+        else:
+            log.error(post.text)
+            raise TorizonCoreBuilderError(f"Error uploading static delta part {item}")
+
+
+def upload_static_delta_superblock(delta_dir, ostree_url, delta_id, headers):
+    """
+    Upload static delta superblock to treehub.
+
+    :param ostree_url: OStree server url.
+    :param delta_id: Computed static delta identifier.
+    :param delta_dir: A path to static delta parts.
+    :param headers: http headers.
+    """
+
+    post = requests.post(f"{ostree_url}/deltas/{delta_id}/superblock",
+                         data=f"{delta_dir}/superblock",
+                         headers=headers)
+    if post.status_code == requests.codes["ok"]:
+        log.info("Static delta superblock uploaded.")
+    else:
+        log.error(post.text)
+        raise TorizonCoreBuilderError("Error uploading static delta superblock")
+
+
 def validate_compose_file(compose_file_data):
     """
     Validate the Docker compose file and throw an exception if the file is invalid.
