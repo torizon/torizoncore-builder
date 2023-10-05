@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import dateutil.parser
 
 from tcbuilder.cli.bundle import add_dind_param_arguments
-from tcbuilder.backend import platform, sotaops, common
+from tcbuilder.backend import platform, sotaops, common, ostree
 from tcbuilder.backend.platform import \
     (JSON_EXT, OFFLINE_SNAPSHOT_FILE, validate_package_selection_criteria,
      translate_compatible_packages)
@@ -765,3 +765,146 @@ def init_parser(subparsers):
     add_common_push_arguments(subparser)
 
     subparser.set_defaults(func=do_platform_push)
+
+    # platform static-delta
+    add_static_delta_subcommands(subparsers)
+
+
+# static delta subcommand logic
+def update_progress(progress):
+    """Async progress handler"""
+
+    def stprint(msg, nl=False):
+        # set nl to for a newline.
+        if sys.stdout.isatty():
+            line_clear_ascii = '\x1b[2K'
+            msg = '\r' + line_clear_ascii + msg
+            if nl:
+                print(msg)
+            else:
+                print(msg, end='')
+        else:
+            print(msg)
+
+    status = progress.get_status()
+    outstanding_fetches = progress.get_uint('outstanding-fetches')
+    outstanding_writes = progress.get_uint('outstanding-writes')
+
+    if status:
+        stprint(status, nl=True)
+    elif outstanding_fetches:
+        fetched = progress.get_uint('fetched')
+        requested = progress.get_uint('requested')
+        metadata_fetched = progress.get_uint('metadata-fetched')
+        outstanding_metadata_fetches = progress.get_uint('outstanding-metadata-fetches')
+
+        if outstanding_metadata_fetches:
+            total_metadata_fetches = metadata_fetched + outstanding_metadata_fetches
+            tmpl = 'Receiving metadata objects: {}/{}'
+            stprint(tmpl.format(metadata_fetched, total_metadata_fetches))
+        else:
+            percent = float(fetched) / requested
+            tmpl = 'Receiving objects: {:%} ({}/{})'
+            stprint(tmpl.format(percent, fetched, requested))
+    elif outstanding_writes:
+        stprint('Writing objects: {}'.format(outstanding_writes))
+    else:
+        scanned_metadata = progress.get_uint('scanned-metadata')
+        stprint('Scanning metadata: {}'.format(scanned_metadata))
+
+
+def static_delta_create(credentials, from_delta, to_delta, upload_delta=True):
+    """
+    Main handler for the 'static-delta create' subcommand.
+
+    :param credentials: Name of the `credentials.zip` file.
+    :param from_delta: The OSTree commit to create a static delta from
+    :param to_delta: The OSTree commit to create a static delta to
+    :param upload_delta: Whether to upload delta to treehub
+    """
+    local_ostree_repo = "/tmp/ostree-repo"
+
+    try:
+        server_creds = sotaops.ServerCredentials(credentials)
+        token = sotaops.get_access_token(server_creds)
+        ostree_url = server_creds.ostree_server
+
+        os.makedirs(local_ostree_repo, exist_ok=True)
+
+        repo = ostree.create_ostree(local_ostree_repo)
+        ostree.pull_remote(repo,
+                           name="treehub",
+                           remote=ostree_url,
+                           refs=[from_delta, to_delta],
+                           token=token,
+                           progress=update_progress)
+        ostree.generate_delta(repo, from_delta=from_delta, to_delta=to_delta)
+
+        b64_from = base64.b64encode(bytes.fromhex(from_delta)).decode().strip('=').replace('/', '_')
+        b64_to = base64.b64encode(bytes.fromhex(to_delta)).decode().strip('=').replace('/', '_')
+        delta_id = f"{b64_from[:2]}/{b64_from[2:]}-{b64_to}"
+        delta_dir = f"{local_ostree_repo}/deltas/{delta_id}"
+        superblock_hash = common.get_file_sha256sum(f"{delta_dir}/superblock")
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "x-trx-superblock-hash": f"{superblock_hash}"
+        }
+        if upload_delta:
+            platform.upload_static_delta_parts(delta_dir, ostree_url, delta_id, headers)
+            platform.upload_static_delta_superblock(delta_dir, ostree_url, delta_id, headers)
+
+        log.info(f"Static delta creation for {from_delta}-{to_delta} complete.")
+
+    finally:
+        # remove local ostree repo
+        if os.path.exists(local_ostree_repo):
+            log.info(f"Removing local ostree directory {local_ostree_repo}")
+            shutil.rmtree(local_ostree_repo)
+
+
+def do_static_delta_create(args):
+    """Wrapper for 'static-delta' subcommand"""
+
+    static_delta_create(credentials=args.credentials,
+                        from_delta=args.from_hash,
+                        to_delta=args.to_hash,
+                        upload_delta=args.upload_delta)
+
+
+def add_static_delta_subcommands(subparsers):
+    """Initialize 'static-delta' subcommands command line interface."""
+
+    parser = subparsers.add_parser(
+        "static-delta",
+        help=("Commands for managing static deltas on Torizon Cloud."),
+        allow_abbrev=False)
+    subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
+
+    # Create static delta
+    subparser = subparsers.add_parser(
+        "create",
+        help=("Generate and upload a static delta to Torizon Cloud."),
+        epilog=("Static delta generation pre-computes a binary diff between two specific "
+            "OS packages, making that particular upload path more efficient. You must "
+            "specify the 'from' and 'to' packages by their sha256 commit ID."),
+        allow_abbrev=False)
+    subparser.add_argument(
+        "--credentials", dest="credentials",
+        help="Relative path to credentials.zip.", required=True)
+    subparser.add_argument(
+        dest="from_hash",
+        metavar="FROM_HASH",
+        help="The OSTree commit to create a static delta from")
+    subparser.add_argument(
+        dest="to_hash",
+        metavar="TO_HASH",
+        help="The OSTree commit to create a static delta to")
+    # Hidden argument (disable pushing static delta to treehub):
+    subparser.add_argument(
+        "--no-upload",
+        dest="upload_delta",
+        help=argparse.SUPPRESS,
+        action="store_false", default=True)
+
+    subparser.set_defaults(func=do_static_delta_create)
