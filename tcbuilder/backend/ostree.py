@@ -86,6 +86,67 @@ def get_metadata_from_ref(repo, ref):
     return get_metadata_from_checksum(repo, csum)
 
 
+def pull_remote(repo, name, remote, refs, token, progress=None):
+    """
+    Function to pull OStree from remote.
+
+    :param repo: Static delta repo
+    :param name: Remote name
+    :param remote: Remote url to full from
+    :param refs: Commits to pull
+    :param token: Access token
+    :param progress: Async progress handler
+    """
+
+    options = GLib.Variant("a{sv}", {
+        "gpg-verify": GLib.Variant("b", False)
+    })
+
+    if not repo.remote_add(name, remote, options=options):
+        raise TorizonCoreBuilderError(f"Error adding remote {remote}.")
+
+    options = GLib.Variant("a{sv}", {
+        "flags": GLib.Variant("i", OSTree.RepoPullFlags.MIRROR & OSTree.RepoPullFlags.TRUSTED_HTTP),
+        "http-headers": GLib.Variant("a(ss)", [("Authorization", f"Bearer {token}")]),
+        "refs": GLib.Variant.new_strv(refs)
+    })
+
+    if progress is not None:
+        asyncprogress = OSTree.AsyncProgress.new()
+        asyncprogress.connect("changed", progress)
+    else:
+        asyncprogress = None
+
+    log.info("Pulling commits...")
+    if not repo.pull_with_options(name, options, progress=asyncprogress):
+        raise TorizonCoreBuilderError("Error pulling contents from remote repository.")
+
+    if asyncprogress is not None:
+        asyncprogress.set_status("Pull completed")
+        asyncprogress.finish()
+
+
+def generate_delta(repo, from_delta, to_delta):
+    """
+    Function to generate static delta.
+
+    :param repo: Static delta repo.
+    :param from_delta: The OSTree commit to create a static delta from
+    :param to_delta: The OSTree commit to create a static delta to
+    """
+
+    log.info("Creating static delta...")
+    result = repo.static_delta_generate(OSTree.StaticDeltaGenerateOpt.MAJOR,
+                                        from_delta,
+                                        to_delta,
+                                        None,
+                                        GLib.Variant("a{sv}", None),
+                                        None)
+
+    if not result:
+        raise TorizonCoreBuilderError("Error generating static delta.")
+
+
 def pull_remote_ref(repo, uri, ref, remote=None, progress=None):
     options = GLib.Variant("a{sv}", {
         "gpg-verify": GLib.Variant("b", False)
