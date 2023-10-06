@@ -774,12 +774,12 @@ def init_parser(subparsers):
 def update_progress(progress):
     """Async progress handler"""
 
-    def stprint(msg, nl=False):
-        # set nl to for a newline.
+    def stprint(msg, new_line=False):
+        # set new_line to for a newline.
         if sys.stdout.isatty():
             line_clear_ascii = '\x1b[2K'
             msg = '\r' + line_clear_ascii + msg
-            if nl:
+            if new_line:
                 print(msg)
             else:
                 print(msg, end='')
@@ -791,7 +791,7 @@ def update_progress(progress):
     outstanding_writes = progress.get_uint('outstanding-writes')
 
     if status:
-        stprint(status, nl=True)
+        stprint(status, new_line=True)
     elif outstanding_fetches:
         fetched = progress.get_uint('fetched')
         requested = progress.get_uint('requested')
@@ -886,8 +886,8 @@ def add_static_delta_subcommands(subparsers):
         "create",
         help=("Generate and upload a static delta to Torizon Cloud."),
         epilog=("Static delta generation pre-computes a binary diff between two specific "
-            "OS packages, making that particular upload path more efficient. You must "
-            "specify the 'from' and 'to' packages by their sha256 commit ID."),
+                "OS packages, making that particular upload path more efficient. You must "
+                "specify the 'from' and 'to' packages by their sha256 commit ID."),
         allow_abbrev=False)
     subparser.add_argument(
         "--credentials", dest="credentials",
