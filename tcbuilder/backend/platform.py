@@ -182,7 +182,7 @@ def do_fetch_ostree_target(target, sha256, ostree_url, images_dir, access_token=
         # possible improvement would be to sanitize the name to be in accordance
         # with the allowed pattern which can be seen in OSTree's source code, file
         # ostree-core.c, macro `OSTREE_REF_REGEXP`.
-        log.warning("Could not create ref according to Uptane target name (non-fatal)")
+        log.debug("Could not create ref according to Uptane target name (non-fatal)")
 
     # Remove remote.
     subprocess.run(
