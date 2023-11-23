@@ -174,14 +174,15 @@ def do_fetch_ostree_target(target, sha256, ostree_url, images_dir, access_token=
     try:
         subprocess.run(
             ["ostree", "refs", "--repo", repo_dir, "--create", target, sha256, "--force"],
-            check=True)
+            check=True, capture_output=True, text=True)
 
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as called_process_error:
         # Setting the ref name is nice but not strictly required; it might fail if
         # the target name does not match the naming pattern allowed by OSTree. A
         # possible improvement would be to sanitize the name to be in accordance
         # with the allowed pattern which can be seen in OSTree's source code, file
         # ostree-core.c, macro `OSTREE_REF_REGEXP`.
+        log.debug(called_process_error.stderr)
         log.debug("Could not create ref according to Uptane target name (non-fatal)")
 
     # Remove remote.
