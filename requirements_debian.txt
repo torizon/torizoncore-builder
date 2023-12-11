@@ -1,4 +1,4 @@
-docker>=4.1.0
+docker>=4.1.0,<7.0.0
 docker-compose==1.29.2
 python-dateutil==2.8.2
 pyyaml==5.3.1
