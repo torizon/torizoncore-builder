@@ -1358,15 +1358,16 @@ def upload_static_delta_parts(delta_dir, ostree_url, delta_id, headers):
         if not re.match(r'\d+', item):
             continue
 
-        post = requests.post(f"{ostree_url}/deltas/{delta_id}/{item}",
-                             data=item,
-                             headers=headers)
+        with open(f"{delta_dir}/{item}", "rb") as file_contents:
+            post = requests.post(f"{ostree_url}/deltas/{delta_id}/{item}",
+                                 data=file_contents,
+                                 headers=headers)
 
-        if post.status_code == requests.codes["ok"]:
-            log.info(f"Static delta part {item} uploaded.")
-        else:
-            log.error(post.text)
-            raise TorizonCoreBuilderError(f"Error uploading static delta part {item}")
+            if post.status_code == requests.codes["ok"]:
+                log.info(f"Static delta part {item} uploaded.")
+            else:
+                log.error(post.text)
+                raise TorizonCoreBuilderError(f"Error uploading static delta part {item}")
 
 
 def upload_static_delta_superblock(delta_dir, ostree_url, delta_id, headers):
@@ -1378,15 +1379,15 @@ def upload_static_delta_superblock(delta_dir, ostree_url, delta_id, headers):
     :param delta_dir: A path to static delta parts.
     :param headers: http headers.
     """
-
-    post = requests.post(f"{ostree_url}/deltas/{delta_id}/superblock",
-                         data=f"{delta_dir}/superblock",
-                         headers=headers)
-    if post.status_code == requests.codes["ok"]:
-        log.info("Static delta superblock uploaded.")
-    else:
-        log.error(post.text)
-        raise TorizonCoreBuilderError("Error uploading static delta superblock")
+    with open(f"{delta_dir}/superblock", "rb") as file_contents:
+        post = requests.post(f"{ostree_url}/deltas/{delta_id}/superblock",
+                             data=file_contents,
+                             headers=headers)
+        if post.status_code == requests.codes["ok"]:
+            log.info("Static delta superblock uploaded.")
+        else:
+            log.error(post.text)
+            raise TorizonCoreBuilderError("Error uploading static delta superblock")
 
 
 def validate_compose_file(compose_file_data):
