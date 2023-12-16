@@ -50,6 +50,7 @@ properties:
                           - apalis-imx8
                           - apalis-imx8x
                           - colibri-imx6
+                          - colibri-imx6ull-emmc
                           - colibri-imx7
                           - colibri-imx7-emmc
                           - colibri-imx8x
