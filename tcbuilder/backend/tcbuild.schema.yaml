@@ -57,6 +57,7 @@ properties:
                           - colibri-imx8x-v10b
                           - verdin-imx8mm
                           - verdin-imx8mp
+                          - verdin-am62
                         description: "target module type"
                       distro:
                         type: string
