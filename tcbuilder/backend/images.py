@@ -268,8 +268,9 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
         log.info("Unpacking Toradex Easy Installer image.")
         if "Tezi" in image_dir:
             extract_dir = _make_tezi_extract_dir(tezi_dir)
+            real_image_dir = os.path.realpath(image_dir)
             final_dir = os.path.join(
-                extract_dir, os.path.splitext(os.path.basename(image_dir))[0])
+                extract_dir, os.path.splitext(os.path.basename(real_image_dir))[0])
         elif "teziimage" in image_dir:
             extract_dir = _make_tezi_extract_dir(tezi_dir)
             final_dir = extract_dir
