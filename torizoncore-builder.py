@@ -21,6 +21,7 @@ if sys.version_info < MIN_PYTHON:
 import argparse
 import logging
 import os
+import subprocess
 import traceback
 
 from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isolate,
@@ -227,6 +228,14 @@ if __name__ == "__main__":
             logging.info(ex.det)  # more elaborative message
         logging.debug(traceback.format_exc())  # full traceback to be shown for debugging only
         sys.exit(-1)
+    except subprocess.CalledProcessError as ex:
+        logging.error(f"{ex}")
+        if b"\n" in ex.output:
+            logging.error("Output:\n  %s", "\n  ".join(ex.output.decode().split("\n")))
+        elif ex.output:
+            logging.error("Output: %s", ex.output.decode())
+        logging.debug(traceback.format_exc())  # full traceback to be shown for debugging only
+        sys.exit(4)
     except Exception as ex:
         logging.fatal(
             "An unexpected Exception occurred. Please provide the following stack trace to\n"
