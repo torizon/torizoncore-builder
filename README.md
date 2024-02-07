@@ -59,6 +59,18 @@ An then set an alias like this:
 $ alias torizoncore-tools='docker run --rm -it -v /deploy -v $(pwd):/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock torizoncore-builder-dev:local'
 ```
 
+Testing changes to Python code without rebuilding
+=================================================
+To just test changes to the Python code, you can mount the source
+directory directly into the container using a docker volume mount. This
+can be done using the regular tcb-env-setup.sh as follows:
+
+```
+$ tcb-env-setup.sh -- --volume /path/to/torizoncore-builder:/builder:ro --entrypoint torizoncore-builder.py
+```
+
+This also changes the entrypoint, because the file has a .py extension
+in the repository which is removed when building the docker image.
 
 Running the linter (static analysis tool)
 =========================================
