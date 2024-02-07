@@ -2,6 +2,7 @@
 Backend functions and functionality for all kernel commands
 """
 
+import glob
 import subprocess
 import os
 import re
@@ -75,19 +76,36 @@ def build_module(src_dir, linux_src, src_mod_dir,
     if version_major == '6':
         _pattern = r"s/\$(build)=\. prepare/$(build)=./g"
         subprocess.check_output(
-            f"sed -i '{_pattern}' {linux_src}/Makefile",
-            stderr=subprocess.STDOUT, shell=True)
+            ["sed", "-i", _pattern, f"{linux_src}/Makefile"],
+            stderr=subprocess.STDOUT)
+
+    env_path = {
+        **os.environ.copy(),
+        "PATH": f"{os.environ['PATH']}:{toolchain}",
+    }
 
     # Run modules_prepare on kernel source
-    subprocess.check_output(f"""PATH=$PATH:{toolchain} make -C {linux_src} ARCH={arch} \
-        CROSS_COMPILE={c_c} modules_prepare""", shell=True,
-                            stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    cmd = [
+        "make", "-C", linux_src,
+        f"ARCH={arch}",
+        f"CROSS_COMPILE={c_c}",
+        "modules_prepare",
+    ]
+    subprocess.check_output(cmd, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT, env=env_path)
 
     # Build kernel module source
     try:
-        subprocess.run(f"""PATH=$PATH:{toolchain} KERNEL_SRC={linux_src} KDIR={linux_src} \
-            CROSS_COMPILE={c_c} ARCH={arch} make -C {src_dir}""",
-                       shell=True, stderr=subprocess.STDOUT, check=True)
+        extra_env = {
+            **env_path,
+            "KERNEL_SRC": linux_src,
+            "KDIR": linux_src,
+        }
+        cmd = [
+            "make", "-C", src_dir,
+            f"CROSS_COMPILE={c_c}",
+            f"ARCH={arch}",
+        ]
+        subprocess.run(cmd, stderr=subprocess.STDOUT, check=True, env=extra_env)
         print()
     except subprocess.CalledProcessError as exc:
         raise TorizonCoreBuilderError(f"Error building kernel module(s): {exc}") from exc
@@ -108,14 +126,20 @@ def build_module(src_dir, linux_src, src_mod_dir,
 
     # Copy source module directory to changes directory
     install_path = os.path.join(kernel_changes_dir, "usr")
-    subprocess.check_output(f"cp -r {src_mod_dir}/* {mod_path}",
-                            shell=True, stderr=subprocess.STDOUT)
+    subprocess.check_output(["cp", "-r", *glob.glob(f"{src_mod_dir}/*"), mod_path],
+                            stderr=subprocess.STDOUT)
     shutil.rmtree(os.path.join(mod_path, "dtb"))
 
     # Install modules with modules_install
-    subprocess.check_output(f"""PATH=$PATH:{toolchain} make -C {linux_src} ARCH={arch} \
-        CROSS_COMPILE={c_c} M={src_dir} INSTALL_MOD_PATH={install_path} modules_install""",
-                            shell=True, stderr=subprocess.STDOUT)
+    cmd = [
+        "make", "-C", linux_src,
+        f"ARCH={arch}",
+        f"CROSS_COMPILE={c_c}",
+        f"M={src_dir}",
+        f"INSTALL_MOD_PATH={install_path}",
+        "modules_install",
+    ]
+    subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env_path)
 
     # Cleanup kernel source
     shutil.rmtree(linux_src)

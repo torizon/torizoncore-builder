@@ -112,16 +112,18 @@ def get_current_dtb_path(storage_dir):
             return (answer, True)
         # This is a device tree from the base image.
         answer = subprocess.check_output(
-            f"find {storage_dir}/sysroot/ostree/deploy -type f -name {dtb_basename} -print -quit",
-            shell=True, text=True).strip()
+            ["find", f"{storage_dir}/sysroot/ostree/deploy", "-type", "f",
+             "-name", dtb_basename, "-print", "-quit"],
+            text=True).strip()
         assert os.path.exists(answer), f"panic: missing device tree blob file for {dtb_basename}!"
         return (answer, True)
 
     # Cannot identify the device tree by peeking the boot loader configuration.
     # Hint by returning the first device tree blob found in the base image.
     answer = subprocess.check_output(
-        f"find {storage_dir}/sysroot/ostree/deploy -type f -name '*.dtb' -print -quit",
-        shell=True, text=True).strip()
+        ["find", f"{storage_dir}/sysroot/ostree/deploy", "-type", "f",
+         "-name", "*.dtb", "-print", "-quit"],
+        text=True).strip()
     assert os.path.exists(answer), "panic: missing device tree blobs in base image!"
     return (answer, False)
 

@@ -126,10 +126,10 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
 
     if image_filename.endswith(".xz"):
         uncompressed_file = image_filename.replace(".xz", "")
-        compress_cmd = f"xz -z {uncompressed_file}"
+        compress_cmd = ["xz", "-z", uncompressed_file]
     elif image_filename.endswith(".zst"):
         uncompressed_file = image_filename.replace(".zst", "")
-        compress_cmd = f"zstd --rm {uncompressed_file}"
+        compress_cmd = ["zstd", "--rm", uncompressed_file]
 
     # pylint: disable=line-too-long
     # This is a OSTree bare repository. Care must been taken to preserve all
@@ -137,13 +137,18 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     # here.
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     # pylint: enable=line-too-long
-    tar_cmd = "tar --xattrs --xattrs-include='*' -cf {0} -S -C {1} -p .".format(
-        uncompressed_file, dst_sysroot_dir)
-    log.debug(f"Running tar command: {tar_cmd}")
-    subprocess.check_output(tar_cmd, shell=True, stderr=subprocess.STDOUT)
+    tar_cmd = [
+        "tar",
+        "--xattrs", "--xattrs-include=*",
+        "-cf", uncompressed_file,
+        "-S", "-C", dst_sysroot_dir,
+        "-p", "."
+    ]
+    log.debug(f"Running tar command: {shlex.join(tar_cmd)}")
+    subprocess.check_output(tar_cmd, stderr=subprocess.STDOUT)
 
-    log.debug(f"Running compress command: {compress_cmd}")
-    subprocess.check_output(compress_cmd, shell=True, stderr=subprocess.STDOUT)
+    log.debug(f"Running compress command: {shlex.join(compress_cmd)}")
+    subprocess.check_output(compress_cmd, stderr=subprocess.STDOUT)
 
     update_uncompressed_image_size(image_filename)
 

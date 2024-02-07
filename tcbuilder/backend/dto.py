@@ -92,9 +92,7 @@ def modify_dtb_by_overlays(source_dtb_path, source_dtob_paths, target_dtb_path):
         log.error(f"error: cannot apply device tree overlays {source_dtob_paths} "
                   f"against device tree {source_dtb_path}.")
         return False
-    # Run without shell=True (FIXME).
-    dtb_check = subprocess.check_output(
-        f"file {target_dtb_path}", shell=True, text=True).strip()
+    dtb_check = subprocess.check_output(["file", target_dtb_path], text=True).strip()
     log.info(dtb_check)
     if not "Device Tree Blob" in dtb_check:
         log.error(
