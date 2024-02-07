@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -19,7 +20,7 @@ from tempfile import TemporaryDirectory
 
 import paramiko
 
-from tcbuilder.backend.common import (get_rootfs_tarball, get_unpack_command,
+from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
                                       set_output_ownership)
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
@@ -234,10 +235,14 @@ def unpack_local_image(image_dir, sysroot_dir):
     # here
     # See: https://dev.gentoo.org/~mgorny/articles/portability-of-tar-features.html#extended-file-metadata
     # pylint: enable=line-too-long
-    tarcmd = "cat '{0}' | {1} | tar --xattrs --xattrs-include='*' -xhf - -C {2}".format(
-                tarfile, get_unpack_command(tarfile), sysroot_dir)
-    log.debug(f"Running tar command: {tarcmd}")
-    subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
+    tarcmd = [
+        "tar",
+        "--xattrs", "--xattrs-include=*",
+        "-xhf", tarfile,
+        "-C", sysroot_dir,
+    ] + get_tar_compress_program_options(tarfile)
+    log.debug(f"Running tar command: {shlex.join(tarcmd)}")
+    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
 
     # Remove the tarball since we have it unpacked now
     os.unlink(tarfile)
@@ -276,10 +281,13 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
         else:
             raise InvalidArgumentError(
                 f"Unknown naming pattern for file {image_dir}")
-        tarcmd = "cat {0} | {1} | tar -xf - -C {2}".format(
-            image_dir, get_unpack_command(image_dir), extract_dir)
-        log.debug(f"Running tar command: {tarcmd}")
-        subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
+        tarcmd = [
+            "tar",
+            "-xf", image_dir,
+            "-C", extract_dir,
+        ] + get_tar_compress_program_options(image_dir)
+        log.debug(f"Running tar command: {shlex.join(tarcmd)}")
+        subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
         image_dir = final_dir
 
     elif image_dir.endswith(".zip"):

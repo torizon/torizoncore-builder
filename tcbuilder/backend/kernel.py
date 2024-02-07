@@ -11,7 +11,7 @@ import logging
 import urllib.request
 
 from tcbuilder.backend import ostree
-from tcbuilder.backend.common import (get_unpack_command, progress,
+from tcbuilder.backend.common import (get_tar_compress_program_options, progress,
                                       set_output_ownership)
 from tcbuilder.errors import TorizonCoreBuilderError
 
@@ -181,8 +181,11 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
 
     log.info("Unpacking downloaded toolchain into storage")
     os.makedirs(toolchain_path, exist_ok=True)
-    tarcmd = "cat '{0}' | {1} | tar -xf - -C {2}".format(
-        tarball, get_unpack_command(tarball), toolchain_path)
-    subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
+    tarcmd = [
+        "tar",
+        "-xf", tarball,
+        "-C", toolchain_path,
+    ] + get_tar_compress_program_options(tarball)
+    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
     os.remove(tarball)
     log.info("Toolchain successfully unpacked.\n")

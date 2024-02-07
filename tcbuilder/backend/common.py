@@ -163,6 +163,17 @@ def get_unpack_command(filename):
     return cmd
 
 
+def get_tar_compress_program_options(filename):
+    """ Get array with options to pass to tar to decompress given file format. """
+    cmd = get_unpack_command(filename)
+    # Tar adds a -d option to the command passed, but cat does not
+    # accept this, so omit the --use-compress-program entirely in this
+    # case.
+    if cmd == "cat":
+        return []
+    return ["--use-compress-program", cmd]
+
+
 def get_all_local_ip_addresses():
     """
     Get all local IP addresses on this host except the ones assigned to the

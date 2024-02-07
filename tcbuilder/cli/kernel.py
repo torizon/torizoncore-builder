@@ -11,7 +11,7 @@ import subprocess
 
 from tcbuilder.errors import PathNotExistError
 from tcbuilder.errors import FileContentMissing
-from tcbuilder.backend.common import (get_unpack_command,
+from tcbuilder.backend.common import (get_tar_compress_program_options,
                                       images_unpack_executed)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
@@ -73,9 +73,12 @@ def kernel_build_module(source_dir, storage_dir, autoload):
          "-type", "f", "-name", "linux.tar.bz2", "-print", "-quit"], text=True)
     assert linux_src, "panic: missing Linux kernel source!"
     linux_src = linux_src.rstrip()
-    tarcmd = "cat '{0}' | {1} | tar -xf - -C {2}".format(
-        linux_src, get_unpack_command(linux_src), storage_dir)
-    subprocess.check_output(tarcmd, shell=True, stderr=subprocess.STDOUT)
+    tarcmd = [
+        "tar",
+        "-xf", linux_src,
+        "-C", storage_dir,
+    ] + get_tar_compress_program_options(linux_src)
+    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
     extracted_src = os.path.join(storage_dir, "linux")
 
     # Build and install Kernel module
