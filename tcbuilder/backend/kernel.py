@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 import logging
-import traceback
 import urllib.request
 
 from tcbuilder.backend import ostree
@@ -90,9 +89,8 @@ def build_module(src_dir, linux_src, src_mod_dir,
             CROSS_COMPILE={c_c} ARCH={arch} make -C {src_dir}""",
                        shell=True, stderr=subprocess.STDOUT, check=True)
         print()
-    except:
-        logging.error(traceback.format_exc())
-        raise TorizonCoreBuilderError("Error building kernel module(s)!")
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(f"Error building kernel module(s): {exc}") from exc
     finally:
         set_output_ownership(src_dir)
 
