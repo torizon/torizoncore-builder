@@ -91,7 +91,7 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
     # Deploy the device tree blob.
     dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
     # Erase device tree and overlays of the current session.
-    subprocess.check_call(f"rm -rf {dt_changes_dir}", shell=True)
+    shutil.rmtree(dt_changes_dir, ignore_errors=True)
     dtb_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir))
     os.makedirs(dtb_target_dir, exist_ok=True)
     dtb_target_basename = os.path.splitext(os.path.basename(dts_path))[0] + ".dtb"

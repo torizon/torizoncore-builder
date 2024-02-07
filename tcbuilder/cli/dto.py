@@ -316,7 +316,7 @@ def dto_remove_all(storage_dir):
     # Wipe out all overlay blobs as external changes.
     dtob_target_dir = os.path.join(
         dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays")
-    subprocess.check_call(f"rm -rf {dtob_target_dir}", shell=True, text=True)
+    shutil.rmtree(dtob_target_dir, ignore_errors=True)
 
     # Sanity check.
     assert not dto.get_applied_overlays_base_names(storage_dir), \
