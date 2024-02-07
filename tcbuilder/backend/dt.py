@@ -5,6 +5,7 @@ Backend for the DT (device-tree) related operations.
 import logging
 import json
 import os
+import shlex
 import subprocess
 import sys
 import io
@@ -135,13 +136,14 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
     opt_includes = []
     for include_dir in include_dirs:
         opt_includes.append("-I")
-        opt_includes.append(include_dir)
+        opt_includes.append(shlex.quote(include_dir))
     opt_includes = " ".join(opt_includes)
     try:
         subprocess.check_output(
             ("set -o pipefail && "
-             f"cpp -nostdinc -undef -x assembler-with-cpp {opt_includes} {source_dts_path} "
-             f"| dtc -I dts -O dtb -@ -o {target_dtb_path}"),
+             f"cpp -nostdinc -undef -x assembler-with-cpp {opt_includes} "
+             f"{shlex.quote(source_dts_path)} "
+             f"| dtc -I dts -O dtb -@ -o {shlex.quote(target_dtb_path)}"),
             shell=True, text=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
         log.error(exc.output.strip())

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -209,10 +210,10 @@ def do_dto_list(args):
             subprocess.check_output(
                 "set -o pipefail && "
                 "sed -r -e '/^[[:blank:]]*compatible *=/,/;/!d' "
-                f"-e '/;/q' {dtb_path} | tr -d '\n' | "
+                f"-e '/;/q' {shlex.quote(dtb_path)} | tr -d '\n' | "
                 "sed -r -e 's/.*\\<compatible *= *//' "
                 "-e 's/[[:blank:]]*//g' -e 's/\";.*/\"\\n/' -e 's/\",\"/\"\\n\"/g'"
-                f">{compat_regexps_tmp_path}",
+                f">{shlex.quote(compat_regexps_tmp_path)}",
                 shell=True, text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
             log.error(exc.output.strip())
@@ -225,8 +226,8 @@ def do_dto_list(args):
             # About the 'sed' programs below:
             #  -e 's/$/\"/' appends '"' to each line
             subprocess.check_output(
-                f"set -o pipefail && fdtget {dtb_path} / compatible | tr ' ' '\n' "
-                f"| sed -e 's/$/\"/' >{compat_regexps_tmp_path}",
+                f"set -o pipefail && fdtget {shlex.quote(dtb_path)} / compatible | tr ' ' '\n' "
+                f"| sed -e 's/$/\"/' >{shlex.quote(compat_regexps_tmp_path)}",
                 shell=True, text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
             log.error(exc.output.strip())
@@ -242,7 +243,8 @@ def do_dto_list(args):
     # files under a given subdirectory.
     try:
         compat_list = subprocess.check_output(
-            f"set -o pipefail && grep -rlHEf {compat_regexps_tmp_path} {overlays_subdir} "
+            f"set -o pipefail && grep -rlHEf {shlex.quote(compat_regexps_tmp_path)} "
+            f"{shlex.quote(overlays_subdir)} "
             "| sort -u | sed -e 's/^/- /'", shell=True, text=True).strip()
         log.info(f"Overlays compatible with device tree {os.path.basename(dtb_path)}:")
         log.info(f"{compat_list}")

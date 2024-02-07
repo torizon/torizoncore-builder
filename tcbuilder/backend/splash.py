@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import shlex
 
 from gi.repository import Gio
 
@@ -33,8 +34,8 @@ def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
 
     # create splash image only initramfs
     create_initramfs_cmd = "echo {0} | cpio -H newc -D {1} -o | gzip > {2}".format(
-        os.path.join(splash_initramfs_dir, "watermark.png"), work_dir,
-        os.path.join(work_dir, splash_initramfs))
+        shlex.quote(os.path.join(splash_initramfs_dir, "watermark.png")),
+        shlex.quote(work_dir), shlex.quote(os.path.join(work_dir, splash_initramfs)))
     subprocess.check_output(create_initramfs_cmd, shell=True, stderr=subprocess.STDOUT)
 
     # get path of initramfs of current deployment inside sysroot

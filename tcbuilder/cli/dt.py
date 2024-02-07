@@ -4,6 +4,7 @@ CLI for the DT (device-tree) command.
 
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -106,8 +107,9 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
         file.write(f"fdtfile={dtb_target_basename}\n")
     subprocess.check_call(
         "set -o pipefail && "
-        f"ostree --repo={storage_dir}/ostree-archive "
-        f"cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d >>{uenv_target_path}",
+        f"ostree --repo={shlex.quote(storage_dir)}/ostree-archive "
+        f"cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d "
+        f">>{shlex.quote(uenv_target_path)}",
         shell=True)
 
     # Deploy an empty overlays config file, so any overlays from the base image are disabled.
