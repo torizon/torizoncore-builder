@@ -62,8 +62,10 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends install \
     file curl gzip xz-utils lz4 lzop zstd cpio jq acl libmpc-dev \
     device-tree-compiler cpp  bzip2 flex bison kmod libgmp3-dev bc \
     && apt-get -q -y --no-install-recommends install python3-paramiko \
-    python3-dnspython python3-ifaddr python3-git avahi-daemon && \
-    rm -rf /var/lib/apt/lists/*
+    python3-dnspython python3-ifaddr python3-git avahi-daemon \
+    && apt-get -q -y --no-install-recommends install libguestfs-tools \
+    python3-guestfs linux-image-generic \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Avahi files.
 COPY avahi-conf/ /etc/avahi/
