@@ -572,11 +572,32 @@ def images_unpack_executed(storage_dir):
         raise PathNotExistError(
             f"Storage directory \"{storage_dir}\" does not exist.")
 
-    image_dirs = ("ostree-archive", "sysroot", "tezi")
+    image_dirs = ("ostree-archive", "sysroot")
 
     for image_dir in image_dirs:
         if not os.path.exists(os.path.join(storage_dir, image_dir)):
             raise ImageUnpackError()
+
+
+def unpacked_image_type(storage_dir):
+    """
+    Check if unpacked image is of type 'tezi' or 'wic' by
+    looking if storage_dir has a directory named tezi.
+    This function should always run after images_unpack_executed()
+
+    :param storage_dir: Storage directory.
+    :raises:
+        PathNotExistError: if "storage_dir" does not exist.
+    :return: "tezi" or "wic", depending on the image
+    """
+    if not os.path.exists(storage_dir):
+        raise PathNotExistError(
+            f"Storage directory \"{storage_dir}\" does not exist.")
+
+    if os.path.exists(os.path.join(storage_dir, "tezi")):
+        return "tezi"
+
+    return "wic"
 
 
 def get_own_network():
