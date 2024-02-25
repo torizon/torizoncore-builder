@@ -231,9 +231,10 @@ if __name__ == "__main__":
     except subprocess.CalledProcessError as ex:
         logging.error(f"{ex}")
         if b"\n" in ex.output:
-            logging.error("Output:\n  %s", "\n  ".join(ex.output.decode().split("\n")))
+            outxt = "\n  ".join(ex.output.decode().split("\n")) # pylint: disable=invalid-name
+            logging.error(f"Output:\n  {outxt}")
         elif ex.output:
-            logging.error("Output: %s", ex.output.decode())
+            logging.error(f"Output: {ex.output.decode()}")
         logging.debug(traceback.format_exc())  # full traceback to be shown for debugging only
         sys.exit(4)
     except Exception as ex:
