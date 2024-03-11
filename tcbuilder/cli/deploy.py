@@ -7,10 +7,16 @@ import os
 from tcbuilder.backend import deploy as dbe
 from tcbuilder.backend import common
 from tcbuilder.backend import combine as cbe
-from tcbuilder.errors import InvalidArgumentError, InvalidStateError, PathNotExistError
+from tcbuilder.errors import (
+    InvalidArgumentError,
+    InvalidStateError,
+    PathNotExistError,
+    InvalidDataError,
+)
 
 DEFAULT_DEPLOY_DIR = "/deploy"
-
+DEFAULT_OUTPUT_WIC_IMAGE = "tcb_common_torizon_os.wic"
+DEFAULT_WIC_ROOTFS_LABEL = "otaroot"
 
 def progress_update(asyncprogress, _user_data=None):
     """ Update progress status
@@ -26,6 +32,11 @@ def progress_update(asyncprogress, _user_data=None):
 
 def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
                       tezi_props=None):
+
+    common.images_unpack_executed(storage_dir)
+    if common.unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("Current unpacked image is not a Toradex Easy Installer image. "
+                               "Aborting.")
 
     output_dir_ = os.path.abspath(output_dir)
 
@@ -61,10 +72,35 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
 
     common.set_output_ownership(output_dir_)
 
+def deploy_wic_image(ostree_ref, base_wic_img, output_wic_img, storage_dir,
+                     deploy_sysroot_dir, rootfs_label):
+
+    common.images_unpack_executed(storage_dir)
+    if common.unpacked_image_type(storage_dir) == "tezi":
+        raise InvalidDataError("Current unpacked image is not a WIC image. Aborting.")
+
+    if os.path.isdir(output_wic_img):
+        output_wic_img = os.path.join(output_wic_img, DEFAULT_OUTPUT_WIC_IMAGE)
+
+    output_wic_img_ = os.path.abspath(output_wic_img)
+    storage_dir_ = os.path.abspath(storage_dir)
+
+    src_sysroot_dir = os.path.join(storage_dir_, "sysroot")
+    src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
+
+    dst_sysroot_dir_ = os.path.abspath(deploy_sysroot_dir)
+
+    if os.path.exists(output_wic_img_):
+        raise InvalidStateError(f"{output_wic_img} already exists. Aborting.")
+
+    if not os.path.exists(dst_sysroot_dir_):
+        raise PathNotExistError(f"Deploy sysroot directory {dst_sysroot_dir_} does not exist.")
+
+    dbe.deploy_wic_image(base_wic_img, src_sysroot_dir, src_ostree_archive_dir,
+                         output_wic_img_, dst_sysroot_dir_, rootfs_label, ostree_ref)
+
 
 def do_deploy_tezi_image(args):
-
-    common.images_unpack_executed(args.storage_directory)
 
     tezi_props_args = {
         "name": args.image_name,
@@ -83,6 +119,16 @@ def do_deploy_tezi_image(args):
                       tezi_props=tezi_props_args)
 
 
+def do_deploy_wic_image(args):
+
+    deploy_wic_image(ostree_ref=args.ref,
+                     base_wic_img=args.base_wic_image,
+                     output_wic_img=args.output_wic_image,
+                     storage_dir=args.storage_directory,
+                     deploy_sysroot_dir=args.deploy_sysroot_directory,
+                     rootfs_label=args.wic_rootfs_label)
+
+
 def do_deploy_ostree_remote(args):
     storage_dir = os.path.abspath(args.storage_directory)
     common.images_unpack_executed(storage_dir)
@@ -95,13 +141,37 @@ def do_deploy_ostree_remote(args):
 
 
 def do_deploy(args):
+
+    if (args.output_directory and args.base_wic_image and args.remote_host):
+        raise InvalidArgumentError(
+            "--output-directory, --base-wic and --remote-host are "
+            "mutually exclusive. Aborting.")
+
+    if (args.output_directory and args.base_wic_image):
+        raise InvalidArgumentError(
+            "--output-directory and --base-wic are "
+            "mutually exclusive. Aborting.")
+
+    if (args.output_directory and args.remote_host):
+        raise InvalidArgumentError(
+            "--output-directory and --remote-host are "
+            "mutually exclusive. Aborting.")
+
+    if (args.base_wic_image and args.remote_host):
+        raise InvalidArgumentError(
+            "--base-wic and --remote-host are "
+            "mutually exclusive. Aborting.")
+
     if args.output_directory is not None:
         do_deploy_tezi_image(args)
+    elif args.base_wic_image is not None:
+        do_deploy_wic_image(args)
     elif args.remote_host is not None:
         do_deploy_ostree_remote(args)
     else:
         raise InvalidArgumentError(
-            "One of the following arguments is required: --output-directory, --remote-host")
+            "One of the following arguments is required: --output-directory, "
+            "--base-wic, --remote-host")
 
 
 def init_parser(subparsers):
@@ -137,6 +207,19 @@ def init_parser(subparsers):
                                  "attributes in this directory. This seems to only "
                                  "reliably work when using a Docker volume!"),
                            default=DEFAULT_DEPLOY_DIR)
+
+    subparser.add_argument("--base-wic", dest="base_wic_image", metavar="BASE",
+                           help="Base image that the deployment will be based on i.e. "
+                                "the .wic file used in the \'images unpack\' command.")
+
+    subparser.add_argument("--wic-rootfs-label", dest="wic_rootfs_label", metavar="LABEL",
+                           help="rootfs filesystem label of base WIC image. "
+                                f"(default: {DEFAULT_WIC_ROOTFS_LABEL}) ",
+                           default=DEFAULT_WIC_ROOTFS_LABEL)
+
+    subparser.add_argument("--output-wic", dest="output_wic_image", metavar="OUT",
+                           help="Output path for the image to be deployed.",
+                           default=DEFAULT_OUTPUT_WIC_IMAGE)
 
     common.add_common_image_arguments(subparser, argparse)
 

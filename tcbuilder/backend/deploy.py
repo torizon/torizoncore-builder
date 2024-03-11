@@ -10,6 +10,7 @@ import subprocess
 import threading
 import shlex
 
+import guestfs
 import paramiko
 
 # pylint: disable=wrong-import-position
@@ -27,6 +28,10 @@ from tezi.utils import find_rootfs_content
 log = logging.getLogger("torizon." + __name__)
 
 OSNAME = "torizon"
+EXTRA_ROOTFS_SIZE_KB = 0
+# Value based on
+# https://github.com/torizon/meta-toradex-torizon/blob/953aacb8b3241ea26f98e853d1a1d4c8463636a4/recipes-images/images/torizon-core-common.inc#L11
+IMAGE_OVERHEAD_FACTOR = 2.3
 
 def create_sysroot(deploy_sysroot_dir):
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(deploy_sysroot_dir))
@@ -42,12 +47,46 @@ def create_sysroot(deploy_sysroot_dir):
 
     return sysroot
 
-def deploy_rootfs(sysroot, ref, refspec, kargs):
+
+def get_image_bootloader(sysroot_dir):
+    """
+    Get bootloader being used in a given unpacked sysroot
+
+    :param sysroot_dir: sysroot path
+
+    Based on:
+    - https://github.com/ostreedev/ostree/blob/v2024.4/src/libostree/ostree-bootloader-uboot.c#L47
+    - https://github.com/ostreedev/ostree/blob/v2024.4/src/libostree/ostree-bootloader-grub2.c#L73
+    """
+    tentative_uenv_path = os.path.join(sysroot_dir, "boot/loader/uEnv.txt")
+
+    if os.path.exists(tentative_uenv_path):
+        return "U-Boot"
+
+    tentative_grubcfg_path1 = os.path.join(sysroot_dir, "boot/grub/grub.cfg")
+    tentative_grubcfg_path2 = os.path.join(sysroot_dir, "boot/grub2/grub.cfg")
+
+    if (os.path.exists(tentative_grubcfg_path1) or
+            os.path.exists(tentative_grubcfg_path2)):
+        return "GRUB2"
+
+    tentative_efi_dir_path = os.path.join(sysroot_dir, "boot/efi/EFI")
+    if (os.path.exists(tentative_efi_dir_path) and
+            os.path.isdir(tentative_efi_dir_path)):
+        for _, _, files in os.walk(tentative_efi_dir_path):
+            if "grub.cfg" in files:
+                return "GRUB2"
+
+    return "UNSUPPORTED"
+
+
+def deploy_rootfs(sysroot, src_sysroot_dir, ref, refspec, kargs):
     """ deploy OSTree commit given by ref in sysroot with kernel arguments
 
         args:
 
             sysroot(OSTree.Sysroot) - sysroot object
+            src_sysroot_dir(str) - path to src sysroot
             ref(str) - reference to deploy
             kargs(str) = kernel arguments
 
@@ -74,8 +113,24 @@ def deploy_rootfs(sysroot, ref, refspec, kargs):
     os.makedirs(os.path.join(bootdir, "loader.1"))
     os.symlink("loader.1", os.path.join(bootdir, "loader"))
 
-    file = open(os.path.join(bootdir, "loader/uEnv.txt"), "w")
-    file.close()
+    bootloader_found = get_image_bootloader(src_sysroot_dir)
+
+    if bootloader_found == "GRUB2":
+        log.info("Bootloader found in unpacked image: GRUB2")
+        os.environ["OSTREE_BOOT_PARTITION"] = "/boot"
+        os.environ["OSTREE_GRUB2_EXEC"] = \
+            "/builder/tcbuilder/ostree-grub-generator"
+        os.makedirs(os.path.join(bootdir, "grub2"))
+        os.symlink("../loader/grub.cfg", os.path.join(bootdir, "grub2/grub.cfg"))
+    elif bootloader_found == "U-Boot":
+        log.info("Bootloader found in unpacked image: U-Boot")
+        file = open(os.path.join(bootdir, "loader/uEnv.txt"), "w")
+        file.close()
+    else:
+        raise TorizonCoreBuilderError(
+            "Aborting: Couldn't determine bootloader in unpacked image or "
+            "bootloader isn't supported."
+            "\nSupported bootloaders: U-Boot, GRUB2.")
 
     log.debug(f"Write deployment for revision {revision}")
     if not sysroot.simple_write_deployment(
@@ -161,9 +216,11 @@ def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
     var_path = os.path.join("ostree/deploy", OSNAME, "var")
     copy_list = [
         {"src": os.path.join(src_path, var_path, "rootdirs"),
-         "dst": os.path.join(dst_path, var_path)},
-        {"src": os.path.join(src_path, "boot.scr"), "dst": dst_path}
+         "dst": os.path.join(dst_path, var_path)}
     ]
+
+    if os.path.exists(os.path.join(src_path, "boot.scr")):
+        copy_list.append({"src": os.path.join(src_path, "boot.scr"), "dst": dst_path})
 
     for copy_file in copy_list:
         # shutil.copytree does not preserve ownership
@@ -171,13 +228,10 @@ def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
             raise TorizonCoreBuilderError("Cannot deploy home directories.")
 
 # pylint: disable=too-many-locals
-def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
-                      output_dir, dst_sysroot_dir, ref=None):
-    """Deploys a Toradex Easy Installer image with given OSTree reference
+def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
+                        dst_sysroot_dir, ref):
+    """Deploys a local OSTree ref in a given directory"""
 
-    Creates a new Toradex Easy Installer image with a OSTree deployment of the
-    given OSTree reference.
-    """
     # It seems the customer did not pass a reference, deploy the original commit
     # (probably not that useful in practice, but useful to test the workflow)
     if ref is None:
@@ -213,7 +267,7 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     log.info(f"Deploying OSTree with checksum {csumdeploy}")
 
     # Deploy commit with default kernel arguments.
-    deploy_rootfs(sysroot, csumdeploy, "torizon", srckargs)
+    deploy_rootfs(sysroot, src_sysroot_dir, csumdeploy, "torizon", srckargs)
     log.info("Deploying done.")
 
     # Currently we use the sysroot from the unpacked Tezi rootfs as source for
@@ -221,13 +275,141 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     log.info("Copy files not under OSTree control from original deployment.")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     copy_files_from_old_sysroot(src_sysroot, sysroot)
+# pylint: enable=too-many-locals
+
+
+def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
+                      output_dir, dst_sysroot_dir, ref=None):
+    """Deploys a Toradex Easy Installer image with given OSTree reference
+
+    Creates a new Toradex Easy Installer image with a OSTree deployment of the
+    given OSTree reference.
+    """
+    deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
     log.info("Packing rootfs...")
     copy_tezi_image(tezi_dir, output_dir)
     pack_rootfs_for_tezi(dst_sysroot_dir, output_dir)
     log.info("Packing rootfs done.")
-# pylint: enable=too-many-locals
 
+
+def write_rootfs_to_wic_image(base_wic_img, output_wic_img, base_rootfs_partition, rootfs_label,
+                              base_rootfs_partition_size_kb, other_partitions_size_kb,
+                              rootfs_size_kb, dst_sysroot_dir):
+    """Writes unpacked rootfs contents to an output WIC image
+
+    Writes the current unpacked rootfs to a WIC image that is based on
+    an input image. If the unpacked rootfs has a larger size than the base
+    rootfs partition the output image is increased accordingly.
+    """
+    out_size_kb = max(base_rootfs_partition_size_kb, rootfs_size_kb * IMAGE_OVERHEAD_FACTOR)
+    out_size_kb += EXTRA_ROOTFS_SIZE_KB
+    out_size_kb += other_partitions_size_kb
+
+    # Create new image file:
+    subprocess.check_output(["truncate", "-s", f"+{int(out_size_kb)}K", output_wic_img])
+    log.debug(f"Created empty output image: {output_wic_img}")
+    log.debug(f"Image overhead factor: {IMAGE_OVERHEAD_FACTOR}")
+    log.debug(f"Extra rootfs size added: {EXTRA_ROOTFS_SIZE_KB/1024} MiB")
+
+    log.info(f"Size of output image will be: {out_size_kb/1024/1024:.2f} GiB")
+
+    # With virt-resize, copy base image to output image, except base_rootfs_partition:
+    log.info("Copying other partitions from base to output image. Starting virt-resize...")
+    log.info("------------------------------------------------------------")
+    resizecmd = ["virt-resize", "--format", "raw", "--delete"]
+    resizecmd.extend([base_rootfs_partition, base_wic_img, output_wic_img])
+    subprocess.run(resizecmd, check=True)
+    log.info("------------------------------------------------------------")
+
+    try:
+        gfs = guestfs.GuestFS(python_return_dict=True)
+        gfs.add_drive_opts(output_wic_img, format="raw")
+        gfs.launch()
+
+        # virt-resize rearranged all existing partitions and generated a new empty partition at the
+        # end of the disk. We will format it to ext4 and put the unpacked rootfs contents in it.
+
+        # Its partition number (/dev/sda1, /dev/sda2, etc.) is equal to the number of partitions
+        # in the image, given that it is the last one.
+
+        output_rootfs_partition = f"/dev/sda{len(gfs.list_partitions())}"
+        log.info(f"Creating new '{rootfs_label}' rootfs partition at {output_rootfs_partition}.")
+
+        gfs.mkfs("ext4", output_rootfs_partition)
+        gfs.set_label(output_rootfs_partition, rootfs_label)
+        gfs.mount(output_rootfs_partition, "/")
+
+        dst_sysroot_dir_ls = os.listdir(dst_sysroot_dir)
+        if 'lost+found' in dst_sysroot_dir_ls:
+            dst_sysroot_dir_ls.remove('lost+found')
+
+        log.info("Copying unpacked rootfs contents to output image. This may take a few minutes...")
+        for content in dst_sysroot_dir_ls:
+            log.info(f"  Copying /{content}...")
+            gfs.copy_in(f"{dst_sysroot_dir}/{content}", "/")
+        log.info("...Done.")
+        gfs.shutdown()
+        gfs.close()
+    except RuntimeError as gfserr:
+        if gfs:
+            gfs.close()
+        raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
+
+
+def deploy_wic_image(base_wic_img, src_sysroot_dir, src_ostree_archive_dir,
+                     output_wic_img, dst_sysroot_dir, rootfs_label, ref=None):
+    """Deploys a WIC image with given OSTree reference
+
+    Creates a new WIC image with an OSTree deployment of the
+    given OSTree reference.
+    """
+    deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
+
+    log.info("Reading base WIC image...")
+    try:
+        gfs = guestfs.GuestFS(python_return_dict=True)
+        gfs.add_drive_opts(base_wic_img, format="raw", readonly=1)
+        gfs.launch()
+        if len(gfs.list_partitions()) < 1:
+            raise TorizonCoreBuilderError(
+                "Image doesn't have any partitions or it's not a valid WIC image. Aborting.")
+        # Get partition number from ext4 fs called rootfs_label in disk image (.wic)
+        rootfs_partition = gfs.findfs_label(rootfs_label)
+        log.info(f"  '{rootfs_label}' partition found: {rootfs_partition}")
+
+        base_rootfs_partition_size_kb = gfs.blockdev_getsize64(rootfs_partition) / 1024
+
+        other_partitions_size_kb = 0
+        partitions = gfs.list_partitions()
+        partitions.remove(rootfs_partition)
+        for part in partitions:
+            other_partitions_size_kb += gfs.blockdev_getsize64(part) / 1024
+
+        # Close read-only handle
+        gfs.shutdown()
+        gfs.close()
+    except RuntimeError as gfserr:
+        if gfs:
+            gfs.close()
+        if f"unable to resolve 'LABEL={rootfs_label}'" in str(gfserr):
+            raise TorizonCoreBuilderError(
+                f"Filesystem with label '{rootfs_label}' not found in image. Aborting.")
+
+        raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}")
+
+    log.info(f"  rootfs partition size: {base_rootfs_partition_size_kb/1024/1024:.2f} GiB")
+    log.info(f"  Size of other partitions combined: {other_partitions_size_kb/1024/1024:.2f} GiB")
+    log.info("...Done.")
+
+    rootfs_size_kb = subprocess.check_output(["du", "-s", dst_sysroot_dir], text=True)
+    rootfs_size_kb = int(rootfs_size_kb.split('\t')[0])
+    log.info(f"Unpacked rootfs size: {rootfs_size_kb/1024/1024:.2f} GiB")
+
+    write_rootfs_to_wic_image(base_wic_img, output_wic_img, rootfs_partition, rootfs_label,
+                              base_rootfs_partition_size_kb, other_partitions_size_kb,
+                              rootfs_size_kb, dst_sysroot_dir)
+    log.info(f"Image {os.path.basename(output_wic_img)} created successfully!")
 
 def run_command_with_sudo(client, command, password):
     stdin, stdout, stderr = client.exec_command("sudo -S -- " + command)
