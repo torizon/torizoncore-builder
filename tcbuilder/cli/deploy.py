@@ -129,15 +129,29 @@ def do_deploy_wic_image(args):
                      rootfs_label=args.wic_rootfs_label)
 
 
+def deploy_ostree_remote(storage_dir, remote_host, remote_username,
+                         remote_password, remote_port, mdns_source, ref, reboot):
+
+    storage_dir_ = os.path.abspath(storage_dir)
+    common.images_unpack_executed(storage_dir_)
+
+    src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
+
+    dbe.deploy_ostree_remote(remote_host, remote_username, remote_password,
+                             remote_port, mdns_source, src_ostree_archive_dir,
+                             ref, reboot)
+
+
 def do_deploy_ostree_remote(args):
-    storage_dir = os.path.abspath(args.storage_directory)
-    common.images_unpack_executed(storage_dir)
 
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
-    dbe.deploy_ostree_remote(args.remote_host, args.remote_username,
-                             args.remote_password, args.remote_port, args.mdns_source,
-                             src_ostree_archive_dir, args.ref, args.reboot)
+    deploy_ostree_remote(storage_dir=args.storage_directory,
+                         remote_host=args.remote_host,
+                         remote_username=args.remote_username,
+                         remote_password=args.remote_password,
+                         remote_port=args.remote_port,
+                         mdns_source=args.mdns_source,
+                         ref=args.ref,
+                         reboot=args.reboot)
 
 
 def do_deploy(args):
