@@ -9,7 +9,7 @@ from tcbuilder.errors import TorizonCoreBuilderError
 # pylint: disable=wrong-import-order,wrong-import-position
 import gi
 gi.require_version("OSTree", "1.0")
-from gi.repository import GLib, OSTree
+from gi.repository import GLib, OSTree, Gio
 # pylint: enable=wrong-import-order,wrong-import-position
 
 log = logging.getLogger("torizon." + __name__)
@@ -41,8 +41,18 @@ def process_whiteouts(mtree, path="/"):
             mtree.remove(name, False)
             name_to_remove = name[4:]
             log.debug(f"Removing file {path}/{name_to_remove}.")
-            result = mtree.remove(name_to_remove, False)
-            log.debug(f"Removing file {name_to_remove}, {result}.")
+            try:
+                result = mtree.remove(name_to_remove, False)
+            except GLib.Error as glibex:
+                log.debug(f"Removing file {name_to_remove}, False.")
+                if glibex.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND):
+                    log.warning(
+                        f"  Can't remove {path}/{name_to_remove}: File not found. Ignoring...")
+                else:
+                    log.warning(
+                        f"  Can't remove {path}/{name_to_remove}: {str(glibex)}. Ignoring...")
+            else:
+                log.debug(f"Removing file {name_to_remove}, {result}.")
 
     for dirname, submt in mtree.get_subdirs().items():
         process_whiteouts(submt, os.path.join(path, dirname))
