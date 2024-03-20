@@ -13,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 
 from zipfile import ZipFile
@@ -299,58 +300,58 @@ def _make_tezi_extract_dir(tezi_dir):
 
 
 # pylint: disable=too-many-locals
-def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
+def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                        raw_rootfs_label=None):
     """Import local raw/WIC or Toradex Easy Installer image
 
-    Import local raw/WIC or Toradex Easy installer image to be customized. Assuming an
-    empty/non-existing src_sysroot_dir as well as src_ostree_archive_dir.
+    Import local raw/WIC or Toradex Easy installer image (archive file or unpacked dir) to be
+    customized. Assuming an empty/non-existing src_sysroot_dir as well as src_ostree_archive_dir.
     """
     os.mkdir(src_sysroot_dir)
 
-    # If provided image_dir is archived, extract it first
-    # pylint: disable=C0330
-    extract_dir = None
-    if (image_dir.endswith(".tar") or image_dir.endswith(".tar.gz") or
-        image_dir.endswith(".tgz")):
-        log.info("Unpacking Toradex Easy Installer image.")
-        if "Tezi" in image_dir:
-            extract_dir = _make_tezi_extract_dir(tezi_dir)
-            final_dir = os.path.join(
-                extract_dir, os.path.splitext(os.path.basename(image_dir))[0])
-        elif "teziimage" in image_dir:
-            extract_dir = _make_tezi_extract_dir(tezi_dir)
-            final_dir = extract_dir
-        else:
-            raise InvalidArgumentError(
-                f"Unknown naming pattern for file {image_dir}")
-        tarcmd = [
-            "tar",
-            "-xf", image_dir,
-            "-C", extract_dir,
-        ] + get_tar_compress_program_options(image_dir)
-        log.debug(f"Running tar command: {shlex.join(tarcmd)}")
-        subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
-        image_dir = final_dir
-
-    elif image_dir.endswith(".zip"):
-        log.info("Unzipping Toradex Easy Installer image.")
-        with ZipFile(image_dir, 'r') as file:
-            extract_dir = _make_tezi_extract_dir(tezi_dir)
-            file.extractall(extract_dir)
-            image_dir = extract_dir
-
-    if (image_dir.lower().endswith(".wic") or
-       image_dir.lower().endswith(".img")):
-        unpack_local_raw_image(image_dir, src_sysroot_dir, raw_rootfs_label)
+    if ((image_dir_or_file.lower().endswith(".wic") or
+         image_dir_or_file.lower().endswith(".img")) and os.path.isfile(image_dir_or_file)):
+        unpack_local_raw_image(image_dir_or_file, src_sysroot_dir, raw_rootfs_label)
     else:
-        log.info("Copying Toradex Easy Installer image.")
-        log.debug(f"Copy directory {image_dir} -> {tezi_dir}.")
-        shutil.copytree(image_dir, tezi_dir)
+        # Check TEZI image:
+        if os.path.isfile(image_dir_or_file):
+            # This creates tempdir next to tezi_dir to ensure moving files
+            # can be efficiently done with a single rename syscall by
+            # shutil.move later.
+            with tempfile.TemporaryDirectory(dir=os.path.dirname(tezi_dir)) as tempdir:
+                tar_compress_options = get_tar_compress_program_options(image_dir_or_file)
 
-        # Get rid of the extraction directory (if we created one).
-        if extract_dir is not None:
-            shutil.rmtree(extract_dir)
+                if image_dir_or_file.endswith(".tar") or tar_compress_options:
+                    log.info("Unpacking Toradex Easy Installer image.")
+                    tarcmd = [
+                        "tar",
+                        "-xf", image_dir_or_file,
+                        "-C", tempdir,
+                    ] + tar_compress_options
+                    log.debug(f"Running tar command: {shlex.join(tarcmd)}")
+                    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
+                elif image_dir_or_file.endswith(".zip"):
+                    log.info("Unzipping Toradex Easy Installer image.")
+                    with ZipFile(image_dir_or_file, 'r') as file:
+                        file.extractall(tempdir)
+                else:
+                    raise TorizonCoreBuilderError(
+                        f"Unsupported image file type: {image_dir_or_file}")
+
+                contents = os.listdir(tempdir)
+                if len(contents) == 1 and os.path.isdir(os.path.join(tempdir, contents[0])):
+                    shutil.move(os.path.join(tempdir, contents[0]), tezi_dir)
+                else:
+                    shutil.move(tempdir, tezi_dir)
+
+        elif os.path.isdir(image_dir_or_file):
+            log.info("Copying Toradex Easy Installer image.")
+            log.debug(f"Copy directory {image_dir_or_file} -> {tezi_dir}.")
+            shutil.copytree(image_dir_or_file, tezi_dir)
+        elif os.path.exists(image_dir_or_file):
+            raise TorizonCoreBuilderError(f"Image is not a file or directory: {image_dir_or_file}")
+        else:
+            raise TorizonCoreBuilderError(f"Image does not exist: {image_dir_or_file}")
 
         common_raw_props_args = {
             "raw_rootfs_label" : raw_rootfs_label
