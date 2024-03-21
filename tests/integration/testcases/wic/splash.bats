@@ -40,7 +40,7 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "splash: create splash" {
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
     assert_success

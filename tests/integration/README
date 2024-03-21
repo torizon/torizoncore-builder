@@ -1,11 +1,11 @@
 How to run the integration tests
 ================================
 
-There are 4 main steps do run TorizonCore integration tests:
+There are 4 main steps do run Torizon OS integration tests:
 
 1. Configure the development machine
-2. Download TorizonCore images
-3. Install a fresh TorizonCore image in a device (optional)
+2. Download Torizon OS images
+3. Install a fresh Torizon OS image in a device (optional)
 4. Run the tests
 
 Configure the machine
@@ -20,10 +20,10 @@ And then source the setup script:
 
 $ source setup.sh
 
-Download TorizonCore images
-===========================
+Download Torizon OS Easy Installer (TEZI) images
+================================================
 
-You can manually download TorizonCore Tezi images from Toradex's
+You can manually download Torizon OS Tezi images from Toradex's
 Artifactory and save them on $PWD/workdir/images. In this case, the
 images must be in tarball format, as downloaded from Artifactory. Also,
 it is necessary to create a stamp file in the images directory so the
@@ -32,7 +32,7 @@ test scripts know the images were downloaded:
 $ touch $PWD/workdir/images/.images_downloaded
 
 Another option is to use get_tezi_images.sh script to automatically
-download the images based on an specific TorizonCore version.
+download the images based on a specific Torizon OS version.
 
 To use the script, open it and set the parameters to download the Tezi
 images (search for CONFIGME in the script).
@@ -41,11 +41,29 @@ And then run the script:
 
 $ ./get_tezi_images.sh
 
-Install a fresh TorizonCore image in a device
-=============================================
+Download Common Torizon OS WIC images
+=====================================
+
+You can manually download Torizon OS WIC images from the Common Torizon
+GitHub repository:
+
+https://github.com/commontorizon/meta-common-torizon/releases
+
+The images should be saved in $PWD/workdir/images, and similarly to the
+TEZI instructions a stamp file must be created to indicate that the
+images were downloaded.
+
+$ touch $PWD/workdir/images/.wic_images_downloaded
+
+There's also the option to use get_wic_images.sh to automatically
+download specific Common Torizon versions according to user-defined
+parameters (CONFIGME options).
+
+Install a fresh Torizon OS image in a device
+============================================
 
 In case you also want to run test cases that requires device access,
-install a fresh TorizonCore image in the device and set the default
+install a fresh Torizon OS image in the device and set the default
 password to '1' before running the tests.
 
 Run the tests
@@ -65,7 +83,7 @@ TCB_TESTCASE:     Test case to be executed, in case you want to run a
                   specific group of tests. If you want to run multiple
                   groups of tests, use a string delimited by white spaces:
                   "dt dto"
-TCB_MACHINE:      The test scripts need a TorizonCore image to run the
+TCB_MACHINE:      The test scripts need a Torizon OS image to run the
                   test cases (apalis-imx6 image is the default). With
                   this variable, you can select which image will be used
                   in the test cases, based on the defined MACHINE.

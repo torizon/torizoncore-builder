@@ -31,6 +31,10 @@ variables:
   TEST_IMAGES_TC6_VERSION: "6.2.0"
   TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.2.0-devel-20230324+build.220.tar"
   TEST_IMAGE_TC6_64BIT: "torizon-core-docker-apalis-imx8-Tezi_6.2.0-devel-20230324+build.220.tar"
+  # Common Torizon wic images:
+  TEST_IMAGES_TC_COMMON_VERSION: "6.6.0-common"
+  TEST_IMAGE_TC_COMMON_INTEL: "torizon-core-common-docker-dev-intel-corei7-64-20240226043251.rootfs.wic"
+  TEST_IMAGE_TC_COMMON_QEMU: "torizon-core-common-docker-dev-qemux86-64-20240226052726.rootfs.wic"
   # TC custom image parameters
   INTERNAL_ARTIFACTORY_URL: "" # "https://artifactory-horw.int.toradex.com/artifactory"
   ARTIFACTORY_SRC_REPO: "" # "devtorizoncore-oe-prerelease-horw"
@@ -209,6 +213,29 @@ test-torizoncore6:
     TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
     TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
     TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
+
+test-torizoncore-common-wic:
+  extends: .test-base
+  script:
+    # prepare image
+    - echo -e "\e[0Ksection_start:$(date +%s):download_wicimgs_section\r\e[0KDownload WIC test images"
+    - mkdir -p workdir/images
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_INTEL} -O workdir/images/${TEST_IMAGE_TC_COMMON_INTEL}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_QEMU} -O workdir/images/${TEST_IMAGE_TC_COMMON_QEMU}'
+    - touch workdir/images/.wic_images_downloaded
+    - echo -e "\e[0Ksection_end:$(date +%s):download_wicimgs_section\r\e[0K"
+    # run tests (Intel)
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_INTEL}" | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(.*)-.*$/\2/')
+    - echo -e "\e[0Ksection_start:$(date +%s):test_intel64_section\r\e[0KRun ${TCB_MACHINE} tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_intel64_section\r\e[0K"
+    # run test (QEMU)
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_QEMU}" | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(.*)-.*$/\2/')
+    - echo -e "\e[0Ksection_start:$(date +%s):test_qemu64_section\r\e[0KRun ${TCB_MACHINE} tests"
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
+    - echo -e "\e[0Ksection_end:$(date +%s):test_qemu64_section\r\e[0K"
+    # check results
+    - (! grep "^not ok" workdir/reports/*)
 
 # Job mostly triggered by Jenkins.
 test-torizoncore:

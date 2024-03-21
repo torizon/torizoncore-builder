@@ -6,7 +6,7 @@ load 'lib/common.bash'
 @test "deploy: run without parameters" {
     run torizoncore-builder deploy
     assert_failure 255
-    assert_output --partial "One of the following arguments is required: --output-directory, --remote-host"
+    assert_output --partial "One of the following arguments is required: --output-directory, --base-wic, --remote-host"
 }
 
 @test "deploy: check help output" {
@@ -20,8 +20,8 @@ load 'lib/common.bash'
 
     run torizoncore-builder deploy --output-directory some_dir some_branch
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "deploy: deploy changes to Tezi image" {
@@ -60,8 +60,8 @@ load 'lib/common.bash'
                                    --remote-port $DEVICE_PORT \
                                    --reboot some_branch
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 # bats test_tags=requires-device

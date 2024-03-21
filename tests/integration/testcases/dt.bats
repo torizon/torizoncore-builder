@@ -21,8 +21,8 @@ load 'lib/common.bash'
 
     run torizoncore-builder dt checkout
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "dt: checkout device tree overlays directory" {
@@ -92,8 +92,8 @@ load 'lib/common.bash'
 
     run torizoncore-builder dt status
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "dt: check currently enabled device tree" {
@@ -109,8 +109,8 @@ load 'lib/common.bash'
 
     run torizoncore-builder dt apply some_dto_file
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "dt: apply device tree in the image" {

@@ -30,8 +30,8 @@ function teardown() {
 
     run torizoncore-builder ostree serve
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "ostree serve: serve repo from storage" {

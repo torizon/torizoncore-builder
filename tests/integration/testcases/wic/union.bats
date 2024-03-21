@@ -1,8 +1,8 @@
 bats_load_library 'bats/bats-support/load.bash'
 bats_load_library 'bats/bats-assert/load.bash'
 bats_load_library 'bats/bats-file/load.bash'
-load 'lib/common.bash'
-load 'lib/union.bash'
+load '../lib/common.bash'
+load '../lib/union.bash'
 
 @test "union: run without parameters" {
     run torizoncore-builder union
@@ -17,7 +17,7 @@ load 'lib/union.bash'
 }
 
 @test "union: invalid changes directory" {
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     run torizoncore-builder union --changes-directory invalid_changes/ branch1
     assert_failure
@@ -35,7 +35,7 @@ load 'lib/union.bash'
 
 @test "union: create branch using --changes-directory" {
     torizoncore-builder-clean-storage
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     run torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
     assert_success
@@ -55,7 +55,7 @@ load 'lib/union.bash'
 
 @test "union: create branch using multiple --changes-directory" {
     torizoncore-builder-clean-storage
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     run torizoncore-builder union --changes-directory "$SAMPLES_DIR/changes" \
         --changes-directory "$SAMPLES_DIR/changes2" \
@@ -87,7 +87,7 @@ load 'lib/union.bash'
     requires-device
 
     torizoncore-builder-clean-storage
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     create-files-in-device
 
@@ -117,7 +117,7 @@ load 'lib/union.bash'
     requires-device
 
     torizoncore-builder-clean-storage
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     create-files-in-device
 
@@ -148,7 +148,7 @@ load 'lib/union.bash'
 
 @test "union: create branch using --changes-directory and check credentials for symbolic links" {
     torizoncore-builder-clean-storage
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
 
     local EXTRA_DIR="$SAMPLES_DIR/changes3"
 

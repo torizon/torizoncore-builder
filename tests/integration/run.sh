@@ -30,6 +30,15 @@ $TESTCASES_DIR/push.bats \
 $TESTCASES_DIR/splash.bats \
 "
 
+WIC_TESTCASES="\
+$TESTCASES_DIR/torizoncore-builder.bats \
+$TESTCASES_DIR/wic/images.bats \
+$TESTCASES_DIR/wic/images-unpack.bats \
+$TESTCASES_DIR/wic/union.bats \
+$TESTCASES_DIR/wic/deploy.bats \
+$TESTCASES_DIR/wic/splash.bats \
+"
+
 # test case to run
 if [ ! -z "$TCB_TESTCASE" ]; then
     TESTCASES=""
@@ -51,6 +60,8 @@ export DEVICE_ADDR=$TCB_DEVICE
 export DEVICE_USER="torizon"
 export DEVICE_PASS="1"
 
+export WIC_MACHINES="intel-corei7-64 qemux86-64"
+
 # DEVICE_PORT defines the default SSH port used in test cases
 if [ ! -z "$TCB_PORT" ]; then
     export DEVICE_PORT=$TCB_PORT
@@ -63,6 +74,10 @@ if [ ! -z "$TCB_MACHINE" ]; then
     export MACHINE=$TCB_MACHINE
 else
     export MACHINE="apalis-imx6"
+fi
+
+if [[ "$WIC_MACHINES" == *"$MACHINE"* ]]; then
+    export IS_WIC="1"
 fi
 
 # test tag filters
@@ -93,7 +108,13 @@ fi
 
 # BATS command
 BATS_BIN="./bats/bats-core/bin/bats"
-BATS_CMD="$BATS_BIN --timing ${FILTER_TAGS} $TESTCASES"
+
+if [ "$IS_WIC" = "1" ]; then
+    echo "Using specific WIC image tests."
+    BATS_CMD="$BATS_BIN --timing ${FILTER_TAGS} $WIC_TESTCASES"
+else
+    BATS_CMD="$BATS_BIN --timing ${FILTER_TAGS} $TESTCASES"
+fi
 
 # check if setup.sh was sourced.
 if [ -z "$TCBCMD" ]; then
@@ -112,8 +133,14 @@ if [ ! -z "$TCB_CUSTOM_IMAGE" ]; then
 fi
 
 # check if Tezi images were downloaded
-if [ ! -e $IMAGES_DIR/.images_downloaded ]; then
+if [ "$IS_WIC" != "1" ] && [ ! -e $IMAGES_DIR/.images_downloaded ]; then
     echo "Error: Tezi images were not completely downloaded. Please run './get_tezi_images.sh' to download Tezi images."
+    exit 2
+fi
+
+# check if WIC images were downloaded
+if [ "$IS_WIC" = 1 ] && [ ! -e $IMAGES_DIR/.wic_images_downloaded ]; then
+    echo "Error: WIC images were not completely downloaded. Please run './get_wic_images.sh' to download WIC images."
     exit 2
 fi
 
@@ -144,11 +171,16 @@ fi
 
 # copy image that will be used in the tests
 export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}-*.tar 2>&-) 2>&-)"
-if [ ! -z "$DEFAULT_TEZI_IMAGE" ]; then
+export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}-*.wic 2>&-) 2>&-)"
+
+if [ "$IS_WIC" != "1" ] && [ ! -z "$DEFAULT_TEZI_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_TEZI_IMAGE for machine $MACHINE."
     cp $IMAGES_DIR/$DEFAULT_TEZI_IMAGE $WORK_DIR
+elif [ "$IS_WIC" = "1" ] && [ ! -z "$DEFAULT_WIC_IMAGE" ]; then
+    echo "Test cases using image $DEFAULT_WIC_IMAGE for machine $MACHINE."
+    cp $IMAGES_DIR/$DEFAULT_WIC_IMAGE $WORK_DIR
 else
-    echo "Error: could not find image for machine $MACHINE! Did you run get_tezi_images.sh?"
+    echo "Error: could not find image for machine $MACHINE! Did you run get_tezi_images.sh or get_wic_images.sh?"
     exit 5
 fi
 

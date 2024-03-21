@@ -29,8 +29,8 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder dto list
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "dto: list compatible overlays" {
@@ -61,8 +61,8 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "dto: apply overlay in the image" {
@@ -86,8 +86,8 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder dto status
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
 
 @test "dto: check currently applied overlays" {
@@ -162,6 +162,6 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder dto remove sample_overlay.dtbo
     assert_failure
-    assert_output --partial "Error: could not find an Easy Installer image in the storage."
-    assert_output --partial "Please use the 'images' command to unpack an Easy Installer image before running this command."
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 }
