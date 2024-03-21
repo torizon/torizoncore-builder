@@ -92,8 +92,8 @@ class ImageUnpackError(TorizonCoreBuilderError):
     execution.
     """
 
-    msg = ["Error: could not find an Easy Installer image in the storage.",
-           "Please use the 'images' command to unpack an Easy Installer "
+    msg = ["Error: could not find an Easy Installer or WIC image in the storage.",
+           "Please use the 'images' command to unpack an "
            "image before running this command."]
 
     def __init__(self):
