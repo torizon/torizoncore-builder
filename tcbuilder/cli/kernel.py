@@ -10,9 +10,10 @@ import tempfile
 import subprocess
 
 from tcbuilder.errors import PathNotExistError
-from tcbuilder.errors import FileContentMissing
+from tcbuilder.errors import FileContentMissing, InvalidDataError
 from tcbuilder.backend.common import (get_tar_compress_program_options,
-                                      images_unpack_executed)
+                                      images_unpack_executed,
+                                      unpacked_image_type)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
 
@@ -48,6 +49,11 @@ UENV_SET_CUSTOM_ARGS_FUNCTION_RE = r'^\s*set_bootargs_custom='
 # pylint: disable=too-many-locals
 def kernel_build_module(source_dir, storage_dir, autoload):
     """"Main handler of the 'kernel build_module' subcommand"""
+
+    images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+                               "Aborting.")
 
     # Check for valid Makefile
     if not os.path.exists(source_dir):
@@ -114,7 +120,6 @@ def kernel_build_module(source_dir, storage_dir, autoload):
 
 def do_kernel_build_module(args):
     """"Run 'kernel build_module' subcommand"""
-    images_unpack_executed(args.storage_directory)
 
     kernel_build_module(source_dir=args.source_directory,
                         storage_dir=args.storage_directory,
@@ -128,6 +133,11 @@ def kernel_set_custom_args(kernel_args, storage_dir):
     :param storage_dir: Path of the storage directory to be used on the
                         operations.
     """
+
+    images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+                               "Aborting.")
 
     kargs = " ".join(kernel_args)
     if not kargs.rstrip():
@@ -163,8 +173,6 @@ def kernel_set_custom_args(kernel_args, storage_dir):
 def do_kernel_set_custom_args(args):
     """Run 'kernel set_custom_args" subcommand"""
 
-    images_unpack_executed(args.storage_directory)
-
     kernel_set_custom_args(kernel_args=args.kernel_args,
                            storage_dir=args.storage_directory)
 
@@ -173,6 +181,9 @@ def do_kernel_get_custom_args(args):
     """Run 'kernel get_custom_args" subcommand"""
 
     images_unpack_executed(args.storage_directory)
+    if unpacked_image_type(args.storage_directory) == "wic":
+        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+                               "Aborting.")
 
     # Make sure image can handle kernel arguments.
     assert_custom_kargs_compat_image(args.storage_directory)
@@ -208,6 +219,9 @@ def do_kernel_clear_custom_args(args):
     """Run 'kernel clear_custom_args" subcommand"""
 
     images_unpack_executed(args.storage_directory)
+    if unpacked_image_type(args.storage_directory) == "wic":
+        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+                               "Aborting.")
 
     # Make sure image can handle kernel arguments.
     assert_custom_kargs_compat_image(args.storage_directory)

@@ -16,9 +16,10 @@ from tcbuilder.backend import dt
 from tcbuilder.backend.common import (checkout_dt_git_repo,
                                       set_output_ownership,
                                       images_unpack_executed,
-                                      update_dt_git_repo)
+                                      update_dt_git_repo,
+                                      unpacked_image_type)
 from tcbuilder.errors import (
-    TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
+    TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -27,6 +28,9 @@ def do_dt_status(args):
     '''Perform the 'dt status' command.'''
 
     images_unpack_executed(args.storage_directory)
+    if unpacked_image_type(args.storage_directory) == "wic":
+        raise InvalidDataError("dt commands are not supported for WIC images. "
+                               "Aborting.")
 
     dtb_basename = dt.get_current_dtb_basename(args.storage_directory)
     if not dtb_basename:
@@ -66,6 +70,9 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
     '''Perform the work of the 'dt apply' command.'''
 
     images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("dt commands are not supported for WIC images. "
+                               "Aborting.")
 
     # Sanity check parameters.
     assert dts_path, "panic: missing device tree source parameter"

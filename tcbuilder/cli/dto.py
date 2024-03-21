@@ -9,12 +9,14 @@ import sys
 import tempfile
 
 from tcbuilder.backend import dt, dto, common
-from tcbuilder.backend.common import images_unpack_executed
+from tcbuilder.backend.common import images_unpack_executed, unpacked_image_type
 
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import dt as dt_cli
 from tcbuilder.cli import union as union_cli
 from tcbuilder.cli import deploy as deploy_cli
+
+from tcbuilder.errors import InvalidDataError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -47,6 +49,9 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
     '''
 
     images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("dto commands are not supported for WIC images. "
+                               "Aborting.")
 
     applied_overlay_basenames = dto.get_applied_overlays_base_names(storage_dir)
     dtob_target_basename = os.path.splitext(os.path.basename(dtos_path))[0] + ".dtbo"
@@ -158,6 +163,9 @@ def do_dto_list(args):
         sys.exit(1)
 
     images_unpack_executed(args.storage_directory)
+    if unpacked_image_type(args.storage_directory) == "wic":
+        raise InvalidDataError("dto commands are not supported for WIC images. "
+                               "Aborting.")
 
     # Find a device tree to check overlay compatibility against.
     dtb_path = args.device_tree
@@ -257,6 +265,9 @@ def do_dto_status(args):
     '''Perform the 'dto status' command.'''
 
     images_unpack_executed(args.storage_directory)
+    if unpacked_image_type(args.storage_directory) == "wic":
+        raise InvalidDataError("dto commands are not supported for WIC images. "
+                               "Aborting.")
 
     # Show the enabled device tree.
     (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(args.storage_directory)
@@ -273,6 +284,11 @@ def do_dto_status(args):
 
 def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
     '''Remove a single overlay.'''
+
+    images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("dto commands are not supported for WIC images. "
+                               "Aborting.")
 
     dtob_basenames = dto.get_applied_overlays_base_names(storage_dir)
     if not dtob_basename in dtob_basenames:
@@ -305,6 +321,11 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
 def dto_remove_all(storage_dir):
     '''Remove all overlays currently applied.'''
 
+    images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "wic":
+        raise InvalidDataError("dto commands are not supported for WIC images. "
+                               "Aborting.")
+
     log.debug("Removing all overlays")
 
     # Deploy an empty overlays config file.
@@ -327,8 +348,6 @@ def dto_remove_all(storage_dir):
 
 def do_dto_remove(args):
     '''Perform the 'dto status' command.'''
-
-    images_unpack_executed(args.storage_directory)
 
     if args.all and args.dtob_basename:
         log.error("error: both --all and an overlay were specified in the command line.")
