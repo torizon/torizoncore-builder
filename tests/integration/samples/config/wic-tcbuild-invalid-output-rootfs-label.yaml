@@ -1,0 +1,12 @@
+input:
+  raw-image:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+output:
+  ostree:
+    branch: my-raw-image-branch
+    commit-subject: "subject"
+    commit-body: "body"
+  raw-image:
+    local: "output.img"
+    base-rootfs-label: invalidlabel

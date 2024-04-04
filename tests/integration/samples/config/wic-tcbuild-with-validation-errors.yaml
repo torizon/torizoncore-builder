@@ -1,0 +1,20 @@
+input:
+  raw-image: input.img
+
+customization:
+  splash-screen: 1234
+  filesystem:
+     - 11
+     - 22
+
+output:
+  ostree:
+    branch: my-dev-branch
+    commit-subject: "OSTree commit subject"
+    commit-body: "OSTree commit body"
+  raw-image:
+    local: output.img
+  easy-installer:
+    local: invalid_output
+    name: "Not an actual Easy Installer image"
+    description: "This shouldn't work"

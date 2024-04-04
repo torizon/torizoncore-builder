@@ -5,12 +5,13 @@
 IMAGES="\
 intel-corei7-64:torizon-core-common-docker-dev \
 qemux86-64:torizon-core-common-docker-dev \
+raspberrypi4-64:torizon-core-common-docker-dev \
 "
 
 # location to save images
 OUTDIR="$PWD/workdir/images"
 TMPDIR="$OUTDIR/tmp"
-STAMP="$OUTDIR/.wic_images_downloaded"
+STAMP="$OUTDIR/.raw_images_downloaded"
 
 # CONFIGME: version
 TCVERSION="6.6.0-common"
@@ -47,7 +48,8 @@ download_wic_image() {
 extract() {
 
     unzip $TMPDIR/'*.zip' -d $TMPDIR
-    mv $TMPDIR/*.wic $OUTDIR/
+    rm $TMPDIR/*.zip
+    mv $TMPDIR/*.* $OUTDIR/
 
     touch $STAMP
     echo "All images successfully downloaded."

@@ -1,0 +1,17 @@
+input:
+  raw-image:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+    rootfs-label: invalidlabel
+
+customization:
+  splash-screen: samples/splash/fast-banana.png
+  filesystem:
+     - samples/changes/
+
+output:
+  ostree:
+    branch: my-raw-image-branch
+    commit-subject: "subject"
+    commit-body: "body"
+  raw-image:
+    local: "output.img"

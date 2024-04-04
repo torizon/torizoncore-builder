@@ -37,20 +37,8 @@ $TESTCASES_DIR/wic/images-unpack.bats \
 $TESTCASES_DIR/wic/union.bats \
 $TESTCASES_DIR/wic/deploy.bats \
 $TESTCASES_DIR/wic/splash.bats \
+$TESTCASES_DIR/wic/build.bats \
 "
-
-# test case to run
-if [ ! -z "$TCB_TESTCASE" ]; then
-    TESTCASES=""
-    for test in $TCB_TESTCASE; do
-        if [ -e "$TESTCASES_DIR/$test.bats" ]; then
-            TESTCASES+="$TESTCASES_DIR/$test.bats "
-        else
-            echo "Group of tests '$test' not found. Ensure the '$test.bats' file" \
-                 "is present in the 'tests/integration/testcases' folder."
-        fi
-    done
-fi
 
 # directory with samples files to use in the tests
 export SAMPLES_DIR=samples
@@ -60,7 +48,7 @@ export DEVICE_ADDR=$TCB_DEVICE
 export DEVICE_USER="torizon"
 export DEVICE_PASS="1"
 
-export WIC_MACHINES="intel-corei7-64 qemux86-64"
+export WIC_MACHINES="intel-corei7-64 qemux86-64 raspberrypi4-64"
 
 # DEVICE_PORT defines the default SSH port used in test cases
 if [ ! -z "$TCB_PORT" ]; then
@@ -78,6 +66,32 @@ fi
 
 if [[ "$WIC_MACHINES" == *"$MACHINE"* ]]; then
     export IS_WIC="1"
+fi
+
+# test case to run
+if [ ! -z "$TCB_TESTCASE" ]; then
+
+    if [ "$IS_WIC" = "1" ]; then
+        WIC_TESTCASES=""
+        for test in $TCB_TESTCASE; do
+            if [ -e "$TESTCASES_DIR/wic/$test.bats" ]; then
+                WIC_TESTCASES+="$TESTCASES_DIR/wic/$test.bats "
+            else
+                echo "Group of tests '$test' not found. Ensure the '$test.bats' file" \
+                    "is present in the 'tests/integration/testcases/wic' folder."
+            fi
+        done
+    else
+        TESTCASES=""
+        for test in $TCB_TESTCASE; do
+            if [ -e "$TESTCASES_DIR/$test.bats" ]; then
+                TESTCASES+="$TESTCASES_DIR/$test.bats "
+            else
+                echo "Group of tests '$test' not found. Ensure the '$test.bats' file" \
+                    "is present in the 'tests/integration/testcases' folder."
+            fi
+        done
+    fi
 fi
 
 # test tag filters
@@ -110,7 +124,7 @@ fi
 BATS_BIN="./bats/bats-core/bin/bats"
 
 if [ "$IS_WIC" = "1" ]; then
-    echo "Using specific WIC image tests."
+    echo "Using specific WIC/raw image tests."
     BATS_CMD="$BATS_BIN --timing ${FILTER_TAGS} $WIC_TESTCASES"
 else
     BATS_CMD="$BATS_BIN --timing ${FILTER_TAGS} $TESTCASES"
@@ -139,8 +153,8 @@ if [ "$IS_WIC" != "1" ] && [ ! -e $IMAGES_DIR/.images_downloaded ]; then
 fi
 
 # check if WIC images were downloaded
-if [ "$IS_WIC" = 1 ] && [ ! -e $IMAGES_DIR/.wic_images_downloaded ]; then
-    echo "Error: WIC images were not completely downloaded. Please run './get_wic_images.sh' to download WIC images."
+if [ "$IS_WIC" = 1 ] && [ ! -e $IMAGES_DIR/.raw_images_downloaded ]; then
+    echo "Error: WIC/raw images were not completely downloaded. Please run './get_raw_images.sh' to download .img/.wic images."
     exit 2
 fi
 
@@ -170,8 +184,14 @@ if [ ! -z "$DEVICE_ADDR" ]; then
 fi
 
 # copy image that will be used in the tests
-export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}-*.tar 2>&-) 2>&-)"
-export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}-*.wic 2>&-) 2>&-)"
+export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.tar 2>&-) 2>&-)"
+export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.wic 2>&-) 2>&-)"
+
+# There's probably a better way to put the .wic and .img search in a single regex,
+# but I wasn't able to figure it out.
+if [ "$IS_WIC" = "1" ] && [ -z "$DEFAULT_WIC_IMAGE" ]; then
+    export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.img 2>&-) 2>&-)"
+fi
 
 if [ "$IS_WIC" != "1" ] && [ ! -z "$DEFAULT_TEZI_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_TEZI_IMAGE for machine $MACHINE."
@@ -180,7 +200,7 @@ elif [ "$IS_WIC" = "1" ] && [ ! -z "$DEFAULT_WIC_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_WIC_IMAGE for machine $MACHINE."
     cp $IMAGES_DIR/$DEFAULT_WIC_IMAGE $WORK_DIR
 else
-    echo "Error: could not find image for machine $MACHINE! Did you run get_tezi_images.sh or get_wic_images.sh?"
+    echo "Error: could not find image for machine $MACHINE! Did you run get_tezi_images.sh or get_raw_images.sh?"
     exit 5
 fi
 

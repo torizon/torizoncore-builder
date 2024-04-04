@@ -1,0 +1,8 @@
+input:
+  raw-image:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+output:
+  raw-image:
+    local: "output.img"
+    base-image: invalidbase.wic

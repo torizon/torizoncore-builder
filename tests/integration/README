@@ -41,10 +41,10 @@ And then run the script:
 
 $ ./get_tezi_images.sh
 
-Download Common Torizon OS WIC images
+Download Common Torizon OS WIC/raw images
 =====================================
 
-You can manually download Torizon OS WIC images from the Common Torizon
+You can manually download Torizon OS WIC/raw images from the Common Torizon
 GitHub repository:
 
 https://github.com/commontorizon/meta-common-torizon/releases
@@ -53,9 +53,9 @@ The images should be saved in $PWD/workdir/images, and similarly to the
 TEZI instructions a stamp file must be created to indicate that the
 images were downloaded.
 
-$ touch $PWD/workdir/images/.wic_images_downloaded
+$ touch $PWD/workdir/images/.raw_images_downloaded
 
-There's also the option to use get_wic_images.sh to automatically
+There's also the option to use get_raw_images.sh to automatically
 download specific Common Torizon versions according to user-defined
 parameters (CONFIGME options).
 

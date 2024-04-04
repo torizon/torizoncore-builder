@@ -1,0 +1,11 @@
+input:
+  raw-image:
+    local: files/input-image.wic
+
+output:
+  ostree:
+    branch: my-dev-branch
+    commit-subject: "${EMPTY_VAR}"
+    commit-body: "${BODY?No body message}"
+  easy-installer:
+    local: dummy_output_file.wic
