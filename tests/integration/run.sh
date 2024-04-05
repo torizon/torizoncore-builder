@@ -165,7 +165,7 @@ fi
 if [ ! -z "$DEVICE_ADDR" ]; then
     printf "Checking connection with device $DEVICE_ADDR..."
     DEVICE_INFO=$(device-shell cat /etc/os-release)
-    echo $DEVICE_INFO | grep -iq torizoncore
+    echo $DEVICE_INFO | grep -iq torizon
     if [ $? = "0" ]; then
         printf "OK!"
     else
@@ -173,8 +173,7 @@ if [ ! -z "$DEVICE_ADDR" ]; then
         exit 3
     fi
 
-    DEVICE_HOSTNAME=$(device-shell hostname)
-    MACHINE=$(echo ${DEVICE_HOSTNAME%-*})
+    MACHINE=$(device-shell "/etc/profile.d/machine.sh; echo $MACHINE")
     if [ ! -z "$MACHINE" ]; then
         echo " Found machine $MACHINE."
     else
