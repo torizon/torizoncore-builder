@@ -6,7 +6,7 @@ load '../lib/common.bash'
 @test "deploy: run without parameters" {
     run torizoncore-builder deploy
     assert_failure 255
-    assert_output --partial "One of the following arguments is required: --output-directory, --base-wic, --remote-host"
+    assert_output --partial "One of the following arguments is required"
 }
 
 @test "deploy: check help output" {
@@ -18,7 +18,7 @@ load '../lib/common.bash'
 @test "deploy: deploy changes to WIC image without images unpack" {
     torizoncore-builder-clean-storage
 
-    run torizoncore-builder deploy --base-wic some_file some_branch
+    run torizoncore-builder deploy --base-raw some_file some_branch
     assert_failure
     assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
     assert_output --partial "Please use the 'images' command to unpack an image before running this command."
@@ -30,7 +30,7 @@ load '../lib/common.bash'
     torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
 
     rm -rf out.wic
-    run torizoncore-builder deploy --base-wic $DEFAULT_WIC_IMAGE --wic-rootfs-label invalid_label --output-wic out.wic branch1
+    run torizoncore-builder deploy --base-raw $DEFAULT_WIC_IMAGE --raw-rootfs-label invalid_label --output-raw out.wic branch1
     assert_failure
     assert_output --partial "Filesystem with label 'invalid_label' not found in image"
 }
@@ -44,7 +44,7 @@ load '../lib/common.bash'
     torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
     torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
 
-    run torizoncore-builder deploy --base-wic $DEFAULT_WIC_IMAGE --output-wic my_new_image branch1
+    run torizoncore-builder deploy --base-raw $DEFAULT_WIC_IMAGE --output-raw my_new_image branch1
     assert_success
     assert_output --partial "created successfully!"
 

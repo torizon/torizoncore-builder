@@ -51,8 +51,8 @@ def kernel_build_module(source_dir, storage_dir, autoload):
     """"Main handler of the 'kernel build_module' subcommand"""
 
     images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "wic":
-        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+    if unpacked_image_type(storage_dir) == "raw":
+        raise InvalidDataError("Kernel commands are not supported for WIC/raw images. "
                                "Aborting.")
 
     # Check for valid Makefile
@@ -135,8 +135,8 @@ def kernel_set_custom_args(kernel_args, storage_dir):
     """
 
     images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "wic":
-        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+    if unpacked_image_type(storage_dir) == "raw":
+        raise InvalidDataError("Kernel commands are not supported for WIC/raw images. "
                                "Aborting.")
 
     kargs = " ".join(kernel_args)
@@ -181,8 +181,8 @@ def do_kernel_get_custom_args(args):
     """Run 'kernel get_custom_args" subcommand"""
 
     images_unpack_executed(args.storage_directory)
-    if unpacked_image_type(args.storage_directory) == "wic":
-        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+    if unpacked_image_type(args.storage_directory) == "raw":
+        raise InvalidDataError("Kernel commands are not supported for WIC/raw images. "
                                "Aborting.")
 
     # Make sure image can handle kernel arguments.
@@ -219,8 +219,8 @@ def do_kernel_clear_custom_args(args):
     """Run 'kernel clear_custom_args" subcommand"""
 
     images_unpack_executed(args.storage_directory)
-    if unpacked_image_type(args.storage_directory) == "wic":
-        raise InvalidDataError("Kernel commands are not supported for WIC images. "
+    if unpacked_image_type(args.storage_directory) == "raw":
+        raise InvalidDataError("Kernel commands are not supported for WIC/raw images. "
                                "Aborting.")
 
     # Make sure image can handle kernel arguments.

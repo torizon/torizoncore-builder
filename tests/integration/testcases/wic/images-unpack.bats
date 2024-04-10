@@ -26,7 +26,7 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "images unpack: point to an invalid rootfs label" {
-    run torizoncore-builder images --remove-storage unpack --wic-rootfs-label invalid_label $DEFAULT_WIC_IMAGE
+    run torizoncore-builder images --remove-storage unpack --raw-rootfs-label invalid_label $DEFAULT_WIC_IMAGE
     assert_failure
     assert_output --partial "Filesystem with label 'invalid_label' not found in image"
 }
@@ -36,7 +36,7 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder images --remove-storage unpack $DEFAULT_WIC_IMAGE
     assert_success
-    assert_output --partial "Unpacked OSTree from WIC image"
+    assert_output --partial "Unpacked OSTree from WIC/raw image"
 
     run torizoncore-builder-shell "ls /storage/"
     assert_success

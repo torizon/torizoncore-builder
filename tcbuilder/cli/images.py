@@ -131,13 +131,14 @@ def do_images_serve(args):
     images.serve(args.images_directory)
 
 
-def images_unpack(image_dir, storage_dir, wic_rootfs_label="otaroot", remove_storage=False):
+def images_unpack(image_dir, storage_dir, raw_rootfs_label="",
+                  remove_storage=False):
     """Main handler for the 'images unpack' subcommand"""
 
     image_dir = os.path.abspath(image_dir)
     dir_list = prepare_storage(storage_dir, remove_storage)
     images.import_local_image(image_dir, dir_list[0], dir_list[1],
-                              dir_list[2], wic_rootfs_label=wic_rootfs_label)
+                              dir_list[2], raw_rootfs_label)
 
 
 def do_images_unpack(args):
@@ -145,7 +146,7 @@ def do_images_unpack(args):
 
     images_unpack(args.image_directory,
                   args.storage_directory,
-                  args.wic_rootfs_label,
+                  args.raw_rootfs_label,
                   args.remove_storage)
 
 
@@ -226,15 +227,16 @@ def init_parser(subparsers):
     # images unpack
     subparser = subparsers.add_parser(
         "unpack",
-        help=("Unpack a specified Toradex Easy Installer or WIC image so it can be "
+        help=("Unpack a specified Toradex Easy Installer or WIC/raw image so it can be "
               "modified with the union subcommand."),
         allow_abbrev=False)
     subparser.add_argument(
         metavar="IMAGE", dest="image_directory", nargs='?',
-        help="Path to WIC file, Easy Installer file or directory.")
+        help="Path to .wic/.img file, Easy Installer .tar file or directory.")
     subparser.add_argument(
-        "--wic-rootfs-label", dest="wic_rootfs_label", metavar="LABEL",
-        help="rootfs filesystem label of WIC image. (default: otaroot)",
-        default="otaroot")
+        "--raw-rootfs-label", dest="raw_rootfs_label", metavar="LABEL",
+        help="rootfs filesystem label of WIC/raw image. "
+             f"(default: {common.DEFAULT_RAW_ROOTFS_LABEL})",
+        default=common.DEFAULT_RAW_ROOTFS_LABEL)
 
     subparser.set_defaults(func=do_images_unpack)

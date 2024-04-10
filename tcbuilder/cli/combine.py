@@ -51,9 +51,11 @@ def do_combine(args):
 
     check_deprecated_parameters(args)
 
-    if not os.path.isdir(args.image_directory) and args.image_directory.lower().endswith(".wic"):
+    if (not os.path.isdir(args.image_directory) and
+            (args.image_directory.lower().endswith(".wic") or
+             args.image_directory.lower().endswith(".img"))):
         raise InvalidArgumentError(
-            "WIC images are not supported. Aborting.")
+            "WIC/raw images are not supported. Aborting.")
 
     dir_containers = os.path.abspath(args.bundle_directory)
     if not os.path.exists(dir_containers):

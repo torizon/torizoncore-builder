@@ -249,7 +249,7 @@ def unpack_local_image(image_dir, sysroot_dir):
     os.unlink(tarfile)
 
 
-def unpack_local_wic_image(image_dir, sysroot_dir, wic_rootfs_label):
+def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
     """Extract the root fs from the image into the sysroot directory"""
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
@@ -259,22 +259,22 @@ def unpack_local_wic_image(image_dir, sysroot_dir, wic_rootfs_label):
         gfs.launch()
         if len(gfs.list_partitions()) < 1:
             raise TorizonCoreBuilderError(
-                "Image doesn't have any partitions or it's not a valid WIC image. Aborting.")
+                "Image doesn't have any partitions or it's not a valid WIC/raw image. Aborting.")
 
-        # Get partition number from ext4 fs called wic_rootfs_label in disk image (.wic)
-        rootfs_partition = gfs.findfs_label(wic_rootfs_label)
-        log.info(f"'{wic_rootfs_label}' partition found: {rootfs_partition}")
+        # Get partition number from ext4 fs called raw_rootfs_label in disk image (.wic/.img)
+        rootfs_partition = gfs.findfs_label(raw_rootfs_label)
+        log.info(f"'{raw_rootfs_label}' partition found: {rootfs_partition}")
         gfs.mount_ro(rootfs_partition, "/")
-        log.info("Unpacking WIC image. This may take a few minutes...")
+        log.info("Unpacking image. This may take a few minutes...")
         gfs.copy_out("/", sysroot_dir)
         gfs.shutdown()
         gfs.close()
     except RuntimeError as gfserr:
         if gfs:
             gfs.close()
-        if f"unable to resolve 'LABEL={wic_rootfs_label}'" in str(gfserr):
+        if f"unable to resolve 'LABEL={raw_rootfs_label}'" in str(gfserr):
             raise TorizonCoreBuilderError(
-                f"Filesystem with label '{wic_rootfs_label}' not found in image. Aborting.")
+                f"Filesystem with label '{raw_rootfs_label}' not found in image. Aborting.")
 
         raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}")
 
@@ -290,10 +290,10 @@ def _make_tezi_extract_dir(tezi_dir):
 
 # pylint: disable=too-many-locals
 def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
-                       wic_rootfs_label="otaroot"):
-    """Import local Toradex Easy Installer image
+                       raw_rootfs_label=""):
+    """Import local raw/WIC or Toradex Easy Installer image
 
-    Import local Toradex Easy installer image to be customized. Assuming an
+    Import local raw/WIC or Toradex Easy installer image to be customized. Assuming an
     empty/non-existing src_sysroot_dir as well as src_ostree_archive_dir.
     """
     os.mkdir(src_sysroot_dir)
@@ -330,9 +330,10 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
             file.extractall(extract_dir)
             image_dir = extract_dir
 
-    if image_dir.lower().endswith(".wic"):
-        log.info("Mounting WIC image.")
-        unpack_local_wic_image(image_dir, src_sysroot_dir, wic_rootfs_label)
+    if (image_dir.lower().endswith(".wic") or
+       image_dir.lower().endswith(".img")):
+        log.info("Mounting WIC/raw image.")
+        unpack_local_raw_image(image_dir, src_sysroot_dir, raw_rootfs_label)
     else:
         log.info("Copying Toradex Easy Installer image.")
         log.debug(f"Copy directory {image_dir} -> {tezi_dir}.")
@@ -359,7 +360,7 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
     if os.path.exists(tezi_dir):
         log.info("Unpacked OSTree from Toradex Easy Installer image:")
     else:
-        log.info("Unpacked OSTree from WIC image:")
+        log.info("Unpacked OSTree from WIC/raw image:")
 
     log.info(f"  Commit checksum: {csum}".format(csum))
     log.info(f"  TorizonCore Version: {metadata['version']}")

@@ -293,12 +293,12 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     log.info("Packing rootfs done.")
 
 
-def write_rootfs_to_wic_image(base_wic_img, output_wic_img, base_rootfs_partition, rootfs_label,
+def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partition, rootfs_label,
                               base_rootfs_partition_size_kb, other_partitions_size_kb,
                               rootfs_size_kb, dst_sysroot_dir):
-    """Writes unpacked rootfs contents to an output WIC image
+    """Writes unpacked rootfs contents to an output raw image
 
-    Writes the current unpacked rootfs to a WIC image that is based on
+    Writes the current unpacked rootfs to a raw image that is based on
     an input image. If the unpacked rootfs has a larger size than the base
     rootfs partition the output image is increased accordingly.
     """
@@ -307,8 +307,8 @@ def write_rootfs_to_wic_image(base_wic_img, output_wic_img, base_rootfs_partitio
     out_size_kb += other_partitions_size_kb
 
     # Create new image file:
-    subprocess.check_output(["truncate", "-s", f"+{int(out_size_kb)}K", output_wic_img])
-    log.debug(f"Created empty output image: {output_wic_img}")
+    subprocess.check_output(["truncate", "-s", f"+{int(out_size_kb)}K", output_raw_img])
+    log.debug(f"Created empty output image: {output_raw_img}")
     log.debug(f"Image overhead factor: {IMAGE_OVERHEAD_FACTOR}")
     log.debug(f"Extra rootfs size added: {EXTRA_ROOTFS_SIZE_KB/1024} MiB")
 
@@ -318,13 +318,13 @@ def write_rootfs_to_wic_image(base_wic_img, output_wic_img, base_rootfs_partitio
     log.info("Copying other partitions from base to output image. Starting virt-resize...")
     log.info("------------------------------------------------------------")
     resizecmd = ["virt-resize", "--format", "raw", "--delete"]
-    resizecmd.extend([base_rootfs_partition, base_wic_img, output_wic_img])
+    resizecmd.extend([base_rootfs_partition, base_raw_img, output_raw_img])
     subprocess.run(resizecmd, check=True)
     log.info("------------------------------------------------------------")
 
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
-        gfs.add_drive_opts(output_wic_img, format="raw")
+        gfs.add_drive_opts(output_raw_img, format="raw")
         gfs.launch()
 
         # virt-resize rearranged all existing partitions and generated a new empty partition at the
@@ -357,8 +357,8 @@ def write_rootfs_to_wic_image(base_wic_img, output_wic_img, base_rootfs_partitio
         raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
 
 
-def deploy_wic_image(base_wic_img, src_sysroot_dir, src_ostree_archive_dir,
-                     output_wic_img, dst_sysroot_dir, rootfs_label, ref=None):
+def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
+                     output_raw_img, dst_sysroot_dir, rootfs_label, ref=None):
     """Deploys a WIC image with given OSTree reference
 
     Creates a new WIC image with an OSTree deployment of the
@@ -366,15 +366,15 @@ def deploy_wic_image(base_wic_img, src_sysroot_dir, src_ostree_archive_dir,
     """
     deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
-    log.info("Reading base WIC image...")
+    log.info("Reading base WIC/raw image...")
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
-        gfs.add_drive_opts(base_wic_img, format="raw", readonly=1)
+        gfs.add_drive_opts(base_raw_img, format="raw", readonly=1)
         gfs.launch()
         if len(gfs.list_partitions()) < 1:
             raise TorizonCoreBuilderError(
-                "Image doesn't have any partitions or it's not a valid WIC image. Aborting.")
-        # Get partition number from ext4 fs called rootfs_label in disk image (.wic)
+                "Image doesn't have any partitions or it's not a valid WIC/raw image. Aborting.")
+        # Get partition number from ext4 fs called rootfs_label in disk image (.wic/.img)
         rootfs_partition = gfs.findfs_label(rootfs_label)
         log.info(f"  '{rootfs_label}' partition found: {rootfs_partition}")
 
@@ -406,10 +406,10 @@ def deploy_wic_image(base_wic_img, src_sysroot_dir, src_ostree_archive_dir,
     rootfs_size_kb = int(rootfs_size_kb.split('\t')[0])
     log.info(f"Unpacked rootfs size: {rootfs_size_kb/1024/1024:.2f} GiB")
 
-    write_rootfs_to_wic_image(base_wic_img, output_wic_img, rootfs_partition, rootfs_label,
+    write_rootfs_to_raw_image(base_raw_img, output_raw_img, rootfs_partition, rootfs_label,
                               base_rootfs_partition_size_kb, other_partitions_size_kb,
                               rootfs_size_kb, dst_sysroot_dir)
-    log.info(f"Image {os.path.basename(output_wic_img)} created successfully!")
+    log.info(f"Image {os.path.basename(output_raw_img)} created successfully!")
 
 def run_command_with_sudo(client, command, password):
     stdin, stdout, stderr = client.exec_command("sudo -S -- " + command)

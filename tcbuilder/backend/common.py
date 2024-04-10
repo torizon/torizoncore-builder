@@ -38,6 +38,7 @@ ARCH_TO_DOCKER_PLAT = {
 
 DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
 
+DEFAULT_RAW_ROOTFS_LABEL = "otaroot"
 
 def get_rootfs_tarball(tezi_image_dir):
     if not os.path.exists(tezi_image_dir):
@@ -597,7 +598,7 @@ def unpacked_image_type(storage_dir):
     if os.path.exists(os.path.join(storage_dir, "tezi")):
         return "tezi"
 
-    return "wic"
+    return "raw"
 
 
 def get_own_network():

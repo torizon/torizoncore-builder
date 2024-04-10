@@ -6,7 +6,7 @@ load 'lib/common.bash'
 @test "deploy: run without parameters" {
     run torizoncore-builder deploy
     assert_failure 255
-    assert_output --partial "One of the following arguments is required: --output-directory, --base-wic, --remote-host"
+    assert_output --partial "One of the following arguments is required"
 }
 
 @test "deploy: check help output" {
