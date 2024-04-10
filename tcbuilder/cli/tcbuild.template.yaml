@@ -29,6 +29,13 @@ input:
     #   variant: torizon-core-docker
     #   build-number: "1"
     #   # build-date: "20210408"
+  # >> If using a Torizon OS image in .wic or .img format, like found in some Common Torizon images,
+  # >> use the option below:
+  # raw-image:
+    # local: torizon-core-common-docker-dev-intel-corei7-64.wic
+    # >> (OPTIONAL) specify the filesystem label where rootfs is located in the image.
+    # >> If not defined it defaults to 'otaroot'
+    # rootfs-label: otaroot
 
 # >> The customization section defines the modifications to be applied to get
 # >> the desired output image.
@@ -68,12 +75,24 @@ input:
 
 # >> The output section defines properties of the output image.
 output:
-  # >> OSTree deployment configuration (relevant also for Easy Installer output).
+  # >> OSTree deployment configuration (relevant also for raw/Easy Installer output).
   # ostree:
     # branch: my-dev-branch
     # commit-subject: "OSTree commit subject"
     # commit-body: "OSTree commit body"
-  # >> Parameters for deploying to an Easy Installer image.
+  # >> Choose one of the options (REQUIRED):
+  # >> (1) Parameters for deploying a WIC/raw image.
+  # raw-image:
+    # >> (REQUIRED) output file/directory of the customized image:
+    # local: tcb_common_torizon.wic
+    # >> (OPTIONAL) specify the filesystem label where rootfs is located in the base image.
+    # >> If not defined it defaults to 'otaroot'.
+    # base-rootfs-label: otaroot
+    # >> (OPTIONAL) base image for the output.
+    # >> If not set it will default to be the same as the input one.
+    # >> Do not change this unless you know what you're doing.
+    # base-image:
+  # >> (2) Parameters for deploying to an Easy Installer image.
   easy-installer:
     # >> Output directory of the customized image (REQUIRED):
     local: output_directory

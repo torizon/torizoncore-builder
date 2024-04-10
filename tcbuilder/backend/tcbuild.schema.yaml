@@ -132,6 +132,24 @@ properties:
         additionalProperties: false
         required:
           - ostree
+      - properties:
+          raw-image:
+            type: object
+            description: "specify a WIC/raw Torizon OS image as the source for customization"
+            properties:
+              local:
+                type: string
+                description: "local .wic or .img file"
+                tdxMeta: "file;wic,img"
+              rootfs-label:
+                type: string
+                description: "label of the filesystem where rootfs is located"
+            additionalProperties: false
+            required:
+              - local
+        additionalProperties: false
+        required:
+          - raw-image
 
   customization:
     type: object
@@ -239,90 +257,116 @@ properties:
             type: string
             description: "address of a remote OSTree archive"
         additionalProperties: false
-      easy-installer:
-        type: object
-        description: "configuration items specific to the Toradex Easy Installer image output"
+    # Based on the 'not' approach here: https://medium.com/@smikulcik/oneof-explained-c0264c429735
+    # As we're currently using JSON Schema draft-07, the cleaner 'unevaluatedProperties'
+    # approach is not supported.
+    oneOf:
+      - required: [raw-image]
         properties:
-          local:
-            type: string
-            description: "path to a local directory or a tarball for the generated image"
-          name:
-            type: string
-            description: "name of the image as shown by the installer"
-          description:
-            type: string
-            description: "short description of the image (displayed in the image list screen of the installer)"
-          licence:
-            type: string
-            description: "path of an HTML file with the image licence (displayed before installation when running interactively)"
-          release-notes:
-            type: string
-            description: "path of an HTML file with the image release notes (accessible from the installer UI)"
-          accept-licence:
-            type: boolean
-            description: "automatically accept the licence"
-          autoinstall:
-            type: boolean
-            description: "set the value of the autoinstall property on the image.json file"
-          autoreboot:
-            type: boolean
-            description: "add/remove auto-reboot in the wrapup.sh file"
-          provisioning:
+          raw-image:
             type: object
-            description: "provisioning configuration"
+            description: "configuration items specific to WIC/raw image output"
             properties:
-              mode:
+              local:
                 type: string
-                enum:
-                  - offline
-                  - online
-                  - disabled
-                description: "provisioning type (online covers offline)"
-              shared-data:
+                description: "path to a local directory or a .wic/.img file for the generated image"
+              base-rootfs-label:
                 type: string
-                description: "path to tarball containing shared provisioning data (required with online and offline modes)"
-                tdxMeta: "file;tar.gz"
-              online-data:
+                description: "filesystem label where rootfs is located in base image"
+              base-image:
                 type: string
-                description: "string containing provisioning data specific to the online mode"
-            required: [mode]
-          bundle:
+                description: "base image used for the output raw image"
+            required: [local]
+            additionalProperties: false
+        not:
+          required: [easy-installer]
+      - required: [easy-installer]
+        properties:
+          easy-installer:
             type: object
-            description: "image bundling configuration"
-            oneOf:
-              - properties:
-                  compose-file:
+            description: "configuration items specific to the Toradex Easy Installer image output"
+            properties:
+              local:
+                type: string
+                description: "path to a local directory or a tarball for the generated image"
+              name:
+                type: string
+                description: "name of the image as shown by the installer"
+              description:
+                type: string
+                description: "short description of the image (displayed in the image list screen of the installer)"
+              licence:
+                type: string
+                description: "path of an HTML file with the image licence (displayed before installation when running interactively)"
+              release-notes:
+                type: string
+                description: "path of an HTML file with the image release notes (accessible from the installer UI)"
+              accept-licence:
+                type: boolean
+                description: "automatically accept the licence"
+              autoinstall:
+                type: boolean
+                description: "set the value of the autoinstall property on the image.json file"
+              autoreboot:
+                type: boolean
+                description: "add/remove auto-reboot in the wrapup.sh file"
+              provisioning:
+                type: object
+                description: "provisioning configuration"
+                properties:
+                  mode:
                     type: string
-                    description: "path of a docker-compose file that will be included in the final image along with the required container images"
-                    tdxMeta: "file:dockercompose"
-                  platform:
+                    enum:
+                      - offline
+                      - online
+                      - disabled
+                    description: "provisioning type (online covers offline)"
+                  shared-data:
                     type: string
-                    description: "platform for fetching multi-platform container images"
-                  username:
+                    description: "path to tarball containing shared provisioning data (required with online and offline modes)"
+                    tdxMeta: "file;tar.gz"
+                  online-data:
                     type: string
-                    description: "Docker login username to be used if accessing a private registry is required"
-                  password:
-                    type: string
-                    description: "Docker login password to be used if accessing a private registry is required"
-                  registry:
-                    type: string
-                    description: "Alternative container registry used to access container image"
-                  ca-certificate:
-                    type: string
-                    description: "CA certificate path of alternative container registry"
-                    tdxMeta: "file;cer,crt"
-                required: [compose-file]
-                additionalProperties: false
-              - properties:
-                  dir:
-                    type: string
-                    description: "path to directory containing the container images bundle to be combined with the installer image"
-                    tdxMeta: "path"
-                required: [dir]
-                additionalProperties: false
-        required: [local]
-        additionalProperties: false
-    required: [easy-installer]
+                    description: "string containing provisioning data specific to the online mode"
+                required: [mode]
+              bundle:
+                type: object
+                description: "image bundling configuration"
+                oneOf:
+                  - properties:
+                      compose-file:
+                        type: string
+                        description: "path of a docker-compose file that will be included in the final image along with the required container images"
+                        tdxMeta: "file:dockercompose"
+                      platform:
+                        type: string
+                        description: "platform for fetching multi-platform container images"
+                      username:
+                        type: string
+                        description: "Docker login username to be used if accessing a private registry is required"
+                      password:
+                        type: string
+                        description: "Docker login password to be used if accessing a private registry is required"
+                      registry:
+                        type: string
+                        description: "Alternative container registry used to access container image"
+                      ca-certificate:
+                        type: string
+                        description: "CA certificate path of alternative container registry"
+                        tdxMeta: "file;cer,crt"
+                    required: [compose-file]
+                    additionalProperties: false
+                  - properties:
+                      dir:
+                        type: string
+                        description: "path to directory containing the container images bundle to be combined with the installer image"
+                        tdxMeta: "path"
+                    required: [dir]
+                    additionalProperties: false
+            required: [local]
+            additionalProperties: false
+        not:
+          required: [raw-image]
 # No top-level extra props
 additionalProperties: false
 required: [input, output]

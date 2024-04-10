@@ -98,6 +98,8 @@ def handle_input_section(props, **kwargs):
         handle_easy_installer_input(props["easy-installer"], **kwargs)
     elif "ostree" in props:
         handle_ostree_input(props["ostree"], **kwargs)
+    elif "raw-image" in props:
+        handle_raw_image_input(props["raw-image"], **kwargs)
     else:
         raise FileContentMissing(
             "No kind of input specified in configuration file")
@@ -145,6 +147,25 @@ def handle_easy_installer_input(props, storage_dir=None, download_dir=None):
         raise FileContentMissing(
             "No known input type specified in configuration file")
 
+def handle_raw_image_input(props, storage_dir=None):
+    """Handle the input/raw-image subsection of the configuration file
+
+    :param props: Dictionary holding the data of the subsection.
+    :param storage_dir: Absolute path of storage directory. This is a required
+                        keyword argument.
+    """
+
+    assert storage_dir is not None, "Parameter `storage_dir` must be passed"
+
+    if "local" in props:
+        images_cli.images_unpack(
+            props["local"],
+            storage_dir,
+            raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
+            remove_storage=True)
+    else:
+        raise FileContentMissing(
+            "No known input type specified in configuration file")
 
 def handle_ostree_input(props, **kwargs):
     """Handle the input/easy-installer subsection of the configuration file"""
@@ -241,13 +262,16 @@ def handle_kernel_customization(props, storage_dir=None):
             storage_dir=storage_dir)
 
 
-def handle_output_section(props, storage_dir, changes_dirs=None):
+def handle_output_section(props, storage_dir, changes_dirs=None, default_base_raw_image=None):
     """Handle the output section of the configuration file
 
     :param props: Dictionary holding the data of the section.
     :param storage_dir: Absolute path of storage directory. This is a required
                         keyword argument.
     :param changes_dirs: Directories containing filesystem changes to apply.
+    :param default_base_raw_image: Default base raw image. Should always be the
+                                   input raw image. If dealing with tezi images,
+                                   this value is equal to 'None'.
     """
 
     if props:
@@ -279,12 +303,65 @@ def handle_output_section(props, storage_dir, changes_dirs=None):
     # Handle the "output.ostree.local" property (TODO).
     # Handle the "output.ostree.remote" property (TODO).
 
-    tezi_props = props.get("easy-installer", {})
+    if common.unpacked_image_type(storage_dir) == "tezi":
+        tezi_props = props.get("easy-installer", {})
+        handle_easy_installer_output(tezi_props, storage_dir, union_params)
+    else:
+        raw_props = props.get("raw-image", {})
+        handle_raw_image_output(raw_props, storage_dir, union_params, default_base_raw_image)
+
+
+def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_image):
+    """Handle the output/raw-image section of the configuration file
+
+    :param props: Dictionary holding the data of the section.
+    :param storage_dir: Absolute path of storage directory. This is a required
+                        keyword argument.
+    :param union_params: Parameters related to union(). This is a required arg.
+    :param default_base_raw_image: Path of default base raw image. Should always
+                                   be the input image.
+    """
 
     # Note that the following test should never fail (due to schema validation).
-    assert "local" in tezi_props, "'local' property is required"
+    assert "local" in props, "'local' property is required"
 
-    output_dir = tezi_props["local"]
+    # Ensure that this test never fails.
+    assert default_base_raw_image is not None, "Base raw image has no default value."
+
+    output_raw_img = props["local"]
+    if os.path.isabs(output_raw_img):
+        raise InvalidDataError(
+            f"Image output file '{output_raw_img}' is not relative")
+    output_raw_img = os.path.abspath(output_raw_img)
+
+    base_raw_img = props.get("base-image", default_base_raw_image)
+    base_rootfs_label = props.get("base-rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL)
+
+    deploy_raw_image_params = {
+        "ostree_ref": union_params["union_branch"],
+        "base_raw_img": base_raw_img,
+        "output_raw_img": output_raw_img,
+        "storage_dir": storage_dir,
+        "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
+        "rootfs_label": base_rootfs_label,
+    }
+
+    deploy_cli.deploy_raw_image(**deploy_raw_image_params)
+
+
+def handle_easy_installer_output(props, storage_dir, union_params):
+    """Handle the output/easy-installer section of the configuration file
+
+    :param props: Dictionary holding the data of the section.
+    :param storage_dir: Absolute path of storage directory. This is a required
+                        keyword argument.
+    :param union_params: Parameters related to union(). This is a required arg.
+    """
+
+    # Note that the following test should never fail (due to schema validation).
+    assert "local" in props, "'local' property is required"
+
+    output_dir = props["local"]
     if os.path.isabs(output_dir):
         raise InvalidDataError(
             f"Image output directory '{output_dir}' is not relative")
@@ -295,16 +372,16 @@ def handle_output_section(props, storage_dir, changes_dirs=None):
         "output_dir": output_dir,
         "storage_dir": storage_dir,
         "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
-        "tezi_props": translate_tezi_props(tezi_props),
+        "tezi_props": translate_tezi_props(props),
     }
 
     deploy_cli.deploy_tezi_image(**deploy_tezi_image_params)
 
     handle_bundle_output(
-        output_dir, storage_dir, tezi_props.get("bundle", {}), tezi_props)
+        output_dir, storage_dir, props.get("bundle", {}), props)
 
-    if "provisioning" in tezi_props:
-        handle_provisioning(output_dir, tezi_props.get("provisioning"))
+    if "provisioning" in props:
+        handle_provisioning(output_dir, props.get("provisioning"))
 
 
 def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
@@ -431,16 +508,45 @@ def build(config_fname, storage_dir,
         # Note that is also checked by the schema.
         raise FileContentMissing("No output specified in configuration file")
 
-    # Check if output directory already exists and fail if it does.
-    output_dir = config["output"]["easy-installer"]["local"]
-    if os.path.exists(output_dir):
-        if force:
-            log.debug(f"Removing existing output directory '{output_dir}'")
-            shutil.rmtree(output_dir)
-        else:
+    if "easy-installer" in config["input"]:
+
+        if "easy-installer" not in config["output"]:
             raise InvalidStateError(
-                f"Output directory '{output_dir}' already exists; please remove"
-                " it or select another output directory.")
+                "Input is 'easy-installer', but couldn't find"
+                " 'easy-installer' in output section. Aborting.")
+
+        # Check if output directory already exists and fail if it does.
+        output_dir = config["output"]["easy-installer"]["local"]
+        if os.path.exists(output_dir):
+            if force:
+                log.debug(f"Removing existing output directory '{output_dir}'")
+                shutil.rmtree(output_dir)
+            else:
+                raise InvalidStateError(
+                    f"Output directory '{output_dir}' already exists; please remove"
+                    " it or select another output directory.")
+
+    elif "raw-image" in config["input"]:
+
+        if "raw-image" not in config["output"]:
+            raise InvalidStateError(
+                "Input is 'raw-image', but couldn't find"
+                " 'raw-image' in output section. Aborting.")
+
+        # Check if output file already exists and fail if it does.
+        output_image = config["output"]["raw-image"]["local"]
+        if os.path.exists(output_image):
+            if force:
+                if os.path.isfile(output_image):
+                    log.debug(f"Removing existing file '{output_image}'")
+                    os.remove(output_image)
+                else:
+                    raise InvalidStateError(
+                        f"'{output_image}' is not a valid path to a file. Aborting.")
+            else:
+                raise InvalidStateError(
+                    f"File '{output_image}' already exists; please remove"
+                    " it or give a different filename for the output.")
 
     # Input section (required):
     handle_input_section(config["input"], storage_dir=storage_dir)
@@ -449,19 +555,26 @@ def build(config_fname, storage_dir,
     fs_changes = handle_customization_section(
         config.get("customization", {}), storage_dir=storage_dir)
 
+
+    default_base_raw_image = (
+        config["input"]["raw-image"]["local"] if "raw-image" in config["input"] else None)
     # Output section (required):
     try:
         handle_output_section(
             config["output"],
-            storage_dir=storage_dir, changes_dirs=fs_changes)
+            storage_dir=storage_dir, changes_dirs=fs_changes,
+            default_base_raw_image=default_base_raw_image)
 
     except Exception as exc:
         # Avoid leaving a damaged output around:
         # TODO: Maybe it would be best to catch BaseException here so even
         #       keyboard interrupts are handled.
-        if os.path.exists(output_dir):
+        if "easy-installer" in config["output"] and os.path.exists(output_dir):
             log.info(f"Removing output directory '{output_dir}' due to build errors")
             shutil.rmtree(output_dir)
+        elif "raw-image" in config["output"] and os.path.exists(output_image):
+            log.info(f"Removing output file '{output_image}' due to build errors")
+            os.remove(output_image)
         raise exc
 
     log.info(l1_pref("Build command successfully executed!"))
