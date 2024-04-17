@@ -17,7 +17,7 @@ from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
-MAJOR_TO_GCC_MAP = {
+IMAGE_MAJOR_TO_GCC_MAP = {
     5: "gcc-arm-9.2-2019.12",
     6: "arm-gnu-toolchain-11.3.rel1"
 }
@@ -29,29 +29,39 @@ def get_kernel_changes_dir(storage_dir):
     return os.path.join(storage_dir, "kernel")
 
 
+def get_kernel_version(linux_src):
+    """Return dictionary with kernel major, minor and revision from source."""
+
+    kernel_release_file = os.path.join(linux_src, "include/config/kernel.release")
+    with open(kernel_release_file, 'r') as file:
+        kernel_release_line = file.read()
+
+    kernel_version = re.match(r"(\d+)\.(\d+)\.(\d+)", kernel_release_line)
+    if kernel_version:
+        major, minor, rev = kernel_version.group(1, 2, 3)
+        return {'major': int(major), 'minor': int(minor), 'rev': int(rev)}
+
+    return None
+
+
 # pylint: disable=too-many-locals
-def build_module(src_dir, linux_src, src_mod_dir,
+def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
                  src_ostree_archive_dir, mod_path, kernel_changes_dir):
     """Build kernel module from source"""
 
     # Figure out ARCH based on linux source
     config = os.path.join(linux_src, ".config")
     with open(config, 'r') as file:
-        lines = file.read()
+        config_lines = file.read()
 
-    if re.search("CONFIG_ARM=y", lines, re.MULTILINE):
+    if re.search("CONFIG_ARM=y", config_lines, re.MULTILINE):
         arch = "arm"
-    elif re.search("CONFIG_ARM64=y", lines, re.MULTILINE):
+    elif re.search("CONFIG_ARM64=y", config_lines, re.MULTILINE):
         arch = "arm64"
     else:
         assert False, "Architecture could not be determined from .config"
 
-    version_gcc = None
-    version_major = re.search(r"CONFIG_LOCALVERSION=\"-(\d+)\.\d+\.\d+", lines,
-                              re.MULTILINE)
-    if version_major:
-        version_major = int(version_major.group(1))
-        version_gcc = MAJOR_TO_GCC_MAP[version_major]
+    version_gcc = IMAGE_MAJOR_TO_GCC_MAP.get(image_major_version)
 
     assert version_gcc, "Unable to determine the GCC toolchain version"
 
@@ -70,10 +80,14 @@ def build_module(src_dir, linux_src, src_mod_dir,
     if not os.path.exists(toolchain):
         download_toolchain(c_c, toolchain_path, version_gcc)
 
-    # Hotfix for the 6 version of the kernel
-    version_major = re.search(r"CONFIG_LOCALVERSION=\"-(\d+)\.\d+\.\d+", lines,
-                              re.MULTILINE).group(1)
-    if version_major == '6':
+    kversion = get_kernel_version(linux_src)
+
+    if kversion is None:
+        raise TorizonCoreBuilderError(
+            "Could not determine kernel version of unpacked image. Aborting.")
+
+    # Makefile Hotfix needed to build modules for kernel v6.1+:
+    if (kversion['major'] == 6 and kversion['minor'] >= 1) or (kversion['major'] > 6):
         _pattern = r"s/\$(build)=\. prepare/$(build)=./g"
         subprocess.check_output(
             ["sed", "-i", _pattern, f"{linux_src}/Makefile"],

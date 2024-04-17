@@ -13,7 +13,8 @@ from tcbuilder.errors import PathNotExistError
 from tcbuilder.errors import FileContentMissing, InvalidDataError
 from tcbuilder.backend.common import (get_tar_compress_program_options,
                                       images_unpack_executed,
-                                      unpacked_image_type)
+                                      unpacked_image_type,
+                                      get_branch_and_major_from_metadata)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
 
@@ -98,10 +99,13 @@ def kernel_build_module(source_dir, storage_dir, autoload):
         text=True).rstrip()
     src_mod_dir = os.path.join(os.path.dirname(usr_dir), kernel_subdir)
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+
+    _, image_major_version = get_branch_and_major_from_metadata(storage_dir)
+
     src_dir = os.path.abspath(source_dir)
     kernel.build_module(
-        src_dir, extracted_src, src_mod_dir, src_ostree_archive_dir, mod_path,
-        kernel_changes_dir)
+        src_dir, extracted_src, src_mod_dir, image_major_version,
+        src_ostree_archive_dir, mod_path, kernel_changes_dir)
     log.info("Kernel module(s) successfully built and ready to deploy.")
 
     # Set built kernel modules to be autoloaded on boot
