@@ -28,7 +28,8 @@ from tcbuilder.errors import \
 from tcbuilder.backend import ostree, sotaops
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
-from tcbuilder.backend.common import get_host_workdir, get_own_network, set_output_ownership
+from tcbuilder.backend.common import \
+    (get_host_workdir, get_own_network, set_output_ownership, run_with_loading_animation)
 from tcbuilder.backend.registryops import \
     (RegistryOperations, SHA256_PREFIX, parse_image_name, platform_matches)
 
@@ -1359,9 +1360,12 @@ def upload_static_delta_parts(delta_dir, ostree_url, delta_id, headers):
             continue
 
         with open(f"{delta_dir}/{item}", "rb") as file_contents:
-            post = requests.post(f"{ostree_url}/deltas/{delta_id}/{item}",
-                                 data=file_contents,
-                                 headers=headers)
+            post = run_with_loading_animation(
+                func=requests.post,
+                args=(f"{ostree_url}/deltas/{delta_id}/{item}", file_contents),
+                kwargs={'headers': headers},
+                loading_msg="Uploading part...",
+                end_msg="")
 
             if post.status_code == requests.codes["ok"]:
                 log.info(f"Static delta part {item} uploaded.")

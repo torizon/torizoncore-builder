@@ -135,7 +135,6 @@ def generate_delta(repo, from_delta, to_delta):
     :param to_delta: The OSTree commit to create a static delta to
     """
 
-    log.info("Creating static delta...")
     result = repo.static_delta_generate(OSTree.StaticDeltaGenerateOpt.MAJOR,
                                         from_delta,
                                         to_delta,

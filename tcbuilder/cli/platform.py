@@ -838,7 +838,10 @@ def static_delta_create(credentials, from_delta, to_delta, upload_delta=True):
                            refs=[from_delta, to_delta],
                            token=token,
                            progress=update_progress)
-        ostree.generate_delta(repo, from_delta=from_delta, to_delta=to_delta)
+        common.run_with_loading_animation(
+            func=ostree.generate_delta,
+            args=(repo, from_delta, to_delta),
+            loading_msg="Creating static delta...")
 
         b64_from = base64.b64encode(bytes.fromhex(from_delta)).decode().strip('=').replace('/', '_')
         b64_to = base64.b64encode(bytes.fromhex(to_delta)).decode().strip('=').replace('/', '_')
