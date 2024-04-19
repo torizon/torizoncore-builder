@@ -22,7 +22,7 @@ import guestfs
 import paramiko
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
-                                      set_output_ownership)
+                                      set_output_ownership, run_with_loading_animation)
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
 from tezi.image import ImageConfig, DEFAULT_IMAGE_JSON_FILENAME
@@ -256,7 +256,10 @@ def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
         # Add input image
         gfs.add_drive_opts(image_dir, format="raw", readonly=1)
         # Launch libguestfs backend
-        gfs.launch()
+        run_with_loading_animation(
+            func=gfs.launch,
+            loading_msg="Initializing WIC/raw image...")
+
         if len(gfs.list_partitions()) < 1:
             raise TorizonCoreBuilderError(
                 "Image doesn't have any partitions or it's not a valid WIC/raw image. Aborting.")
@@ -265,8 +268,10 @@ def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
         rootfs_partition = gfs.findfs_label(raw_rootfs_label)
         log.info(f"'{raw_rootfs_label}' partition found: {rootfs_partition}")
         gfs.mount_ro(rootfs_partition, "/")
-        log.info("Unpacking image. This may take a few minutes...")
-        gfs.copy_out("/", sysroot_dir)
+        run_with_loading_animation(
+            func=gfs.copy_out,
+            args=("/", sysroot_dir),
+            loading_msg="Unpacking image. This may take a few minutes...")
         gfs.shutdown()
         gfs.close()
     except RuntimeError as gfserr:
@@ -332,7 +337,6 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
 
     if (image_dir.lower().endswith(".wic") or
        image_dir.lower().endswith(".img")):
-        log.info("Mounting WIC/raw image.")
         unpack_local_raw_image(image_dir, src_sysroot_dir, raw_rootfs_label)
     else:
         log.info("Copying Toradex Easy Installer image.")

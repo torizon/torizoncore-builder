@@ -19,7 +19,8 @@ gi.require_version("OSTree", "1.0")
 from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
-from tcbuilder.backend.common import get_rootfs_tarball, resolve_remote_host
+from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
+                                      run_with_loading_animation)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
@@ -325,7 +326,9 @@ def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partitio
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
         gfs.add_drive_opts(output_raw_img, format="raw")
-        gfs.launch()
+        run_with_loading_animation(
+            func=gfs.launch,
+            loading_msg="Initializing output image...")
 
         # virt-resize rearranged all existing partitions and generated a new empty partition at the
         # end of the disk. We will format it to ext4 and put the unpacked rootfs contents in it.
@@ -346,9 +349,11 @@ def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partitio
 
         log.info("Copying unpacked rootfs contents to output image. This may take a few minutes...")
         for content in dst_sysroot_dir_ls:
-            log.info(f"  Copying /{content}...")
-            gfs.copy_in(f"{dst_sysroot_dir}/{content}", "/")
-        log.info("...Done.")
+            run_with_loading_animation(
+                func=gfs.copy_in,
+                args=(f"{dst_sysroot_dir}/{content}", "/"),
+                loading_msg=f"  Copying /{content}...")
+
         gfs.shutdown()
         gfs.close()
     except RuntimeError as gfserr:
@@ -366,11 +371,12 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
     """
     deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
-    log.info("Reading base WIC/raw image...")
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
         gfs.add_drive_opts(base_raw_img, format="raw", readonly=1)
-        gfs.launch()
+        run_with_loading_animation(
+            func=gfs.launch,
+            loading_msg="Initializing base WIC/raw image...")
         if len(gfs.list_partitions()) < 1:
             raise TorizonCoreBuilderError(
                 "Image doesn't have any partitions or it's not a valid WIC/raw image. Aborting.")
@@ -400,7 +406,6 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
 
     log.info(f"  rootfs partition size: {base_rootfs_partition_size_kb/1024/1024:.2f} GiB")
     log.info(f"  Size of other partitions combined: {other_partitions_size_kb/1024/1024:.2f} GiB")
-    log.info("...Done.")
 
     rootfs_size_kb = subprocess.check_output(["du", "-s", dst_sysroot_dir], text=True)
     rootfs_size_kb = int(rootfs_size_kb.split('\t')[0])

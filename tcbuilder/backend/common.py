@@ -6,6 +6,8 @@ import re
 import socket
 import subprocess
 import sys
+import time
+import threading
 
 from typing import Optional
 
@@ -39,6 +41,79 @@ ARCH_TO_DOCKER_PLAT = {
 DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
 
 DEFAULT_RAW_ROOTFS_LABEL = "otaroot"
+
+# Based on this solution: https://stackoverflow.com/a/50690347
+# Usage of Event object to stop thread was based on:
+# https://www.pythontutorial.net/python-concurrency/python-stop-thread/
+# imports needed: sys, time, threading
+def run_with_loading_animation(func=None, args=(), kwargs=None,
+                               loading_msg="Loading...", end_msg="Done."):
+    """
+    Run given function func(*args, **kwargs) while displaying a loading animation
+    on the terminal, and print an end message after the function finishes running.
+
+    :param func: Function to be executed
+    :param args: Tuple of arguments related to func
+    :param kwargs: Dictionary of keyword arguments related to func
+    :param loading_msg: String to be displayed when func is running
+    :param end_msg: String to print after func finishes execution
+
+    :return:
+        What func returns, or 'None' if func doesn't return anything.
+    """
+
+    ret = None
+
+    # kwargs has None as default value due to pylint
+    # warning dangerous-default-value if the default
+    # is an empty dictionary
+    kwargs_ = kwargs if kwargs is not None else {}
+
+    event = threading.Event()
+
+    # Don't print spinner if stdout isn't a terminal
+    if sys.stdout.isatty():
+        run_target = print_spinner_animation
+    else:
+        run_target = None
+
+    thread = threading.Thread(target=run_target, args=(event,))
+
+    log.debug(loading_msg)
+    print(loading_msg, end='')
+
+    thread.start()
+    try:
+        ret = func(*args, **kwargs_)
+    except Exception as exc:
+        end_msg = "Error!"
+        raise exc
+    finally:
+        event.set()
+        thread.join()
+        print(f" {end_msg}")
+
+    return ret
+
+
+def print_spinner_animation(event):
+    """
+    Print spinner animation indefinitely until event flag is set with event.set().
+    This function was developed to be executed using the threading.Thread class.
+
+    :param event: Event object
+    """
+    chars = "/—\\|"
+    while True:
+        for char in chars:
+            sys.stdout.write(char + '  ')
+            sys.stdout.flush()
+            time.sleep(.1)
+            sys.stdout.write('\b\b\b')
+            sys.stdout.flush()
+        if event.is_set():
+            break
+
 
 def get_rootfs_tarball(tezi_image_dir):
     if not os.path.exists(tezi_image_dir):
