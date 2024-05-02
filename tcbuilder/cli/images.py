@@ -231,7 +231,7 @@ def init_parser(subparsers):
               "modified with the union subcommand."),
         allow_abbrev=False)
     subparser.add_argument(
-        metavar="IMAGE", dest="image_directory", nargs='?',
+        metavar="IMAGE", dest="image_directory",
         help="Path to .wic/.img file, Easy Installer .tar file or directory.")
     subparser.add_argument(
         "--raw-rootfs-label", dest="raw_rootfs_label", metavar="LABEL",

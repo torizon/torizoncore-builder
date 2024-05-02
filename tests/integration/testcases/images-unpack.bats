@@ -4,7 +4,7 @@ bats_load_library 'bats/bats-file/load.bash'
 
 @test "images unpack: run without parameters" {
     run torizoncore-builder images unpack
-    assert_failure 254
+    assert_failure
 }
 
 @test "images unpack: check help output" {
