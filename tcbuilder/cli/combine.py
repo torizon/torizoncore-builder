@@ -11,7 +11,8 @@ import argparse
 from tcbuilder.backend.common import (add_common_image_arguments,
                                       add_bundle_directory_argument,
                                       check_valid_tezi_image,
-                                      set_output_ownership)
+                                      set_output_ownership,
+                                      DEFAULT_RAW_ROOTFS_LABEL)
 
 from tcbuilder.backend import combine
 from tcbuilder.errors import (PathNotExistError,
@@ -51,34 +52,50 @@ def do_combine(args):
 
     check_deprecated_parameters(args)
 
-    if (not os.path.isdir(args.image_directory) and
-            (args.image_directory.lower().endswith(".wic") or
-             args.image_directory.lower().endswith(".img"))):
-        raise InvalidArgumentError(
-            "WIC/raw images are not supported. Aborting.")
-
     dir_containers = os.path.abspath(args.bundle_directory)
     if not os.path.exists(dir_containers):
-        raise PathNotExistError(f"bundle directory {dir_containers} does not exist")
+        raise PathNotExistError(f"bundle directory {args.bundle_directory} does not exist")
 
-    image_dir = check_valid_tezi_image(args.image_directory)
 
-    output_dir = os.path.abspath(args.output_directory)
+    if args.output_path is not None:
+        output_path = os.path.abspath(args.output_path)
+    else:
+        output_path = None
 
-    tezi_props_args = {
-        "name": args.image_name,
-        "description": args.image_description,
-        "accept_licence": args.image_accept_licence,
-        "autoinstall": args.image_autoinstall,
-        "autoreboot": args.image_autoreboot,
-        "licence_file": args.licence_file,
-        "release_notes_file": args.release_notes_file
-    }
+    image_path = os.path.abspath(args.image_path)
 
-    combine.combine_image(image_dir, dir_containers, output_dir, tezi_props_args)
-    set_output_ownership(output_dir)
-    log.info("Successfully created a TorizonCore image with Docker Containers"
-             f" preprovisioned in {args.output_directory}")
+    # If raw image:
+    if (not os.path.isdir(image_path) and
+            (args.image_path.lower().endswith(".wic") or
+             args.image_path.lower().endswith(".img"))):
+
+        combine.combine_raw_image(image_path, dir_containers, output_path, args.raw_rootfs_label)
+
+    # If TEZI image:
+    else:
+        tezi_image_dir = check_valid_tezi_image(args.image_path)
+
+
+        tezi_props_args = {
+            "name": args.image_name,
+            "description": args.image_description,
+            "accept_licence": args.image_accept_licence,
+            "autoinstall": args.image_autoinstall,
+            "autoreboot": args.image_autoreboot,
+            "licence_file": args.licence_file,
+            "release_notes_file": args.release_notes_file
+        }
+
+        combine.combine_tezi_image(tezi_image_dir, dir_containers, output_path, tezi_props_args)
+
+    if output_path is not None:
+        set_output_ownership(output_path)
+        log.info("Successfully created a Torizon OS image with "
+                 "Docker Containers preprovisioned")
+    else:
+        set_output_ownership(image_path)
+        log.info("Successfully updated source Torizon OS image with "
+                 "Docker Containers preprovisioned.")
 
 
 def init_parser(subparsers):
@@ -86,8 +103,8 @@ def init_parser(subparsers):
 
     subparser = subparsers.add_parser(
         "combine",
-        help=("Combines a container bundle with a specified Toradex Easy "
-              "Installer image."),
+        help=("Combines a container bundle with a specified Torizon OS image "
+              "(Toradex Easy Installer or raw/WIC)"),
         epilog=("NOTE: the switches --image-directory and --output_directory "
                 "have been removed."),
         allow_abbrev=False)
@@ -95,16 +112,14 @@ def init_parser(subparsers):
     add_bundle_directory_argument(subparser)
 
     subparser.add_argument(
-        dest="image_directory",
-        metavar="IMAGE_DIRECTORY",
-        help=("Path to TorizonCore Toradex Easy Installer source image, "
-              "which needs to be updated with docker bundle."))
+        dest="image_path",
+        metavar="IMAGE_PATH",
+        help="Path of Torizon OS image to be updated with docker bundle.")
 
     subparser.add_argument(
-        dest="output_directory",
-        metavar="OUTPUT_DIRECTORY",
-        help=("Path to combined TorizonCore Toradex Easy Installer image, "
-              "which needs to be updated with docker bundle."))
+        dest="output_path",
+        metavar="OUTPUT_PATH",
+        help="Path of resulting Torizon OS image updated with docker bundle.")
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(
@@ -121,6 +136,12 @@ def init_parser(subparsers):
         action="store_true",
         default=False,
         help=argparse.SUPPRESS)
+
+    subparser.add_argument(
+        "--raw-rootfs-label", dest="raw_rootfs_label", metavar="LABEL",
+        help="rootfs filesystem label of source WIC/raw image. "
+             f"(default: {DEFAULT_RAW_ROOTFS_LABEL})",
+        default=DEFAULT_RAW_ROOTFS_LABEL)
 
     add_common_image_arguments(subparser, argparse)
 

@@ -59,16 +59,9 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
     dbe.deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                           output_dir_, dst_sysroot_dir_, ostree_ref)
 
-    if tezi_props and any(prop is not None for prop in tezi_props):
-        combine_params = {
-            "image_dir": output_dir_,
-            "bundle_dir": None,
-            "output_directory": None,
-            "tezi_props": tezi_props,
-        }
+    if tezi_props and any(tezi_props[prop] is not None for prop in tezi_props):
         # Change output directory in place.
-        # FIXME: This is not really combining an image - consider refactoring.
-        cbe.combine_image(**combine_params)
+        cbe.update_tezi_files(output_dir_, tezi_props)
 
     common.set_output_ownership(output_dir_)
 

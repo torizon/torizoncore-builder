@@ -395,7 +395,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             "output_directory": None,
             "tezi_props": translate_tezi_props(tezi_props)
         }
-        comb_be.combine_image(**combine_params)
+        comb_be.combine_tezi_image(**combine_params)
 
     elif "compose-file" in bundle_props:
         # Download bundle to user's directory - review (TODO).
@@ -447,7 +447,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
                 "output_directory": None,
                 "tezi_props": translate_tezi_props(tezi_props)
             }
-            comb_be.combine_image(**combine_params)
+            comb_be.combine_tezi_image(**combine_params)
 
         finally:
             log.debug(f"Removing temporary bundle directory {bundle_dir}")
