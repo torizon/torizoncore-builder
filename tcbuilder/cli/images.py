@@ -131,7 +131,7 @@ def do_images_serve(args):
     images.serve(args.images_directory)
 
 
-def images_unpack(image_dir, storage_dir, raw_rootfs_label="",
+def images_unpack(image_dir, storage_dir, raw_rootfs_label=None,
                   remove_storage=False):
     """Main handler for the 'images unpack' subcommand"""
 
@@ -233,10 +233,7 @@ def init_parser(subparsers):
     subparser.add_argument(
         metavar="IMAGE", dest="image_directory",
         help="Path to .wic/.img file, Easy Installer .tar file or directory.")
-    subparser.add_argument(
-        "--raw-rootfs-label", dest="raw_rootfs_label", metavar="LABEL",
-        help="rootfs filesystem label of WIC/raw image. "
-             f"(default: {common.DEFAULT_RAW_ROOTFS_LABEL})",
-        default=common.DEFAULT_RAW_ROOTFS_LABEL)
+
+    common.add_common_raw_image_arguments(subparser)
 
     subparser.set_defaults(func=do_images_unpack)

@@ -1,6 +1,7 @@
 """
 CLI handling for deploy subcommand
 """
+import logging
 import argparse
 import os
 
@@ -13,6 +14,8 @@ from tcbuilder.errors import (
     PathNotExistError,
     InvalidDataError,
 )
+
+log = logging.getLogger("torizon." + __name__)
 
 DEFAULT_DEPLOY_DIR = "/deploy"
 DEFAULT_OUTPUT_WIC_NAME = "tcb_common_torizon_os.wic"
@@ -114,6 +117,20 @@ def do_deploy_tezi_image(args):
         "release_notes_file": args.release_notes_file
     }
 
+    raw_props_args = {
+        "raw_rootfs_label" : args.raw_rootfs_label,
+        "output_raw_image" : args.output_raw_image
+    }
+
+    raw_prop_to_argname = common.RAW_PROP_TO_ARGNAME.copy()
+    raw_prop_to_argname["output_raw_image"] = "--output-raw"
+
+    # Check for raw-specific args being set:
+    for prop in raw_props_args:
+        if raw_props_args[prop] is not None:
+            log.warning(f"Warning: {raw_prop_to_argname[prop]} "
+                        "is specific to raw images. Ignoring.")
+
     deploy_tezi_image(ostree_ref=args.ref,
                       output_dir=args.output_directory,
                       storage_dir=args.storage_directory,
@@ -123,12 +140,37 @@ def do_deploy_tezi_image(args):
 
 def do_deploy_raw_image(args):
 
+    tezi_props_args = {
+        "name": args.image_name,
+        "description": args.image_description,
+        "accept_licence": args.image_accept_licence,
+        "autoinstall": args.image_autoinstall,
+        "autoreboot": args.image_autoreboot,
+        "licence_file": args.licence_file,
+        "release_notes_file": args.release_notes_file
+    }
+
+    common_raw_props_args = {
+        "raw_rootfs_label" : args.raw_rootfs_label
+    }
+
+    # Check for tezi-specific args being set:
+    for prop in tezi_props_args:
+        if tezi_props_args[prop] is not None:
+            log.warning(f"Warning: {common.TEZI_PROP_TO_ARGNAME[prop]} "
+                        "is specific to Easy Installer images. Ignoring.")
+
+    # Set default common raw args if they're not already set:
+    for prop in common_raw_props_args:
+        if common_raw_props_args[prop] is None:
+            common_raw_props_args[prop] = common.RAW_PROP_DEFAULTS[prop]
+
     deploy_raw_image(ostree_ref=args.ref,
                      base_raw_img=args.base_raw_image,
                      output_raw_img=args.output_raw_image,
                      storage_dir=args.storage_directory,
                      deploy_sysroot_dir=args.deploy_sysroot_directory,
-                     rootfs_label=args.raw_rootfs_label)
+                     rootfs_label=common_raw_props_args["raw_rootfs_label"])
 
 
 def deploy_ostree_remote(storage_dir, remote_host, remote_username,
@@ -193,11 +235,14 @@ def do_deploy(args):
 def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "deploy",
-        help="Deploy the current image as a Toradex Easy Installer image.",
+        help="Deploy unpacked image as a Toradex Easy Installer image or raw disk format.",
         allow_abbrev=False)
 
     subparser.add_argument("--output-directory", dest="output_directory",
-                           help="Output path for TorizonCore Toradex Easy Installer image.")
+                           help=("(Easy Installer images only) Output path for the resulting "
+                                 "Torizon OS image in Toradex Easy Installer format."))
+
+    common.add_common_tezi_image_arguments(subparser, argparse)
 
     subparser.add_argument("--remote-host", dest="remote_host",
                            help="Remote host machine to deploy to.")
@@ -225,18 +270,14 @@ def init_parser(subparsers):
                            default=DEFAULT_DEPLOY_DIR)
 
     subparser.add_argument("--base-raw", dest="base_raw_image", metavar="BASE",
-                           help="Base image that the deployment will be based on i.e. "
-                                "the .wic/.img file used in the \'images unpack\' command.")
+                           help=("(raw images only) Base image that the deployment will be based "
+                                 "on i.e. the .wic/.img file used in the 'images unpack' "
+                                 "command."))
 
-    subparser.add_argument("--raw-rootfs-label", dest="raw_rootfs_label",
-                           metavar="LABEL",
-                           help="rootfs filesystem label of base WIC/raw image. "
-                                f"(default: {common.DEFAULT_RAW_ROOTFS_LABEL}) ",
-                           default=common.DEFAULT_RAW_ROOTFS_LABEL)
+    common.add_common_raw_image_arguments(subparser)
 
     subparser.add_argument("--output-raw", dest="output_raw_image", metavar="OUT",
-                           help="Output path for the .wic/.img file to be deployed.")
-
-    common.add_common_image_arguments(subparser, argparse)
+                           help=("(raw images only) Output path for the .wic/.img file "
+                                 "to be deployed."))
 
     subparser.set_defaults(func=do_deploy)

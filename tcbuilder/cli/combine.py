@@ -8,11 +8,14 @@ import os
 import logging
 import argparse
 
-from tcbuilder.backend.common import (add_common_image_arguments,
+from tcbuilder.backend.common import (add_common_tezi_image_arguments,
+                                      add_common_raw_image_arguments,
                                       add_bundle_directory_argument,
                                       check_valid_tezi_image,
                                       set_output_ownership,
-                                      DEFAULT_RAW_ROOTFS_LABEL)
+                                      TEZI_PROP_TO_ARGNAME,
+                                      RAW_PROP_TO_ARGNAME,
+                                      RAW_PROP_DEFAULTS)
 
 from tcbuilder.backend import combine
 from tcbuilder.errors import (PathNotExistError,
@@ -56,7 +59,6 @@ def do_combine(args):
     if not os.path.exists(dir_containers):
         raise PathNotExistError(f"bundle directory {args.bundle_directory} does not exist")
 
-
     if args.output_path is not None:
         output_path = os.path.abspath(args.output_path)
     else:
@@ -64,27 +66,48 @@ def do_combine(args):
 
     image_path = os.path.abspath(args.image_path)
 
+    tezi_props_args = {
+        "name": args.image_name,
+        "description": args.image_description,
+        "accept_licence": args.image_accept_licence,
+        "autoinstall": args.image_autoinstall,
+        "autoreboot": args.image_autoreboot,
+        "licence_file": args.licence_file,
+        "release_notes_file": args.release_notes_file
+    }
+
+    raw_props_args = {
+        "raw_rootfs_label" : args.raw_rootfs_label
+    }
+
     # If raw image:
     if (not os.path.isdir(image_path) and
             (args.image_path.lower().endswith(".wic") or
              args.image_path.lower().endswith(".img"))):
 
-        combine.combine_raw_image(image_path, dir_containers, output_path, args.raw_rootfs_label)
+        # Check for tezi-specific args being set:
+        for prop in tezi_props_args:
+            if tezi_props_args[prop] is not None:
+                log.warning(f"Warning: {TEZI_PROP_TO_ARGNAME[prop]} "
+                            "is specific to Easy Installer images. Ignoring.")
+
+        # Set default raw-specific args if they're not already set:
+        for prop in raw_props_args:
+            if raw_props_args[prop] is None:
+                raw_props_args[prop] = RAW_PROP_DEFAULTS[prop]
+
+        combine.combine_raw_image(image_path, dir_containers, output_path,
+                                  raw_props_args["raw_rootfs_label"])
 
     # If TEZI image:
     else:
+        # Check for raw-specific args being set:
+        for prop in raw_props_args:
+            if raw_props_args[prop] is not None:
+                log.warning(f"Warning: {RAW_PROP_TO_ARGNAME[prop]} "
+                            "is specific to raw images. Ignoring.")
+
         tezi_image_dir = check_valid_tezi_image(args.image_path)
-
-
-        tezi_props_args = {
-            "name": args.image_name,
-            "description": args.image_description,
-            "accept_licence": args.image_accept_licence,
-            "autoinstall": args.image_autoinstall,
-            "autoreboot": args.image_autoreboot,
-            "licence_file": args.licence_file,
-            "release_notes_file": args.release_notes_file
-        }
 
         combine.combine_tezi_image(tezi_image_dir, dir_containers, output_path, tezi_props_args)
 
@@ -137,12 +160,8 @@ def init_parser(subparsers):
         default=False,
         help=argparse.SUPPRESS)
 
-    subparser.add_argument(
-        "--raw-rootfs-label", dest="raw_rootfs_label", metavar="LABEL",
-        help="rootfs filesystem label of source WIC/raw image. "
-             f"(default: {DEFAULT_RAW_ROOTFS_LABEL})",
-        default=DEFAULT_RAW_ROOTFS_LABEL)
+    add_common_raw_image_arguments(subparser)
 
-    add_common_image_arguments(subparser, argparse)
+    add_common_tezi_image_arguments(subparser, argparse)
 
     subparser.set_defaults(func=do_combine)

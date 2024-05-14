@@ -22,7 +22,8 @@ import guestfs
 import paramiko
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
-                                      set_output_ownership, run_with_loading_animation)
+                                      set_output_ownership, run_with_loading_animation,
+                                      DEFAULT_RAW_ROOTFS_LABEL, RAW_PROP_TO_ARGNAME)
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
 from tezi.image import ImageConfig, DEFAULT_IMAGE_JSON_FILENAME
@@ -251,6 +252,10 @@ def unpack_local_image(image_dir, sysroot_dir):
 
 def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
     """Extract the root fs from the image into the sysroot directory"""
+
+    if raw_rootfs_label is None:
+        raw_rootfs_label = DEFAULT_RAW_ROOTFS_LABEL
+
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
         # Add input image
@@ -295,7 +300,7 @@ def _make_tezi_extract_dir(tezi_dir):
 
 # pylint: disable=too-many-locals
 def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
-                       raw_rootfs_label=""):
+                       raw_rootfs_label=None):
     """Import local raw/WIC or Toradex Easy Installer image
 
     Import local raw/WIC or Toradex Easy installer image to be customized. Assuming an
@@ -346,6 +351,14 @@ def import_local_image(image_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_
         # Get rid of the extraction directory (if we created one).
         if extract_dir is not None:
             shutil.rmtree(extract_dir)
+
+        common_raw_props_args = {
+            "raw_rootfs_label" : raw_rootfs_label
+        }
+        for prop in common_raw_props_args:
+            if common_raw_props_args[prop] is not None:
+                log.warning(f"Warning: {RAW_PROP_TO_ARGNAME[prop]} "
+                            "is specific to raw images. Ignoring.")
 
         log.info("Unpacking TorizonCore Toradex Easy Installer image.")
         unpack_local_image(tezi_dir, src_sysroot_dir)

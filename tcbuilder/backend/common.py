@@ -42,6 +42,24 @@ DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
 
 DEFAULT_RAW_ROOTFS_LABEL = "otaroot"
 
+TEZI_PROP_TO_ARGNAME = {
+    "name": "--image-name",
+    "description": "--image-description",
+    "accept_licence": "--image-accept-licence",
+    "autoinstall": "--image-autoinstall",
+    "autoreboot": "--image-autoreboot",
+    "licence_file": "--image-licence",
+    "release_notes_file": "--image-release-notes"
+}
+
+RAW_PROP_TO_ARGNAME = {
+    "raw_rootfs_label": "--raw-rootfs-label"
+}
+
+RAW_PROP_DEFAULTS = {
+    "raw_rootfs_label" : DEFAULT_RAW_ROOTFS_LABEL
+}
+
 # Based on this solution: https://stackoverflow.com/a/50690347
 # Usage of Event object to stop thread was based on:
 # https://www.pythontutorial.net/python-concurrency/python-stop-thread/
@@ -145,29 +163,43 @@ def add_bundle_directory_argument(parser):
         help="Container bundle directory")
 
 
-def add_common_image_arguments(subparser, argparse):
-    subparser.add_argument("--image-name", dest="image_name",
-                           help="""Image name to be used in Easy Installer image json""")
-    subparser.add_argument("--image-description", dest="image_description",
-                           help="""Image description to be used in Easy Installer image json""")
-    subparser.add_argument("--image-licence", dest="licence_file",
-                           help="""Licence file which will be shown on image installation""")
-    subparser.add_argument("--image-accept-licence", dest="image_accept_licence",
+def add_common_tezi_image_arguments(subparser, argparse):
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["name"], dest="image_name",
+                           help=("(Easy Installer images only) Image name to be used in Easy "
+                                 "Installer image json."))
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["description"], dest="image_description",
+                           help=("(Easy Installer images only) Image description to be used in "
+                                 "Easy Installer image json."))
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["licence_file"], dest="licence_file",
+                           help=("(Easy Installer images only) Licence file which will be "
+                                 "shown on image installation."))
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["accept_licence"], dest="image_accept_licence",
                            action=argparse.BooleanOptionalAction,
-                           help=("Automatically accept the licence referenced in the image "
-                                 "(already present in the input image or being set via "
-                                 "--image-licence); Licence should be accepted every "
-                                 "time an image is generated"))
-    subparser.add_argument("--image-release-notes", dest="release_notes_file",
-                           help="""Release notes file which will be shown on image installation""")
-    subparser.add_argument("--image-autoinstall", dest="image_autoinstall",
+                           help=("(Easy Installer images only) Automatically accept the "
+                                 "image licence present in the input image or set by "
+                                 "--image-licence; Licence should be accepted every time an "
+                                 "image is generated."))
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["release_notes_file"], dest="release_notes_file",
+                           help=("(Easy Installer images only) Release notes file which "
+                                 "will be shown on image installation."))
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["autoinstall"], dest="image_autoinstall",
                            action=argparse.BooleanOptionalAction,
-                           help=("Automatically install image upon detection by "
-                                 "Toradex Easy Installer."))
-    subparser.add_argument("--image-autoreboot", dest="image_autoreboot",
+                           help=("(Easy Installer images only) Automatically install "
+                                 "image upon detection by Toradex Easy Installer."))
+    subparser.add_argument(TEZI_PROP_TO_ARGNAME["autoreboot"], dest="image_autoreboot",
                            action=argparse.BooleanOptionalAction,
-                           help=("Enable automatic reboot after image is flashed by "
-                                 "Toradex Easy Installer."))
+                           help=("(Easy Installer images only) Enable automatic reboot "
+                                 "after image is flashed by Toradex Easy Installer."))
+
+
+def add_common_raw_image_arguments(subparser):
+    subparser.add_argument(RAW_PROP_TO_ARGNAME["raw_rootfs_label"], dest="raw_rootfs_label",
+                           metavar="LABEL", help="(raw images only) rootfs filesystem label of "
+                                                 "source WIC/raw image. "
+                                                 f"(default: {DEFAULT_RAW_ROOTFS_LABEL})",
+                           default=None) # Default is in RAW_PROP_DEFAULTS. Default should only be
+                                         # set if arg is used in a raw image.
+                                         # Arg value should remain None if a tezi image is used.
 
 
 def add_ssh_arguments(subparser):
