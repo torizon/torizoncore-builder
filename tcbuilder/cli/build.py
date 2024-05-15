@@ -393,7 +393,8 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             "image_dir": image_dir,
             "bundle_dir": bundle_props["dir"],
             "output_directory": None,
-            "tezi_props": translate_tezi_props(tezi_props)
+            "tezi_props": translate_tezi_props(tezi_props),
+            "force": True
         }
         comb_be.combine_tezi_image(**combine_params)
 
@@ -445,7 +446,8 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
                 "image_dir": image_dir,
                 "bundle_dir": bundle_dir,
                 "output_directory": None,
-                "tezi_props": translate_tezi_props(tezi_props)
+                "tezi_props": translate_tezi_props(tezi_props),
+                "force": True
             }
             comb_be.combine_tezi_image(**combine_params)
 

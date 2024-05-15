@@ -199,20 +199,25 @@ def check_combine_files(bundle_dir):
     return files_to_add
 
 
-def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props):
+def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props, force):
 
     check_licence_acceptance(image_dir, tezi_props)
 
     files_to_add = check_combine_files(bundle_dir)
 
-    if output_directory is None or output_directory == image_dir:
+    if (output_directory is None or output_directory == image_dir) and force:
         log.info("Updating Torizon OS image in place.")
         output_directory = image_dir
     else:
-        # Fail when output directory exists like deploy does.
         if os.path.exists(output_directory):
-            raise InvalidStateError(
-                f"Output directory {output_directory} must not exist.")
+            if force:
+                log.info(f"Removing existing directory '{output_directory}'")
+                shutil.rmtree(output_directory)
+            else:
+                raise InvalidStateError(
+                    f"Directory {output_directory} already exists. "
+                    "Rename output or use --force to overwrite.")
+
         log.info("Creating copy of source image.")
         shutil.copytree(image_dir, output_directory)
 
@@ -236,20 +241,25 @@ def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props):
     combine_single_tezi_image(**combine_params)
 
 
-def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label):
+def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
 
     files_to_add = check_combine_files(bundle_dir)
 
     if files_to_add:
 
-        if output_path is None or output_path == image_path:
+        if (output_path is None or output_path == image_path) and force:
             log.info("Updating Torizon OS raw image in place.")
             output_path = image_path
         else:
-            # Fail when output path exists like deploy does.
             if os.path.exists(output_path):
-                raise InvalidStateError(
-                    f"Output file {output_path} must not exist.")
+                if force:
+                    log.info(f"Removing existing file '{output_path}'")
+                    os.remove(output_path)
+                else:
+                    raise InvalidStateError(
+                        f"File {output_path} already exists. "
+                        "Rename output or use --force to overwrite.")
+
             run_with_loading_animation(
                 func=shutil.copyfile,
                 args=(image_path, output_path),

@@ -19,7 +19,8 @@ from tcbuilder.backend.common import (add_common_tezi_image_arguments,
 
 from tcbuilder.backend import combine
 from tcbuilder.errors import (PathNotExistError,
-                              InvalidArgumentError)
+                              InvalidArgumentError,
+                              InvalidStateError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -57,12 +58,9 @@ def do_combine(args):
 
     dir_containers = os.path.abspath(args.bundle_directory)
     if not os.path.exists(dir_containers):
-        raise PathNotExistError(f"bundle directory {args.bundle_directory} does not exist")
+        raise PathNotExistError(f"Bundle directory {args.bundle_directory} does not exist.")
 
-    if args.output_path is not None:
-        output_path = os.path.abspath(args.output_path)
-    else:
-        output_path = None
+    output_path = os.path.abspath(args.output_path)
 
     image_path = os.path.abspath(args.image_path)
 
@@ -85,6 +83,10 @@ def do_combine(args):
             (args.image_path.lower().endswith(".wic") or
              args.image_path.lower().endswith(".img"))):
 
+        if os.path.isdir(output_path):
+            raise InvalidStateError(
+                "Error: For raw images the output can't be a directory. Aborting.")
+
         # Check for tezi-specific args being set:
         for prop in tezi_props_args:
             if tezi_props_args[prop] is not None:
@@ -97,10 +99,16 @@ def do_combine(args):
                 raw_props_args[prop] = RAW_PROP_DEFAULTS[prop]
 
         combine.combine_raw_image(image_path, dir_containers, output_path,
-                                  raw_props_args["raw_rootfs_label"])
+                                  raw_props_args["raw_rootfs_label"], args.force)
 
     # If TEZI image:
     else:
+
+        if os.path.exists(output_path) and not os.path.isdir(output_path):
+            raise InvalidStateError(
+                "Error: For Easy Installer images the output can't be an "
+                "existing file. Aborting.")
+
         # Check for raw-specific args being set:
         for prop in raw_props_args:
             if raw_props_args[prop] is not None:
@@ -109,7 +117,8 @@ def do_combine(args):
 
         tezi_image_dir = check_valid_tezi_image(args.image_path)
 
-        combine.combine_tezi_image(tezi_image_dir, dir_containers, output_path, tezi_props_args)
+        combine.combine_tezi_image(tezi_image_dir, dir_containers, output_path,
+                                   tezi_props_args, args.force)
 
     if output_path is not None:
         set_output_ownership(output_path)
@@ -143,6 +152,11 @@ def init_parser(subparsers):
         dest="output_path",
         metavar="OUTPUT_PATH",
         help="Path of resulting Torizon OS image updated with docker bundle.")
+
+    subparser.add_argument(
+        "--force", dest="force",
+        default=False, action="store_true",
+        help=("Force program output, overwriting any existing file/directory."))
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(
