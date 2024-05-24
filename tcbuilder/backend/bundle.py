@@ -314,8 +314,7 @@ class DindManager(DockerManager):
             ca_cert=os.path.join(self.cert_dir, 'client', 'ca.pem'),
             verify=os.path.join(self.cert_dir, 'client', 'ca.pem'),
             client_cert=(os.path.join(self.cert_dir, 'client', 'cert.pem'),
-                         os.path.join(self.cert_dir, 'client', 'key.pem')),
-            assert_hostname=False)
+                         os.path.join(self.cert_dir, 'client', 'key.pem')))
 
         log.info(f"Connecting to Docker Daemon at \"{self.docker_host}\"")
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
