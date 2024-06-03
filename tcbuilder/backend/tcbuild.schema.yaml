@@ -235,7 +235,7 @@ properties:
   output:
     type: object
     description: "target artifact configuration"
-    properties:
+    definitions:
       ostree:
         type: object
         description: "OSTree-related configuration"
@@ -263,6 +263,8 @@ properties:
     oneOf:
       - required: [raw-image]
         properties:
+          ostree:
+            $ref: '#/properties/output/definitions/ostree'
           raw-image:
             type: object
             description: "configuration items specific to WIC/raw image output"
@@ -277,11 +279,16 @@ properties:
                 type: string
                 description: "base image used for the output raw image"
             required: [local]
+            # No extra props inside 'raw-image'
             additionalProperties: false
+        # No extra props inside 'output'
+        additionalProperties: false
         not:
           required: [easy-installer]
       - required: [easy-installer]
         properties:
+          ostree:
+            $ref: '#/properties/output/definitions/ostree'
           easy-installer:
             type: object
             description: "configuration items specific to the Toradex Easy Installer image output"
@@ -364,7 +371,10 @@ properties:
                     required: [dir]
                     additionalProperties: false
             required: [local]
+            # No extra props inside 'easy-installer'
             additionalProperties: false
+        # No extra props inside 'output'
+        additionalProperties: false
         not:
           required: [raw-image]
 # No top-level extra props
