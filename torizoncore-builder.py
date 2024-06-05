@@ -37,7 +37,7 @@ parser = argparse.ArgumentParser(
     description="TorizonCore Builder is an utility that allows to create "
                 "customized TorizonCore OSTree commits and Toradex Easy "
                 "Installer images without rebuilding the complete operating "
-                "system.",
+                "system. ***PR test1***",
     epilog="Learn more on "
            "https://developer.toradex.com/knowledge-base/torizoncore-builder-tool",
     allow_abbrev=False)
