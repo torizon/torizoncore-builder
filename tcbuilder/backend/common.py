@@ -29,7 +29,7 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               LicenceAcceptanceError)
 
 log = logging.getLogger("torizon." + __name__)
-logging.getLogger().setLevel(level=os.getenv('LOGLEVEL', 'WARNING').upper())
+NO_PROGRESS_BAR = os.getenv('NO_PROGRESS', 'false')
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 
@@ -459,6 +459,8 @@ def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
 
 
 def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
+    if NO_PROGRESS_BAR == 'true':
+        return
     if totsiz == -1:
         totread = (blocknum * blocksiz) // (1024*1024)
         sys.stdout.write(f"\rDownloading file: {totread} MB...")
