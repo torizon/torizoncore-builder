@@ -29,6 +29,7 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
                               LicenceAcceptanceError)
 
 log = logging.getLogger("torizon." + __name__)
+logging.getLogger().setLevel(level=os.getenv('LOGLEVEL', 'WARNING').upper())
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
 
