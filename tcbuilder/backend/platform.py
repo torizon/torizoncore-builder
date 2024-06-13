@@ -1111,7 +1111,7 @@ def push_ref(ostree_dir, credentials, ref, package_version=None,
     log.info(f"Signed and pushed OSTree package {package_name} successfully.")
 
     if description is not None:
-        update_description(description, package_name, commit, credentials)
+        update_description(description, package_name, package_version, credentials)
 # pylint: enable=too-many-arguments
 
 
