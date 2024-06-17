@@ -48,8 +48,12 @@ WORKDIR /root
 RUN git clone --recursive https://github.com/uptane/aktualizr.git && cd aktualizr && \
     git checkout 2cb76c46ef0106be90c579b3108817dd26b7c1c5
 
+# Get tuf cli
+RUN cd aktualizr && curl -L -O https://github.com/uptane/ota-tuf/releases/download/v0.8.0/cli-0.8.0.tgz
+
 RUN cd aktualizr && mkdir build/ && cd build/ && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DEB=ON -DBUILD_SOTA_TOOLS=ON \
+          -DGARAGE_SIGN_ARCHIVE=../cli-0.8.0.tgz \
           -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless \
           -DBUILD_OSTREE=ON \
           -DWARNING_AS_ERROR=OFF .. && \
