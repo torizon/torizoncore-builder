@@ -71,8 +71,8 @@ def setup_logging(arg_level, verbose, file):
         set_level = levels.get(arg_level.upper())
 
         if set_level is None:
-            print("Invalid value for --log-level. Expected one of {levels}",
-                  levels=", ".join(levels.keys()))
+            levels_msg = ", ".join(levels.keys())
+            print(f"Invalid value for --log-level. Expected one of: {levels_msg}")
             sys.exit(-1)
 
     # Show/store time if any of the following is used:
