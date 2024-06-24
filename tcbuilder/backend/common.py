@@ -31,6 +31,7 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
 log = logging.getLogger("torizon." + __name__)
 
 DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
+NO_PROGRESS_BAR = os.getenv('TCB_HIDE_PROGRESS', '0') == '1'
 
 # Mapping from architecture to a Docker platform.
 ARCH_TO_DOCKER_PLAT = {
@@ -458,6 +459,8 @@ def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
 
 
 def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
+    if NO_PROGRESS_BAR:
+        return
     if totsiz == -1:
         totread = (blocknum * blocksiz) // (1024*1024)
         sys.stdout.write(f"\rDownloading file: {totread} MB...")
