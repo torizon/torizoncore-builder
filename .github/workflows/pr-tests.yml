@@ -1,0 +1,392 @@
+name: CI Tests for PR merge branch
+run-name: Run tests for TCB on PR merge branch
+
+on:
+  pull_request:
+    branches:
+      - bullseye
+
+env:
+  # Container version:
+  TORIZONCORE_BUILDER_MAJOR: "3"
+  TORIZONCORE_BUILDER_MINOR: "10"
+  TORIZONCORE_BUILDER_PATCH: "0"
+  RELEASE_TYPE: "github-pr-test"
+  DEBIAN_RELEASE: "bullseye-slim"
+  # Use overlayfs driver for better performance
+  DOCKER_DRIVER: overlay2
+  DOCKER_BUILDKIT: 1
+
+  # TC image default versions:
+  TEST_IMAGES_TC5_VERSION: "5.7.2"
+  TEST_IMAGE_TC5_32BIT: "torizon-core-docker-apalis-imx6-Tezi_5.7.2+build.20.tar"
+  TEST_IMAGE_TC5_32BIT_ARTIFACTORY_URL: "https://artifacts.toradex.com/artifactory/torizoncore-oe-prod-frankfurt/dunfell-5.x.y/release/20/apalis-imx6/torizon-upstream/torizon-core-docker/oedeploy"
+  TEST_IMAGE_TC5_64BIT: "torizon-core-docker-verdin-imx8mm-Tezi_5.7.2+build.20.tar"
+  TEST_IMAGE_TC5_64BIT_ARTIFACTORY_URL: "https://artifacts.toradex.com/artifactory/torizoncore-oe-prod-frankfurt/dunfell-5.x.y/release/20/verdin-imx8mm/torizon/torizon-core-docker/oedeploy"
+
+  AMD64_ARCH: linux/amd64
+  AMD64_DOCKERFILE_NAME: torizoncore-builder.Dockerfile
+  AMD64_IMAGE_NAME: torizoncore-builder-amd64
+
+  TEST_IMAGES_TC6_VERSION: "6.6.1"
+  TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.6.1+build.14.tar"
+  TEST_IMAGE_TC6_32BIT_ARTIFACTORY_URL: "https://artifacts.toradex.com/artifactory/torizoncore-oe-prod-frankfurt/kirkstone-6.x.y/release/14/colibri-imx7-emmc/torizon-upstream/torizon-core-docker/oedeploy"
+  TEST_IMAGE_TC6_64BIT: "torizon-core-docker-apalis-imx8-Tezi_6.6.1+build.14.tar"
+  TEST_IMAGE_TC6_64BIT_ARTIFACTORY_URL: "https://artifacts.toradex.com/artifactory/torizoncore-oe-prod-frankfurt/kirkstone-6.x.y/release/14/apalis-imx8/torizon/torizon-core-docker/oedeploy"
+
+  # Common Torizon .wic/.img images:
+  TEST_IMAGES_TC_COMMON_VERSION: "6.6.0-common"
+  TEST_IMAGE_TC_COMMON_ZIP_URL: "https://github.com/commontorizon/meta-common-torizon/releases/download/v6.6.0-common"
+  TEST_IMAGE_TC_COMMON_INTEL: "torizon-core-common-docker-dev-intel-corei7-64-20240226043251.rootfs.wic"
+  TEST_IMAGE_TC_COMMON_RASPI4: "torizon-core-common-docker-dev-v6.6.0-common-raspberrypi4-64.img"
+
+  TCB_TESTCASES_64BIT: "dt dto kernel"
+
+jobs:
+  lint-dockerfiles:
+    runs-on: ubuntu-latest
+    steps:
+      # Some rules cannot be applied in our specific cases.
+      # However, since we don't want to completely ignore these rules,
+      # we are changing the following rules to have the level "info":
+      # - DL3003 (use WORKDIR to switch to a directory)
+      # - DL3008 (pin versions in apt-get install)
+      # - DL3029 (do not use --platform flag with FROM)
+      # - DL4006 (set the SHELL option -o pipefail before RUN with a pipe in it)
+      - name: Checkout PR merge branch
+        uses: actions/checkout@v4
+
+      - name: Lint Dockefile with Hadolint
+        run: docker run --rm -i hadolint/hadolint hadolint
+                        --failure-threshold warning
+                        --info DL3003 --info DL3008 --info DL3029 --info DL4006 - < *Dockerfile
+
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR merge branch
+        uses: actions/checkout@v4
+
+      - name: Build dev container tcbuilder-dev-amd64
+        run: docker build . -f torizoncore-builder.Dockerfile
+                            --build-arg IMAGE_ARCH=linux/amd64
+                            --target tcbuilder-dev
+                            --tag tcbuilder-dev-amd64
+
+      # Run the code linter disabling only docstring related warnings, use this run as exit code
+      # IMPORTANT: when running locally, DO NOT pass these --disable arguments to the program
+      - name: Run pylint
+        run: docker run --rm -v ${GITHUB_WORKSPACE}:/work -w /work tcbuilder-dev-amd64
+                  pylint --output-format=colorized
+                         --disable=missing-module-docstring
+                         --disable=missing-class-docstring
+                         --disable=missing-function-docstring
+                         --disable=fixme
+                         $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
+      - name: Pylint result
+        run: exit ${exit_code}
+
+  test-setup:
+    needs: [lint-dockerfiles, lint-python]
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.get_date.outputs.DATE }}
+      version_suffix: ${{ steps.get_version_suffix.outputs.VERSION_SUFFIX }}
+
+      tcb_image_tag: ${{ steps.tcb_image_tag.outputs.TCB_IMAGE_TAG }}
+      tc5_32bit_machine: ${{ steps.tc5_32bit.outputs.TEST_32BIT_MACHINE }}
+      tc5_64bit_machine: ${{ steps.tc5_64bit.outputs.TEST_64BIT_MACHINE }}
+      tc6_32bit_machine: ${{ steps.tc6_32bit.outputs.TEST_32BIT_MACHINE }}
+      tc6_64bit_machine: ${{ steps.tc6_64bit.outputs.TEST_64BIT_MACHINE }}
+      tc6_common_intel_machine:  ${{ steps.tc6_common_intel_machine.outputs.TEST_INTEL_MACHINE }}
+      tc6_common_raspi4_machine: ${{ steps.tc6_common_raspi4_machine.outputs.TEST_RASPI4_MACHINE }}
+    steps:
+      - id: get_date
+        run: echo "DATE=$(date +%Y%m%d)" >> ${GITHUB_OUTPUT}
+      - id: get_version_suffix
+        run: echo "VERSION_SUFFIX=+${RELEASE_TYPE}" >> ${GITHUB_OUTPUT}
+
+      - id: tcb_image_tag
+        run: echo "TCB_IMAGE_TAG=$(echo "$GITHUB_REF_NAME" | sed 's/\//-/g')" >> ${GITHUB_OUTPUT}
+
+      - id: tc5_32bit
+        run: echo "TEST_32BIT_MACHINE=$(echo ${TEST_IMAGE_TC5_32BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+      - id: tc5_64bit
+        run: echo "TEST_64BIT_MACHINE=$(echo ${TEST_IMAGE_TC5_64BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+
+      - id: tc6_32bit
+        run: echo "TEST_32BIT_MACHINE=$(echo ${TEST_IMAGE_TC6_32BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+      - id: tc6_64bit
+        run: echo "TEST_64BIT_MACHINE=$(echo ${TEST_IMAGE_TC6_64BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+
+      - id: tc6_common_intel_machine
+        run: echo "TEST_INTEL_MACHINE=$(echo ${TEST_IMAGE_TC_COMMON_INTEL} | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(.*)-.*$/\2/')" >> ${GITHUB_OUTPUT}
+      - id: tc6_common_raspi4_machine
+        run: echo "TEST_RASPI4_MACHINE=$(echo ${TEST_IMAGE_TC_COMMON_RASPI4} | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\3/')" >> ${GITHUB_OUTPUT}
+
+  amd64-build-test-torizoncore5:
+    needs: [test-setup]
+    runs-on: ubuntu-latest
+    env:
+      VERSION_SUFFIX: ${{ needs.test-setup.outputs.version_suffix }}
+      DATE: ${{ needs.test-setup.outputs.date }}
+      TCB_IMAGE_TAG: ${{ needs.test-setup.outputs.tcb_image_tag }}
+      TEST_32BIT_MACHINE: ${{ needs.test-setup.outputs.tc5_32bit_machine }}
+      TEST_64BIT_MACHINE: ${{ needs.test-setup.outputs.tc5_64bit_machine }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./tests/integration/
+    steps:
+      - name: Checkout PR repository
+        uses: actions/checkout@v4
+
+      - name: Set Docker image tag
+        run: echo "TCB_IMAGE_TAG=$(echo "$GITHUB_REF_NAME" | sed 's/\//-/g')" >> ${GITHUB_ENV}
+
+      - name: Build TorizonCore Builder
+        run: docker build ../../ -f "../../${AMD64_DOCKERFILE_NAME}"
+                            --build-arg "IMAGE_ARCH=${AMD64_ARCH}"
+                            --build-arg "IMAGE_TAG=${DEBIAN_RELEASE}"
+                            --build-arg "VERSION_SUFFIX=${VERSION_SUFFIX}"
+                            --label "container.name=${AMD64_IMAGE_NAME}"
+                            --label "container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}"
+                            --label "git.ref=${GITHUB_REF_NAME}"
+                            --label "git.hash=${GITHUB_SHA}"
+                            --label "workflow.id=${GITHUB_RUN_ID}"
+                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+
+      - name: Create test-related directories
+        run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
+
+      - name: Run setup script
+        run: TCB_SKIP_PULL=1 ./setup.sh
+
+      - name: Download Torizon OS 5 32-bit test image
+        run: 'wget --progress=dot:giga ${TEST_IMAGE_TC5_32BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC5_32BIT} -O workdir/images/${TEST_IMAGE_TC5_32BIT}'
+
+      - name: Create flag to indicate image was downloaded
+        run: touch workdir/images/.images_downloaded
+
+      - name: Export TCB command
+        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+
+      - name: Test TCB for Torizon OS 5 32-bit image
+        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_32BIT_MACHINE} ./run.sh
+
+      - name: Results for Torizon OS 5 32-bit
+        id: tc5-32bit-results
+        run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
+
+      - name: Delete 32-bit reports before starting 64-bit tests
+        if: always() && (steps.tc5-32bit-results.outcome == 'success' || steps.tc5-32bit-results.outcome == 'failure')
+        run: rm -f workdir/reports/*
+
+      - name: Download Torizon OS 5 64-bit test image
+        if: always() && (steps.tc5-32bit-results.outcome == 'success' || steps.tc5-32bit-results.outcome == 'failure')
+        run: 'wget --progress=dot:giga ${TEST_IMAGE_TC5_64BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC5_64BIT} -O workdir/images/${TEST_IMAGE_TC5_64BIT}'
+
+      - name: Test TCB for Torizon OS 5 64-bit image
+        if: always() && (steps.tc5-32bit-results.outcome == 'success' || steps.tc5-32bit-results.outcome == 'failure')
+        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_64BIT_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ./run.sh
+
+      - name: Results for Torizon OS 5 64-bit
+        if: always() && (steps.tc5-32bit-results.outcome == 'success' || steps.tc5-32bit-results.outcome == 'failure')
+        run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
+
+  amd64-build-test-torizoncore6:
+    needs: [test-setup]
+    runs-on: ubuntu-latest
+    env:
+      VERSION_SUFFIX: ${{ needs.test-setup.outputs.version_suffix }}
+      DATE: ${{ needs.test-setup.outputs.date }}
+      TCB_IMAGE_TAG: ${{ needs.test-setup.outputs.tcb_image_tag }}
+      TEST_32BIT_MACHINE: ${{ needs.test-setup.outputs.tc6_32bit_machine }}
+      TEST_64BIT_MACHINE: ${{ needs.test-setup.outputs.tc6_64bit_machine }}
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./tests/integration/
+    steps:
+      - name: Checkout PR repository
+        uses: actions/checkout@v4
+
+      - name: Set Docker image tag
+        run: echo "TCB_IMAGE_TAG=$(echo "$GITHUB_REF_NAME" | sed 's/\//-/g')" >> ${GITHUB_ENV}
+
+      - name: Build TorizonCore Builder
+        run: docker build ../../ -f "../../${AMD64_DOCKERFILE_NAME}"
+                            --build-arg "IMAGE_ARCH=${AMD64_ARCH}"
+                            --build-arg "IMAGE_TAG=${DEBIAN_RELEASE}"
+                            --build-arg "VERSION_SUFFIX=${VERSION_SUFFIX}"
+                            --label "container.name=${AMD64_IMAGE_NAME}"
+                            --label "container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}"
+                            --label "git.ref=${GITHUB_REF_NAME}"
+                            --label "git.hash=${GITHUB_SHA}"
+                            --label "workflow.id=${GITHUB_RUN_ID}"
+                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+
+      - name: Create test-related directories
+        run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
+
+      - name: Run setup script
+        run: TCB_SKIP_PULL=1 ./setup.sh
+
+      - name: Download Torizon OS 6 32-bit test image
+        run: 'wget --progress=dot:giga ${TEST_IMAGE_TC6_32BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC6_32BIT} -O workdir/images/${TEST_IMAGE_TC6_32BIT}'
+
+      - name: Create flag to indicate image was downloaded
+        run: touch workdir/images/.images_downloaded
+
+      - name: Export TCB command
+        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+
+      - name: Test TCB for Torizon OS 6 32-bit image
+        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_32BIT_MACHINE} ./run.sh
+
+      - name: Results for Torizon OS 6 32-bit
+        id: tc6-32bit-results
+        run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
+
+      - name: Delete 32-bit reports before starting 64-bit tests
+        if: always() && (steps.tc6-32bit-results.outcome == 'success' || steps.tc6-32bit-results.outcome == 'failure')
+        run: rm -f workdir/reports/*
+
+      - name: Download Torizon OS 6 64-bit test image
+        if: always() && (steps.tc6-32bit-results.outcome == 'success' || steps.tc6-32bit-results.outcome == 'failure')
+        run: 'wget --progress=dot:giga ${TEST_IMAGE_TC6_64BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC6_64BIT} -O workdir/images/${TEST_IMAGE_TC6_64BIT}'
+
+      - name: Test TCB for Torizon OS 6 64-bit image
+        if: always() && (steps.tc6-32bit-results.outcome == 'success' || steps.tc6-32bit-results.outcome == 'failure')
+        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_64BIT_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ./run.sh
+
+      - name: Results for Torizon OS 6 64-bit
+        if: always() && (steps.tc6-32bit-results.outcome == 'success' || steps.tc6-32bit-results.outcome == 'failure')
+        run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
+
+  amd64-build-test-commontorizon-intel:
+    # Only run if not manually cancelled, test-setup succeeds,
+    # and after amd64-build-test-torizoncore5 and amd64-build-test-torizoncore6,
+    # no matter their results.
+    if: |
+      (success() || failure()) &&
+      contains(needs.test-setup.result, 'success')
+    needs: [test-setup, amd64-build-test-torizoncore5, amd64-build-test-torizoncore6]
+    runs-on: ubuntu-latest
+    env:
+      RESULT_TEST_SETUP: ${{ needs.test-setup.result }}
+      RESULT_TEST_TC5: ${{ needs.amd64-build-test-torizoncore5.result }}
+      RESULT_TEST_TC6: ${{ needs.amd64-build-test-torizoncore6.result }}
+
+      VERSION_SUFFIX: ${{ needs.test-setup.outputs.version_suffix }}
+      DATE: ${{ needs.test-setup.outputs.date }}
+      TCB_IMAGE_TAG: ${{ needs.test-setup.outputs.tcb_image_tag }}
+      TEST_INTEL_MACHINE: ${{ needs.test-setup.outputs.tc6_common_intel_machine }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./tests/integration/
+    steps:
+      - name: Checkout PR repository
+        uses: actions/checkout@v4
+
+      - name: Set Docker image tag
+        run: echo "TCB_IMAGE_TAG=$(echo "$GITHUB_REF_NAME" | sed 's/\//-/g')" >> ${GITHUB_ENV}
+
+      - name: Build TorizonCore Builder
+        run: docker build ../../ -f "../../${AMD64_DOCKERFILE_NAME}"
+                            --build-arg "IMAGE_ARCH=${AMD64_ARCH}"
+                            --build-arg "IMAGE_TAG=${DEBIAN_RELEASE}"
+                            --build-arg "VERSION_SUFFIX=${VERSION_SUFFIX}"
+                            --label "container.name=${AMD64_IMAGE_NAME}"
+                            --label "container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}"
+                            --label "git.ref=${GITHUB_REF_NAME}"
+                            --label "git.hash=${GITHUB_SHA}"
+                            --label "workflow.id=${GITHUB_RUN_ID}"
+                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+
+      - name: Create test-related directories
+        run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
+
+      - name: Run setup script
+        run: TCB_SKIP_PULL=1 ./setup.sh
+
+      - name: Download Common Torizon OS 6 Intel x86_64 image (zipped)
+        run: 'wget --progress=dot:giga ${TEST_IMAGE_TC_COMMON_ZIP_URL}/torizon-core-common-docker-dev-v${TEST_IMAGES_TC_COMMON_VERSION}-${TEST_INTEL_MACHINE}.zip -P workdir/images/'
+
+      - name: Unzip image
+        run: unzip workdir/images/'*.zip' -d workdir/images/ && rm workdir/images/*.zip
+
+      - name: Create flag to indicate image is ready
+        run: touch workdir/images/.raw_images_downloaded
+
+      - name: Export TCB command
+        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+
+      - name: Test TCB for Common Torizon OS 6 Intel x86_64 image
+        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_INTEL_MACHINE} ./run.sh
+
+      - name: Results for Common Torizon OS 6 Intel x86_64
+        run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
+
+  amd64-build-test-commontorizon-raspi4:
+    # Only run if not manually cancelled, test-setup succeeds,
+    # and after amd64-build-test-torizoncore5 and amd64-build-test-torizoncore6,
+    # no matter their results.
+    if: |
+      (success() || failure()) &&
+      contains(needs.test-setup.result, 'success')
+    needs: [test-setup, amd64-build-test-torizoncore5, amd64-build-test-torizoncore6]
+    runs-on: ubuntu-latest
+    env:
+      VERSION_SUFFIX: ${{ needs.test-setup.outputs.version_suffix }}
+      DATE: ${{ needs.test-setup.outputs.date }}
+      TCB_IMAGE_TAG: ${{ needs.test-setup.outputs.tcb_image_tag }}
+      TEST_RASPI4_MACHINE: ${{ needs.test-setup.outputs.tc6_common_raspi4_machine }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./tests/integration/
+    steps:
+      - name: Checkout PR repository
+        uses: actions/checkout@v4
+
+      - name: Set Docker image tag
+        run: echo "TCB_IMAGE_TAG=$(echo "$GITHUB_REF_NAME" | sed 's/\//-/g')" >> ${GITHUB_ENV}
+
+      - name: Build TorizonCore Builder
+        run: docker build ../../ -f "../../${AMD64_DOCKERFILE_NAME}"
+                            --build-arg "IMAGE_ARCH=${AMD64_ARCH}"
+                            --build-arg "IMAGE_TAG=${DEBIAN_RELEASE}"
+                            --build-arg "VERSION_SUFFIX=${VERSION_SUFFIX}"
+                            --label "container.name=${AMD64_IMAGE_NAME}"
+                            --label "container.version=${TORIZONCORE_BUILDER_MAJOR}.${TORIZONCORE_BUILDER_MINOR}.${TORIZONCORE_BUILDER_PATCH}-${DATE}"
+                            --label "git.ref=${GITHUB_REF_NAME}"
+                            --label "git.hash=${GITHUB_SHA}"
+                            --label "workflow.id=${GITHUB_RUN_ID}"
+                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+
+      - name: Create test-related directories
+        run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
+
+      - name: Run setup script
+        run: TCB_SKIP_PULL=1 ./setup.sh
+
+      - name: Download Common Torizon OS 6 Raspberry Pi 4 image (zipped)
+        run: 'wget --progress=dot:giga ${TEST_IMAGE_TC_COMMON_ZIP_URL}/torizon-core-common-docker-dev-v${TEST_IMAGES_TC_COMMON_VERSION}-${TEST_RASPI4_MACHINE}.zip -P workdir/images/'
+
+      - name: Unzip image
+        run: unzip workdir/images/'*.zip' -d workdir/images/ && rm workdir/images/*.zip
+
+      - name: Create flag to indicate image is ready
+        run: touch workdir/images/.raw_images_downloaded
+
+      - name: Export TCB command
+        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+
+      - name: Test TCB for Common Torizon OS 6 Raspberry Pi 4 image
+        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_RASPI4_MACHINE} ./run.sh
+
+      - name: Results for Common Torizon OS 6 Raspberry Pi 4
+        run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
