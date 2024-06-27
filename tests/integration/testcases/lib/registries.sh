@@ -172,7 +172,7 @@ start-registries() {
     (set -eo pipefail; _start-registries "$@")
 }
 
-function _check-registries() {
+_check-registries() {
     local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}" "${INSEC_REG}")
     local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}" "${INSEC_REG_IP}")
 
@@ -188,11 +188,11 @@ function _check-registries() {
     done
 }
 
-function check-registries() {
+check-registries() {
     _check-registries "$@"
 }
 
-function _stop-registries() {
+_stop-registries() {
     # Removing existing containers and networks.
     if [ -n "$(docker container ls -qaf name="^${DIND_CONTAINER}\$")" ]; then
         docker container rm -f "${DIND_CONTAINER}"
