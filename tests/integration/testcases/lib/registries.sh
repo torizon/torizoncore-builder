@@ -18,7 +18,8 @@ export REGISTRIES_NETWORK="registry-network"
 
 
 _start-registries() {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     # Create the network as the first step so that if it fails we consider there is something
     # already running from a previous execution and that should be cleaned up first.
     echo "== Creating network ${REGISTRIES_NETWORK} =="
@@ -147,7 +148,7 @@ _start-registries() {
 
     docker exec "${DIND_CONTAINER}" /bin/ash -c "\
 	docker login -u toradex -p test ${SR_WITH_AUTH_IP} && \
-	${if_ci:+docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}" && } \
+	${ci_dockerhub_login:+docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}" && } \
 	docker pull ${SRC_IMAGE} && \
         err=0 &&
 	for image in $(echo ${TGT_IMAGES}); do \

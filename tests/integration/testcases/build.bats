@@ -337,7 +337,8 @@ teardown_file() {
 }
 
 @test "build: basic tcbuild referencing a docker-compose file" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
@@ -345,7 +346,7 @@ teardown_file() {
     local FILE="$SAMPLES_DIR/config/tcbuild-with-compose.yaml"
 
 
-    if [ "${if_ci}" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         cat "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" | \
               sed -Ee 's/## username:/username:/' \
                   -Ee 's/## password:/password:/' > \
@@ -358,13 +359,13 @@ teardown_file() {
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" \
         --set COMPOSE_FILE="$COMPOSE" \
-        ${if_ci:+--set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
+        ${ci_dockerhub_login:+--set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
                  --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_success
     assert_output --partial 'Connecting to Docker Daemon'
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
 

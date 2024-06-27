@@ -13,7 +13,8 @@ teardown_file() {
 }
 
 @test "bundle-registry: check with secure registries without authentication" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run check-registries
@@ -29,7 +30,7 @@ teardown_file() {
     run torizoncore-builder bundle --cacert-to "${SR_NO_AUTH_IP}" \
                                    "${SR_NO_AUTH_CERTS}/server.key" \
                                    --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                   ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                                       "${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_failure
@@ -38,14 +39,15 @@ teardown_file() {
     run torizoncore-builder bundle --cacert-to "${SR_NO_AUTH_IP}" \
                                    "${SR_NO_AUTH_CERTS}/cacert.crt" \
                                    --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                   ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                                       "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Fetching container image ${SR_NO_AUTH_IP}/test"
 }
 
 @test "bundle-registry: check with secure registry with authentication" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
 
     run check-registries
@@ -62,7 +64,7 @@ teardown_file() {
                                    --cacert-to "${SR_WITH_AUTH_IP}" \
                                    "${SR_WITH_AUTH_CERTS}/cacert.crt" \
                                    --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                   ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                                       "${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_failure
@@ -72,14 +74,15 @@ teardown_file() {
                                    --cacert-to "${SR_WITH_AUTH_IP}" \
                                    "${SR_WITH_AUTH_CERTS}/cacert.crt" \
                                    --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                   ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                                       "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Fetching container image ${SR_WITH_AUTH_IP}/test"
 }
 
 @test "bundle-registry: check with with all registries" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
     local CONTAINERS=("${SR_NO_AUTH}" "${SR_WITH_AUTH}")
     local REGISTRIES=("${SR_NO_AUTH_IP}" "${SR_WITH_AUTH_IP}")
@@ -110,7 +113,7 @@ teardown_file() {
                                    --cacert-to "${SR_NO_AUTH_IP}" \
                                    "${SR_NO_AUTH_CERTS}/cacert.crt" \
                                    --force "${SR_COMPOSE_FOLDER}/docker-compose.yml" \
-                                   ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                   ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                                       "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     for i in {1..2}; do

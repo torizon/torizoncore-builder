@@ -102,7 +102,8 @@ test_canonicalize_only_success() {
 }
 
 @test "platform push: docker-compose canonicalization errors" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
 
     # Test-case: file with no yml/yaml extension
@@ -120,7 +121,7 @@ test_canonicalize_only_success() {
     # Test-case: error present
     run torizoncore-builder platform push "$CANON_DIR/docker-compose-no-image.yml" \
                                           --canonicalize-only --force \
-                                          ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                          ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_failure
     assert_output --partial "No image specified for service"
@@ -544,7 +545,8 @@ test_canonicalize_only_success() {
 
 @test "platform lockbox: test advanced registry access" {
     skip-no-ota-credentials
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
 
     run check-registries
@@ -556,7 +558,7 @@ test_canonicalize_only_success() {
         --login-to "${SR_WITH_AUTH_IP}" toradex test \
         --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
         --force LockBox-Test \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                            "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 }

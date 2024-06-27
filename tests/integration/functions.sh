@@ -193,3 +193,15 @@ get-unique-version() {
     echo "${MACHINE}-${EPOCHSECONDS}"
 }
 export -f get-unique-version
+
+is-dockerhub-login-set() {
+   [ -n "${CI_DOCKER_HUB_PULL_USER}" ] && [ -n "${CI_DOCKER_HUB_PULL_PASSWORD}" ]
+}
+export -f is-dockerhub-login-set
+
+# Returns string "1" if all checks are successful; otherwise nothing is returned.
+# This function is used to facilitate the use of the ${parameter:+word} substitution feature in Bash.
+ci-dockerhub-login-flag() {
+    [ "${TCB_UNDER_CI}" = "1" ] && is-dockerhub-login-set && echo "1"
+}
+export -f ci-dockerhub-login-flag

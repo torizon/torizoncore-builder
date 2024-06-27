@@ -31,7 +31,8 @@ load 'lib/common.bash'
 }
 
 @test "bundle: check output directory overwriting" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     # Use a basic compose file.
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
@@ -55,17 +56,17 @@ load 'lib/common.bash'
     local BUNDLEDIR='bundle'
     rm -fr $BUNDLEDIR
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Successfully created Docker Container bundle in \"$BUNDLEDIR\""
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
 
     # Finally force previous output to be overwritten.
     run torizoncore-builder bundle --force "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Successfully created Docker Container bundle in \"$BUNDLEDIR\""
     rm -fr $BUNDLEDIR
@@ -92,7 +93,8 @@ load 'lib/common.bash'
 }
 
 @test "bundle: check --platform parameter" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     # Use a basic compose file.
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
@@ -102,11 +104,11 @@ load 'lib/common.bash'
     local PLATFORM='linux/arm/v7'
     rm -fr "$BUNDLEDIR"
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Default platform: $PLATFORM"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
 
@@ -115,7 +117,7 @@ load 'lib/common.bash'
     local PLATFORM='linux/arm64'
     rm -fr "$BUNDLEDIR"
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
     assert_output --partial "Default platform: $PLATFORM"
 
@@ -124,26 +126,27 @@ load 'lib/common.bash'
     local PLATFORM='dummy-platform'
     rm -fr "$BUNDLEDIR"
     run torizoncore-builder --log-level debug bundle --platform "$PLATFORM" "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_failure
     assert_output --partial "container images download failed"
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
 }
 
 @test "bundle: check without --bundle-directory parameter" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
     rm -rf bundle
     run torizoncore-builder bundle "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
 
@@ -157,16 +160,17 @@ load 'lib/common.bash'
 }
 
 @test "bundle: check with --bundle-directory parameter" {
-    local if_ci="" && [ "${TCB_UNDER_CI}" = "1" ] && if_ci="1"
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
     local BUNDLE_DIR=$(mktemp -d -u tmpdir.XXXXXXXXXXXXXXXXXXXXXXXXX)
 
     run torizoncore-builder bundle --bundle-directory "$BUNDLE_DIR" "$COMPOSE" \
-        ${if_ci:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 
-    if [ "$TCB_UNDER_CI" = "1" ]; then
+    if [ "${ci_dockerhub_login}" = "1" ]; then
         assert_output --partial "Attempting to log in to"
     fi
 
