@@ -22,7 +22,7 @@ bats_load_library 'bats/bats-file/load.bash'
 
 @test "images unpack: unpack non-existent image" {
     run torizoncore-builder images --remove-storage unpack teziimage_invalid.tar
-    assert_failure 4
+    assert_failure 255
 }
 
 @test "images unpack: unpack image from tar file" {
