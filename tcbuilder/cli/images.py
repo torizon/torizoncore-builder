@@ -101,6 +101,8 @@ def do_images_provision(args):
         if args.online_data:
             log.error("Error: With offline provisioning, switch --online-data cannot be passed.")
             sys.exit(1)
+        if args.hibernated:
+            log.warning("Warning: --hibernated is specific to online provisioning. Ignoring.")
 
     elif args.mode == PROV_MODE_ONLINE:
         if not (args.shared_data_file and args.online_data):
@@ -117,6 +119,7 @@ def do_images_provision(args):
             output_dir=args.output_directory,
             shared_data=args.shared_data_file,
             online_data=args.online_data,
+            hibernated=args.hibernated,
             force=args.force)
 
     except (TorizonCoreBuilderError, TeziError) as exc:
@@ -210,6 +213,11 @@ def init_parser(subparsers):
         "--online-data", dest="online_data",
         help=("String containing sensitive data required for online "
               "provisioning (base64-encoded)."))
+    subparser.add_argument(
+        "--hibernated", dest="hibernated",
+        default=False, action="store_true",
+        help=("Provision in hibernated mode. Hibernated devices are registered, "
+              "but cannot receive updates from Torizon Cloud nor send data to it."))
     subparser.set_defaults(func=do_images_provision)
 
     # images serve

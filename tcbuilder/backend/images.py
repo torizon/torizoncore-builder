@@ -393,7 +393,7 @@ def prov_check_provdata_presence(input_dir):
     return config.search_filelist(src=PROV_DATA_FILENAME) is not None
 
 
-def prov_gen_provdata_tarball(output_dir, shared_data, online_data):
+def prov_gen_provdata_tarball(output_dir, shared_data, online_data, hibernated):
     """Generate tarball containing all provisioning data
 
     The tarball will be stored into the output directory; then it should be
@@ -429,7 +429,14 @@ def prov_gen_provdata_tarball(output_dir, shared_data, online_data):
                     online_data_padded = online_data
                     online_data_padded += "=" * ((4 - len(online_data) % 4) %4)
                     online_data_json = base64.b64decode(online_data_padded)
-                    json.loads(online_data_json)
+                    online_data_obj = json.loads(online_data_json)
+
+                    # Add 'hibernated' key if user enabled hibernated mode
+                    if hibernated and isinstance(online_data_obj, dict):
+                        log.info("Provisioning in hibernated mode.")
+                        online_data_obj['hibernated'] = True
+                        online_data_json = json.dumps(online_data_obj).encode("utf-8")
+
                 except (binascii.Error, json.decoder.JSONDecodeError) as exc:
                     raise TorizonCoreBuilderError(
                         "Failure decoding online data: aborting.") from exc
@@ -459,7 +466,7 @@ def prov_add_provdata_tarball(output_dir):
     config.save()
 
 
-def provision(input_dir, output_dir, shared_data, online_data, force=False):
+def provision(input_dir, output_dir, shared_data, online_data, hibernated=False, force=False):
     """Generate TEZI image with added provisioning data
 
     :param input_dir: Path of directory containing input image.
@@ -467,6 +474,7 @@ def provision(input_dir, output_dir, shared_data, online_data, force=False):
     :param shared_data: Path to tarball containing shared (i.e. related to both
                         offline and online cases) provisioning data.
     :param online_data: Base-64 string containing online provisioning data.
+    :param hibernated: Boolean that indicates to whether or not provision in hibernated mode
     :param force: Boolean indicating whether to remove output directory if it
                   already exists.
     """
@@ -508,7 +516,7 @@ def provision(input_dir, output_dir, shared_data, online_data, force=False):
 
     # Actual provisioning:
     try:
-        prov_gen_provdata_tarball(output_dir, shared_data, online_data)
+        prov_gen_provdata_tarball(output_dir, shared_data, online_data, hibernated)
         prov_add_provdata_tarball(output_dir)
         set_output_ownership(output_dir)
         log.info("Image successfully provisioned.")
