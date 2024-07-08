@@ -167,7 +167,7 @@ build-arm64:
     TCB_TESTCASES_64BIT: "dt dto kernel"
   before_script:
     # setup environment for the tests
-    - apk update && apk add git sshpass zstd wget bash tar openssl
+    - apk update && apk add git sshpass zstd wget bash tar openssl zip
     - cd tests/integration/
     - mkdir -p workdir/reports && rm -Rf workdir/reports/*
     - TCB_SKIP_PULL=1 ./setup.sh

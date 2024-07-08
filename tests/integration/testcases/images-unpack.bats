@@ -52,6 +52,24 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_output --regexp "ostree-archive.*sysroot.*tezi"
 }
 
+@test "images unpack: unpack image from zip file with no top-level directory" {
+    torizoncore-builder-clean-storage
+
+    unpack-image $DEFAULT_TEZI_IMAGE
+    local IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
+    local IMAGE_ZIP="$IMAGE_DIR.no_toplevel_dir.zip"
+    cd "$IMAGE_DIR" && zip -r "../$IMAGE_ZIP" ./* && cd ../
+
+    run torizoncore-builder images --remove-storage unpack $IMAGE_ZIP
+    assert_success
+    assert_output --partial "Unzipping"
+    assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
+
+    run torizoncore-builder-shell "ls /storage/"
+    assert_success
+    assert_output --regexp "ostree-archive.*sysroot.*tezi"
+}
+
 @test "images unpack: keep only /storage/toolchain directory in storage" {
     torizoncore-builder-clean-storage
 
