@@ -335,7 +335,11 @@ properties:
                   online-data:
                     type: string
                     description: "string containing provisioning data specific to the online mode"
+                  hibernated:
+                    type: boolean
+                    description: "provision in hibernated mode"
                 required: [mode]
+                additionalProperties: false
               bundle:
                 type: object
                 description: "image bundling configuration"

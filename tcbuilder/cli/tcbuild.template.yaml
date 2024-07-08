@@ -124,3 +124,7 @@ output:
       # mode: "online"
       # shared-data: "shared-data.tar.gz"
       # online-data: "${ONLINE_PROVISIONING_DATA:?online provisioning data not supplied}"
+      # >> Provision in hibernated mode. In this state devices are registered, but
+      # >> cannot send/receive data to/from Torizon Cloud, and they're not counted
+      # >> towards a subscription.
+      # hibernated: false
