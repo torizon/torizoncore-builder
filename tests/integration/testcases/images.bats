@@ -54,6 +54,19 @@ bats_load_library 'bats/bats-file/load.bash'
     run cat "${OUTPUT_IMAGE_DIR}/image.json"
     assert_output --partial 'provisioning-data.tar.gz:/ostree/deploy/torizon/var/sota/:true'
 
+    # case: success, with --hibernated option ignored
+    rm -fr "${OUTPUT_IMAGE_DIR}"
+    run torizoncore-builder images provision \
+        --shared-data "${SAMPLES_DIR}/provision/shared-data.tar.gz" \
+        --hibernated \
+        --mode=offline "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
+    assert_success
+    assert_output --partial "--hibernated is specific to online provisioning. Ignoring."
+    assert_output --partial 'Image successfully provisioned'
+
+    run cat "${OUTPUT_IMAGE_DIR}/image.json"
+    assert_output --partial 'provisioning-data.tar.gz:/ostree/deploy/torizon/var/sota/:true'
+
     # check if uncompressed_size field was updated correctly:
     # we are using 'bc' here due to the floating point calculations.
     local ORG_SIZE=$(cat ${INPUT_IMAGE_DIR}/image.json  | sed -Ene 's/^.*"uncompressed_size" *: *([0-9]+(\.[0-9]*))?.*$/\1/gp')
@@ -158,6 +171,23 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run cat "${OUTPUT_IMAGE_DIR}/image.json"
     assert_output --partial 'provisioning-data.tar.gz:/ostree/deploy/torizon/var/sota/:true'
+
+    # case: success with --hibernated option enabled
+    rm -fr "${OUTPUT_IMAGE_DIR}"
+    run torizoncore-builder images provision \
+        --shared-data "${SAMPLES_DIR}/provision/shared-data.tar.gz" \
+        --online-data "eyJkdW1teSI6MX0K" \
+        --hibernated \
+        --mode=online "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
+    assert_success
+    assert_output --partial 'Adding hibernated mode flag'
+    assert_output --partial 'Image successfully provisioned'
+
+    run cat "${OUTPUT_IMAGE_DIR}/image.json"
+    assert_output --partial 'provisioning-data.tar.gz:/ostree/deploy/torizon/var/sota/:true'
+    tar -xf "${OUTPUT_IMAGE_DIR}/provisioning-data.tar.gz"
+    run cat "auto-provisioning.json"
+    assert_output --partial '"hibernated": true'
 
     # check if uncompressed_size field was updated correctly:
     # we are using 'bc' here due to the floating point calculations.
