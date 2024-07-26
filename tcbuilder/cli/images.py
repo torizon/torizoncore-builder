@@ -216,8 +216,9 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--hibernated", dest="hibernated",
         default=False, action="store_true",
-        help=("Provision in hibernated mode. Hibernated devices are registered, "
-              "but cannot receive updates from Torizon Cloud nor send data to it."))
+        help=("(Torizon OS 6.8+) Add flag to auto-provision in hibernated mode. Hibernated "
+              "devices are registered, but cannot receive updates from Torizon Cloud nor "
+              "send data to it."))
     subparser.set_defaults(func=do_images_provision)
 
     # images serve

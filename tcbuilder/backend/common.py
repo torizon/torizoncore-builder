@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import threading
+import binascii
 
 from typing import Optional
 
@@ -394,6 +395,43 @@ def get_branch_and_major_from_metadata(storage_dir):
     return kernel_branch, version_major
 
 
+def get_tezi_image_version(input_dir):
+    """Get the image version of a tezi image directory by looking at image.json
+
+    :param input_dir: tezi image directory path
+
+    :return:
+        A tuple with the int values of the major, minor and patch number
+        of the image, in this order. If unable to determine a number,
+        the tuple entry will be 'None'.
+    """
+    image_json_path = os.path.join(input_dir, "image.json")
+
+    with open(image_json_path, "r") as image_json_file:
+        image_json_str = image_json_file.read()
+
+    try:
+        image_json_obj = json.loads(image_json_str)
+    except (binascii.Error, json.decoder.JSONDecodeError) as exc:
+        raise TorizonCoreBuilderError(
+            "Failure decoding image.json: aborting.") from exc
+
+    # Auxiliary function
+    def convert_to_int_else_none(string):
+        try:
+            int_value = int(string)
+        except ValueError:
+            return None
+        return int_value
+
+    major = convert_to_int_else_none(image_json_obj['version'].split('.')[0])
+    minor = convert_to_int_else_none(image_json_obj['version'].split('.')[1])
+    patch = convert_to_int_else_none(
+        image_json_obj['version'].split('.')[2].split('-')[0].split('+')[0])
+
+    return major, minor, patch
+
+
 def update_dt_git_repo():
     """Update the device-trees Git repository"""
     try:
@@ -424,15 +462,15 @@ def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
     if git_branch is None:
         git_branch, image_major_version = get_branch_and_major_from_metadata(storage_dir)
 
-    if image_major_version == 6:
-        raise TorizonCoreBuilderError(
-            "The TorizonCore Builder team is re-evaluating the device tree and device "
-            "tree overlays workflow, and the dt checkout command is currently not "
-            "supported on TorizonCore 6. Learn how to clone the device trees and "
-            "overlays repositories on "
-            "https://developer.toradex.com/torizon/os-customization/use-cases/"
-            "device-tree-overlays-on-torizon/"
-            "#clone-the-toradex-repository-and-check-the-available-device-trees-and-overlays")
+        if image_major_version == 6:
+            raise TorizonCoreBuilderError(
+                "The TorizonCore Builder team is re-evaluating the device tree and device "
+                "tree overlays workflow, and the dt checkout command is currently not "
+                "supported on TorizonCore 6. Learn how to clone the device trees and "
+                "overlays repositories on "
+                "https://developer.toradex.com/torizon/os-customization/use-cases/"
+                "device-tree-overlays-on-torizon/"
+                "#clone-the-toradex-repository-and-check-the-available-device-trees-and-overlays")
 
     if git_repo is None:
         repo_obj = git.Repo.clone_from("https://github.com/toradex/device-trees",

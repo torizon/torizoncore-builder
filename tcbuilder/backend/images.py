@@ -24,7 +24,8 @@ import paramiko
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
                                       set_output_ownership, run_with_loading_animation,
-                                      DEFAULT_RAW_ROOTFS_LABEL, RAW_PROP_TO_ARGNAME)
+                                      get_tezi_image_version, DEFAULT_RAW_ROOTFS_LABEL,
+                                      RAW_PROP_TO_ARGNAME)
 from tcbuilder.backend import ostree
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
 from tezi.image import ImageConfig, DEFAULT_IMAGE_JSON_FILENAME
@@ -433,7 +434,7 @@ def prov_gen_provdata_tarball(output_dir, shared_data, online_data, hibernated):
 
                     # Add 'hibernated' key if user enabled hibernated mode
                     if hibernated and isinstance(online_data_obj, dict):
-                        log.info("Provisioning in hibernated mode.")
+                        log.info("Adding hibernated mode flag.")
                         online_data_obj['hibernated'] = True
                         online_data_json = json.dumps(online_data_obj).encode("utf-8")
 
@@ -495,6 +496,19 @@ def provision(input_dir, output_dir, shared_data, online_data, hibernated=False,
         # already present.
         raise InvalidStateError(
             "Input image already contains provisioning data: aborting.")
+
+    if online_data and hibernated:
+        # Check unpacked version of Torizon OS
+        img_major, img_minor, _ = get_tezi_image_version(input_dir)
+
+        if img_major is None or img_minor is None:
+            log.warning("Warning: Unable to determine image version in input directory. "
+                        "Proceeding anyway.")
+        elif (img_major == 6 and img_minor <= 7) or img_major < 6:
+            # Torizon OS 6.7 or below doesn't support hibernated auto-provisioning
+            # without changes to the auto-provisioning script.
+            log.warning("Warning: Hibernated auto-provisioning is not supported on Torizon "
+                        "OS 6.7 or older. Proceeding anyway.")
 
     # Handle normal or in-place modifications:
     inplace = False
