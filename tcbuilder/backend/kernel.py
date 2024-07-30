@@ -19,7 +19,8 @@ log = logging.getLogger("torizon." + __name__)
 
 IMAGE_MAJOR_TO_GCC_MAP = {
     5: "gcc-arm-9.2-2019.12",
-    6: "arm-gnu-toolchain-11.3.rel1"
+    6: "arm-gnu-toolchain-11.3.rel1",
+    7: "arm-gnu-toolchain-13.3.rel1"
 }
 
 
