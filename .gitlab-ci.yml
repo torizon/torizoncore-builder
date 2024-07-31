@@ -191,12 +191,12 @@ build-arm64:
     - touch workdir/images/.images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
     # run tests (32-bit device)
-    - TCB_MACHINE=$(echo "${TEST_IMAGE_32BIT}" | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_32BIT}" | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_32bit_section\r\e[0KRun ${TCB_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_32BIT} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_32bit_section\r\e[0K"
     # run test (64-bit device)
-    - TCB_MACHINE=$(echo "${TEST_IMAGE_64BIT}" | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_64BIT}" | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_64bit_section\r\e[0KRun ${TCB_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_64bit_section\r\e[0K"
@@ -249,12 +249,12 @@ test-torizoncore-common:
     - touch workdir/images/.raw_images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_rawimgs_section\r\e[0K"
     # run tests (Intel)
-    - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_INTEL}" | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(.*)-.*$/\2/')
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_INTEL}" | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(.*)-.*$/\3/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_intel64_section\r\e[0KRun ${TCB_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_intel64_section\r\e[0K"
     # run tests (Raspberry Pi 4)
-    - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_RASPI4}" | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\3/')
+    - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_RASPI4}" | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\4/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_rasp4_64_section\r\e[0KRun ${TCB_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_rasp4_64_section\r\e[0K"
@@ -287,7 +287,7 @@ test-torizoncore:
     - mkdir -p workdir/images
     - "TEST_IMAGE_TORIZONCORE_URL=${INTERNAL_ARTIFACTORY_URL}/${ARTIFACTORY_SRC_REPO}\
         /${BUILD_MANIFEST_BRANCH}/${BUILD_PIPELINETYPE}/${MATRIX_BUILD_NUMBER}\
-        /${BUILD_MACHINE}/${BUILD_DISTRO}/torizon-core-docker/oedeploy\
+        /${BUILD_MACHINE}/${BUILD_DISTRO}/${BUILD_RECIPE}/oedeploy\
         /${BUILD_RECIPE}-${BUILD_MACHINE}-Tezi_${DISTRO_VERSION}.tar"
     - 'wget --progress=dot:giga ${TEST_IMAGE_TORIZONCORE_URL} -P workdir/images/'
     - touch workdir/images/.images_downloaded

@@ -110,19 +110,19 @@ jobs:
         run: echo "TCB_IMAGE_TAG=$(echo "$GITHUB_REF_NAME" | sed 's/\//-/g')" >> ${GITHUB_OUTPUT}
 
       - id: tc5_32bit
-        run: echo "TEST_32BIT_MACHINE=$(echo ${TEST_IMAGE_TC5_32BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+        run: echo "TEST_32BIT_MACHINE=$(echo ${TEST_IMAGE_TC5_32BIT} | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')" >> ${GITHUB_OUTPUT}
       - id: tc5_64bit
-        run: echo "TEST_64BIT_MACHINE=$(echo ${TEST_IMAGE_TC5_64BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+        run: echo "TEST_64BIT_MACHINE=$(echo ${TEST_IMAGE_TC5_64BIT} | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')" >> ${GITHUB_OUTPUT}
 
       - id: tc6_32bit
-        run: echo "TEST_32BIT_MACHINE=$(echo ${TEST_IMAGE_TC6_32BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+        run: echo "TEST_32BIT_MACHINE=$(echo ${TEST_IMAGE_TC6_32BIT} | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')" >> ${GITHUB_OUTPUT}
       - id: tc6_64bit
-        run: echo "TEST_64BIT_MACHINE=$(echo ${TEST_IMAGE_TC6_64BIT} | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')" >> ${GITHUB_OUTPUT}
+        run: echo "TEST_64BIT_MACHINE=$(echo ${TEST_IMAGE_TC6_64BIT} | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')" >> ${GITHUB_OUTPUT}
 
       - id: tc6_common_intel_machine
-        run: echo "TEST_INTEL_MACHINE=$(echo ${TEST_IMAGE_TC_COMMON_INTEL} | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(.*)-.*$/\2/')" >> ${GITHUB_OUTPUT}
+        run: echo "TEST_INTEL_MACHINE=$(echo ${TEST_IMAGE_TC_COMMON_INTEL} | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(.*)-.*$/\3/')" >> ${GITHUB_OUTPUT}
       - id: tc6_common_raspi4_machine
-        run: echo "TEST_RASPI4_MACHINE=$(echo ${TEST_IMAGE_TC_COMMON_RASPI4} | sed -E 's/^torizon-core-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\3/')" >> ${GITHUB_OUTPUT}
+        run: echo "TEST_RASPI4_MACHINE=$(echo ${TEST_IMAGE_TC_COMMON_RASPI4} | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\4/')" >> ${GITHUB_OUTPUT}
 
   amd64-build-test-torizoncore5:
     needs: [test-setup]
