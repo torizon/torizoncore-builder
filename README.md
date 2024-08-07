@@ -190,6 +190,6 @@ You may also choose to actively correct issues/bugs or possibly add new features
 Development Process
 ===================
 
-TorizonCore Builder is maintained by the Toradex R&D team. Currently this GitHub repo is a mirror of an internal GitLab repository only accessible to members of the team, where most of the development happens.
+TorizonCore Builder is maintained by the Toradex R&D team. Development now happens directly on this GitHub repository, including issues, PRs, and discussions. We have an internal GitLab mirror where we run Continuous Delivery pipelines.
 
-We're currently working on opening development to GitHub, where discussions, pull requests and issues can be made public more easily. This section will be updated once the opening process finishes.
+We also track TCB issues, bugs and features internally. Because of this, some of the commits and PRs made by members of the team may contain references to internal ticket identifiers e.g. 'Related-to: TCB-475'.
