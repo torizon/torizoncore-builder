@@ -339,7 +339,7 @@ class RegistryOperations:
                     self.login = (username, password)
             elif len(_login) == 3:
                 reg, username, password = _login
-                if reg == self.registry:
+                if (reg == self.registry) or (reg == DEFAULT_REGISTRY):
                     self.login = (username, password)
             else:
                 assert False, "Unhandled condition in _setup_credentials()"
