@@ -42,6 +42,11 @@ VERSION_TO_YOCTO_MAP = {
     "kirkstone": "kirkstone-6.x.y"
 }
 
+LAST_DEPRECATED_IMAGE_MAJOR = 5
+LAST_DEPRECATED_IMAGE_NAME = "TorizonCore"
+LAST_DEPRECATED_IMAGE_VERSION = "5.7.2"
+LAST_TCB_VERSION_SUPPORTING_DEPRECATED = "3.10.0"
+
 def serve(images_directory):
     """
     Serve TorizonCore TEZI images via HTTP so they can be installed directly
@@ -383,6 +388,19 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
 
     log.info(f"  Commit checksum: {csum}".format(csum))
     log.info(f"  TorizonCore Version: {metadata['version']}")
+
+    image_major = int(metadata['oe.tdx-major'])
+
+    if image_major <= LAST_DEPRECATED_IMAGE_MAJOR:
+        if image_major == LAST_DEPRECATED_IMAGE_MAJOR:
+            log.warning("Warning: The last officially supported version of TCB for the "
+                        f"{LAST_DEPRECATED_IMAGE_NAME} {LAST_DEPRECATED_IMAGE_MAJOR} series "
+                        f"(up to and including {LAST_DEPRECATED_IMAGE_VERSION}) is "
+                        f"{LAST_TCB_VERSION_SUPPORTING_DEPRECATED}.")
+            log.warning("Newer versions of TCB may work with them, but we don't guarantee support "
+                        "for this use case. Proceed at your own risk.")
+        else:
+            log.warning("Warning: Unsupported image version detected. Proceed at your own risk.")
 # pylint: enable=too-many-locals
 
 
