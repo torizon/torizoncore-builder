@@ -82,7 +82,7 @@ jobs:
                          --disable=missing-class-docstring
                          --disable=missing-function-docstring
                          --disable=fixme
-                         $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
+                         $(find tcbuilder/ -type f -name "*.py") *.py || echo "exit_code=$?" >> ${GITHUB_ENV}
       - name: Pylint result
         run: exit ${exit_code}
 
