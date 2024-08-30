@@ -56,6 +56,7 @@ services:
 stages:
   - pre-build
   - build
+  - test-platform
   - test
   - build-multiarch
   - deploy
@@ -164,6 +165,8 @@ build-arm64:
     - when: on_success
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
+    # Don't run 'platform' tests
+    TCB_TESTCASES_32BIT: "torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash"
     TCB_TESTCASES_64BIT: "dt dto kernel"
   before_script:
     # setup environment for the tests
@@ -190,7 +193,7 @@ build-arm64:
     # run tests (32-bit device)
     - TCB_MACHINE=$(echo "${TEST_IMAGE_32BIT}" | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_32bit_section\r\e[0KRun ${TCB_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_32BIT} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_32bit_section\r\e[0K"
     # run test (64-bit device)
     - TCB_MACHINE=$(echo "${TEST_IMAGE_64BIT}" | sed -E 's/^torizon-core-docker-(evaluation-)?(.*)-Tezi.*$/\2/')
@@ -199,6 +202,27 @@ build-arm64:
     - echo -e "\e[0Ksection_end:$(date +%s):test_64bit_section\r\e[0K"
     # check results
     - (! grep "^not ok" workdir/reports/*)
+
+test-platform-tc5:
+  extends: .test-base
+  stage: test-platform
+  variables:
+    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC5_VERSION}
+    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC5_32BIT}
+    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC5_64BIT}
+    TCB_TESTCASES_32BIT: "platform"
+    TCB_TESTCASES_64BIT: "torizoncore-builder"
+
+test-platform-tc6:
+  extends: .test-base
+  stage: test-platform
+  needs: ["test-platform-tc5"]
+  variables:
+    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
+    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
+    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
+    TCB_TESTCASES_32BIT: "torizoncore-builder"
+    TCB_TESTCASES_64BIT: "platform"
 
 test-torizoncore5:
   extends: .test-base
@@ -240,6 +264,9 @@ test-torizoncore-common:
 # Job mostly triggered by Jenkins.
 test-torizoncore:
   extends: .test-base
+  variables:
+    # Don't run 'platform' tests
+    TCB_TESTS: "torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash"
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -267,7 +294,7 @@ test-torizoncore:
     - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
     # run tests (32-bit device)
     - echo -e "\e[0Ksection_start:$(date +%s):test_section\r\e[0KRun ${BUILD_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} ${T} ./run.sh
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE=${TCB_TESTS} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
     # check results
     - (! grep "^not ok" workdir/reports/*)
