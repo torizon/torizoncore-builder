@@ -25,12 +25,12 @@ variables:
   GITLAB_DOCKERREGISTRY_SUFFIX: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
   GITLAB_DOCKERREGISTRY_SUFFIX_LATEST: ${CI_COMMIT_REF_SLUG}-latest
   # TC image default versions:
-  TEST_IMAGES_TC5_VERSION: "5.2.0"
-  TEST_IMAGE_TC5_32BIT: "torizon-core-docker-apalis-imx6-Tezi_5.2.0-devel-20210325+build.255.tar"
-  TEST_IMAGE_TC5_64BIT: "torizon-core-docker-verdin-imx8mm-Tezi_5.2.0-devel-20210325+build.255.tar"
   TEST_IMAGES_TC6_VERSION: "6.2.0"
   TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.2.0-devel-20230324+build.220.tar"
   TEST_IMAGE_TC6_64BIT: "torizon-core-docker-apalis-imx8-Tezi_6.2.0-devel-20230324+build.220.tar"
+  TEST_IMAGES_TOS7_VERSION: "7.0.0"
+  TEST_IMAGE_TOS7_32BIT: "torizon-docker-apalis-imx6-Tezi_7.0.0-devel-20240830+build.40.tar"
+  TEST_IMAGE_TOS7_64BIT: "torizon-docker-apalis-imx8-Tezi_7.0.0-devel-20240830+build.40.tar"
   # Common Torizon .wic/.img images:
   TEST_IMAGES_TC_COMMON_VERSION: "6.6.0-common"
   TEST_IMAGE_TC_COMMON_INTEL: "torizon-core-common-docker-dev-intel-corei7-64-20240226043251.rootfs.wic"
@@ -203,20 +203,9 @@ build-arm64:
     # check results
     - (! grep "^not ok" workdir/reports/*)
 
-test-platform-tc5:
-  extends: .test-base
-  stage: test-platform
-  variables:
-    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC5_VERSION}
-    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC5_32BIT}
-    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC5_64BIT}
-    TCB_TESTCASES_32BIT: "platform"
-    TCB_TESTCASES_64BIT: "torizoncore-builder"
-
 test-platform-tc6:
   extends: .test-base
   stage: test-platform
-  needs: ["test-platform-tc5"]
   variables:
     TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
     TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
@@ -224,12 +213,16 @@ test-platform-tc6:
     TCB_TESTCASES_32BIT: "torizoncore-builder"
     TCB_TESTCASES_64BIT: "platform"
 
-test-torizoncore5:
+test-platform-tos7:
   extends: .test-base
+  stage: test-platform
+  needs: ["test-platform-tc6"]
   variables:
-    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC5_VERSION}
-    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC5_32BIT}
-    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC5_64BIT}
+    TEST_IMAGES_VERSION: ${TEST_IMAGES_TOS7_VERSION}
+    TEST_IMAGE_32BIT: ${TEST_IMAGE_TOS7_32BIT}
+    TEST_IMAGE_64BIT: ${TEST_IMAGE_TOS7_64BIT}
+    TCB_TESTCASES_32BIT: "platform"
+    TCB_TESTCASES_64BIT: "torizoncore-builder"
 
 test-torizoncore6:
   extends: .test-base
@@ -237,6 +230,13 @@ test-torizoncore6:
     TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
     TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
     TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
+
+test-torizonos7:
+  extends: .test-base
+  variables:
+    TEST_IMAGES_VERSION: ${TEST_IMAGES_TOS7_VERSION}
+    TEST_IMAGE_32BIT: ${TEST_IMAGE_TOS7_32BIT}
+    TEST_IMAGE_64BIT: ${TEST_IMAGE_TOS7_64BIT}
 
 test-torizoncore-common:
   extends: .test-base
