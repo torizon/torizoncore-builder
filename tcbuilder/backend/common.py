@@ -462,15 +462,13 @@ def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
     if git_branch is None:
         git_branch, image_major_version = get_branch_and_major_from_metadata(storage_dir)
 
-        if image_major_version == 6:
+        if image_major_version >= 6:
             raise TorizonCoreBuilderError(
-                "The TorizonCore Builder team is re-evaluating the device tree and device "
-                "tree overlays workflow, and the dt checkout command is currently not "
-                "supported on TorizonCore 6. Learn how to clone the device trees and "
-                "overlays repositories on "
+                "The dt checkout command is not supported on TorizonCore 6 and newer. "
+                "Learn how to clone the device trees and overlays repositories on "
                 "https://developer.toradex.com/torizon/os-customization/use-cases/"
-                "device-tree-overlays-on-torizon/"
-                "#clone-the-toradex-repository-and-check-the-available-device-trees-and-overlays")
+                "device-tree-overlays-on-torizon/#"
+                "clone-the-toradex-repositories-and-check-the-available-device-trees-and-overlays")
 
     if git_repo is None:
         repo_obj = git.Repo.clone_from("https://github.com/toradex/device-trees",

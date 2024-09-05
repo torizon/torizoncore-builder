@@ -19,9 +19,9 @@ bats_load_library 'bats/bats-file/load.bash'
     rm -rf device-trees
 
     run torizoncore-builder dt checkout --update
-    if is-major-version-6; then
+    if is-major-version-greater-than-5; then
         assert_failure
-        skip "device-trees not available on TC6"
+        skip "dt checkout not available on TC6+"
     fi
     assert_success
 
@@ -38,9 +38,9 @@ bats_load_library 'bats/bats-file/load.bash'
     rm -rf device-trees
 
     run torizoncore-builder dt checkout --update
-    if is-major-version-6; then
+    if is-major-version-greater-than-5; then
         assert_failure
-        skip "device-trees not available on TC6"
+        skip "dt checkout not available on TC6+"
     fi
     assert_success
 

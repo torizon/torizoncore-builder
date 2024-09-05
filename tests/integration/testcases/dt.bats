@@ -30,9 +30,9 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout
-    if is-major-version-6; then
+    if is-major-version-greater-than-5; then
         assert_failure
-        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
+        assert_output --partial "dt checkout command is not supported"
         return 0
     fi
     assert_success
@@ -54,9 +54,9 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is-major-version-6; then
+    if is-major-version-greater-than-5; then
         assert_failure
-        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
+        assert_output --partial "dt checkout command is not supported"
         return 0
     fi
     assert_success
@@ -118,9 +118,9 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is-major-version-6; then
+    if is-major-version-greater-than-5; then
         assert_failure
-        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
+        assert_output --partial "dt checkout command is not supported"
         return 0
     fi
     assert_success
@@ -149,9 +149,9 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is-major-version-6; then
+    if is-major-version-greater-than-5; then
         assert_failure
-        assert_output --partial "the dt checkout command is currently not supported on TorizonCore 6"
+        assert_output --partial "dt checkout command is not supported"
         return 0
     fi
     assert_success

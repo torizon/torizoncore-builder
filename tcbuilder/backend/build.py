@@ -41,7 +41,8 @@ RELEASE_TO_BUILD_TYPE_MAP = {
 }
 MAJOR_TO_YOCTO_MAP = {
     5: "dunfell-5.x.y",
-    6: "kirkstone-6.x.y"
+    6: "kirkstone-6.x.y",
+    7: "scarthgap-7.x.y"
 }
 DEFAULT_IMAGE_VARIANT = "torizon-core-docker"
 

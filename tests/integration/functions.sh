@@ -183,11 +183,11 @@ decrypt-credentials-file() {
 }
 export -f decrypt-credentials-file
 
-is-major-version-6() {
+is-major-version-greater-than-5() {
     local MAJOR_VERSION=$(echo "${DEFAULT_TEZI_IMAGE}" | sed 's/.*Tezi_\([0-9]\).*/\1/')
-    [ "${MAJOR_VERSION}" -eq "6" ]
+    [ "${MAJOR_VERSION}" -gt "5" ]
 }
-export -f is-major-version-6
+export -f is-major-version-greater-than-5
 
 get-unique-version() {
     echo "${MACHINE}-${EPOCHSECONDS}"

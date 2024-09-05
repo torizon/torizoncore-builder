@@ -19,7 +19,8 @@ log = logging.getLogger("torizon." + __name__)
 
 IMAGE_MAJOR_TO_GCC_MAP = {
     5: "gcc-arm-9.2-2019.12",
-    6: "arm-gnu-toolchain-11.3.rel1"
+    6: "arm-gnu-toolchain-11.3.rel1",
+    7: "arm-gnu-toolchain-13.3.rel1"
 }
 
 
@@ -86,8 +87,8 @@ def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
         raise TorizonCoreBuilderError(
             "Could not determine kernel version of unpacked image. Aborting.")
 
-    # Makefile Hotfix needed to build modules for kernel v6.1+:
-    if (kversion['major'] == 6 and kversion['minor'] >= 1) or (kversion['major'] > 6):
+    # Makefile Hotfix needed to build modules for kernel v6.1:
+    if (kversion['major'] == 6 and kversion['minor'] == 1):
         _pattern = r"s/\$(build)=\. prepare/$(build)=./g"
         subprocess.check_output(
             ["sed", "-i", _pattern, f"{linux_src}/Makefile"],
