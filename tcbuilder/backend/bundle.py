@@ -12,16 +12,14 @@ import time
 
 from datetime import datetime
 
-import compose.config
-import compose.config.environment
-import compose.config.serialize
 import docker
 import docker.errors
 import docker.types
+import yaml
 
 from tcbuilder.errors import (InvalidArgumentError, OperationFailureError,
                               InvalidStorageDriverError)
-from tcbuilder.backend.common import get_own_network
+from tcbuilder.backend.common import get_own_network, validate_compose_file
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
@@ -516,9 +514,15 @@ def download_containers_by_compose_file(
     """
     # Open Docker Compose file
     if not os.path.isabs(compose_file):
-        base_dir = os.path.dirname(os.path.abspath(compose_file))
-    else:
-        base_dir = os.path.dirname(compose_file)
+        compose_path = os.path.abspath(compose_file)
+
+    if not os.path.exists(compose_path):
+        raise InvalidArgumentError(f"Error: File does not exist: {compose_file}. Aborting.")
+
+    if not os.path.isfile(compose_path):
+        raise InvalidArgumentError(f"Error: Not a file: {compose_file}. Aborting.")
+
+    log.info("NOTE: TCB no longer expands environment variables present in the compose file.")
 
     if show_progress:
         _term = os.environ.get('TERM')
@@ -527,16 +531,11 @@ def download_containers_by_compose_file(
         elif not (_term.startswith('xterm') or _term.startswith('rxvt')):
             show_progress = False
 
-    try:
-        environ = compose.config.environment.Environment.from_env_file(base_dir)
-        details = compose.config.find(
-            base_dir, [os.path.basename(compose_file)], environ, None)
-        config = compose.config.load(details)
+    with open(compose_path, encoding='utf-8') as file:
+        compose_file_data = yaml.load(file, Loader=yaml.FullLoader)
 
-    except compose.config.errors.ConfigurationError as exc:
-        raise OperationFailureError(
-            "Error: "
-            f"Could not load the Docker compose file '{compose_file}'.") from exc
+    # Basic compose file validation e.g. if it has 'services' section, images are specified, etc.
+    validate_compose_file(compose_file_data)
 
     if use_host_docker:
         log.debug("Using DockerManager")
@@ -561,9 +560,9 @@ def download_containers_by_compose_file(
             login_to_registries(dind_client, logins)
 
         # Now we can fetch the containers...
-        for service in config.services:
-            image_name = service['image']
-            log.info(f"Fetching container image {image_name}")
+        for svc_name, svc_spec in compose_file_data['services'].items():
+            image_name = svc_spec.get('image')
+            log.info(f"Fetching container image {image_name} in service {svc_name}")
             if not ":" in image_name:
                 image_name += ":latest"
 
@@ -577,14 +576,11 @@ def download_containers_by_compose_file(
                 # Use high-level API (no progress info).
                 image = dind_client.images.pull(image_name, platform=platform)
 
-            service['image'] = image.attrs['RepoDigests'][0]
+            svc_spec['image'] = image.attrs['RepoDigests'][0]
 
         log.info("Saving Docker Compose file")
         with open(os.path.join(manager.output_dir, "docker-compose.yml"), "w") as file:
-            # Serialization need to escape dollar sign and requires no
-            # environment variables interpolation.
-            file.write(compose.config.serialize.serialize_config(
-                config, escape_dollar=False).replace("@@MACHINE@@", "$MACHINE", 1))
+            file.write(yaml.dump(compose_file_data, Dumper=yaml.Dumper))
 
         log.info("Exporting storage")
         manager.save_tar(output_filename)

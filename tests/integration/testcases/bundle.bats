@@ -89,7 +89,7 @@ load 'lib/common.bash'
     rm -f "$COMPOSE"
     run torizoncore-builder bundle "$COMPOSE"
     assert_failure
-    assert_output --partial "Could not load the Docker compose file '$COMPOSE'"
+    assert_output --partial "File does not exist: $COMPOSE"
 }
 
 @test "bundle: check --platform parameter" {
