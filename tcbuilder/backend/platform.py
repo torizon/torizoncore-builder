@@ -29,7 +29,8 @@ from tcbuilder.backend import ostree, sotaops
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
 from tcbuilder.backend.common import \
-    (get_host_workdir, get_own_network, set_output_ownership, run_with_loading_animation)
+    (get_host_workdir, get_own_network, set_output_ownership, run_with_loading_animation,
+     validate_compose_file)
 from tcbuilder.backend.registryops import \
     (RegistryOperations, SHA256_PREFIX, parse_image_name, platform_matches)
 
@@ -1392,23 +1393,6 @@ def upload_static_delta_superblock(delta_dir, ostree_url, delta_id, headers):
         else:
             log.error(post.text)
             raise TorizonCoreBuilderError("Error uploading static delta superblock")
-
-
-def validate_compose_file(compose_file_data):
-    """
-    Validate the Docker compose file and throw an exception if the file is invalid.
-
-    :param compose_file_data: The Docker compose file data.
-    """
-
-    if not (isinstance(compose_file_data, dict) and
-            isinstance(compose_file_data.get('services'), dict)):
-        raise InvalidDataError("Error: No 'services' section in compose file.")
-
-    for svc_name, svc_spec in compose_file_data['services'].items():
-        image_name = svc_spec.get('image')
-        if not image_name:
-            raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
 
 
 def set_images_hash(compose_file_data):

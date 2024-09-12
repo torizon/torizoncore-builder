@@ -785,3 +785,20 @@ def check_licence_acceptance(image_dir, tezi_props):
         raise LicenceAcceptanceError(
             f"Error: To enable the auto-installation feature you must accept the licence "
             f"\"{licence_file}\".")
+
+
+def validate_compose_file(compose_file_data):
+    """
+    Validate the Docker compose file and throw an exception if the file is invalid.
+
+    :param compose_file_data: The Docker compose file data as a dictionary
+    """
+
+    if not (isinstance(compose_file_data, dict) and
+            isinstance(compose_file_data.get('services'), dict)):
+        raise InvalidDataError("Error: No 'services' section in compose file.")
+
+    for svc_name, svc_spec in compose_file_data['services'].items():
+        image_name = svc_spec.get('image')
+        if not image_name:
+            raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
