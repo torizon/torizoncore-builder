@@ -532,7 +532,7 @@ def download_containers_by_compose_file(
             show_progress = False
 
     with open(compose_path, encoding='utf-8') as file:
-        compose_file_data = yaml.load(file, Loader=yaml.FullLoader)
+        compose_file_data = yaml.safe_load(file)
 
     # Basic compose file validation e.g. if it has 'services' section, images are specified, etc.
     validate_compose_file(compose_file_data)
@@ -580,7 +580,7 @@ def download_containers_by_compose_file(
 
         log.info("Saving Docker Compose file")
         with open(os.path.join(manager.output_dir, "docker-compose.yml"), "w") as file:
-            file.write(yaml.dump(compose_file_data, Dumper=yaml.Dumper))
+            file.write(yaml.safe_dump(compose_file_data))
 
         log.info("Exporting storage")
         manager.save_tar(output_filename)

@@ -1450,7 +1450,7 @@ def canonicalize_compose_file(compose_file, force=False):
             "Please use the '--force' parameter if you want it to be overwritten.")
 
     set_images_hash(compose_file_data)
-    canonical_data = yaml.dump(compose_file_data, Dumper=yaml.Dumper)
+    canonical_data = yaml.safe_dump(compose_file_data)
 
     with open(canonical_compose_file_lock, 'w', encoding='utf-8') as compose_lock_fd:
         compose_lock_fd.write(canonical_data)
@@ -1480,7 +1480,7 @@ def is_canonicalized(compose_file, ret_parsed=False):
         return all(_uses_digest)
 
     with open(compose_file, encoding='utf-8') as file:
-        compose_file_data = yaml.load(file, Loader=yaml.FullLoader)
+        compose_file_data = yaml.safe_load(file)
         file.seek(0)
         original_yaml_string = file.read()
 
@@ -1488,8 +1488,7 @@ def is_canonicalized(compose_file, ret_parsed=False):
     # Checking for correct file structure and adherence to image references with digests
     validate_compose_file(compose_file_data)
     if images_with_digest(compose_file_data):
-        is_canonical = original_yaml_string == yaml.dump(
-            compose_file_data, Dumper=yaml.Dumper)
+        is_canonical = original_yaml_string == yaml.safe_dump(compose_file_data)
 
     return (is_canonical, compose_file_data) if ret_parsed else is_canonical
 
