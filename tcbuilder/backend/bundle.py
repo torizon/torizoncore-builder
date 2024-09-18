@@ -485,11 +485,39 @@ def login_to_registries(client, logins):
         client.login(username, password, registry=registry)
 
 
+def check_double_dollar_sign(string, config_path):
+    if "$$" in string:
+        log.info(f"Replacing '$$' with '$' in compose config value found in: {config_path}.")
+        return string.replace("$$", "$")
+    return string
+
+
+# Implementation based on 'recursive_interpolate()' from Compose V1
+# https://github.com/docker/compose/blob/v1/compose/config/interpolation.py#L71
+def recursive_yaml_value_check(obj, config_path):
+    log.debug(f"recursive_yaml_value_check: Call with obj {type(obj)}. "
+              f"Checking config values in '{config_path}'")
+
+    if isinstance(obj, str):
+        obj = check_double_dollar_sign(obj, config_path)
+
+    if isinstance(obj, dict):
+        return {
+            key: recursive_yaml_value_check(value, f"{config_path}/{key}")
+            for key, value in obj.items()
+        }
+
+    if isinstance(obj, list):
+        return [recursive_yaml_value_check(value, config_path) for value in obj]
+
+    return obj
+
+
 # pylint: disable=too-many-arguments,too-many-locals
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, output_filename,
-        platform=None, dind_params=None, use_host_docker=False,
-        show_progress=True):
+        keep_double_dollar_sign=False, platform=None, dind_params=None,
+        use_host_docker=False, show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -499,6 +527,9 @@ def download_containers_by_compose_file(
                             system where dockerd we are accessing is running)
     :param output_filename: Output filename of the processed Docker Compose
                             YAML.
+    :param keep_double_dollar_sign: Keep '$$' instead of replacing it with '$'
+                                    when parsing string values (not keys) of
+                                    input compose file.
     :param platform: Container Platform to fetch (if an image is multi-arch
                         capable)
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
@@ -536,6 +567,9 @@ def download_containers_by_compose_file(
 
     # Basic compose file validation e.g. if it has 'services' section, images are specified, etc.
     validate_compose_file(compose_file_data)
+
+    if not keep_double_dollar_sign:
+        compose_file_data = recursive_yaml_value_check(compose_file_data, "")
 
     if use_host_docker:
         log.debug("Using DockerManager")

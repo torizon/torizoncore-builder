@@ -18,8 +18,8 @@ log = logging.getLogger("torizon." + __name__)
 
 
 # pylint: disable=too-many-arguments
-def bundle(bundle_dir, compose_file, force=False, platform=None,
-           dind_params=None):
+def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
+           platform=None, dind_params=None):
     """Main handler of the bundle command (CLI layer)
 
     :param bundle_dir: Name of bundle directory (that will be created in the
@@ -27,6 +27,9 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
     :param compose_file: Relative path to the input compose file.
     :param force: Whether or not to overwrite the (output) bundle directory
                   if it already exists.
+    :param keep_double_dollar_sign: Keep '$$' instead of replacing it with '$'
+                                    when parsing string values (not keys) of
+                                    input compose file.
     :param platform: Default platform to use when fetching multi-platform
                      container images.
     :param dind_params: Extra parameters to pass to Docker-in-Docker (list).
@@ -49,6 +52,7 @@ def bundle(bundle_dir, compose_file, force=False, platform=None,
     bundle_be.download_containers_by_compose_file(
         bundle_dir, compose_file, host_workdir,
         output_filename=common.DOCKER_BUNDLE_FILENAME,
+        keep_double_dollar_sign=keep_double_dollar_sign,
         platform=platform,
         dind_params=dind_params)
 
@@ -97,6 +101,7 @@ def do_bundle(args):
     bundle(bundle_dir=args.bundle_directory,
            compose_file=args.compose_file,
            force=args.force,
+           keep_double_dollar_sign=args.keep_double_dollar_sign,
            platform=args.platform,
            dind_params=args.dind_params)
 
@@ -150,6 +155,10 @@ def init_parser(subparsers):
         help=("Default platform for fetching container images when multi-"
               "platform images are specified in the compose file (e.g. "
               "linux/arm/v7 or linux/arm64)."))
+    subparser.add_argument(
+        "--keep-double-dollar-sign", dest="keep_double_dollar_sign",
+        default=False, action="store_true",
+        help="Don't replace '$$' with '$' when parsing string values of the input compose file.")
     common.add_common_registry_arguments(subparser)
     add_dind_param_arguments(subparser)
 

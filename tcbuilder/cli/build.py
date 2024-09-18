@@ -437,6 +437,7 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
                 "host_workdir": common.get_host_workdir()[0],
                 "use_host_docker": False,
                 "output_filename": common.DOCKER_BUNDLE_FILENAME,
+                "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
                 "platform": platform
             }
             download_containers_by_compose_file(**download_params)
