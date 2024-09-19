@@ -186,6 +186,55 @@ load 'lib/common.bash'
     rm -rf "$BUNDLE_DIR"
 }
 
+@test "bundle: check double dollar sign in compose file" {
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose-env-double-dollar-test.yml" "$COMPOSE"
+    rm -rf bundle
+
+    # Check if double dollar sign in config values (not keys) is replaced by a single one
+    run torizoncore-builder bundle "$COMPOSE" \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+    assert_output --partial "Replacing '\$\$' with '\$'"
+
+    if [ "${ci_dockerhub_login}" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
+
+    run ls -l bundle/$COMPOSE
+    assert_success
+    run ls -l bundle/docker-storage.tar.xz
+    assert_success
+
+    run cat bundle/$COMPOSE
+    refute_output --partial "\$\$HOME"
+    assert_output --partial "\$\$var: \$HOME"
+    rm -rf bundle
+
+    # Check if double dollar sign is NOT replaced if --keep-double-dollar-sign is specified
+    run torizoncore-builder bundle --keep-double-dollar-sign "$COMPOSE" \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+    refute_output --partial "Replacing '\$\$' with '\$'"
+
+    if [ "${ci_dockerhub_login}" = "1" ]; then
+        assert_output --partial "Attempting to log in to"
+    fi
+
+    run ls -l bundle/$COMPOSE
+    assert_success
+    run ls -l bundle/docker-storage.tar.xz
+    assert_success
+
+    run cat bundle/$COMPOSE
+    assert_output --partial "\$\$HOME"
+    refute_output --partial "\$\$var: \$HOME"
+
+    rm -f "$COMPOSE"
+    rm -rf bundle
+}
+
 @test "bundle: check registry pattern" {
     local COMPOSE_FILE="$SAMPLES_DIR/compose/hello/docker-compose.yml"
     local INVALID_REGISTRIES=(

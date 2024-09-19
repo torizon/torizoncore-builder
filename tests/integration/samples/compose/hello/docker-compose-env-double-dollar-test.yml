@@ -1,0 +1,15 @@
+services:
+  hello-world:
+    image: hello-world:latest
+    environment:
+      $$var: $$HOME
+      HOME1: $$HOME
+      HOME2: "$$HOME"
+      HOME3: '$$HOME'
+      HOME4:
+        >-
+          $$HOME
+      HOME5: |
+          $$HOME
+      HOME6: |
+          \$$HOME
