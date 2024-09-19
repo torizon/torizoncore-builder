@@ -365,6 +365,9 @@ properties:
                         type: string
                         description: "CA certificate path of alternative container registry"
                         tdxMeta: "file;cer,crt"
+                      keep-double-dollar-sign:
+                        type: boolean
+                        description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
                     required: [compose-file]
                     additionalProperties: false
                   - properties:

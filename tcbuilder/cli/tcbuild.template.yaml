@@ -107,13 +107,17 @@ output:
     # bundle:
       # >> Choose one of the options:
       # >> (1) Specify a docker-compose file whose referenced images will be downloaded.
-      # >>     Properties platform, username, password, registry and ca-certificate are optional.
+      # >>     Properties platform, username, password, registry, ca-certificate and
+      # >>     keep-double-dollar-sign are optional.
+      # >>     When using a docker-compose file all config values with '$$' will be replaced
+      # >>     by '$', unless keep-double-dollar-sign is set to true.
       # compose-file: files/docker-compose.yml
       # platform: linux/arm/v7
       # username: "${USERNAME}"
       # password: "${PASSWORD}"
       # registry: hub.docker.com
       # ca-certificate: cacert.pem
+      # keep-double-dollar-sign: false
       # >> (2) Specify a local directory containing the bundled images (previously
       # >>     obtained by 'torizoncore-builder bundle' command).
       # dir: bundle/

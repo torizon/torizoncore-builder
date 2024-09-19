@@ -39,7 +39,8 @@ PROV_DATA_FILENAME = "provisioning-data.tar.gz"
 
 VERSION_TO_YOCTO_MAP = {
     "dunfell": "dunfell-5.x.y",
-    "kirkstone": "kirkstone-6.x.y"
+    "kirkstone": "kirkstone-6.x.y",
+    "scarthgap": "scarthgap-7.x.y"
 }
 
 LAST_DEPRECATED_IMAGE_MAJOR = 5
@@ -179,6 +180,11 @@ def download_tezi(r_host, r_username, r_password, r_port,
 
     for key in VERSION_TO_YOCTO_MAP:
         if key in version:
+            if key in ("dunfell", "kirkstone"):
+                yocto_img_name = "torizon-core"
+            else:
+                yocto_img_name = "torizon"
+
             yocto = VERSION_TO_YOCTO_MAP[key]
             break
     else:
@@ -212,10 +218,10 @@ def download_tezi(r_host, r_username, r_password, r_port,
     module_name = hostname[:-10]
 
     url = "https://artifacts.toradex.com/artifactory/{0}/{1}/{2}/{3}/{4}/" \
-          "torizon{5}{6}/torizon-core-{7}/oedeploy/" \
-          "torizon-core-{7}{6}-{4}-Tezi_{8}{9}{10}+build.{3}.tar".format(
+          "torizon{5}{6}/{7}-{8}/oedeploy/" \
+          "{7}-{8}{6}-{4}-Tezi_{9}{10}{11}+build.{3}.tar".format(
               prod, yocto, build_type, build_number, module_name, kernel_type,
-              rt_flag, container, sem_ver, devel, date)
+              rt_flag, yocto_img_name, container, sem_ver, devel, date)
 
     # Download and unpack tezi image
     log.info(f"Downloading image from: {url}\n")

@@ -246,7 +246,7 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None)
     # Load the YAML configuration file (user-supplied):
     with open(config_path) as file:
         try:
-            config = yaml.load(file, Loader=yaml.FullLoader)
+            config = yaml.safe_load(file)
 
         except yaml.YAMLError as ex:
             error_exc = ParseError(getattr(ex, "problem", "parsing error"))
@@ -263,7 +263,7 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None)
     # Load the YAML schema file (supplied with the tool):
     schemapath = os.path.join(os.path.dirname(__file__), schema_path)
     with open(schemapath) as file:
-        schema = yaml.load(file, Loader=yaml.FullLoader)
+        schema = yaml.safe_load(file)
 
     # Do the actual validation of configuration against the schema.
     validator = jsonschema.Draft7Validator(schema)

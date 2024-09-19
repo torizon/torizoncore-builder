@@ -12,16 +12,14 @@ import time
 
 from datetime import datetime
 
-import compose.config
-import compose.config.environment
-import compose.config.serialize
 import docker
 import docker.errors
 import docker.types
+import yaml
 
 from tcbuilder.errors import (InvalidArgumentError, OperationFailureError,
                               InvalidStorageDriverError)
-from tcbuilder.backend.common import get_own_network
+from tcbuilder.backend.common import get_own_network, validate_compose_file
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
@@ -487,11 +485,39 @@ def login_to_registries(client, logins):
         client.login(username, password, registry=registry)
 
 
+def check_double_dollar_sign(string, config_path):
+    if "$$" in string:
+        log.info(f"Replacing '$$' with '$' in compose config value found in: {config_path}.")
+        return string.replace("$$", "$")
+    return string
+
+
+# Implementation based on 'recursive_interpolate()' from Compose V1
+# https://github.com/docker/compose/blob/v1/compose/config/interpolation.py#L71
+def recursive_yaml_value_check(obj, config_path):
+    log.debug(f"recursive_yaml_value_check: Call with obj {type(obj)}. "
+              f"Checking config values in '{config_path}'")
+
+    if isinstance(obj, str):
+        obj = check_double_dollar_sign(obj, config_path)
+
+    if isinstance(obj, dict):
+        return {
+            key: recursive_yaml_value_check(value, f"{config_path}/{key}")
+            for key, value in obj.items()
+        }
+
+    if isinstance(obj, list):
+        return [recursive_yaml_value_check(value, config_path) for value in obj]
+
+    return obj
+
+
 # pylint: disable=too-many-arguments,too-many-locals
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, output_filename,
-        platform=None, dind_params=None, use_host_docker=False,
-        show_progress=True):
+        keep_double_dollar_sign=False, platform=None, dind_params=None,
+        use_host_docker=False, show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -501,6 +527,9 @@ def download_containers_by_compose_file(
                             system where dockerd we are accessing is running)
     :param output_filename: Output filename of the processed Docker Compose
                             YAML.
+    :param keep_double_dollar_sign: Keep '$$' instead of replacing it with '$'
+                                    when parsing string values (not keys) of
+                                    input compose file.
     :param platform: Container Platform to fetch (if an image is multi-arch
                         capable)
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
@@ -516,9 +545,15 @@ def download_containers_by_compose_file(
     """
     # Open Docker Compose file
     if not os.path.isabs(compose_file):
-        base_dir = os.path.dirname(os.path.abspath(compose_file))
-    else:
-        base_dir = os.path.dirname(compose_file)
+        compose_path = os.path.abspath(compose_file)
+
+    if not os.path.exists(compose_path):
+        raise InvalidArgumentError(f"Error: File does not exist: {compose_file}. Aborting.")
+
+    if not os.path.isfile(compose_path):
+        raise InvalidArgumentError(f"Error: Not a file: {compose_file}. Aborting.")
+
+    log.info("NOTE: TCB no longer expands environment variables present in the compose file.")
 
     if show_progress:
         _term = os.environ.get('TERM')
@@ -527,16 +562,14 @@ def download_containers_by_compose_file(
         elif not (_term.startswith('xterm') or _term.startswith('rxvt')):
             show_progress = False
 
-    try:
-        environ = compose.config.environment.Environment.from_env_file(base_dir)
-        details = compose.config.find(
-            base_dir, [os.path.basename(compose_file)], environ, None)
-        config = compose.config.load(details)
+    with open(compose_path, encoding='utf-8') as file:
+        compose_file_data = yaml.safe_load(file)
 
-    except compose.config.errors.ConfigurationError as exc:
-        raise OperationFailureError(
-            "Error: "
-            f"Could not load the Docker compose file '{compose_file}'.") from exc
+    # Basic compose file validation e.g. if it has 'services' section, images are specified, etc.
+    validate_compose_file(compose_file_data)
+
+    if not keep_double_dollar_sign:
+        compose_file_data = recursive_yaml_value_check(compose_file_data, "")
 
     if use_host_docker:
         log.debug("Using DockerManager")
@@ -561,9 +594,9 @@ def download_containers_by_compose_file(
             login_to_registries(dind_client, logins)
 
         # Now we can fetch the containers...
-        for service in config.services:
-            image_name = service['image']
-            log.info(f"Fetching container image {image_name}")
+        for svc_name, svc_spec in compose_file_data['services'].items():
+            image_name = svc_spec.get('image')
+            log.info(f"Fetching container image {image_name} in service {svc_name}")
             if not ":" in image_name:
                 image_name += ":latest"
 
@@ -577,14 +610,11 @@ def download_containers_by_compose_file(
                 # Use high-level API (no progress info).
                 image = dind_client.images.pull(image_name, platform=platform)
 
-            service['image'] = image.attrs['RepoDigests'][0]
+            svc_spec['image'] = image.attrs['RepoDigests'][0]
 
         log.info("Saving Docker Compose file")
         with open(os.path.join(manager.output_dir, "docker-compose.yml"), "w") as file:
-            # Serialization need to escape dollar sign and requires no
-            # environment variables interpolation.
-            file.write(compose.config.serialize.serialize_config(
-                config, escape_dollar=False).replace("@@MACHINE@@", "$MACHINE", 1))
+            file.write(yaml.safe_dump(compose_file_data))
 
         log.info("Exporting storage")
         manager.save_tar(output_filename)
