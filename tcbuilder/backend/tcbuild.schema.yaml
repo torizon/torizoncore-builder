@@ -72,8 +72,10 @@ properties:
                         enum:
                           - torizon-core-docker
                           - torizon-core-podman
+                          - torizon-docker
+                          - torizon-podman
+                          - torizon-minimal
                         description: "variant of the image"
-                        default: torizon-core-docker
                       build-number:
                         type: [number, string]
                         description: "build number as a string or number"

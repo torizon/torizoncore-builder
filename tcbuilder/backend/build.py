@@ -44,7 +44,8 @@ MAJOR_TO_YOCTO_MAP = {
     6: "kirkstone-6.x.y",
     7: "scarthgap-7.x.y"
 }
-DEFAULT_IMAGE_VARIANT = "torizon-core-docker"
+DEFAULT_LEGACY_IMAGE_VARIANT = "torizon-core-docker"
+DEFAULT_IMAGE_VARIANT = "torizon-docker"
 
 # Assigment regex pre-compiled.
 ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
@@ -306,7 +307,7 @@ def make_feed_url(feed_props):
     params["prod"] = RELEASE_TO_PROD_MAP[release_prop]
     params["machine_name"] = feed_props["machine"]
     params["distro"] = distro_prop
-    params["variant"] = feed_props.get("variant", DEFAULT_IMAGE_VARIANT)
+    params["variant"] = feed_props.get("variant")
     params["rt_flag"] = rt_flag
 
     version_prop = feed_props["version"]
@@ -316,6 +317,12 @@ def make_feed_url(feed_props):
         # Caller should capture parse error and set file name.
         raise InvalidDataError(
             f"Don't know how to handle a major version of {version_major}")
+
+    if params["variant"] is None:
+        if MAJOR_TO_YOCTO_MAP[version_major] in ("dunfell-5.x.y", "kirkstone-6.x.y"):
+            params["variant"] = DEFAULT_LEGACY_IMAGE_VARIANT
+        else:
+            params["variant"] = DEFAULT_IMAGE_VARIANT
 
     params["version"] = feed_props["version"]
     params["yocto"] = MAJOR_TO_YOCTO_MAP[version_major]
