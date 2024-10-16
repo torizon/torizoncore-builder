@@ -164,7 +164,6 @@ properties:
       filesystem:
         type: array
         description: "directory trees to be applied on top of the ones in the input image"
-        tdxMeta: "path"
         items:
           type: string
           description: "path to directory to be applied"
