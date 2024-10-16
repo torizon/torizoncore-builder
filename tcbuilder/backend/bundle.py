@@ -87,7 +87,7 @@ class DockerManager:
         """Create an instance of the Docker client"""
         return docker.from_env()
 
-    def save_tar(self, output_file):
+    def save_tar(self, output_file, compress=True):
         """Create compressed tar archive of the Docker images"""
 
         output_file_tar, compression_command = get_compression_command(output_file)
@@ -100,7 +100,11 @@ class DockerManager:
         output_filepath = os.path.join(self.output_dir, output_file)
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
-        subprocess.run(compression_command, cwd=self.output_dir, check=True)
+
+        if compress:
+            subprocess.run(compression_command, cwd=self.output_dir, check=True)
+        else:
+            log.debug(f"Not compressing {output_file_tar}")
 
     def add_cacerts(self, cacerts):
         assert cacerts is None, "`cacerts` should be used with DindManager"
@@ -318,7 +322,7 @@ class DindManager(DockerManager):
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
         return dind_client
 
-    def save_tar(self, output_file):
+    def save_tar(self, output_file, compress=True):
         """Create compressed tar archive of the Docker images"""
 
         log.info(f"Storing container bundle into \"{self.bundle_dir}\"")
@@ -375,12 +379,16 @@ class DindManager(DockerManager):
             raise OperationFailureError(
                 f"Could not create output tarball in '{output_file_tar}'.")
 
-        log.debug(f"compression_command: {compression_command}")
+        if compress:
+            log.debug(f"compression_command: {compression_command}")
 
-        output_filepath = os.path.join(self.bundle_dir, output_file)
-        if os.path.exists(output_filepath):
-            os.remove(output_filepath)
-        subprocess.run(compression_command, cwd=self.bundle_dir, check=True)
+            output_filepath = os.path.join(self.bundle_dir, output_file)
+            if os.path.exists(output_filepath):
+                os.remove(output_filepath)
+            subprocess.run(compression_command, cwd=self.bundle_dir, check=True)
+        else:
+            log.debug(f"Not compressing {output_file_tar}")
+
 
     def add_cacerts(self, cacerts):
         """Add the required certificate files for a secure registry
@@ -517,7 +525,7 @@ def recursive_yaml_value_check(obj, config_path):
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, output_filename,
         keep_double_dollar_sign=False, platform=None, dind_params=None,
-        use_host_docker=False, show_progress=True):
+        use_host_docker=False, show_progress=True, compress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -617,7 +625,7 @@ def download_containers_by_compose_file(
             file.write(yaml.safe_dump(compose_file_data))
 
         log.info("Exporting storage")
-        manager.save_tar(output_filename)
+        manager.save_tar(output_filename, compress)
 
     except docker.errors.APIError as exc:
         raise OperationFailureError(

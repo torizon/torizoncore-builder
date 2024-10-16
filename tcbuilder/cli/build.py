@@ -348,6 +348,16 @@ def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_i
 
     deploy_cli.deploy_raw_image(**deploy_raw_image_params)
 
+    handle_raw_image_bundle_output(
+        output_raw_img,
+        output_raw_img,
+        storage_dir,
+        props.get("bundle", {}),
+        props
+    )
+
+    # TODO: implement provisioning for raw images
+
 
 def handle_easy_installer_output(props, storage_dir, union_params):
     """Handle the output/easy-installer section of the configuration file
@@ -384,21 +394,17 @@ def handle_easy_installer_output(props, storage_dir, union_params):
         handle_provisioning(output_dir, props.get("provisioning"))
 
 
-def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
-    """Handle the bundle and combine steps of the output generation."""
+def handle_bundle_common(
+        storage_dir,
+        bundle_props,
+        is_compressed_tar=True
+    ):
+    """Handle the common steps of the bundle and combine for output generation."""
 
     if "dir" in bundle_props:
-        # Do a combine "in place" to avoid creating another directory.
-        combine_params = {
-            "image_dir": image_dir,
-            "bundle_dir": bundle_props["dir"],
-            "output_directory": None,
-            "tezi_props": translate_tezi_props(tezi_props),
-            "force": True
-        }
-        comb_be.combine_tezi_image(**combine_params)
+        return bundle_props["dir"]
 
-    elif "compose-file" in bundle_props:
+    if "compose-file" in bundle_props:
         # Download bundle to user's directory - review (TODO).
         # Avoid polluting user's directory with certificate stuff (TODO).
         # Complain if variant is not "torizon-core-docker" (TODO)?
@@ -438,24 +444,85 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
                 "use_host_docker": False,
                 "output_filename": common.DOCKER_BUNDLE_FILENAME,
                 "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
-                "platform": platform
+                "platform": platform,
+                "compress": is_compressed_tar
             }
             download_containers_by_compose_file(**download_params)
 
-            # Do a combine "in place" to avoid creating another directory.
-            combine_params = {
-                "image_dir": image_dir,
-                "bundle_dir": bundle_dir,
-                "output_directory": None,
-                "tezi_props": translate_tezi_props(tezi_props),
-                "force": True
-            }
-            comb_be.combine_tezi_image(**combine_params)
+            return bundle_dir
 
-        finally:
+        except:
+            raise TorizonCoreBuilderError(
+                "Error trying to bundle Docker containers"
+            )
+
+    return None
+
+
+def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
+    """Handle the bundle and combine steps of the output generation."""
+
+    try:
+        bundle_dir = handle_bundle_common(
+            storage_dir,
+            bundle_props
+        )
+
+        if bundle_dir is None:
+            return
+
+        # Do a combine "in place" to avoid creating another directory.
+        combine_params = {
+            "image_dir": image_dir,
+            "bundle_dir": bundle_dir,
+            "output_directory": None,
+            "tezi_props": translate_tezi_props(tezi_props),
+            "force": True
+        }
+        comb_be.combine_tezi_image(**combine_params)
+
+    finally:
+        if bundle_dir is not None and os.path.exists(bundle_dir):
             log.debug(f"Removing temporary bundle directory {bundle_dir}")
-            if os.path.exists(bundle_dir):
-                shutil.rmtree(bundle_dir)
+            shutil.rmtree(bundle_dir)
+
+
+def handle_raw_image_bundle_output(
+        image_dir,
+        raw_image_path,
+        storage_dir,
+        bundle_props,
+        raw_props
+    ):
+    """Handle the bundle and combine steps of the output generation."""
+
+    try:
+        bundle_dir = handle_bundle_common(
+            storage_dir,
+            bundle_props,
+            is_compressed_tar=False
+        )
+
+        if bundle_dir is None:
+            return
+
+        # do the combine
+        combine_params = {
+            "image_path": raw_image_path,
+            "bundle_dir": bundle_dir,
+            "output_path": image_dir,
+            "rootfs_label": raw_props.get(
+                "rootfs-label",
+                common.DEFAULT_RAW_ROOTFS_LABEL
+            ),
+            "force": True
+        }
+        comb_be.combine_raw_image(**combine_params)
+
+    finally:
+        if bundle_dir is not None and os.path.exists(bundle_dir):
+            log.debug(f"Removing temporary bundle directory {bundle_dir}")
+            shutil.rmtree(bundle_dir)
 
 
 def handle_provisioning(output_dir, prov_props):

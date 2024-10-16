@@ -280,6 +280,36 @@ properties:
               base-image:
                 type: string
                 description: "base image used for the output raw image"
+              bundle:
+                type: object
+                description: "image bundling configuration for raw image"
+                oneOf:
+                  - properties:
+                      compose-file:
+                        type: string
+                        description: "path of a docker-compose file that will be included in the final image along with the required container images"
+                        tdxMeta: "file:dockercompose"
+                      platform:
+                        type: string
+                        description: "platform for fetching multi-platform container images"
+                      username:
+                        type: string
+                        description: "Docker login username to be used if accessing a private registry is required"
+                      password:
+                        type: string
+                        description: "Docker login password to be used if accessing a private registry is required"
+                      registry:
+                        type: string
+                        description: "Alternative container registry used to access container image"
+                      ca-certificate:
+                        type: string
+                        description: "CA certificate path of alternative container registry"
+                        tdxMeta: "file;cer,crt"
+                      keep-double-dollar-sign:
+                        type: boolean
+                        description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
+                    required: [compose-file]
+                    additionalProperties: false
             required: [local]
             # No extra props inside 'raw-image'
             additionalProperties: false
