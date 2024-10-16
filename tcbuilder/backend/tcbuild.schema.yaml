@@ -288,7 +288,7 @@ properties:
                       compose-file:
                         type: string
                         description: "path of a docker-compose file that will be included in the final image along with the required container images"
-                        tdxMeta: "file:dockercompose"
+                        tdxMeta: "file;yml,yaml"
                       platform:
                         type: string
                         description: "platform for fetching multi-platform container images"
@@ -380,7 +380,7 @@ properties:
                       compose-file:
                         type: string
                         description: "path of a docker-compose file that will be included in the final image along with the required container images"
-                        tdxMeta: "file:dockercompose"
+                        tdxMeta: "file;yml,yaml"
                       platform:
                         type: string
                         description: "platform for fetching multi-platform container images"
