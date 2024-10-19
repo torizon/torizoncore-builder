@@ -29,7 +29,8 @@
 				"ms-python.pylint",
 				"eamodio.gitlens",
 				"github.copilot",
-				"jetmartin.bats"
+				"jetmartin.bats",
+				"microhobby.taskrunnercodeplus"
 			]
 		}
 	},
