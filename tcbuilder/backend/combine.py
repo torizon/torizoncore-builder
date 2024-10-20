@@ -9,7 +9,7 @@ import guestfs
 from tezi.image import ImageConfig
 from tcbuilder.backend.common import \
     (set_output_ownership, check_licence_acceptance,
-     run_with_loading_animation, DOCKER_BUNDLE_FILENAME)
+     run_with_loading_animation, DOCKER_BUNDLE_FILENAME, DOCKER_BUNDLE_FILENAME_UNCOMPRESSED)
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -18,6 +18,12 @@ TARGET_NAME_FILENAME = "target_name"
 DOCKER_FILES_TO_ADD = [
     "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
     DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true",
+    TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
+]
+
+DOCKER_FILES_TO_ADD_TO_RAW = [
+    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
+    DOCKER_BUNDLE_FILENAME_UNCOMPRESSED + ":/ostree/deploy/torizon/var/lib/docker/:true",
     TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
 ]
 
@@ -178,11 +184,15 @@ def combine_single_tezi_image(bundle_dir, files_to_add, output_dir, tezi_props):
     return update_tezi_files(output_dir, tezi_props, files_to_add)
 
 
-def check_combine_files(bundle_dir):
+def check_combine_files(bundle_dir, is_for_raw_image=False):
 
     files_to_add = []
     if bundle_dir is not None:
-        files_to_add = DOCKER_FILES_TO_ADD
+        if not is_for_raw_image:
+            files_to_add = DOCKER_FILES_TO_ADD
+        else:
+            files_to_add = DOCKER_FILES_TO_ADD_TO_RAW
+
         target_name_file = os.path.join(bundle_dir, TARGET_NAME_FILENAME)
         if not os.path.exists(target_name_file):
             with open(target_name_file, 'w') as target_name_fd:
@@ -243,7 +253,7 @@ def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props, forc
 
 def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
 
-    files_to_add = check_combine_files(bundle_dir)
+    files_to_add = check_combine_files(bundle_dir, True)
 
     if files_to_add:
 

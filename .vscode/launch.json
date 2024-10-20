@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: TorizonCore Builder",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/torizoncore-builder.py",
             "cwd": "/workdir",
@@ -15,6 +15,21 @@
                 "unpack",
                 "--image-directory",
                 "test"
+            ]
+        },
+        {
+            "name": "Python: Attach",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "0.0.0.0",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "/builder/"
+                }
             ]
         }
     ]
