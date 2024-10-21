@@ -124,7 +124,16 @@ RUN apt-get -q -y update && \
             python3-git avahi-daemon && \
     apt-get -q -y --no-install-recommends install \
             libguestfs-tools python3-guestfs linux-image-generic && \
+    apt-get -q -y --no-install-recommends install \
+            imx-code-signing-tool uuid-dev libgnutls28-dev \
+            swig libpython3.9-dev xxd libfaketime && \
     rm -rf /var/lib/apt/lists/*
+
+    # imx-code-signing-tool: NXP code signing tool needed to sign the bootloader container
+    # uuid-dev, libgnutls28-dev: dependency needed when building u-boot 'tools-only' target
+    # swig, libpython3.9-dev: dependency needed when building u-boot 'scripts' target
+    # xxd: needed for imx8m_sign.sh
+    # libfaketime: needed for reproducible builds of signed flash.bin when running the NXP Code Signing Tool
 
 # Copy Avahi files.
 COPY avahi-conf/ /etc/avahi/
