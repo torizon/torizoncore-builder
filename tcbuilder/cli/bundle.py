@@ -51,7 +51,7 @@ def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
 
     bundle_be.download_containers_by_compose_file(
         bundle_dir, compose_file, host_workdir,
-        output_filename=common.DOCKER_BUNDLE_FILENAME,
+        output_filename=f"{common.DOCKER_BUNDLE_TARNAME}.xz",
         keep_double_dollar_sign=keep_double_dollar_sign,
         platform=platform,
         dind_params=dind_params)

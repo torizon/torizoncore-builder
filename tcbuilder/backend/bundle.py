@@ -33,8 +33,10 @@ def get_compression_command(output_file):
 
     Returns:
         (str, str): output_file without compression ending, compression command
+        (str, None): if output_file doesn't end with any of the compression formats below
     """
     command = None
+    output_file_tar = output_file
     if output_file.endswith(".xz"):
         output_file_tar = output_file[:-3]
         command = ["xz", "-3", "-z", output_file_tar]
@@ -50,6 +52,8 @@ def get_compression_command(output_file):
     elif output_file.endswith(".zst"):
         output_file_tar = output_file[:-4]
         command = ["zstd", "--rm", output_file_tar, "-o", output_file]
+    elif not output_file.endswith(".tar"):
+        output_file_tar = f"{output_file}.tar"
 
     return (output_file_tar, command)
 
@@ -87,7 +91,7 @@ class DockerManager:
         """Create an instance of the Docker client"""
         return docker.from_env()
 
-    def save_tar(self, output_file, compress=True):
+    def save_tar(self, output_file):
         """Create compressed tar archive of the Docker images"""
 
         output_file_tar, compression_command = get_compression_command(output_file)
@@ -101,7 +105,7 @@ class DockerManager:
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
 
-        if compress:
+        if compression_command is not None:
             subprocess.run(compression_command, cwd=self.output_dir, check=True)
         else:
             log.debug(f"Not compressing {output_file_tar}")
@@ -322,7 +326,7 @@ class DindManager(DockerManager):
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
         return dind_client
 
-    def save_tar(self, output_file, compress=True):
+    def save_tar(self, output_file):
         """Create compressed tar archive of the Docker images"""
 
         log.info(f"Storing container bundle into \"{self.bundle_dir}\"")
@@ -379,7 +383,7 @@ class DindManager(DockerManager):
             raise OperationFailureError(
                 f"Could not create output tarball in '{output_file_tar}'.")
 
-        if compress:
+        if compression_command is not None:
             log.debug(f"compression_command: {compression_command}")
 
             output_filepath = os.path.join(self.bundle_dir, output_file)
@@ -525,7 +529,7 @@ def recursive_yaml_value_check(obj, config_path):
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, output_filename,
         keep_double_dollar_sign=False, platform=None, dind_params=None,
-        use_host_docker=False, show_progress=True, compress=True):
+        use_host_docker=False, show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
 
@@ -625,7 +629,7 @@ def download_containers_by_compose_file(
             file.write(yaml.safe_dump(compose_file_data))
 
         log.info("Exporting storage")
-        manager.save_tar(output_filename, compress)
+        manager.save_tar(output_filename)
 
     except docker.errors.APIError as exc:
         raise OperationFailureError(

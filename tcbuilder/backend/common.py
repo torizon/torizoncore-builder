@@ -31,8 +31,7 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
 
 log = logging.getLogger("torizon." + __name__)
 
-DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
-DOCKER_BUNDLE_FILENAME_UNCOMPRESSED = "docker-storage.tar"
+DOCKER_BUNDLE_TARNAME = "docker-storage.tar"
 
 # Mapping from architecture to a Docker platform.
 ARCH_TO_DOCKER_PLAT = {

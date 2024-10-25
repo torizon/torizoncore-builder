@@ -355,6 +355,7 @@ def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_i
         props.get("bundle", {}),
         props
     )
+    common.set_output_ownership(output_raw_img)
 
     # TODO: implement provisioning for raw images
 
@@ -442,10 +443,10 @@ def handle_bundle_common(
                 "compose_file": bundle_props["compose-file"],
                 "host_workdir": common.get_host_workdir()[0],
                 "use_host_docker": False,
-                "output_filename": common.DOCKER_BUNDLE_FILENAME,
+                "output_filename": f"{common.DOCKER_BUNDLE_TARNAME}.xz" if is_compressed_tar
+                                   else common.DOCKER_BUNDLE_TARNAME,
                 "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
-                "platform": platform,
-                "compress": is_compressed_tar
+                "platform": platform
             }
             download_containers_by_compose_file(**download_params)
 
