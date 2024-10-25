@@ -309,6 +309,13 @@ properties:
                         description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
                     required: [compose-file]
                     additionalProperties: false
+                  - properties:
+                      dir:
+                        type: string
+                        description: "path to directory containing the container images bundle to be combined with the installer image"
+                        tdxMeta: "path"
+                    required: [dir]
+                    additionalProperties: false
             required: [local]
             # No extra props inside 'raw-image'
             additionalProperties: false
