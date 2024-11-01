@@ -132,6 +132,81 @@ teardown_file() {
     assert_output --partial "['$COMMIT']"
 }
 
+@test "build: bundle customization checked on host" {
+
+    ## Bundle with an existing bundle directory
+    local OUTFILE='bundled_image.wic'
+    run torizoncore-builder build \
+        --file "$SAMPLES_DIR/config/wic-tcbuild-bundle-dir-customization.yaml" \
+        --set INPUT_IMAGE="$DEFAULT_WIC_IMAGE" \
+        --set OUTPUT_FILE="$OUTFILE" --force
+
+    assert_success
+    assert_output --partial 'splash screen merged'
+    assert_output --partial 'Deploying commit ref: my-raw-image-branch'
+    assert_output --partial "created successfully"
+    assert_output --partial "Copying docker-compose.yml"
+    assert_output --partial "Unpacking docker-storage.tar"
+
+    local ARCHIVE='/storage/ostree-archive/'
+    local COMMIT='my-raw-image-branch'
+
+    # TODO: Check customization/splash-screen:
+
+    # Check customization/filesystem prop:
+    local CFGFILE='/usr/etc/myconfig.txt'
+    run torizoncore-builder-shell "ostree --repo=$ARCHIVE ls $COMMIT $CFGFILE"
+    assert_success
+
+    # Check output/ostree/commit-{subject,body} props:
+    run torizoncore-builder-shell "ostree --repo=$ARCHIVE log $COMMIT"
+    assert_output --partial 'basic-customization subject'
+    assert_output --partial 'basic-customization body'
+
+    # Check the ostree branch ref-binding:
+    run torizoncore-builder-shell \
+      "ostree --repo=$ARCHIVE show --print-metadata-key='ostree.ref-binding' $COMMIT"
+    assert_success
+    assert_output --partial "['$COMMIT']"
+
+    ## Bundle with a docker-compose.yml file
+    local OUTFILE='bundled_image.wic'
+    run torizoncore-builder build \
+        --file "$SAMPLES_DIR/config/wic-tcbuild-bundle-compose-customization.yaml" \
+        --set INPUT_IMAGE="$DEFAULT_WIC_IMAGE" \
+        --set OUTPUT_FILE="$OUTFILE" --force
+
+    assert_success
+    assert_output --partial 'splash screen merged'
+    assert_output --partial 'Deploying commit ref: my-raw-image-branch'
+    assert_output --partial "created successfully"
+    assert_output --partial "Copying docker-compose.yml"
+    assert_output --partial "Unpacking docker-storage.tar"
+
+    local ARCHIVE='/storage/ostree-archive/'
+    local COMMIT='my-raw-image-branch'
+
+    # TODO: Check customization/splash-screen:
+
+    # Check customization/filesystem prop:
+    local CFGFILE='/usr/etc/myconfig.txt'
+    run torizoncore-builder-shell "ostree --repo=$ARCHIVE ls $COMMIT $CFGFILE"
+    assert_success
+
+    # Check output/ostree/commit-{subject,body} props:
+    run torizoncore-builder-shell "ostree --repo=$ARCHIVE log $COMMIT"
+    assert_output --partial 'basic-customization subject'
+    assert_output --partial 'basic-customization body'
+
+    # Check the ostree branch ref-binding:
+    run torizoncore-builder-shell \
+      "ostree --repo=$ARCHIVE show --print-metadata-key='ostree.ref-binding' $COMMIT"
+    assert_success
+    assert_output --partial "['$COMMIT']"
+
+    rm -rf $OUTFILE
+}
+
 # bats test_tags=requires-device
 @test "build: basic customization checked on device" {
     requires-device
