@@ -36,7 +36,8 @@ DOCKER_BUNDLE_TARNAME = "docker-storage.tar"
 # Mapping from architecture to a Docker platform.
 ARCH_TO_DOCKER_PLAT = {
     "aarch64": "linux/arm64",
-    "arm": "linux/arm/v7"
+    "arm": "linux/arm/v7",
+    "x86_64": "linux/amd64"
 }
 
 DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
