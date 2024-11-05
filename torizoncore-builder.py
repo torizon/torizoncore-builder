@@ -30,6 +30,14 @@ from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isol
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 # pylint: enable=wrong-import-position
 
+# if the TCB_DEBUGPY environment variable is set
+# means that a developer is trying to debug the code from outside
+# so, we wait for a debugger to attach to the process
+if os.getenv("TCB_DEBUGPY"):
+    import debugpy
+    debugpy.listen(("0.0.0.0", 5678))
+    debugpy.wait_for_client()
+
 # IMPORTANT: This line may be edited by the build system.
 VERSION_SUFFIX = ''
 

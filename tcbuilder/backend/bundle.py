@@ -33,8 +33,10 @@ def get_compression_command(output_file):
 
     Returns:
         (str, str): output_file without compression ending, compression command
+        (str, None): if output_file doesn't end with any of the compression formats below
     """
     command = None
+    output_file_tar = output_file
     if output_file.endswith(".xz"):
         output_file_tar = output_file[:-3]
         command = ["xz", "-3", "-z", output_file_tar]
@@ -50,6 +52,8 @@ def get_compression_command(output_file):
     elif output_file.endswith(".zst"):
         output_file_tar = output_file[:-4]
         command = ["zstd", "--rm", output_file_tar, "-o", output_file]
+    elif not output_file.endswith(".tar"):
+        output_file_tar = f"{output_file}.tar"
 
     return (output_file_tar, command)
 
@@ -100,7 +104,11 @@ class DockerManager:
         output_filepath = os.path.join(self.output_dir, output_file)
         if os.path.exists(output_filepath):
             os.remove(output_filepath)
-        subprocess.run(compression_command, cwd=self.output_dir, check=True)
+
+        if compression_command is not None:
+            subprocess.run(compression_command, cwd=self.output_dir, check=True)
+        else:
+            log.debug(f"Not compressing {output_file_tar}")
 
     def add_cacerts(self, cacerts):
         assert cacerts is None, "`cacerts` should be used with DindManager"
@@ -375,12 +383,16 @@ class DindManager(DockerManager):
             raise OperationFailureError(
                 f"Could not create output tarball in '{output_file_tar}'.")
 
-        log.debug(f"compression_command: {compression_command}")
+        if compression_command is not None:
+            log.debug(f"compression_command: {compression_command}")
 
-        output_filepath = os.path.join(self.bundle_dir, output_file)
-        if os.path.exists(output_filepath):
-            os.remove(output_filepath)
-        subprocess.run(compression_command, cwd=self.bundle_dir, check=True)
+            output_filepath = os.path.join(self.bundle_dir, output_file)
+            if os.path.exists(output_filepath):
+                os.remove(output_filepath)
+            subprocess.run(compression_command, cwd=self.bundle_dir, check=True)
+        else:
+            log.debug(f"Not compressing {output_file_tar}")
+
 
     def add_cacerts(self, cacerts):
         """Add the required certificate files for a secure registry

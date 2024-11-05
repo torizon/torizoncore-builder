@@ -31,12 +31,13 @@ from tcbuilder.errors import (FileContentMissing, OperationFailureError,
 
 log = logging.getLogger("torizon." + __name__)
 
-DOCKER_BUNDLE_FILENAME = "docker-storage.tar.xz"
+DOCKER_BUNDLE_TARNAME = "docker-storage.tar"
 
 # Mapping from architecture to a Docker platform.
 ARCH_TO_DOCKER_PLAT = {
     "aarch64": "linux/arm64",
-    "arm": "linux/arm/v7"
+    "arm": "linux/arm/v7",
+    "x86_64": "linux/amd64"
 }
 
 DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
@@ -437,7 +438,7 @@ def update_dt_git_repo():
     try:
         repo_obj = git.Repo(os.path.abspath("device-trees"))
         sha = repo_obj.head.object.hexsha
-        repo_obj.remotes["origin"].fetch(repo_obj.active_branch)
+        repo_obj.remotes["origin"].fetch()
         repo_obj.remotes["origin"].pull()
         set_output_ownership("device-trees")
         log.info("'device-trees' is already up to date"

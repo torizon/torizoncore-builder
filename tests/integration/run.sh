@@ -37,6 +37,7 @@ $TESTCASES_DIR/wic/images-unpack.bats \
 $TESTCASES_DIR/wic/union.bats \
 $TESTCASES_DIR/wic/deploy.bats \
 $TESTCASES_DIR/wic/splash.bats \
+$TESTCASES_DIR/wic/combine.bats \
 $TESTCASES_DIR/wic/build.bats \
 "
 

@@ -1,0 +1,18 @@
+input:
+  raw-image:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  splash-screen: samples/splash/fast-banana.png
+  filesystem:
+     - samples/changes/
+
+output:
+  ostree:
+    branch: my-raw-image-branch
+    commit-subject: "basic-customization subject"
+    commit-body: "basic-customization body"
+  raw-image:
+    local: "${OUTPUT_FILE:?Please specify output file}"
+    bundle:
+      dir: samples/bundles/hello/

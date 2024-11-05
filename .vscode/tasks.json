@@ -21,6 +21,28 @@
                 "/usr/local/bin/pytest",
                 "--log-cli-level=INFO"
             ]
+        },
+        {
+            "label": "pylint",
+            "type": "shell",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "command": "pylint",
+            "args": [
+                "--output-format=colorized",
+                "--disable=missing-module-docstring",
+                "--disable=missing-class-docstring",
+                "--disable=missing-function-docstring",
+                "--disable=fixme",
+                "tcbuilder/**/*.py",
+                "*.py"
+            ]
         }
     ]
 }

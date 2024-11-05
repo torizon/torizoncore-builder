@@ -4,12 +4,13 @@ import logging
 import re
 import datetime
 
+import fnmatch
 import guestfs
 
 from tezi.image import ImageConfig
 from tcbuilder.backend.common import \
     (set_output_ownership, check_licence_acceptance,
-     run_with_loading_animation, DOCKER_BUNDLE_FILENAME)
+     run_with_loading_animation, DOCKER_BUNDLE_TARNAME)
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -17,9 +18,9 @@ log = logging.getLogger("torizon." + __name__)
 TARGET_NAME_FILENAME = "target_name"
 DOCKER_FILES_TO_ADD = [
     "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-    DOCKER_BUNDLE_FILENAME + ":/ostree/deploy/torizon/var/lib/docker/:true",
     TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
 ]
+DOCKER_BUNDLE_DESTINATION = "/ostree/deploy/torizon/var/lib/docker/:true"
 
 TEZI_PROPS = [
     "name",
@@ -40,6 +41,15 @@ TAR_EXT_TO_COMPRESSION_TYPE = {
     ".lzo": "lzop",
     ".tar": None
 }
+
+
+# Search in bundle_dir if there is a file named DOCKER_BUNDLE_TARNAME*
+# e.g. DOCKER_BUNDLE_TARNAME, DOCKER_BUNDLE_TARNAME.xz, DOCKER_BUNDLE_TARNAME.gz, etc.
+def check_docker_storage_file(bundle_dir):
+    for filename in os.listdir(bundle_dir):
+        if fnmatch.fnmatch(filename, f"{DOCKER_BUNDLE_TARNAME}*"):
+            return filename
+    return None
 
 
 def set_autoreboot(output_dir, include):
@@ -90,7 +100,7 @@ def add_files(tezidir, image_json_filename, filelist, tezi_props):
     config_fname = os.path.join(tezidir, image_json_filename)
     config = ImageConfig(config_fname)
 
-    if config.search_filelist(src=DOCKER_BUNDLE_FILENAME):
+    if config.search_filelist(src=DOCKER_BUNDLE_TARNAME):
         raise InvalidDataError(
             "Currently it is not possible to customize the containers of a base "
             "image already containing container images")
@@ -182,8 +192,9 @@ def check_combine_files(bundle_dir):
 
     files_to_add = []
     if bundle_dir is not None:
-        files_to_add = DOCKER_FILES_TO_ADD
+        files_to_add = DOCKER_FILES_TO_ADD.copy()
         target_name_file = os.path.join(bundle_dir, TARGET_NAME_FILENAME)
+
         if not os.path.exists(target_name_file):
             with open(target_name_file, 'w') as target_name_fd:
                 target_name_fd.write("docker-compose.yml")
@@ -195,6 +206,14 @@ def check_combine_files(bundle_dir):
             if not os.path.exists(filename_path):
                 log.error(f"Error: {filename} not found in bundle directory.")
                 return None
+
+        docker_storage_filename = check_docker_storage_file(bundle_dir)
+        if docker_storage_filename is not None:
+            files_to_add.append(
+                f"{docker_storage_filename}:{DOCKER_BUNDLE_DESTINATION}")
+        else:
+            log.error(f"Error: {DOCKER_BUNDLE_TARNAME} not found in bundle directory.")
+            return None
 
     return files_to_add
 
