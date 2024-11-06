@@ -21,7 +21,7 @@ load '../lib/common.bash'
 
     local OUTPUT_IMAGE="$(echo $DEFAULT_WIC_IMAGE | sed 's/\.wic$//g')_bundled.wic"
 
-    truncate -s +1K invalid_image.wic
+    truncate -s 1K invalid_image.wic
 
     run torizoncore-builder combine invalid_image.wic $OUTPUT_IMAGE
     assert_failure
