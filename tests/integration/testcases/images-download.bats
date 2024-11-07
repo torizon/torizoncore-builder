@@ -19,18 +19,23 @@ load 'lib/common.bash'
     requires-device
     torizoncore-builder-clean-storage
 
+    # Run 'images download' in a separate directory so that check-file-ownership-as-workdir
+    # doesn't mistakenly verify the image .tar already present in workdir
+    rm -rf images_download_tmpdir
+    mkdir -p images_download_tmpdir && cd images_download_tmpdir
+
     run torizoncore-builder images download --remote-host $DEVICE_ADDR \
                                             --remote-username $DEVICE_USER \
                                             --remote-password $DEVICE_PASS \
                                             --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
+    IMAGE=$(echo $output | sed -n "s#\(.*/\)\(.*tar\)\(.*\)#\2#p")
 
     run torizoncore-builder-shell "ls /storage/"
     assert_success
     assert_output --regexp "ostree-archive.*sysroot.*tezi"
 
-    # TODO: Improve this (get file name from program output).
-    IMAGE=$(ls torizon-core*.tar)
     check-file-ownership-as-workdir $IMAGE
+    cd .. && rm -rf images_download_tmpdir
 }
