@@ -3,12 +3,14 @@
 # images to be downloaded
 # format is MACHINE:DISTRO:IMAGE
 IMAGES="\
-colibri-imx6:torizon-upstream:torizon-core-docker \
-colibri-imx7-emmc:torizon-upstream:torizon-core-docker \
-apalis-imx6:torizon-upstream:torizon-core-docker \
-colibri-imx8x:torizon:torizon-core-docker \
-apalis-imx8:torizon:torizon-core-docker \
-verdin-imx8mm:torizon:torizon-core-docker \
+colibri-imx6:torizon-upstream:torizon-docker \
+colibri-imx6ull-emmc:torizon-upstream:torizon-docker \
+colibri-imx7-emmc:torizon-upstream:torizon-docker \
+colibri-imx8x:torizon:torizon-docker \
+apalis-imx6:torizon-upstream:torizon-docker \
+verdin-imx8mm:torizon:torizon-docker \
+verdin-imx8mp:torizon:torizon-docker \
+verdin-am62:torizon:torizon-docker \
 "
 
 # location to save images
@@ -17,13 +19,13 @@ TMPDIR="$OUTDIR/tmp"
 STAMP="$OUTDIR/.images_downloaded"
 
 # branch
-BRANCH="dunfell-5.x.y"
+BRANCH="scarthgap-7.x.y"
 
 # CONFIGME: version
-TCVERSION="5.2.0"
+TCVERSION="7.0.0"
 
 # CONFIGME: build number
-BUILD_NUMBER="246"
+BUILD_NUMBER="1"
 BUILD_DATE="20210315"
 
 # CONFIGME: uncomment for nightly images
@@ -37,9 +39,9 @@ BUILD_DATE="20210315"
 #VERSION="${TCVERSION}-devel-${BUILD_DATE}+build.${BUILD_NUMBER}"
 
 # CONFIGME: uncomment for quarterly images
-#BUILD_RELEASE="prod"
-#BUILD_TYPE="release"
-#VERSION="${TCVERSION}+build.${BUILD_NUMBER}"
+BUILD_RELEASE="prod"
+BUILD_TYPE="release"
+VERSION="${TCVERSION}+build.${BUILD_NUMBER}"
 
 prepare() {
     mkdir -p $OUTDIR
