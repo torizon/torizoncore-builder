@@ -128,7 +128,7 @@ class DindManager(DockerManager):
     Installer tool.
     """
 
-    DIND_CONTAINER_IMAGE = "docker:19.03.8-dind"
+    DIND_CONTAINER_IMAGE = "docker:25.0.3-dind"
     DIND_VOLUME_NAME = "dind-volume"
     DIND_CONTAINER_NAME = "tcb-fetch-dind"
     TAR_CONTAINER_NAME = "tcb-build-tar"
