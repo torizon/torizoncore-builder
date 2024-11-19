@@ -1,3 +1,6 @@
+include:
+  - "/tests/integration/aval/aval-tests.yml"
+
 # TODO: GitLab's documentation recommends specifying a version:
 #       See https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-docker-in-docker
 #       Also in the services attribute.
