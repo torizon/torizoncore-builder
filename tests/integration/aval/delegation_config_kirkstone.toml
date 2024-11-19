@@ -1,0 +1,11 @@
+[[delegation_filter.filter]]
+hardware_id_pattern = "imx6|imx7"
+name_prefix = "kirkstone"
+namespace = "torizon-upstream"
+name_suffix = "torizon-core-docker"
+
+[[delegation_filter.filter]]
+hardware_id_pattern = ".*"
+name_prefix = "kirkstone"
+namespace = "torizon"
+name_suffix = "torizon-core-docker"

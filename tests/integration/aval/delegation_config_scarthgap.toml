@@ -1,0 +1,11 @@
+[[delegation_filter.filter]]
+hardware_id_pattern = "imx6|imx7"
+name_prefix = "scarthgap"
+namespace = "torizon-upstream"
+name_suffix = "torizon-docker"
+
+[[delegation_filter.filter]]
+hardware_id_pattern = ".*"
+name_prefix = "scarthgap"
+namespace = "torizon"
+name_suffix = "torizon-docker"
