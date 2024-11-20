@@ -64,7 +64,7 @@ download_tezi_image() {
         echo "Image file $IMAGE_FILE already downloaded. Skiping."
     else
         echo "Downloading $IMAGE_FILE..."
-        if ! wget --no-verbose --show-progress -P $TMPDIR $LINK; then
+        if ! wget --no-verbose -P $TMPDIR $LINK; then
             echo "Error: could not download $IMAGE_FILE."
             exit 1
         fi
