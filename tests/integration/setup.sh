@@ -58,7 +58,7 @@ tcb_tests_pull_container() {
     fi
 
     echo "Pulling TorizonCore Builder container..."
-    if ! . $SETUP_SCRIPT $SCRIPT_PARAMS >/dev/null 2>&-; then
+    if ! . $SETUP_SCRIPT $SCRIPT_PARAMS >/dev/null; then
         echo "Error: could not pull container and initialize environment!"
         return 2
     fi
@@ -66,7 +66,7 @@ tcb_tests_pull_container() {
     export TCBCMD=$(alias torizoncore-builder | cut -d "'" -f 2)
 
     echo "Testing TorizonCore Builder installation..."
-    if ! eval $TCBCMD --version >/dev/null 2>&-; then
+    if ! eval $TCBCMD --version >/dev/null; then
         echo "Error: could not execute TorizonCore Builder!"
         return 3
     fi
