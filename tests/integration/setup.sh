@@ -63,7 +63,7 @@ tcb_tests_pull_container() {
         return 2
     fi
 
-    export TCBCMD=$(alias torizoncore-builder | cut -d "'" -f 2)
+    export TCBCMD=$(alias torizoncore-builder | sed -e 's/-it/-i/' | cut -d "'" -f 2)
 
     echo "Testing TorizonCore Builder installation..."
     if ! eval $TCBCMD --version >/dev/null; then
