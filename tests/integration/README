@@ -117,30 +117,30 @@ The command below will execute all test cases, including those that
 requires device access (the image used in the tests will be
 automatically selected based on the device):
 
-$ TCB_DEVICE=192.168.1.210 ./run.sh
+$ TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh
 
 The command below will execute the test cases defined in
 testcases/dto.bats, using an Apalis iMX6 image, and a test report
 will be available in workdir/reports/:
 
-$ TCB_REPORT=1 TCB_TESTCASE=dto ./run.sh
+$ TCB_REPORT=1 TCB_TESTCASE=dto TCB_MACHINE=apalis-imx6 ./run.sh
 
 The command below will execute the test cases defined in both
 testcases/dt.bats and testcases/dto.bats:
 
-$ TCB_TESTCASE="dt dto" ./run.sh
+$ TCB_TESTCASE="dt dto" TCB_MACHINE=apalis-imx6 ./run.sh
 
 The command below will execute all test cases, including those that
 require device access, using a local torizoncore-builder container
 tagged with 'v1':
 
-$ TCB_CUSTOM_IMAGE=torizoncore-builder:v1 TCB_DEVICE=192.168.1.210 ./run.sh
+$ TCB_CUSTOM_IMAGE=torizoncore-builder:v1 TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh
 
 The command below will execute all the tests:
-$ TCB_TAGS="all" ./run.sh
+$ TCB_TAGS="all" TCB_MACHINE=apalis-imx6 ./run.sh
 
 The command below will execute untagged tests:
-$ TCB_TAGS="" ./run.sh
+$ TCB_TAGS="" TCB_MACHINE=apalis-imx6 ./run.sh
 
 The command below will execute tests tagged as 'requires-device':
-$ TCB_TAGS="requires-device" TCB_DEVICE=192.168.1.210 ./run.sh
+$ TCB_TAGS="requires-device" TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh
