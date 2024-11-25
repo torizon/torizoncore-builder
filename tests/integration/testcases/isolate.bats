@@ -31,7 +31,7 @@ load 'lib/isolate.bash'
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
@@ -61,7 +61,7 @@ load 'lib/isolate.bash'
                                     --force \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
@@ -86,7 +86,7 @@ load 'lib/isolate.bash'
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_failure
     assert_output --partial "There is already a directory with isolated changes. If you want to replace it, please use --force."
@@ -112,7 +112,7 @@ load 'lib/isolate.bash'
 
     run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_failure
     assert_output --partial "There is already a directory with isolated changes. If you want to replace it, please use --force."
@@ -138,7 +138,7 @@ load 'lib/isolate.bash'
 
     run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT \
                                     --force
     assert_success
@@ -173,7 +173,7 @@ load 'lib/isolate.bash'
                                     --force \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
@@ -205,7 +205,7 @@ load 'lib/isolate.bash'
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
@@ -229,7 +229,7 @@ load 'lib/isolate.bash'
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
@@ -251,7 +251,7 @@ load 'lib/isolate.bash'
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Changes in /etc successfully isolated."
@@ -270,7 +270,7 @@ load 'lib/isolate.bash'
 
     run torizoncore-builder isolate --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT \
                                     --force
     assert_success
@@ -287,7 +287,7 @@ load 'lib/isolate.bash'
     run torizoncore-builder isolate --changes-directory $ISOLATE_DIR \
                                     --remote-host $DEVICE_ADDR \
                                     --remote-username $DEVICE_USER \
-                                    --remote-password $DEVICE_PASS \
+                                    --remote-password $DEVICE_PASSWORD \
                                     --remote-port $DEVICE_PORT \
                                     --force
     assert_success

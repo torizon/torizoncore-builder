@@ -64,14 +64,14 @@ export -f torizoncore-builder-clean-storage
 # $@ = command to be executed
 device-shell() {
     local OPTS="-o ConnectTimeout=5 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
-    sshpass -p $DEVICE_PASS ssh -p $DEVICE_PORT -n -q $OPTS $DEVICE_USER@$DEVICE_ADDR "$@"
+    sshpass -p $DEVICE_PASSWORD ssh -p $DEVICE_PORT -n -q $OPTS $DEVICE_USER@$DEVICE_ADDR "$@"
 }
 export -f device-shell
 
 # run command in the device via SSH using sudo
 # $@ = command to be executed with sudo
 device-shell-root() {
-    device-shell "echo $DEVICE_PASS | sudo -S $@"
+    device-shell "echo $DEVICE_PASSWORD | sudo -S $@"
 }
 export -f device-shell-root
 

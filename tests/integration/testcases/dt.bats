@@ -187,7 +187,7 @@ load 'lib/common.bash'
     torizoncore-builder union branch1
     run torizoncore-builder deploy --remote-host "$DEVICE_ADDR" \
                                    --remote-username "$DEVICE_USER" \
-                                   --remote-password "$DEVICE_PASS" \
+                                   --remote-password "$DEVICE_PASSWORD" \
                                    --remote-port "$DEVICE_PORT" \
                                    --reboot branch1
     assert_success

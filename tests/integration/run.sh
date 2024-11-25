@@ -47,7 +47,6 @@ export SAMPLES_DIR=samples
 # device address and credentials
 export DEVICE_ADDR=$TCB_DEVICE
 export DEVICE_USER="torizon"
-export DEVICE_PASS=$DEVICE_PASSWORD
 
 export WIC_MACHINES="intel-corei7-64 qemux86-64 raspberrypi4-64"
 

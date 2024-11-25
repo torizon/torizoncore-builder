@@ -171,7 +171,7 @@ teardown_file() {
     # Deploy custom image.
     run torizoncore-builder deploy --remote-host "$DEVICE_ADDR" \
                                    --remote-username "$DEVICE_USER" \
-                                   --remote-password "$DEVICE_PASS" \
+                                   --remote-password "$DEVICE_PASSWORD" \
                                    --remote-port "$DEVICE_PORT" \
                                    --reboot "$COMMIT"
     assert_success
