@@ -56,7 +56,7 @@ load 'lib/common.bash'
 
     run torizoncore-builder deploy --remote-host $DEVICE_ADDR \
                                    --remote-username $DEVICE_USER \
-                                   --remote-password $DEVICE_PASS \
+                                   --remote-password $DEVICE_PASSWORD \
                                    --remote-port $DEVICE_PORT \
                                    --reboot some_branch
     assert_failure
@@ -74,7 +74,7 @@ load 'lib/common.bash'
 
     run torizoncore-builder deploy --remote-host $DEVICE_ADDR \
                                    --remote-username $DEVICE_USER \
-                                   --remote-password $DEVICE_PASS \
+                                   --remote-password $DEVICE_PASSWORD \
                                    --remote-port $DEVICE_PORT \
                                    --reboot branch1
     assert_success

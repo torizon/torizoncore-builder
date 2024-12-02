@@ -47,7 +47,6 @@ export SAMPLES_DIR=samples
 # device address and credentials
 export DEVICE_ADDR=$TCB_DEVICE
 export DEVICE_USER="torizon"
-export DEVICE_PASS="1"
 
 export WIC_MACHINES="intel-corei7-64 qemux86-64 raspberrypi4-64"
 
@@ -62,7 +61,16 @@ fi
 if [ ! -z "$TCB_MACHINE" ]; then
     export MACHINE=$TCB_MACHINE
 else
-    export MACHINE="apalis-imx6"
+    echo "Error: machine was not set"
+    exit 1
+fi
+
+# check if device password if defined when using device
+if [[ -n "$TCB_DEVICE" ]]; then
+    if [[ -z "$DEVICE_PASSWORD" ]]; then
+        echo "Error: Device password not defined."
+        exit 1
+    fi
 fi
 
 if [[ "$WIC_MACHINES" == *"$MACHINE"* ]]; then

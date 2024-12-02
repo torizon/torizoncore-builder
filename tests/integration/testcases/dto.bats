@@ -109,7 +109,7 @@ bats_load_library 'bats/bats-file/load.bash'
     torizoncore-builder union branch1
     run torizoncore-builder deploy \
         --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
-        --remote-password $DEVICE_PASS --remote-port $DEVICE_PORT --reboot branch1
+        --remote-password $DEVICE_PASSWORD --remote-port $DEVICE_PORT --reboot branch1
     assert_success
     assert_output --partial "Deploying successfully finished"
 
@@ -137,7 +137,7 @@ bats_load_library 'bats/bats-file/load.bash'
     torizoncore-builder union branch2
     run torizoncore-builder deploy \
         --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
-        --remote-password $DEVICE_PASS --remote-port $DEVICE_PORT --reboot branch2
+        --remote-password $DEVICE_PASSWORD --remote-port $DEVICE_PORT --reboot branch2
     assert_success
     assert_output --partial "Deploying successfully finished"
 

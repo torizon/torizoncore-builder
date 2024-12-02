@@ -1,0 +1,140 @@
+# Build the AVAL container with docker that will run the tests on the host PC
+build-aval-docker:
+  image: docker:dind
+  stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    IMAGE_NAME_AVAL: aval-docker
+    DOCKERFILE_NAME: tests/integration/aval/aval-docker.Dockerfile
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
+  script:
+    - ${B} docker build -f "${DOCKERFILE_NAME}" -t "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main" .
+    - ${B} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main"
+
+.aval-template:
+  stage: test
+  needs:
+    - build-aval-docker
+    - build-amd64
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
+    IMAGE_NAME_AVAL: aval-docker
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main
+  script:
+    # pull latest build of TorizonCore Builder
+    - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
+    - ${T} docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
+    - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
+    - cd tests/integration && python /aval/main.py --delegation-config $DELEGATION_CONFIG
+      --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+      # To circumvent the mismatch between Aktualizr's database and ostree when an external entity manages ostree without
+      # Aktualizr, install a different version than the one Aktualizr thinks it's currently installed (the one before TCB
+      # deploy), which externally forces both Aktualizr and ostree to sync. In particular, if we're running a nightly, install
+      # a release build and vice-versa
+    - |
+      toggle_release_type() {
+        local current_release_type="$1"
+        if [ "$current_release_type" == "release" ]; then
+          echo "nightly"
+        elif [ "$current_release_type" == "nightly" ]; then
+          echo "release"
+        fi
+      }
+    - TARGET_BUILD_TYPE=$(toggle_release_type "$TARGET_BUILD_TYPE") python /aval/main.py --delegation-config $DELEGATION_CONFIG
+      "echo 'Updating to a different TOS version than the TCB tests version, to circumvent the mismatch between Aktualizr'\''s database and ostree when an external entity manages ostree without Aktualizr'"
+    - (! grep "^not ok" workdir/reports/*)
+
+# AVAL_TEST_ALL can be defined as "true" on a Gitlab schedule to run tests on all devices
+aval-apalis-imx6q-scarthgap-release:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "apalis-imx6q"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "apalis-imx6"
+
+aval-apalis-imx8qm-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "apalis-imx8qm"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "apalis-imx8"
+
+aval-colibri-imx6dl-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "colibri-imx6dl"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx6"
+
+aval-colibri-imx6ull-emmc-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "colibri-imx6ull-emmc"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+aval-colibri-imx7d-emmc-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "colibri-imx7d-emmc"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx7-emmc"
+
+aval-colibri-imx8dx-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "colibri-imx8dx"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx8x"
+
+aval-verdin-am62dual-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "verdin-am62dual"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-am62"
+
+aval-verdin-imx8mmq-scarthgap-release:
+  extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
+  variables:
+    SOC_UDT: "verdin-imx8mmq"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-imx8mm"
+
+aval-verdin-imx8mpq-scarthgap-release:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "verdin-imx8mpq"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-imx8mp"
