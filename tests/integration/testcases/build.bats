@@ -164,9 +164,33 @@ teardown_file() {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
     requires-device
 
-    # This test case assumes the previous one was executed.
-    local COMMIT='my-dev-branch'
+    local OUTDIR='fully_customized_image'
+    run torizoncore-builder build \
+        --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
+        --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_success
+    assert_output --partial 'splash screen merged'
+    assert_output --partial 'Overlay sample_overlay.dtbo successfully applied.'
+    assert_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+    assert_output --partial \
+        'Kernel custom arguments successfully configured with "key1=val1 key2=val2".'
+    assert_output --partial 'Deploying commit ref: my-dev-branch'
+
     local ARCHIVE='/storage/ostree-archive/'
+    local COMMIT='my-dev-branch'
+
+    # Check output/easy-installer/{name,description,licence,release-notes}:
+    run cat "$OUTDIR/image.json"
+    assert_output --partial '"name": "fully-customized image"'
+    assert_output --partial '"description": "fully-customized image description"'
+    assert_output --partial '"license": "license-fc.html"'
+    assert_output --partial '"releasenotes": "release-notes-fc.html"'
+
+    # Check presence of container:
+    run [ -e "$OUTDIR/docker-storage.tar.xz" -a -e "$OUTDIR/docker-compose.yml" ]
+    assert_success
 
     # Deploy custom image.
     run torizoncore-builder deploy --remote-host "$DEVICE_ADDR" \

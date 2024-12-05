@@ -147,6 +147,7 @@ load 'lib/common.bash'
 @test "dt: deploy device tree in the device" {
     requires-device
     torizoncore-builder-shell "rm -rf device-trees"
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder dt checkout --update
     if is-major-version-greater-than-5; then

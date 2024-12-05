@@ -106,6 +106,8 @@ bats_load_library 'bats/bats-file/load.bash'
     run device-shell "cat /proc/device-tree/tcb_prop_test"
     assert_failure 1
 
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
     torizoncore-builder union branch1
     run torizoncore-builder deploy \
         --remote-host $DEVICE_ADDR --remote-username $DEVICE_USER \
@@ -133,6 +135,26 @@ bats_load_library 'bats/bats-file/load.bash'
 # bats test_tags=requires-device
 @test "dto: remove overlay from the device" {
     requires-device
+
+    # This test assumes that sample_overlay.dtbo is already
+    # present and used in the device
+    run device-shell "cat /proc/device-tree/tcb_prop_test"
+    assert_success
+    assert_output --partial "tcb_prop_value"
+
+    # Recreate image with overlay
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
+    run torizoncore-builder dto status
+    assert_success
+    assert_output --partial "sample_overlay.dtbo"
+
+    run torizoncore-builder dto remove sample_overlay.dtbo
+    assert_success
+
+    run torizoncore-builder dto status
+    assert_success
+    refute_output --partial "sample_overlay.dtbo"
 
     torizoncore-builder union branch2
     run torizoncore-builder deploy \
