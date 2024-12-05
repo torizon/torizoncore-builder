@@ -14,7 +14,7 @@ Configure the machine
 First step is to install some dependencies (you may need to adapt this
 command to other Linux distributions):
 
-$ sudo apt install sshpass zstd avahi-utils openssl
+$ sudo apt install sshpass zstd avahi-utils openssl wget bash tar zip bc bats git
 
 And then source the setup script:
 
