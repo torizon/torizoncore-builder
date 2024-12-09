@@ -9,7 +9,7 @@ on:
 env:
   # Container version:
   TORIZONCORE_BUILDER_MAJOR: "3"
-  TORIZONCORE_BUILDER_MINOR: "11"
+  TORIZONCORE_BUILDER_MINOR: "12"
   TORIZONCORE_BUILDER_PATCH: "0"
   RELEASE_TYPE: "github-pr-test"
   DEBIAN_RELEASE: "bullseye-slim"
