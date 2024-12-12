@@ -866,28 +866,46 @@ def fetch_director_metadata(lockbox_name, director_url, dest_dir, access_token=N
     # ---
     # Get all versions of root metadata.
     # ---
-    for version in range(1, 9999):
+    # First fetch the root.json and then fetch all versions denoted in the latest root.json.
+    # It is necessary to first fetch root.json (without a version) because the cloud will check
+    # and ensure the director root metadata expires after all the offline-update roles.
+    # If necessary, the cloud  will produce a new root.json version (expiring 6 months after the
+    # last offline update) before responding to the GET request.
+    #
+    # Fetching root metadata with the version will skip this validation and could result in
+    # root-metadata expiring before the offline metadata.
+
+    url = urljoin(director_url + "/", f"api/v1/admin/repo/{ROOT_META_FILE}")
+    try:
+        log.info(f"Fetching {ROOT_META_FILE}")
+        fetch_validate(
+            url, ROOT_META_FILE, dest_dir,
+            sha256=None, length=None, access_token=access_token)
+
+    except FetchError as exc:
+        log.warning(str(exc))
+        raise TorizonCoreBuilderError(
+            f"Error: Could not fetch toplevel {ROOT_META_FILE} from server")
+
+    top_level_root_file = os.path.join(dest_dir, ROOT_META_FILE)
+    top_level_root = load_metadata(
+        top_level_root_file, ftype="json", maxlen=DEFAULT_METADATA_MAXLEN)
+    latest_root_version = top_level_root["parsed"]["signed"]["version"]
+
+    for version_index in range(0, latest_root_version):
+        version = version_index + 1
         fname = f"{version}.root.json"
         url = urljoin(director_url + "/", f"api/v1/admin/repo/{fname}")
         try:
-            log.info(f"Fetching '{fname}'")
+            log.info(f"Fetching ('{str(version)}' of '{str(latest_root_version)}') '{fname}'")
             fetch_validate(
                 url, fname, dest_dir,
                 sha256=None, length=None, access_token=access_token)
 
         except FetchError as exc:
-            not_found_status_codes = [
-                requests.codes["not_found"],
-                requests.codes["failed_dependency"]
-            ]
-            if exc.status_code in not_found_status_codes:
-                log.info(f"Fetching '{fname}' (version not available, stopping)")
-                break
-
             log.warning(str(exc))
             raise TorizonCoreBuilderError(
                 f"Error: Could not fetch metadata file '{fname}' from server")
-
 
 def load_imgrepo_targets(source_dir, verbose=True):
     """Load Uptane lockbox image repo targets metadata (top-level and delegations)"""
