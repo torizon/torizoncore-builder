@@ -72,7 +72,7 @@ class DockerManager:
         self.output_dir = output_dir
         self.output_dir_host = output_dir
 
-    def start(self, network_name=None, default_platform=None, dind_params=None):
+    def start(self, network_name=None, default_platform=None, dind_params=None, dind_env=None):
         """Start manager (dummy implementation)"""
 
     def stop(self):
@@ -204,7 +204,7 @@ class DindManager(DockerManager):
                 "the Docker host.")
 
     def start(self, network_name="fetch-dind-network",
-              default_platform=None, dind_params=None):
+              default_platform=None, dind_params=None, dind_env=None):
         """Start manager
 
         This will start the Docker-in-Docker container which can then be used
@@ -265,9 +265,11 @@ class DindManager(DockerManager):
         ]
         log.debug(f"Volume mapping for DinD: {_mounts}")
 
-        # Augment DinD program arguments.
+        # Augment DinD program arguments and environment.
         if dind_params is not None:
             dind_cmd.extend(dind_params)
+        if dind_env is not None:
+            _environ.update(dind_env)
 
         log.debug(f"Running DinD container: ports={ports}, network={network_name}")
         self.dind_container = self.host_client.containers.run(
@@ -528,7 +530,7 @@ def recursive_yaml_value_check(obj, config_path):
 # pylint: disable=too-many-arguments,too-many-locals
 def download_containers_by_compose_file(
         output_dir, compose_file, host_workdir, output_filename,
-        keep_double_dollar_sign=False, platform=None, dind_params=None,
+        keep_double_dollar_sign=False, platform=None, dind_params=None, dind_env=None,
         use_host_docker=False, show_progress=True):
     """
     Creates a container bundle using Docker (either Host Docker or Docker in Docker)
@@ -545,6 +547,7 @@ def download_containers_by_compose_file(
     :param platform: Container Platform to fetch (if an image is multi-arch
                         capable)
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
+    :param dind_env: Environment to pass to Docker-in-Docker (dict).
     :param use_host_docker: Use host docker (instead of Docker in Docker)
                             Note: This only really works if the Host Docker
                             Engine is not used by anything else than this
@@ -594,7 +597,8 @@ def download_containers_by_compose_file(
     cacerts = RegistryOperations.get_cacerts()
     logins = RegistryOperations.get_logins()
     try:
-        manager.start(network, default_platform=platform, dind_params=dind_params)
+        manager.start(network, default_platform=platform,
+                      dind_params=dind_params, dind_env=dind_env)
         manager.add_cacerts(cacerts)
 
         dind_client = manager.get_client()
