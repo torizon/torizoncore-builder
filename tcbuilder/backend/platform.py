@@ -575,7 +575,7 @@ def select_unique_images(image_platform_pairs, manifests_per_image,
 
 # pylint:disable=too-many-locals
 def build_docker_tarballs(unique_images, target_dir, host_workdir,
-                          verbose=True, dind_params=None):
+                          verbose=True, dind_params=None, dind_env=None):
     """Build the docker tarballs of a lockbox image
 
     :param unique_images: Iterable giving the pairs (image, digest) for which
@@ -586,6 +586,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
                          system where dockerd we are accessing is running).
     :param verbose: Whether to show verbose output/progress information.
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
+    :param dind_env: Environment to pass to Docker-in-Docker (dict).
     """
 
     show_progress = True
@@ -604,7 +605,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
 
     try:
         # Start DinD container on host.
-        manager.start(network, dind_params=dind_params)
+        manager.start(network, dind_params=dind_params, dind_env=dind_env)
         manager.add_cacerts(cacerts)
         # Get DinD client to be used on the pulling operations.
         dind_client = manager.get_client()
@@ -681,7 +682,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
 def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
                          sha256=None, length=None, req_platforms=None,
                          access_token=None, name=None, version=None,
-                         dind_params=None, custom_uri=None):
+                         dind_params=None, dind_env=None, custom_uri=None):
     """Fetch compose file target from the TUF repo along with referenced artifacts
 
     Parameter `req_platforms` should be a list of the platforms to select
@@ -719,7 +720,7 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     os.mkdir(docker_dir)
     build_docker_tarballs(
         images_selection, docker_dir, host_workdir=get_host_workdir(),
-        dind_params=dind_params)
+        dind_params=dind_params, dind_env=dind_env)
 # pylint: enable=too-many-arguments,too-many-locals
 
 
