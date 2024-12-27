@@ -242,14 +242,14 @@ class DindManager(DockerManager):
         self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
 
         # The workdir below is for the DinD instance.
-        _environ = {
+        environ = {
             'DOCKER_TLS_CERTDIR': os.path.join('/workdir/', self.cert_dir_host[2])
         }
         if default_platform is not None:
             log.debug(f"Default platform: {default_platform}")
-            _environ['DOCKER_DEFAULT_PLATFORM'] = default_platform
+            environ['DOCKER_DEFAULT_PLATFORM'] = default_platform
 
-        _mounts = [
+        mounts = [
             docker.types.Mount(
                 source=self.cert_dir_host[0],
                 type=self.cert_dir_host[1],
@@ -263,20 +263,27 @@ class DindManager(DockerManager):
                 read_only=False
             )
         ]
-        log.debug(f"Volume mapping for DinD: {_mounts}")
+        log.debug(f"Volume mapping for DinD: {mounts}")
+
+        # Forward specified variables:
+        if "DIND_FORWARD_VARS" in os.environ:
+            for _var in os.environ["DIND_FORWARD_VARS"].split(","):
+                if _var in os.environ:
+                    environ[_var] = os.environ[_var]
 
         # Augment DinD program arguments and environment.
         if dind_params is not None:
             dind_cmd.extend(dind_params)
         if dind_env is not None:
-            _environ.update(dind_env)
+            environ.update(dind_env)
 
+        log.debug(f"Environment variables for DinD: {environ}")
         log.debug(f"Running DinD container: ports={ports}, network={network_name}")
         self.dind_container = self.host_client.containers.run(
             self.DIND_CONTAINER_IMAGE,
             privileged=True,
-            environment=_environ,
-            mounts=_mounts,
+            environment=environ,
+            mounts=mounts,
             ports=ports,
             network=network_name,
             name=self.DIND_CONTAINER_NAME,
