@@ -11,6 +11,27 @@ torizoncore-builder() {
 }
 export -f torizoncore-builder
 
+# Usage: torizoncore-builder-ex <docker-run-params> -- <tcb-params>
+torizoncore-builder-ex() {
+    local extra_params=()
+
+    # Consume parameters up to the separator ("--")
+    while true; do
+        if [ "$1" = "--" ]; then
+            shift
+            break
+        else
+            extra_params+=("'$1'")
+            shift
+        fi
+    done
+
+    #local CMD=$(eval printf "{%s}" ${TCBCMD/ run / run "${extra_params[@]}" })
+    local CMD=$(eval echo ${TCBCMD/ run / run "${extra_params[@]}" })
+    $CMD "$@"
+}
+export -f torizoncore-builder-ex
+
 # Global variable keeping the current torizoncore-builder running in the background
 export TCB_BG_CONTAINER=""
 
