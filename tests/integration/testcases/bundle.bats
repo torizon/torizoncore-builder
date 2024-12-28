@@ -235,6 +235,75 @@ load 'lib/common.bash'
     rm -rf bundle
 }
 
+@test "bundle: check --dind-param parameter" {
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+    # Pass an invalid parameter to DinD and check if it fails.
+    rm -rf bundle
+    run torizoncore-builder-ex \
+        --env "DUMP_DIND_LOGS=1" \
+        --\
+        bundle "$COMPOSE" \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"} \
+        --dind-param="--invalid-param"
+    assert_failure
+    assert_output --regexp "Status: unknown flag: --invalid-param"
+
+    rm -f "$COMPOSE"
+    rm -rf bundle
+}
+
+@test "bundle: check --dind-env parameter" {
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+    # Set environment variables to ask DinD to access the network through a proxy that is not available.
+    rm -rf bundle
+    run torizoncore-builder-ex \
+        --env "DUMP_DIND_LOGS=1" \
+        --\
+        bundle "$COMPOSE" \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"} \
+        --dind-env "HTTP_PROXY=http://localhost:33456" \
+        --dind-env "HTTPS_PROXY=http://localhost:33456"
+
+    assert_failure
+    assert_output --regexp "Error: container images download failed: .*proxyconnect.*:33456: connect: connection refused"
+
+    rm -f "$COMPOSE"
+    rm -rf bundle
+}
+
+@test "bundle: check environment variable forwarding" {
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
+    local COMPOSE='docker-compose.yml'
+    cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
+
+    # Set environment variables to ask DinD to access the network through a proxy that is not available.
+    rm -rf bundle
+    run torizoncore-builder-ex \
+        --env "DUMP_DIND_LOGS=1" \
+        --env "HTTP_PROXY=http://localhost:33457" \
+        --env "HTTPS_PROXY=http://localhost:33457" \
+        --env "NO_PROXY=127.0.0.0/8" \
+        --env "DIND_FORWARD_VARS=HTTP_PROXY,HTTPS_PROXY" \
+        --\
+        bundle "$COMPOSE" \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}" "${CI_DOCKER_HUB_PULL_PASSWORD}"} \
+
+    assert_failure
+    assert_output --regexp "Error: container images download failed: .*proxyconnect.*:33457: connect: connection refused"
+
+    rm -f "$COMPOSE"
+    rm -rf bundle
+}
+
 @test "bundle: check registry pattern" {
     local COMPOSE_FILE="$SAMPLES_DIR/compose/hello/docker-compose.yml"
     local INVALID_REGISTRIES=(

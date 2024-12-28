@@ -5,21 +5,51 @@ Allows to bundle a Toradex Easy Installer images with a set of containers.
 
 import argparse
 import logging
+import re
 import os
 import shutil
 
 from tcbuilder.backend import common
 from tcbuilder.backend import bundle as bundle_be
-from tcbuilder.errors import InvalidArgumentError, InvalidStateError
+from tcbuilder.errors import \
+    (InvalidArgumentError, InvalidStateError, InvalidAssignmentError)
 
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
 
+# Environment assigment regex pre-compiled.
+ENV_ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
+
+
+def parse_env_assignments(assignments):
+    """Parse a list of assignment strings in the form KEY=VALUE
+
+    :param assignments: List of strings to be parsed.
+    :return: Dictionary with the resulting key-value mapping or None if the
+             input list is empty.
+    """
+
+    if not assignments:
+        return None
+
+    mapping = {}
+    for assgn in assignments:
+        matches = ENV_ASSGN_REGEX.match(assgn)
+        if not matches:
+            raise InvalidAssignmentError(
+                "Environment variable assignment must follow the format KEY=VALUE "
+                f"(while parsing '{assgn}').")
+        # log.debug(f"parse_assignments: '{matches.group(1)}' <= '{matches.group(2)}'")
+        key, val = matches.group(1), matches.group(2)
+        mapping[key] = val
+
+    return mapping
+
 
 # pylint: disable=too-many-arguments
 def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
-           platform=None, dind_params=None):
+           platform=None, dind_params=None, dind_env=None):
     """Main handler of the bundle command (CLI layer)
 
     :param bundle_dir: Name of bundle directory (that will be created in the
@@ -33,6 +63,7 @@ def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
     :param platform: Default platform to use when fetching multi-platform
                      container images.
     :param dind_params: Extra parameters to pass to Docker-in-Docker (list).
+    :param dind_env: Environment variables to pass to Docker-in-Docker (dict).
     """
 
     if os.path.exists(bundle_dir):
@@ -54,10 +85,10 @@ def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
         output_filename=f"{common.DOCKER_BUNDLE_TARNAME}.xz",
         keep_double_dollar_sign=keep_double_dollar_sign,
         platform=platform,
-        dind_params=dind_params)
+        dind_params=dind_params,
+        dind_env=dind_env)
 
     log.info(f"Successfully created Docker Container bundle in \"{bundle_dir}\"!")
-
 # pylint: enable=too-many-arguments
 
 
@@ -103,13 +134,15 @@ def do_bundle(args):
            force=args.force,
            keep_double_dollar_sign=args.keep_double_dollar_sign,
            platform=args.platform,
-           dind_params=args.dind_params)
+           dind_params=args.dind_params,
+           dind_env=parse_env_assignments(args.dind_env))
 
     common.set_output_ownership(args.bundle_directory)
 
+
 def add_dind_param_arguments(subparser):
     """
-    Add the --dind_param argument to a parser of a command.
+    Add the --dind-param argument to a parser of a command.
 
     :param subparser: A parser of a command line.
     """
@@ -120,6 +153,21 @@ def add_dind_param_arguments(subparser):
               "tool (can be employed multiple times). The parameter will be processed "
               "by the Docker daemon (dockerd) running in the container. Please see "
               "Docker documentation for more information."))
+
+
+def add_dind_env_arguments(subparser):
+    """
+    Add the --dind-env argument to a parser of a command.
+
+    :param subparser: A parser of a command line.
+    """
+    subparser.add_argument(
+        "--dind-env", action="append", dest="dind_env",
+        metavar="DIND_ENV",
+        help=("Environment variable settings to forward to the Docker-in-Docker container "
+              "executed by the tool (can be employed multiple times), similar to passing "
+              "parameter --env to the 'docker' command."))
+
 
 def init_parser(subparsers):
     """Initialize argument parser"""
@@ -161,6 +209,7 @@ def init_parser(subparsers):
         help="Don't replace '$$' with '$' when parsing string values of the input compose file.")
     common.add_common_registry_arguments(subparser)
     add_dind_param_arguments(subparser)
+    add_dind_env_arguments(subparser)
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-25).
     subparser.add_argument(

@@ -307,6 +307,18 @@ properties:
                       keep-double-dollar-sign:
                         type: boolean
                         description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
+                      dind-params:
+                        type: array
+                        description: "list of parameters to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
+                        items:
+                          type: string
+                          description: "parameter to the Docker-in-Docker container"
+                      dind-env:
+                        type: array
+                        description: "list of environment variables to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
+                        items:
+                          type: string
+                          description: "environment variable setting in the form VARIABLE=VALUE (no quotes around the value)"
                     required: [compose-file]
                     additionalProperties: false
                   - properties:
@@ -406,6 +418,18 @@ properties:
                       keep-double-dollar-sign:
                         type: boolean
                         description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
+                      dind-params:
+                        type: array
+                        description: "list of parameters to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
+                        items:
+                          type: string
+                          description: "parameter to the Docker-in-Docker container"
+                      dind-env:
+                        type: array
+                        description: "list of environment variables to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
+                        items:
+                          type: string
+                          description: "environment variable setting in the form VARIABLE=VALUE (no quotes around the value)"
                     required: [compose-file]
                     additionalProperties: false
                   - properties:

@@ -9,6 +9,7 @@ import sys
 from datetime import datetime
 
 from tezi.errors import TeziError
+from tcbuilder.cli.bundle import parse_env_assignments
 from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.backend.registryops import RegistryOperations
@@ -451,7 +452,9 @@ def handle_bundle_common(storage_dir, bundle_props, compress_tar=True):
                 "output_filename": f"{common.DOCKER_BUNDLE_TARNAME}.xz" if compress_tar
                                    else common.DOCKER_BUNDLE_TARNAME,
                 "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
-                "platform": platform
+                "platform": platform,
+                "dind_params": bundle_props.get("dind-params"),
+                "dind_env": parse_env_assignments(bundle_props.get("dind-env")),
             }
             download_containers_by_compose_file(**download_params)
 

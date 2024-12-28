@@ -584,6 +584,45 @@ test_canonicalize_only_success() {
     assert_success
 }
 
+@test "platform lockbox: check --dind-param parameter" {
+    skip-no-ota-credentials
+
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder-ex \
+        --env "DUMP_DIND_LOGS=1" \
+        --\
+        platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
+        --force LockBox-With-OCI-32bit-Images \
+        --dind-param="--invalid-param" \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_failure
+    assert_output --regexp "Status: unknown flag: --invalid-param"
+}
+
+@test "platform lockbox: check --dind-env parameter" {
+    skip-no-ota-credentials
+
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder-ex \
+        --env "DUMP_DIND_LOGS=1" \
+        --\
+        platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
+        --force LockBox-With-OCI-32bit-Images \
+        --dind-env "HTTP_PROXY=http://localhost:33456" \
+        --dind-env "HTTPS_PROXY=http://localhost:33456" \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_failure
+    assert_output --regexp "Error: container images download failed: .*proxyconnect.*:33456: connect: connection refused"
+}
+
 # bats test_tags=static-delta
 @test "platform static-delta: generate static delta without pushing to platform" {
     skip-no-ota-credentials

@@ -17,7 +17,8 @@ from datetime import datetime, timezone
 
 import dateutil.parser
 
-from tcbuilder.cli.bundle import add_dind_param_arguments
+from tcbuilder.cli.bundle import \
+    (add_dind_param_arguments, add_dind_env_arguments, parse_env_assignments)
 from tcbuilder.backend import platform, sotaops, common, ostree
 from tcbuilder.backend.platform import \
     (JSON_EXT, OFFLINE_SNAPSHOT_FILE, validate_package_selection_criteria,
@@ -127,7 +128,7 @@ def fetch_offupdt_targets(
         offupdt_targets_info, imgrepo_targets_info,
         images_dir, docker_metadata_dir,
         ostree_url=None, repo_url=None, access_token=None,
-        docker_platforms=None, dind_params=None):
+        docker_platforms=None, dind_params=None, dind_env=None):
     """Fetch all targets referenced by the offline-update targets metadata
 
     :param offupdt_targets_info: Targets metadata of the offline-update.
@@ -142,6 +143,7 @@ def fetch_offupdt_targets(
     :param docker_platforms: List of platforms for fetching Docker images by
                              default.
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
+    :param dind_env: Environment to pass to Docker-in-Docker (dict).
     """
 
     # offupdt_targets = offupdt_targets_info["parsed"]["signed"]["targets"]
@@ -193,7 +195,8 @@ def fetch_offupdt_targets(
                 params.update({
                     "req_platforms": docker_platforms,
                     "metadata_dir": docker_metadata_dir,
-                    "dind_params": dind_params
+                    "dind_params": dind_params,
+                    "dind_env": dind_env,
                 })
                 platform.fetch_compose_target(**params)
             else:
@@ -205,12 +208,12 @@ def fetch_offupdt_targets(
 # pylint: enable=too-many-locals,too-many-arguments
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-arguments,too-many-locals
 def platform_lockbox(
         lockbox_name, creds_file, output_dir,
         docker_platforms=None, force=False,
         validate=True, fetch_targets=True,
-        dind_params=None):
+        dind_params=None, dind_env=None):
     """Main handler for the 'platform lockbox' subcommand
 
     :param lockbox_name: Name of the lockbox image as defined at the OTA server
@@ -222,6 +225,7 @@ def platform_lockbox(
     :param validate: Whether to validate the Uptane metadata.
     :param fetch_targets: Whether to fetch the actual targets.
     :param dind_params: Parameters to pass to Docker-in-Docker (list).
+    :param dind_env: Environment to pass to Docker-in-Docker (dict).
     """
 
     # Create output directory or abort:
@@ -287,7 +291,8 @@ def platform_lockbox(
                 access_token=sota_token,
                 docker_metadata_dir=dockermeta_dir,
                 docker_platforms=docker_platforms,
-                dind_params=dind_params)
+                dind_params=dind_params,
+                dind_env=dind_env)
         else:
             log.info(l1_pref("Handle Uptane targets [skipped]"))
 
@@ -300,7 +305,7 @@ def platform_lockbox(
             log.info(f"Removing output directory '{output_dir}' due to errors")
             shutil.rmtree(output_dir)
         raise exc
-# pylint: enable=too-many-locals
+# pylint: enable=too-many-arguments,too-many-locals
 
 
 def do_platform_lockbox(args):
@@ -323,7 +328,8 @@ def do_platform_lockbox(args):
         force=args.force,
         validate=args.validate,
         fetch_targets=args.fetch_targets,
-        dind_params=args.dind_params)
+        dind_params=args.dind_params,
+        dind_env=parse_env_assignments(args.dind_env))
 
 
 def _get_online_provdata_local(server_creds):
@@ -699,6 +705,7 @@ def init_parser(subparsers):
               f"(can be specified multiple times; default: {', '.join(DEFAULT_PLATFORMS)})."))
     common.add_common_registry_arguments(subparser)
     add_dind_param_arguments(subparser)
+    add_dind_env_arguments(subparser)
     subparser.add_argument(
         "--output-directory",
         help=("Relative path to the output directory (default: update/). If "
