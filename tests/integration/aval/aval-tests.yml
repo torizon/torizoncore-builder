@@ -3,6 +3,8 @@ build-aval-docker:
   image: docker:dind
   stage: build
   rules:
+    - if: '$AVAL_DISABLED =~ /^true$/i'
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
     IMAGE_NAME_AVAL: aval-docker
@@ -23,6 +25,8 @@ build-aval-docker:
     IMAGE_NAME: torizoncore-builder-amd64
     IMAGE_NAME_AVAL: aval-docker
   rules:
+    - if: '$AVAL_DISABLED =~ /^true$/i'
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
   image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main
   script:
