@@ -61,6 +61,7 @@ aval-apalis-imx6q-scarthgap-release:
   extends: .aval-template
   variables:
     SOC_UDT: "apalis-imx6q"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "apalis-imx6"
@@ -71,6 +72,7 @@ aval-apalis-imx8qm-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "apalis-imx8qm"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "apalis-imx8"
@@ -81,6 +83,7 @@ aval-colibri-imx6dl-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6dl"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx6"
@@ -91,6 +94,7 @@ aval-colibri-imx6ull-emmc-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx6ull-emmc"
@@ -101,6 +105,7 @@ aval-colibri-imx7d-emmc-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx7-emmc"
@@ -111,6 +116,7 @@ aval-colibri-imx8dx-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx8dx"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx8x"
@@ -121,6 +127,7 @@ aval-verdin-am62dual-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-am62dual"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-am62"
@@ -131,6 +138,7 @@ aval-verdin-imx8mmq-scarthgap-release:
     - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mmq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mm"
@@ -139,6 +147,7 @@ aval-verdin-imx8mpq-scarthgap-release:
   extends: .aval-template
   variables:
     SOC_UDT: "verdin-imx8mpq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mp"
