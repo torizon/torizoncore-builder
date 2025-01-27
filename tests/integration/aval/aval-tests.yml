@@ -18,9 +18,6 @@ build-aval-docker:
 
 .aval-template:
   stage: test
-  needs:
-    - build-aval-docker
-    - build-amd64
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
     IMAGE_NAME_AVAL: aval-docker
