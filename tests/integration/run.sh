@@ -9,6 +9,7 @@ REPORT_DIR=$WORK_DIR/reports
 REPORT_FILE=$REPORT_DIR/$(date +"%Y%02m%02d%H%M%S").log
 
 TESTCASES="\
+$TESTCASES_DIR/setup.bats \
 $TESTCASES_DIR/torizoncore-builder.bats \
 $TESTCASES_DIR/images.bats \
 $TESTCASES_DIR/images-unpack.bats \
