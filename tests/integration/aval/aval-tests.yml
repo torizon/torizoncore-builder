@@ -1,6 +1,5 @@
 # Build the AVAL container with docker that will run the tests on the host PC
 build-aval-docker:
-  image: docker:dind
   stage: build
   rules:
     - if: '$AVAL_DISABLED =~ /^true$/i'
