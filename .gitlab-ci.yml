@@ -52,7 +52,6 @@ services:
 stages:
   - pre-build
   - build
-  - test-platform
   - test
   - build-multiarch
   - deploy
@@ -183,7 +182,7 @@ build-arm64:
 
 test-host-tc6-platform:
   extends: .test-base
-  stage: test-platform
+  stage: test
   variables:
     TCB_TESTCASE: platform
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -194,7 +193,7 @@ test-host-tos7-platform:
   needs:
     - test-host-tc6-platform
   extends: .test-base
-  stage: test-platform
+  stage: test
   variables:
     TCB_TESTCASE: platform
     YOCTO_BRANCH: "scarthgap-7.x.y"
