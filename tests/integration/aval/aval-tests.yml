@@ -1,3 +1,13 @@
+variables:
+  # Variables defined in schedule pipelines has more precedente than this defined in gitlab-ci.yml. So,
+  # RUNNER_TAG defined in schedule pipeline will overwrite this variable. This one is useful for commit
+  # pipelines.
+  RUNNER_TAG: ""
+
+default:
+  tags:
+    - $RUNNER_TAG
+
 # Build the AVAL container with docker that will run the tests on the host PC
 build-aval-docker:
   image: docker:dind
