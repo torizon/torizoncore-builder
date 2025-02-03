@@ -47,21 +47,27 @@ RUN apt-get -q -y update && \
 
 WORKDIR /root
 
-RUN git clone --recursive https://github.com/uptane/aktualizr.git && \
+RUN git clone https://github.com/toradex/aktualizr.git && \
     cd aktualizr && \
-    git checkout 2cb76c46ef0106be90c579b3108817dd26b7c1c5
+    git checkout 29a7d4bd073f762d24cb0968b814dcb488a98847 && \
+    git submodule update --init --recursive
 
 # Get tuf cli
 RUN cd aktualizr && \
     curl -L -O https://github.com/uptane/ota-tuf/releases/download/v0.8.0/cli-0.8.0.tgz
 
-RUN cd aktualizr && mkdir build/ && cd build/ && \
+# Build aktualizr generating an installation tarball
+RUN cd aktualizr && \
+    echo "tdx-$(date +%Y%m%d)-$(git rev-parse HEAD | cut -c-10)" > VERSION && \
+    mkdir build/ && cd build/ && B="$(pwd)" && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DEB=ON -DBUILD_SOTA_TOOLS=ON \
           -DGARAGE_SIGN_ARCHIVE=../cli-0.8.0.tgz \
           -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless \
           -DBUILD_OSTREE=ON \
           -DWARNING_AS_ERROR=OFF .. && \
-    make -j"$(nproc)" package
+    make -j"$(nproc)" DESTDIR="${B}/install-dir" install && \
+    tar cjvf aktualizr.tar.bz2 \
+        --show-transformed-names --transform="s,^install-dir,," install-dir/
 
 FROM common-base AS tcbuilder-base
 
@@ -108,19 +114,13 @@ RUN wget -q -nv https://github.com/uptane/ota-tuf/releases/download/v$UPTANE_SIG
     rm /tmp/cli-$UPTANE_SIGN_VER.tgz && \
     rm -rf /tmp/uptane-sign
 
-# Copy and install SOTA tools from build stage
-COPY --from=sota-builder /root/aktualizr/build/garage_deploy.deb /
-
-# Try to install garage deploy, and then use apt-get to install actual dependencies
-# (the mkdir -p /usr/share/man/man1 is required to make JRE installation happy)
-RUN apt-get -q -y update \
-    && mkdir -p /usr/share/man/man1 \
-    && dpkg -i ./garage_deploy.deb 2>/dev/null || apt-get -q -y --fix-broken --no-install-recommends install \
-    && rm ./garage_deploy.deb \
-    && rm -rf /var/lib/apt/lists/*
-
-# Removing all garage packages installed on the previous command but garage-push
-RUN find /usr/bin -iname 'garage-[^p]*' -exec rm {} \;
+# Install aktualizr from our sota-builder generated tarball
+RUN --mount=type=bind,from=sota-builder,source=/root/aktualizr/build,target=/build \
+    tar xvf /build/aktualizr.tar.bz2 -C / && ldconfig -v && \
+    apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install \
+            libboost-log1.74.0 libboost-program-options1.74.0 && \
+    rm -rf /var/lib/apt/lists/*
 
 # Debian has old version of docker and docker-compose, which does not support some of
 # required functionality like escaping $ in compose file during serialization
