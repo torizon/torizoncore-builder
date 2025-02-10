@@ -1,5 +1,7 @@
 ARG IMAGE_ARCH=linux/amd64
 ARG IMAGE_TAG=bullseye-slim
+ARG UPTANE_SIGN_VER=3.2.6
+
 FROM --platform=$IMAGE_ARCH debian:$IMAGE_TAG AS common-base
 
 ARG APT_PROXY
@@ -42,7 +44,7 @@ RUN apt-get -q -y update && \
             asn1c build-essential cmake curl libarchive-dev \
             libboost-dev libboost-log-dev libboost-program-options-dev \
             libcurl4-openssl-dev libpthread-stubs0-dev libsodium-dev libsqlite3-dev \
-            python3 libglib2.0-dev file libostree-dev && \
+            python3 python3-requests libglib2.0-dev file libostree-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -52,16 +54,20 @@ RUN git clone https://github.com/toradex/aktualizr.git && \
     git checkout 29a7d4bd073f762d24cb0968b814dcb488a98847 && \
     git submodule update --init --recursive
 
+ARG UPTANE_SIGN_VER
+
 # Get tuf cli
 RUN cd aktualizr && \
-    curl -L -O https://github.com/uptane/ota-tuf/releases/download/v0.8.0/cli-0.8.0.tgz
+    curl -L -O https://github.com/uptane/ota-tuf/releases/download/v${UPTANE_SIGN_VER}/cli-${UPTANE_SIGN_VER}.tgz && \
+    echo "cf97ea2bda7dd251cb18786b80741ee485ce2104d57329de2a3d8a4a8384f146 cli-${UPTANE_SIGN_VER}.tgz | sha256sum --check"
 
 # Build aktualizr generating an installation tarball
 RUN cd aktualizr && \
     echo "tdx-$(date +%Y%m%d)-$(git rev-parse HEAD | cut -c-10)" > VERSION && \
     mkdir build/ && cd build/ && B="$(pwd)" && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DEB=ON -DBUILD_SOTA_TOOLS=ON \
-          -DGARAGE_SIGN_ARCHIVE=../cli-0.8.0.tgz \
+          -DGARAGE_SIGN_ARCHIVE=../cli-${UPTANE_SIGN_VER}.tgz \
+          -DGARAGE_SIGN_TOOL="uptane-sign" \
           -DSOTA_DEBIAN_PACKAGE_DEPENDS=openjdk-11-jre-headless \
           -DBUILD_OSTREE=ON \
           -DWARNING_AS_ERROR=OFF .. && \
@@ -104,15 +110,6 @@ RUN apt-get -q -y update && \
     mkdir -p /usr/share/man/man1/ && \
     apt-get -q -y --no-install-recommends install openjdk-11-jre-headless && \
     rm -rf /var/lib/apt/lists/*
-
-ARG UPTANE_SIGN_VER=2.0.2
-
-RUN wget -q -nv https://github.com/uptane/ota-tuf/releases/download/v$UPTANE_SIGN_VER/cli-$UPTANE_SIGN_VER.tgz -P /tmp && \
-    tar xvf /tmp/cli-$UPTANE_SIGN_VER.tgz -C /tmp && \
-    cp -a /tmp/uptane-sign/lib/. /usr/lib/ && \
-    mv /tmp/uptane-sign/bin/uptane-sign /usr/bin/uptane-sign && \
-    rm /tmp/cli-$UPTANE_SIGN_VER.tgz && \
-    rm -rf /tmp/uptane-sign
 
 # Install aktualizr from our sota-builder generated tarball
 RUN --mount=type=bind,from=sota-builder,source=/root/aktualizr/build,target=/build \
