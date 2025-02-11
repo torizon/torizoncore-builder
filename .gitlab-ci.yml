@@ -31,13 +31,6 @@ variables:
   DOCKER_BUILDKIT: 1
   GITLAB_DOCKERREGISTRY_SUFFIX: ${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}
   GITLAB_DOCKERREGISTRY_SUFFIX_LATEST: ${CI_COMMIT_REF_SLUG}-latest
-  # TC image default versions:
-  TEST_IMAGES_TC6_VERSION: "6.2.0"
-  TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.2.0-devel-20230324+build.220.tar"
-  TEST_IMAGE_TC6_64BIT: "torizon-core-docker-apalis-imx8-Tezi_6.2.0-devel-20230324+build.220.tar"
-  TEST_IMAGES_TOS7_VERSION: "7.0.0"
-  TEST_IMAGE_TOS7_32BIT: "torizon-docker-apalis-imx6-Tezi_7.0.0-devel-20240830+build.40.tar"
-  TEST_IMAGE_TOS7_64BIT: "torizon-docker-apalis-imx8-Tezi_7.0.0-devel-20240830+build.40.tar"
   # Common Torizon .wic/.img images:
   TEST_IMAGES_TC_COMMON_VERSION: "6.6.0-common"
   TEST_IMAGE_TC_COMMON_INTEL: "torizon-core-common-docker-dev-intel-corei7-64-20240226043251.rootfs.wic"
@@ -67,7 +60,6 @@ services:
 stages:
   - pre-build
   - build
-  - test-platform
   - test
   - build-multiarch
   - deploy
@@ -176,12 +168,9 @@ build-arm64:
     - when: on_success
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
-    # Don't run 'platform' tests
-    TCB_TESTCASES_32BIT: "torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash"
-    TCB_TESTCASES_64BIT: "dt dto kernel"
   before_script:
     # setup environment for the tests
-    - apk update && apk add git sshpass zstd wget bash tar openssl zip
+    - apk update && apk add git sshpass zstd wget bash tar openssl zip curl jq
     - cd tests/integration/
     - mkdir -p workdir/reports && rm -Rf workdir/reports/*
     - TCB_SKIP_PULL=1 ./setup.sh
@@ -189,65 +178,71 @@ build-arm64:
     - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
     - ${T} docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
-    - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
   script:
-    # prepare images
-    - echo -e "\e[0Ksection_start:$(date +%s):download_tzimgs_section\r\e[0KDownload TorizonCore test images"
-    - mkdir -p workdir/images
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_VERSION}/${TEST_IMAGE_32BIT} -O workdir/images/${TEST_IMAGE_32BIT}'
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_VERSION}/${TEST_IMAGE_64BIT} -O workdir/images/${TEST_IMAGE_64BIT}'
-    - touch workdir/images/.images_downloaded
-    - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
-    # run tests (32-bit device)
-    - TCB_MACHINE=$(echo "${TEST_IMAGE_32BIT}" | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')
-    - echo -e "\e[0Ksection_start:$(date +%s):test_32bit_section\r\e[0KRun ${TCB_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_32BIT} ${T} ./run.sh
-    - echo -e "\e[0Ksection_end:$(date +%s):test_32bit_section\r\e[0K"
-    # run test (64-bit device)
-    - TCB_MACHINE=$(echo "${TEST_IMAGE_64BIT}" | sed -E 's/^torizon(-core)?-docker-(evaluation-)?(.*)-Tezi.*$/\3/')
-    - echo -e "\e[0Ksection_start:$(date +%s):test_64bit_section\r\e[0KRun ${TCB_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ${T} ./run.sh
-    - echo -e "\e[0Ksection_end:$(date +%s):test_64bit_section\r\e[0K"
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_TESTCASE"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
     # check results
     - (! grep "^not ok" workdir/reports/*)
 
-test-platform-tc6:
+test-host-tc6-platform:
   extends: .test-base
-  stage: test-platform
+  stage: test
   variables:
-    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
-    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
-    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
-    TCB_TESTCASES_32BIT: "torizoncore-builder"
-    TCB_TESTCASES_64BIT: "platform"
+    TCB_TESTCASE: platform
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx8"
 
-test-platform-tos7:
+test-host-tos7-platform:
+  needs:
+    - test-host-tc6-platform
   extends: .test-base
-  stage: test-platform
-  needs: ["test-platform-tc6"]
+  stage: test
   variables:
-    TEST_IMAGES_VERSION: ${TEST_IMAGES_TOS7_VERSION}
-    TEST_IMAGE_32BIT: ${TEST_IMAGE_TOS7_32BIT}
-    TEST_IMAGE_64BIT: ${TEST_IMAGE_TOS7_64BIT}
-    TCB_TESTCASES_32BIT: "platform"
-    TCB_TESTCASES_64BIT: "torizoncore-builder"
+    TCB_TESTCASE: platform
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx6"
 
-test-torizoncore6:
+test-host-tc6-32bit:
   extends: .test-base
   variables:
-    TEST_IMAGES_VERSION: ${TEST_IMAGES_TC6_VERSION}
-    TEST_IMAGE_32BIT: ${TEST_IMAGE_TC6_32BIT}
-    TEST_IMAGE_64BIT: ${TEST_IMAGE_TC6_64BIT}
+    # Don't run 'platform' tests
+    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx6"
 
-test-torizonos7:
+test-host-tc6-64bit:
   extends: .test-base
   variables:
-    TEST_IMAGES_VERSION: ${TEST_IMAGES_TOS7_VERSION}
-    TEST_IMAGE_32BIT: ${TEST_IMAGE_TOS7_32BIT}
-    TEST_IMAGE_64BIT: ${TEST_IMAGE_TOS7_64BIT}
+    # Don't run 'platform' tests
+    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx8"
+
+test-host-tos7-32bit:
+  extends: .test-base
+  variables:
+    # Don't run 'platform' tests
+    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx6"
+
+test-host-tos7-64bit:
+  extends: .test-base
+  variables:
+    # Don't run 'platform' tests
+    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx8"
 
 test-torizoncore-common:
   extends: .test-base
