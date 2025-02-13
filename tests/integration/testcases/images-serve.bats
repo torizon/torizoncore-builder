@@ -37,12 +37,10 @@ teardown() {
 }
 
 @test "images serve: check if 'image_list.json' is being served." {
-    skip-under-ci
-
     IMAGE_DIR="samples/images"
     torizoncore-builder-bg images serve $IMAGE_DIR
 
-    run wget -S http://localhost/image_list.json -O -
+    run docker run --rm --network=host busybox:stable wget -S http://localhost/image_list.json -O -
     assert_success
     assert_output --partial 'Cache-Control: no-store,max-age=0'
     assert_output --partial 'config_format'

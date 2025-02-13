@@ -35,7 +35,6 @@ teardown() {
 }
 
 @test "ostree serve: serve repo from storage" {
-    skip-under-ci
     ORIGINAL_REFERENCES=("base")
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
@@ -49,7 +48,7 @@ teardown() {
 
     torizoncore-builder-bg ostree serve
 
-    run curl http://localhost:8080/config
+    run docker run --rm --network=host busybox:stable wget -S http://localhost:8080/config -O -
     assert_success
 
     run torizoncore-builder-shell "ostree --repo=/repo init && \
@@ -64,15 +63,13 @@ teardown() {
 }
 
 @test "ostree serve: serve repo from external directory" {
-    skip-under-ci
-
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
 
     torizoncore-builder-bg ostree serve --ostree-repo-directory "samples/ostree-empty/"
 
-    run curl http://localhost:8080/config
+    run docker run --rm --network=host busybox:stable wget -S http://localhost:8080/config -O -
     assert_success
     stop-torizoncore-builder-bg
 }
