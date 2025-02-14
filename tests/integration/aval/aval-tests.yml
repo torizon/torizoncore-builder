@@ -42,7 +42,7 @@ build-aval-docker:
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
     - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
-    - cd tests/integration && python /aval/main.py --delegation-config $DELEGATION_CONFIG
+    - cd tests/integration && python /aval/main.py --delegation-config $DELEGATION_CONFIG --ignore-different-secondaries-between-updates
       --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
       # To circumvent the mismatch between Aktualizr's database and ostree when an external entity manages ostree without
@@ -58,7 +58,7 @@ build-aval-docker:
           echo "release"
         fi
       }
-    - TARGET_BUILD_TYPE=$(toggle_release_type "$TARGET_BUILD_TYPE") python /aval/main.py --delegation-config $DELEGATION_CONFIG
+    - TARGET_BUILD_TYPE=$(toggle_release_type "$TARGET_BUILD_TYPE") python /aval/main.py --delegation-config $DELEGATION_CONFIG --ignore-different-secondaries-between-updates
       "echo 'Updating to a different TOS version than the TCB tests version, to circumvent the mismatch between Aktualizr'\''s database and ostree when an external entity manages ostree without Aktualizr'"
     - (! grep "^not ok" workdir/reports/*)
 
