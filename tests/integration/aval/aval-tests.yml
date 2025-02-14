@@ -65,6 +65,8 @@ build-aval-docker:
 # AVAL_TEST_ALL can be defined as "true" on a Gitlab schedule to run tests on all devices
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -105,8 +107,6 @@ aval-apalis-imx8qm-scarthgap-release:
 
 aval-colibri-imx6dl-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -215,8 +215,6 @@ aval-verdin-am62dual-scarthgap-release:
 
 aval-verdin-imx8mmq-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -237,6 +235,8 @@ aval-verdin-imx8mmq-scarthgap-release:
 
 aval-verdin-imx8mpq-kirkstone-release:
   extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
