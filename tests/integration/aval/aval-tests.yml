@@ -3,6 +3,9 @@ variables:
   # RUNNER_TAG defined in schedule pipeline will overwrite this variable. This one is useful for commit
   # pipelines.
   RUNNER_TAG: ""
+  AVAL_TEST_ALL:
+    value: false
+    description: "Whether to test all machines using AVAL"
 
 default:
   tags:
@@ -62,9 +65,10 @@ build-aval-docker:
       "echo 'Updating to a different TOS version than the TCB tests version, to circumvent the mismatch between Aktualizr'\''s database and ostree when an external entity manages ostree without Aktualizr'"
     - (! grep "^not ok" workdir/reports/*)
 
-# AVAL_TEST_ALL can be defined as "true" on a Gitlab schedule to run tests on all devices
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -105,8 +109,6 @@ aval-apalis-imx8qm-scarthgap-release:
 
 aval-colibri-imx6dl-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -215,8 +217,6 @@ aval-verdin-am62dual-scarthgap-release:
 
 aval-verdin-imx8mmq-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -237,6 +237,8 @@ aval-verdin-imx8mmq-scarthgap-release:
 
 aval-verdin-imx8mpq-kirkstone-release:
   extends: .aval-template
+  rules:
+    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "kirkstone-6.x.y"

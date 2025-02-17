@@ -357,7 +357,6 @@ test_canonicalize_only_success() {
 }
 
 @test "platform push: test push with docker-compose files" {
-    skip-under-ci
     skip-no-ota-credentials
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "${SAMPLES_DIR}/credentials/credentials-prod.zip.enc")
     local CANON_DIR="${SAMPLES_DIR}/push/canonicalize"
@@ -473,7 +472,6 @@ test_canonicalize_only_success() {
 }
 
 @test "platform push: test push with TorizonCore images" {
-    skip-under-ci
     skip-no-ota-credentials
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
     local CANON_DIR="$SAMPLES_DIR/push/canonicalize"
