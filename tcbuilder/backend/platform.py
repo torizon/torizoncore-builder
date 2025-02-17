@@ -28,6 +28,7 @@ from tcbuilder.errors import \
 from tcbuilder.backend import ostree, sotaops
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
+from tcbuilder.backend.build import parse_config_file
 from tcbuilder.backend.common import \
     (get_host_workdir, get_own_network, set_output_ownership, run_with_loading_animation,
      validate_compose_file)
@@ -59,6 +60,14 @@ TUF_REPO_DIR = "/deploy/tuf-repo"
 
 # SHA256 Hash Regex
 HASH_REGEX = re.compile(r"^[0-9a-f]{64}$")
+
+FUSE_HARDWAREIDS = [
+    "verdin-imx8mp-fuses", "verdin-imx8mm-fuses", "apalis-imx8-fuses",
+    "apalis-imx6-fuses", "colibri-imx8x-fuses", "colibri-imx7-emmc-fuses",
+    "colibri-imx6-fuses", "colibri-imx6ull-emmc-fuses"
+]
+
+FUSE_SCHEMA_FILE = "fuse.schema.yaml"
 
 
 def load_metadata(fname, ftype=None, maxlen=DEFAULT_METADATA_MAXLEN):
@@ -1225,7 +1234,7 @@ def push_compose(credentials, target, version, compose_file,
             "for files with the '.lock' extension.")
 
     if canonicalize and not is_lockfile:
-        push_file = canonicalize_compose_file(compose_file, force)
+        push_file = canonicalize_file(compose_file, force)
         is_canonical = True
     else:
         push_file = compose_file
@@ -1246,40 +1255,16 @@ def push_compose(credentials, target, version, compose_file,
     if compatible_with:
         custom_metadata["compatibleWith"] = compatible_with
 
-    log.info(f"Pushing '{os.path.basename(push_file)}' with package version "
-             f"{version} to OTA server. You should keep this file under your "
+    log.info(f"You should keep '{os.path.basename(push_file)}' under your "
              "version control system.")
 
-    run_uptane_command(["uptane-sign", "init",
-                        "--credentials", credentials,
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "pull",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "upload",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", push_file,
-                        "--name", target,
-                        "--version", version,
-                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", push_file,
-                        "--name", target,
-                        "--version", version,
-                        "--hardwareids", "docker-compose",
-                        "--customMeta", json.dumps(custom_metadata)], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "sign",
-                        "--repo", TUF_REPO_DIR,
-                        "--key-name", "targets"], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "push",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
+    uptane_sign_push(credentials=credentials,
+                     push_file=push_file,
+                     target=target,
+                     version=version,
+                     hardwareids_str="docker-compose",
+                     custom_metadata=custom_metadata,
+                     verbose=verbose)
 
     if description is not None:
         update_description(description, target, version, credentials)
@@ -1307,39 +1292,13 @@ def push_generic(credentials, target, version, generic_file,
     if compatible_with:
         custom_meta["compatibleWith"] = compatible_with
 
-    log.info(f"Pushing '{os.path.basename(generic_file)}' with package version "
-             f"{version} to OTA server.")
-
-    run_uptane_command(["uptane-sign", "init",
-                        "--credentials", credentials,
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "pull",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "upload",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", generic_file,
-                        "--name", target,
-                        "--version", version,
-                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", generic_file,
-                        "--name", target,
-                        "--version", version,
-                        "--hardwareids", hardwareids_str,
-                        "--customMeta", json.dumps(custom_meta)], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "sign",
-                        "--repo", TUF_REPO_DIR,
-                        "--key-name", "targets"], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "push",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    log.info(f"Successfully pushed {os.path.basename(generic_file)} to OTA server.")
+    uptane_sign_push(credentials=credentials,
+                     push_file=generic_file,
+                     target=target,
+                     version=version,
+                     hardwareids_str=hardwareids_str,
+                     custom_metadata=custom_meta,
+                     verbose=verbose)
 
     if description is not None:
         update_description(description, target, version, credentials)
@@ -1439,56 +1398,68 @@ def set_images_hash(compose_file_data):
         svc_spec['image'] = image_parsed.get_name_with_tag()
 
 
-def canonicalize_compose_file(compose_file, force=False):
+def canonicalize_file(yaml_file, force=False, compose=True):
     """
-    Canonicalize a Docker compose file that could be pushed to OTA and
-    saved as a '.lock.yml/yaml' file.
+    Canonicalize a Docker compose or fuse package yaml file
+    that could be pushed to OTA and saved as a '.lock.yml/yaml' file.
 
-    :param compose_file: The Docker compose file.
+    :param yaml_file: The input yaml file.
     :param force: Force the overwriting of the canonicalized file.
+    :param compose: Whether the input is a docker compose file
+                    and requires additional operations
     :returns:
-        The canonicalized data of the Docker compose file as well as the
+        The canonicalized data of the yaml file as well as the
         name of the '.lock' file created.
     """
 
-    if not compose_file.endswith('.yml') and not compose_file.endswith('.yaml'):
+    if not yaml_file.endswith('.yml') and not yaml_file.endswith('.yaml'):
         raise TorizonCoreBuilderError(
-            f"File '{compose_file}' does not seem like a Docker compose file. "
+            f"File '{yaml_file}' does not seem like a Yaml file. "
             "It does not end with '.yml' or '.yaml'.")
 
-    is_canonical, compose_file_data = is_canonicalized(compose_file, True)
+    is_canonical, yaml_file_data = is_canonicalized(yaml_file, True, compose)
 
     if is_canonical:
-        log.info(f"File '{compose_file}' is already in canonical form.")
-        return compose_file
+        log.info(f"File '{yaml_file}' is already in canonical form.")
+        return yaml_file
 
-    canonical_compose_file_lock = re.sub(r"(.ya?ml)$", r".lock\1", compose_file)
-    if os.path.exists(canonical_compose_file_lock) and not force:
+    canonical_yaml_file_lock = re.sub(r"(.ya?ml)$", r".lock\1", yaml_file)
+    if os.path.exists(canonical_yaml_file_lock) and not force:
         raise TorizonCoreBuilderError(
-            f"Canonicalized file '{canonical_compose_file_lock}' already exists. "
+            f"Canonicalized file '{canonical_yaml_file_lock}' already exists. "
             "Please use the '--force' parameter if you want it to be overwritten.")
 
-    set_images_hash(compose_file_data)
-    canonical_data = yaml.safe_dump(compose_file_data)
+    if compose:
+        set_images_hash(yaml_file_data)
 
-    with open(canonical_compose_file_lock, 'w', encoding='utf-8') as compose_lock_fd:
-        compose_lock_fd.write(canonical_data)
-    set_output_ownership(canonical_compose_file_lock)
-    log.info(f"Canonicalized file '{canonical_compose_file_lock}' has been generated.")
+    canonical_data = yaml.safe_dump(yaml_file_data)
 
-    return canonical_compose_file_lock
+    with open(canonical_yaml_file_lock, 'w', encoding='utf-8') as yaml_lock_fd:
+        if compose:
+            yaml_lock_fd.write(canonical_data)
+        else:
+            # Lowercase everything for fuse package only
+            # Also remove the single quotes added by pyyaml on the restored hex values
+            yaml_lock_fd.write(canonical_data.lower().replace("'", ""))
+
+    set_output_ownership(canonical_yaml_file_lock)
+    log.info(f"Canonicalized file '{canonical_yaml_file_lock}' has been generated.")
+
+    return canonical_yaml_file_lock
 
 
-def is_canonicalized(compose_file, ret_parsed=False):
+def is_canonicalized(yaml_file, ret_parsed=False, compose=True):
     """
-    Check if a docker-compose file is canonicalized.
+    Check if a docker-compose or fuse yaml file is canonicalized.
 
-    :param compose_file: The Docker Compose file to be checked.
+    :param yaml_file: The file to be checked.
     :param ret_parsed: Add the parsed object to the return.
+    :param compose: Whether the input is a docker compose file
+                    and requires additional operations
     :returns:
         Wether or not the input is canonicalized.
         If the 'ret_parsed' argument is set to True, the parsed version
-        of the docker compose file will be added to the return.
+        of the file will be added to the return.
     """
     def images_with_digest(data):
         services = data.get('services', {})
@@ -1498,18 +1469,25 @@ def is_canonicalized(compose_file, ret_parsed=False):
                 _uses_digest.append(parse_image_name(service.get('image')).uses_digest())
         return all(_uses_digest)
 
-    with open(compose_file, encoding='utf-8') as file:
-        compose_file_data = yaml.safe_load(file)
+    with open(yaml_file, encoding='utf-8') as file:
+        file_data = yaml.safe_load(file)
         file.seek(0)
         original_yaml_string = file.read()
 
     is_canonical = False
     # Checking for correct file structure and adherence to image references with digests
-    validate_compose_file(compose_file_data)
-    if images_with_digest(compose_file_data):
-        is_canonical = original_yaml_string == yaml.safe_dump(compose_file_data)
+    if compose:
+        validate_compose_file(file_data)
 
-    return (is_canonical, compose_file_data) if ret_parsed else is_canonical
+    if compose and images_with_digest(file_data):
+        is_canonical = original_yaml_string == yaml.safe_dump(file_data)
+    elif not compose:
+        # yaml.safe_load transforms hexadecimal to decimal, restore the original hex
+        restore_hex(file_data)
+        is_canonical = (original_yaml_string ==
+                        yaml.safe_dump(file_data).lower().replace("'", ""))
+
+    return (is_canonical, file_data) if ret_parsed else is_canonical
 
 
 def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):
@@ -1561,5 +1539,162 @@ def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):
         set_output_ownership(dest_file)
         log.info(f"Shared data archive '{dest_file}' successfully generated.")
 
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
+def push_fuse(credentials, target, version, fuse_file, hardwareids,
+              compatible_with=None, force=False, description=None, verbose=False):
+    """Push fuse package file to OTA server."""
+
+
+    validate_fuse_file(fuse_file, hardwareids)
+
+    is_lockfile = bool(re.match(r".+\.lock\.ya?ml$", os.path.basename(fuse_file)))
+    is_canonical = False
+
+    # Only check if the file is already in a canonical form if the input
+    # appears to be a lock file by name.
+    if is_lockfile:
+        is_canonical = is_canonicalized(fuse_file, False, False)
+
+    # The lock file must be in its canonical form
+    if not is_canonical and is_lockfile:
+        raise TorizonCoreBuilderError(
+            f"Error: '{fuse_file}' is not in canonical form, which is expected "
+            "for files with the '.lock' extension.")
+
+    if not is_lockfile:
+        push_file = canonicalize_file(fuse_file, force, False)
+        is_canonical = True
+    else:
+        log.debug(f"Input file '{fuse_file}' is already in canonical form, "
+                  "proceeding.")
+        push_file = fuse_file
+
+    hardwareids_str = ' '.join(hardwareids)
+    if target is None:
+        target = os.path.basename(push_file)
+
+    # TODO: Do we need a custom metadata flag for canonical here?
+    custom_metadata = {}
+    if compatible_with:
+        custom_metadata["compatibleWith"] = compatible_with
+
+    uptane_sign_push(credentials=credentials,
+                     push_file=push_file,
+                     target=target,
+                     version=version,
+                     hardwareids_str=hardwareids_str,
+                     custom_metadata=custom_metadata,
+                     verbose=verbose)
+
+    if description is not None:
+        update_description(description, target, version, credentials)
+
+# pylint: enable=too-many-arguments
+# pylint: enable=too-many-locals
+
+# pylint: disable=too-many-boolean-expressions
+def validate_fuse_file(fuse_file, hardwareids):
+    """
+    Validate the provided fuse yaml file
+
+    :param fuse_file: Path to fuse yaml file
+    :param hardwareids: Hardware IDs that were provided by user
+    """
+
+    # First check that hardwareids are not conflicting
+    ahab = False
+    hab = False
+    if "colibri-imx8x-fuses" in hardwareids or "apalis-imx8-fuses" in hardwareids:
+        ahab = True
+        fuse_num = 16
+
+    if ("verdin-imx8mp-fuses" in hardwareids or "verdin-imx8mm-fuses" in hardwareids or
+            "apalis-imx6-fuses" in hardwareids or "colibri-imx7-emmc-fuses" in hardwareids or
+            "colibri-imx6-fuses" in hardwareids or "colibri-imx6ull-emmc-fuses" in hardwareids):
+        hab = True
+        fuse_num = 8
+
+    if hab and ahab:
+        raise TorizonCoreBuilderError(
+            f"Provided hardware ids: {hardwareids} contains ids denoting "
+            "both HAB and AHAB devices which is not possible in one fuse type package.")
+
+    # Next check overall layout against schema
+    parsed_file = parse_config_file(fuse_file, schema_path=FUSE_SCHEMA_FILE)
+
+    # Finally check if the number of fuse values is expected for the A/HAB type
+    parsed_keys = list(parsed_file['fuses'].keys())
+    parsed_keys.remove("fuse-close")
+    parsed_fuse_num = len(parsed_keys)
+    if parsed_fuse_num != fuse_num:
+        raise TorizonCoreBuilderError(
+            f"Found {parsed_fuse_num} fuse values in provided yaml file, "
+            f"but expected to find {fuse_num} instead.")
+
+# pylint: enable=too-many-boolean-expressions
+
+def restore_hex(yaml_file_data):
+    """
+    Restore hexadecimal values in fuse package that were turned into decimal
+    by pyyaml.
+
+    :param yaml_file_data: The fuse package file data
+    """
+
+    for fuse_val in yaml_file_data['fuses'].keys():
+        if "fuse-val" in fuse_val:
+            dec_num = yaml_file_data['fuses'].get(fuse_val)
+            hex_num = hex(dec_num)
+            yaml_file_data['fuses'][fuse_val] = hex_num
+
+def uptane_sign_push(credentials, push_file, target, version,
+                     hardwareids_str, custom_metadata, verbose):
+    """
+    Use Uptane sign to push a file-based package to the OTA server
+
+    :param credentials: The credentials file corresponding to the OTA
+                        server that will be pushed to.
+    :param push_file: The file-based pacakge payload
+    :param target: The name of the package
+    :param version: The version of the package
+    :param hardwareids_str: A string of hardware-ids
+    :param custom_metadata: Custom metadata to be pushed with package
+    :param verbose: Whether uptane-sign will execute with verbose output
+    """
+
+    log.info(f"Pushing '{os.path.basename(push_file)}' with package version "
+             f"{version} to OTA server.")
+
+    run_uptane_command(["uptane-sign", "init",
+                        "--credentials", credentials,
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "pull",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "upload",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", push_file,
+                        "--name", target,
+                        "--version", version,
+                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", push_file,
+                        "--name", target,
+                        "--version", version,
+                        "--hardwareids", hardwareids_str,
+                        "--customMeta", json.dumps(custom_metadata)], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "sign",
+                        "--repo", TUF_REPO_DIR,
+                        "--key-name", "targets"], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "push",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
 
 # EOF
