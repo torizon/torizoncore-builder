@@ -3,6 +3,9 @@ variables:
   # RUNNER_TAG defined in schedule pipeline will overwrite this variable. This one is useful for commit
   # pipelines.
   RUNNER_TAG: ""
+  AVAL_TEST_ALL:
+    value: false
+    description: "Whether to test all machines using AVAL"
 
 default:
   tags:
@@ -62,7 +65,6 @@ build-aval-docker:
       "echo 'Updating to a different TOS version than the TCB tests version, to circumvent the mismatch between Aktualizr'\''s database and ostree when an external entity manages ostree without Aktualizr'"
     - (! grep "^not ok" workdir/reports/*)
 
-# AVAL_TEST_ALL can be defined as "true" on a Gitlab schedule to run tests on all devices
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template
   rules:
