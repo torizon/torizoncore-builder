@@ -6,6 +6,12 @@ variables:
   AVAL_TEST_ALL:
     value: false
     description: "Whether to test all machines using AVAL"
+  AVAL_DISABLED:
+    value: false
+    description: "Whether to disable the AVAL jobs in the pipeline."
+  AVAL_ALLOW_FAILURE:
+    value: false
+    description: "Whether to allow the pipeline to continue upon failures in AVAL jobs."
 
 default:
   tags:
@@ -15,9 +21,11 @@ default:
 build-aval-docker:
   stage: build
   rules:
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      allow_failure: true
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: on_success
   variables:
     IMAGE_NAME_AVAL: aval-docker
     DOCKERFILE_NAME: tests/integration/aval/aval-docker.Dockerfile
@@ -34,9 +42,11 @@ build-aval-docker:
     IMAGE_NAME: torizoncore-builder-amd64
     IMAGE_NAME_AVAL: aval-docker
   rules:
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      allow_failure: true
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: on_success
   image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main
   script:
     # pull latest build of TorizonCore Builder
