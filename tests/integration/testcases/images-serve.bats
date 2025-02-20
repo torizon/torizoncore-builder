@@ -24,12 +24,17 @@ teardown() {
 }
 
 @test "images serve: check zeroconf tezi service response." {
-    skip-under-ci
-
     IMAGE_DIR="samples/images"
-    torizoncore-builder-bg images serve $IMAGE_DIR
+    torizoncore-builder-bg-tcb_network images serve $IMAGE_DIR
 
-    run avahi-browse-domains -a -t
+    run docker run -i --rm --privileged --network=tcb_network alpine:latest sh -c "
+        apk update && apk add avahi avahi-tools dbus &&
+        mkdir -p /run/dbus &&
+        dbus-uuidgen > /var/lib/dbus/machine-id &&
+        dbus-daemon --system &&
+        avahi-daemon --daemonize --no-chroot &&
+        avahi-browse-domains -a -t
+    "
     assert_success
     assert_output --partial '_tezi._tcp'
     assert_output --partial 'Custom Toradex Easy Installer Feed'
