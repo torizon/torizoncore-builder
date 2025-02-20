@@ -44,8 +44,9 @@ torizoncore-builder-bg() {
     # Replace the "run" in "docker run ..." with "run -d" to run it in detached mode
     # and to output the ID of the container.
     local CMD=$(eval echo ${TCBCMD/ run / run -d })
+    # Print alias definition if test fail
+    echo "torizoncore-builder-bg alias was defined as: $CMD $@"
     # Run container in the background
-    # echo "# Running $CMD $@"
     run $CMD $@
     assert_success
     # Save the ID of the container.
