@@ -11,3 +11,6 @@ tags
 GPATH
 GRTAGS
 GTAGS
+
+# Directory created by the tests
+tests/integration/workdir
