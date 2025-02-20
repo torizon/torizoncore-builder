@@ -37,13 +37,21 @@ export TCB_BG_CONTAINER=""
 
 # run torizoncore-builder-bg
 torizoncore-builder-bg() {
+    # If this function was called by torizoncore-builder-bg-alt_network,
+    # use --network=$TCB_BG_ALT_NETWORK, otherwise use --network=host
+    local tcbcmd
+    if [ -z "${TCBCMD_BG_OVERRIDE}" ]; then
+	    tcbcmd="${TCBCMD}"
+    else
+	    tcbcmd="${TCBCMD_BG_OVERRIDE}"
+    fi
     # Make sure no other process is running in the background
     assert [ -z $TCB_BG_CONTAINER ]
     # Make sure the docker command does not have the "-it" parameter(s)
     [[ $TCBCMD == *" -it"* ]] && assert false
     # Replace the "run" in "docker run ..." with "run -d" to run it in detached mode
     # and to output the ID of the container.
-    local CMD=$(eval echo ${TCBCMD/ run / run -d })
+    local CMD=$(eval echo ${tcbcmd/ run / run -d })
     # Print alias definition if test fail
     echo "torizoncore-builder-bg alias was defined as: $CMD $@"
     # Run container in the background
@@ -56,6 +64,14 @@ torizoncore-builder-bg() {
     sleep 5
 }
 export -f torizoncore-builder-bg
+
+# run torizoncore-builder-bg-alt_network
+torizoncore-builder-bg-alt_network() {
+    local tcbcmd="${TCBCMD/--network=host/--network=$TCB_BG_ALT_NETWORK}"
+    tcbcmd="${tcbcmd/--net=host/--net=$TCB_BG_ALT_NETWORK}"
+    TCBCMD_BG_OVERRIDE="${tcbcmd}" torizoncore-builder-bg "$@"
+}
+export -f torizoncore-builder-bg-alt_network
 
 # run stop-torizoncore-builder-bg
 stop-torizoncore-builder-bg() {
