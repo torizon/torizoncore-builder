@@ -76,7 +76,7 @@ tcb_tests_clean_storage_volume() {
     echo "Removing all stopped containers..."
     if ! docker container prune -f >/dev/null; then
         echo "Error: could not remove stopped containers!"
-        return 1;
+        return 1
     fi
 
     echo "Removing storage volume..."
