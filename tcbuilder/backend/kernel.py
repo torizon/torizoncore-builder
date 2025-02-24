@@ -152,6 +152,7 @@ def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
         f"CROSS_COMPILE={c_c}",
         f"M={src_dir}",
         f"INSTALL_MOD_PATH={install_path}",
+        "INSTALL_MOD_DIR=updates",
         "modules_install",
     ]
     subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env_path)
