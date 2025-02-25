@@ -19,13 +19,15 @@ import dateutil.parser
 
 from tcbuilder.cli.bundle import \
     (add_dind_param_arguments, add_dind_env_arguments, parse_env_assignments)
+from tcbuilder.cli.build import l2_pref
 from tcbuilder.backend import platform, sotaops, common, ostree
 from tcbuilder.backend.platform import \
     (JSON_EXT, OFFLINE_SNAPSHOT_FILE, validate_package_selection_criteria,
-     translate_compatible_packages)
+     translate_compatible_packages, FUSE_HARDWAREIDS)
 from tcbuilder.errors import \
     (PathNotExistError, InvalidStateError, InvalidDataError, InvalidArgumentError,
-     TorizonCoreBuilderError, NoProvisioningDataInCredsFile)
+     TorizonCoreBuilderError, NoProvisioningDataInCredsFile,
+     ParseError, ParseErrors)
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
@@ -494,6 +496,7 @@ def _check_custom_meta_param(custom_meta):
         raise InvalidArgumentError("Error: Failure parsing the custom metadata "
                                    "(which must be a valid JSON string).")
 
+# pylint: disable=too-many-branches,too-many-statements
 def do_platform_push(args):
     """Wrapper for 'platform push' subcommand"""
 
@@ -541,12 +544,9 @@ def do_platform_push(args):
     credentials = os.path.abspath(args.credentials)
 
     package_info, compatible_with = _check_compatible_with_param(args.compatible_with, credentials)
-    if args.ref.endswith(".yml") or args.ref.endswith(".yaml"):
-        if args.hardwareids and any(hwid != "docker-compose" for hwid in args.hardwareid):
-            raise InvalidArgumentError(
-                "Error: The hardware ID for a docker-compose package can "
-                "only be \"docker-compose\".")
-
+    if ((args.ref.endswith(".yml") or args.ref.endswith(".yaml")) and
+            (not args.hardwareids or
+             (args.hardwareids and all(hwid == "docker-compose" for hwid in args.hardwareids)))):
         for package in package_info:
             log.info(f"Package {package.get('name')} with version {package.get('version')}"
                      " added as compatible.")
@@ -559,7 +559,44 @@ def do_platform_push(args):
             compose_file=args.ref,
             compatible_with=compatible_with,
             canonicalize=args.canonicalize, force=args.force, verbose=args.verbose)
+    elif ((args.ref.endswith(".yml") or args.ref.endswith(".yaml")) and
+          (set(args.hardwareids).issubset(set(FUSE_HARDWAREIDS.keys())))):
+        for package in package_info:
+            log.info(f"Package {package.get('name')} with version {package.get('version')}"
+                     " added as compatible.")
+
+        try:
+            platform.push_fuse(
+                credentials=credentials,
+                target=args.package_name,
+                version=args.package_version or datetime.today().strftime("%Y-%m-%d"),
+                fuse_file=args.ref,
+                hardwareids=args.hardwareids,
+                force=args.force,
+                description=args.description,
+                compatible_with=compatible_with,
+                verbose=args.verbose)
+        except ParseError as exc:
+            log.warning(l2_pref("Parsing errors found:"))
+            log.warning(f"{str(exc)}")
+            sys.exit(2)
+        except ParseErrors as exc:
+            log.warning(l2_pref("Parsing errors found:"))
+            assert isinstance(exc.payload, list)
+            for error in exc.payload:
+                log.warning(str(error))
+            sys.exit(2)
+        except TorizonCoreBuilderError as exc:
+            exc.msg = "Error: " + exc.msg
+            raise exc
+
     elif os.path.isfile(args.ref):
+        if "docker-compose" in args.hardwareids:
+            if any(hwid != "docker-compose" for hwid in args.hardwareids):
+                raise InvalidArgumentError(
+                    "Error: The hardware ID for a docker-compose package can "
+                    "only be \"docker-compose\".")
+
         _check_custom_meta_param(args.custom_meta)
         for package in package_info:
             log.info(f"Package {package.get('name')} with version {package.get('version')}"
@@ -612,7 +649,8 @@ def add_common_push_arguments(subparser):
     subparser.add_argument(
         "--hardwareid", dest="hardwareids", action="append",
         help=("Define the hardware ID which the package is compatible with; this can be "
-              "specified multiple times. Use only with OSTree and generic packages."),
+              "specified multiple times. Use only with OSTree, fuse package, "
+              "and generic packages."),
         required=False, default=None)
     subparser.add_argument(
         "--description", dest="description",
@@ -620,12 +658,14 @@ def add_common_push_arguments(subparser):
         required=False, default=None)
     subparser.add_argument(
         "--package-name",
-        help=("Package name for docker-compose or generic package file (default: name of file "
+        help=("Package name for docker-compose, fuse package, "
+              "generic package file (default: name of file "
               "being pushed to OTA) or OSTree reference (default: same as REF)."),
         required=False, default=None)
     subparser.add_argument(
         "--package-version",
-        help=("Package version for docker-compose or generic package file (default: current "
+        help=("Package version for docker-compose, fuse package, "
+              "generic package file (default: current "
               "date in the 'yyyy-mm-dd' format) or OSTree reference (default: OSTree subject)."),
         required=False, default=None)
     subparser.add_argument(
@@ -637,13 +677,13 @@ def add_common_push_arguments(subparser):
         required=False, default=[])
     subparser.add_argument(
         metavar="REF", dest="ref",
-        help="OSTree reference or file (docker-compose or generic package) to push to "
-             "Torizon OTA.")
+        help="OSTree reference or file (docker-compose, fuse package, or generic package) "
+             "to push to Torizon Cloud.")
     subparser.add_argument(
         "--canonicalize", dest="canonicalize", action=argparse.BooleanOptionalAction,
         help=("Generates a canonicalized version of the docker-compose file, changing "
               "its extension to '.lock.yml' or '.lock.yaml' and pushing it to Torizon "
-              "OTA; The package name is the name of the generated file if no package "
+              "Cloud; The package name is the name of the generated file if no package "
               "name is provided."))
     common.add_common_registry_arguments(subparser)
     subparser.add_argument(

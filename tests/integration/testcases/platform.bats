@@ -654,3 +654,80 @@ test_canonicalize_only_success() {
     assert_success
     assert_output --partial "Static delta creation for $FIRST_REF-$SECOND_REF complete"
 }
+
+@test "platform push: fuse errors" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+    local FUSE_DIR="$SAMPLES_DIR/push/fuse"
+
+    # Test case: conflicting hardware ids
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-8.yaml" \
+        --hardwareid apalis-imx8-fuses --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
+    assert_failure
+    assert_output --partial "both HAB and AHAB devices which is not possible"
+
+    # Test case: Provided yaml does not match fuse schema
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-invalid-schema.yaml" \
+        --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
+    assert_failure
+    assert_output --partial "is not of type"
+
+    # Test case: Provided yaml has incorrect number of fuse values for the provided hardwareids
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-16.yaml" \
+        --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
+    assert_failure
+    assert_output --partial "but expected to find 8 instead."
+
+   # Test case: Provided yaml has "lock" extension but is not actually canonicalized
+   run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-8.lock.yaml" \
+        --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
+   assert_failure
+   assert_output --partial "which is expected for files with the '.lock' extension"
+
+  # Test case: Push without --force when there is an existing lock file
+  run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-8.yaml" \
+        --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
+  assert_failure
+  assert_output --partial "already exists. Please use the '--force' parameter if you want it to be overwritten."
+}
+
+@test "platform push: test push with fuses packages" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+    local FUSE_DIR="$SAMPLES_DIR/push/fuse"
+
+    # Test case: Push non-canonical fuse file
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-16.yaml" \
+        --hardwareid apalis-imx8-fuses --package-version "$(get-unique-version)" \
+        --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial "Canonicalized file"
+    assert_output --partial "Successfully pushed"
+
+    # Test case: Push already canonical fuse file
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-16.lock.yaml" \
+        --hardwareid apalis-imx8-fuses --package-version "$(get-unique-version)" \
+        --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial "Successfully pushed"
+    refute_output --partial "Canonicalized file"
+
+    # Test case: Push with --compatible-with
+    local V1_SHA256="44ebe00783ae397562e3a9ef099249bd9f6b3cd8c01daff46618e85420f59c37"
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-16.lock.yaml" \
+        --hardwareid apalis-imx8-fuses --package-version "$(get-unique-version)" \
+        --compatible-with "sha256=${V1_SHA256}" --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial "Package v1 with version"
+    assert_output --partial "Successfully pushed"
+
+    # Test case: Push with --description
+    run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-16.lock.yaml" \
+        --hardwareid apalis-imx8-fuses --package-version "$(get-unique-version)" \
+        --description "foo bar" --credentials "${CREDS_PROD_ZIP}"
+    assert_success
+    assert_output --partial "Successfully pushed"
+    assert_output --partial "Description for"
+
+    rm -f "${FUSE_DIR}/fuse-non-canon-16.lock.yaml"
+}
