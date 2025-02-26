@@ -76,7 +76,7 @@ tcb_tests_clean_storage_volume() {
     echo "Removing all stopped containers..."
     if ! docker container prune -f >/dev/null; then
         echo "Error: could not remove stopped containers!"
-        return 1;
+        return 1
     fi
 
     echo "Removing storage volume..."
@@ -86,12 +86,22 @@ tcb_tests_clean_storage_volume() {
     fi
 }
 
+# Create a docker network for TCB tests
+tcb_create_docker_network() {
+    echo "Creating docker network..."
+    if ! docker network create tcb_network >/dev/null; then
+        echo "Error: could not create docker network!"
+        return 1
+    fi
+}
+
 tcb_tests_main() {
     local WORKDIR="workdir"
     tcb_tests_prepare $WORKDIR && \
         tcb_tests_install_bats $WORKDIR && \
         tcb_tests_pull_container $WORKDIR && \
         tcb_tests_clean_storage_volume && \
+        tcb_create_docker_network && \
         echo "Environment successfully configured to start integration tests."
 }
 
