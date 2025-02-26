@@ -1179,15 +1179,18 @@ def translate_compatible_packages(credentials, criteria):
     :return: Found packages' information and the 'compatibleWith' value.
     """
 
+    package_info = []
+    compatible_with = []
+
+    if not criteria:
+        return package_info, compatible_with
+
     server_creds = sotaops.ServerCredentials(credentials)
     token = sotaops.get_access_token(server_creds)
 
     with TemporaryDirectory() as tmpdir:
         fetch_imgrepo_metadata(server_creds.repo_url, tmpdir, token, verbose=False)
         targets_metadata = load_imgrepo_targets(tmpdir, verbose=False)
-
-    package_info = []
-    compatible_with = []
 
     for criterion in criteria:
         target_hash = criterion.get("sha256")
