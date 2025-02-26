@@ -1246,40 +1246,16 @@ def push_compose(credentials, target, version, compose_file,
     if compatible_with:
         custom_metadata["compatibleWith"] = compatible_with
 
-    log.info(f"Pushing '{os.path.basename(push_file)}' with package version "
-             f"{version} to OTA server. You should keep this file under your "
+    log.info(f"You should keep '{os.path.basename(push_file)}' under your "
              "version control system.")
 
-    run_uptane_command(["uptane-sign", "init",
-                        "--credentials", credentials,
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "pull",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "upload",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", push_file,
-                        "--name", target,
-                        "--version", version,
-                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", push_file,
-                        "--name", target,
-                        "--version", version,
-                        "--hardwareids", "docker-compose",
-                        "--customMeta", json.dumps(custom_metadata)], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "sign",
-                        "--repo", TUF_REPO_DIR,
-                        "--key-name", "targets"], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "push",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
+    uptane_sign_push(credentials=credentials,
+                     push_file=push_file,
+                     target=target,
+                     version=version,
+                     hardwareids_str="docker-compose",
+                     custom_metadata=custom_metadata,
+                     verbose=verbose)
 
     if description is not None:
         update_description(description, target, version, credentials)
@@ -1307,39 +1283,13 @@ def push_generic(credentials, target, version, generic_file,
     if compatible_with:
         custom_meta["compatibleWith"] = compatible_with
 
-    log.info(f"Pushing '{os.path.basename(generic_file)}' with package version "
-             f"{version} to OTA server.")
-
-    run_uptane_command(["uptane-sign", "init",
-                        "--credentials", credentials,
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "pull",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "upload",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", generic_file,
-                        "--name", target,
-                        "--version", version,
-                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
-                        "--repo", TUF_REPO_DIR,
-                        "--input", generic_file,
-                        "--name", target,
-                        "--version", version,
-                        "--hardwareids", hardwareids_str,
-                        "--customMeta", json.dumps(custom_meta)], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "sign",
-                        "--repo", TUF_REPO_DIR,
-                        "--key-name", "targets"], verbose)
-
-    run_uptane_command(["uptane-sign", "targets", "push",
-                        "--repo", TUF_REPO_DIR], verbose)
-
-    log.info(f"Successfully pushed {os.path.basename(generic_file)} to OTA server.")
+    uptane_sign_push(credentials=credentials,
+                     push_file=generic_file,
+                     target=target,
+                     version=version,
+                     hardwareids_str=hardwareids_str,
+                     custom_metadata=custom_meta,
+                     verbose=verbose)
 
     if description is not None:
         update_description(description, target, version, credentials)
@@ -1561,5 +1511,53 @@ def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):
         set_output_ownership(dest_file)
         log.info(f"Shared data archive '{dest_file}' successfully generated.")
 
+def uptane_sign_push(credentials, push_file, target, version,
+                     hardwareids_str, custom_metadata, verbose):
+    """
+    Use Uptane sign to push a file-based package to the OTA server
+
+    :param credentials: The credentials file corresponding to the OTA
+                        server that will be pushed to.
+    :param push_file: The file-based pacakge payload
+    :param target: The name of the package
+    :param version: The version of the package
+    :param hardwareids_str: A string of hardware-ids
+    :param custom_metadata: Custom metadata to be pushed with package
+    :param verbose: Whether uptane-sign will execute with verbose output
+    """
+
+    log.info(f"Pushing '{os.path.basename(push_file)}' with package version "
+             f"{version} to OTA server.")
+
+    run_uptane_command(["uptane-sign", "init",
+                        "--credentials", credentials,
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "pull",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "upload",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", push_file,
+                        "--name", target,
+                        "--version", version,
+                        "--timeout", UPTANE_SIGN_UPLOAD_TIMEOUT], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "add-uploaded",
+                        "--repo", TUF_REPO_DIR,
+                        "--input", push_file,
+                        "--name", target,
+                        "--version", version,
+                        "--hardwareids", hardwareids_str,
+                        "--customMeta", json.dumps(custom_metadata)], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "sign",
+                        "--repo", TUF_REPO_DIR,
+                        "--key-name", "targets"], verbose)
+
+    run_uptane_command(["uptane-sign", "targets", "push",
+                        "--repo", TUF_REPO_DIR], verbose)
+
+    log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
 
 # EOF
