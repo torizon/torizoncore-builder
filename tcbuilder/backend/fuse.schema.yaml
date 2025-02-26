@@ -1,0 +1,74 @@
+title: "Fuse update package configuration"
+description: "Schema for secure boot fuse update package files."
+type: object
+properties:
+  fuses:
+    type: object
+    description: "Fuse values to be programmed in-order"
+    properties:
+      fuse-close:
+        type: boolean
+        description: "Whether to set closing fuse on device"
+      fuse-val1:
+        type: number
+        description: "Hex representation of value to set to 1st fuse"
+      fuse-val2:
+        type: number
+        description: "Hex representation of value to set to 2nd fuse"
+      fuse-val3:
+        type: number
+        description: "Hex representation of value to set to 3rd fuse"
+      fuse-val4:
+        type: number
+        description: "Hex representation of value to set to 4th fuse"
+      fuse-val5:
+        type: number
+        description: "Hex representation of value to set to 5th fuse"
+      fuse-val6:
+        type: number
+        description: "Hex representation of value to set to 6th fuse"
+      fuse-val7:
+        type: number
+        description: "Hex representation of value to set to 7th fuse"
+      fuse-val8:
+        type: number
+        description: "Hex representation of value to set to 8th fuse"
+      fuse-val9:
+        type: number
+        description: "Hex representation of value to set to 9th fuse (AHAB only)"
+      fuse-val10:
+        type: number
+        description: "Hex representation of value to set to 10th fuse (AHAB only)"
+      fuse-val11:
+        type: number
+        description: "Hex representation of value to set to 11th fuse (AHAB only)"
+      fuse-val12:
+        type: number
+        description: "Hex representation of value to set to 12th fuse (AHAB only)"
+      fuse-val13:
+        type: number
+        description: "Hex representation of value to set to 13th fuse (AHAB only)"
+      fuse-val14:
+        type: number
+        description: "Hex representation of value to set to 14th fuse (AHAB only)"
+      fuse-val15:
+        type: number
+        description: "Hex representation of value to set to 15th fuse (AHAB only)"
+      fuse-val16:
+        type: number
+        description: "Hex representation of value to set to 16th fuse (AHAB only)"
+    additionalProperties: false
+    # Both HAB & AHAB requires the following
+    required:
+      - fuse-close
+      - fuse-val1
+      - fuse-val2
+      - fuse-val3
+      - fuse-val4
+      - fuse-val5
+      - fuse-val6
+      - fuse-val7
+      - fuse-val8
+additionalProperties: false
+required:
+  - fuses
