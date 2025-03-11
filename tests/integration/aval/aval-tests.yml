@@ -25,6 +25,8 @@ build-aval-docker:
       allow_failure: true
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
     - when: on_success
   variables:
     IMAGE_NAME_AVAL: aval-docker
@@ -45,6 +47,8 @@ build-aval-docker:
     - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
       allow_failure: true
     - if: '$AVAL_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - when: on_success
   image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main
