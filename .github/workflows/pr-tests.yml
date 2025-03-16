@@ -160,7 +160,9 @@ jobs:
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
 
       - name: Run setup script
-        run: TCB_SKIP_PULL=1 ./setup.sh
+        run: |
+          TCB_SKIP_PULL=1 . ./setup.sh
+          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Torizon OS 5 32-bit test image
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC5_32BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC5_32BIT} -O workdir/images/${TEST_IMAGE_TC5_32BIT}'
@@ -231,7 +233,9 @@ jobs:
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
 
       - name: Run setup script
-        run: TCB_SKIP_PULL=1 ./setup.sh
+        run: |
+          TCB_SKIP_PULL=1 . ./setup.sh
+          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Torizon OS 6 32-bit test image
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC6_32BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC6_32BIT} -O workdir/images/${TEST_IMAGE_TC6_32BIT}'
@@ -310,7 +314,9 @@ jobs:
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
 
       - name: Run setup script
-        run: TCB_SKIP_PULL=1 ./setup.sh
+        run: |
+          TCB_SKIP_PULL=1 . ./setup.sh
+          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Common Torizon OS 6 Intel x86_64 image (zipped)
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC_COMMON_ZIP_URL}/torizon-core-common-docker-dev-v${TEST_IMAGES_TC_COMMON_VERSION}-${TEST_INTEL_MACHINE}.zip -P workdir/images/'
@@ -371,7 +377,9 @@ jobs:
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
 
       - name: Run setup script
-        run: TCB_SKIP_PULL=1 ./setup.sh
+        run: |
+          TCB_SKIP_PULL=1 . ./setup.sh
+          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Common Torizon OS 6 Raspberry Pi 4 image (zipped)
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC_COMMON_ZIP_URL}/torizon-core-common-docker-dev-v${TEST_IMAGES_TC_COMMON_VERSION}-${TEST_RASPI4_MACHINE}.zip -P workdir/images/'
