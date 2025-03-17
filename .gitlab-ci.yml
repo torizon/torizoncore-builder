@@ -172,16 +172,13 @@ build-arm64:
     # setup environment for the tests
     - apk update && apk add git sshpass zstd wget bash tar openssl zip curl jq
     - cd tests/integration/
-    - mkdir -p workdir/reports && rm -Rf workdir/reports/*
-    - TCB_SKIP_PULL=1 ./setup.sh
+    - rm -Rf workdir/reports/*
     # pull latest build of TorizonCore Builder
     - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
     - ${T} docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
     - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
-    # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_TESTCASE"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
@@ -247,6 +244,10 @@ test-host-tos7-64bit:
 test-torizoncore-common:
   extends: .test-base
   script:
+    # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
+    - TCB_SKIP_PULL=1 ./setup.sh
+    # TODO: Switch to Bash and use tcb-env-setup.sh script later
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
