@@ -63,7 +63,8 @@ build-aval-docker:
     # Aktualizr, delete the database files, which forces Aktualizr to create database again, this time synced with ostree
     - cd tests/integration && python /aval/main.py --delegation-config $DELEGATION_CONFIG --ignore-different-secondaries-between-updates
       --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}" "echo $DEVICE_PASSWORD | sudo -S rm -rf /var/sota/sql.db /var/sota/storage/*"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}" "echo $DEVICE_PASSWORD |
+      sudo -S sh -c 'systemctl stop aktualizr-torizon && rm -rf /var/sota/sql.db /var/sota/storage/* && systemctl start aktualizr-torizon'"
 
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template
