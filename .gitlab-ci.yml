@@ -251,8 +251,8 @@ test-torizoncore-common:
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_INTEL} -O workdir/images/${TEST_IMAGE_TC_COMMON_INTEL}'
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_RASPI4} -O workdir/images/${TEST_IMAGE_TC_COMMON_RASPI4}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_INTEL} -O workdir/images/${TEST_IMAGE_TC_COMMON_INTEL}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_RASPI4} -O workdir/images/${TEST_IMAGE_TC_COMMON_RASPI4}'
     - touch workdir/images/.raw_images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_rawimgs_section\r\e[0K"
     # run tests (Intel)
