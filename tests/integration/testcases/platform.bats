@@ -306,7 +306,7 @@ test_canonicalize_only_success() {
 @test "platform provisioning-data: online-provisioning" {
     skip-no-ota-credentials
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
-    local CREDS_PILOT_NOPROV_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-pilot-noprov.zip.enc")
+    local CREDS_PILOT_NOPROV_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-noprov.zip.enc")
 
     # case: bad client name
     run torizoncore-builder platform provisioning-data \
