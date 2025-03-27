@@ -29,6 +29,7 @@ $TESTCASES_DIR/ostree.bats \
 $TESTCASES_DIR/platform.bats \
 $TESTCASES_DIR/push.bats \
 $TESTCASES_DIR/splash.bats \
+$TESTCASES_DIR/ubootenv.bats \
 "
 
 WIC_TESTCASES="\

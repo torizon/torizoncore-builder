@@ -679,7 +679,7 @@ test_canonicalize_only_success() {
     assert_output --partial "but expected to find 8 instead."
 
    # Test case: Provided yaml has "lock" extension but is not actually canonicalized
-   run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-8.lock.yaml" \
+   run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon.lock.yaml" \
         --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
    assert_failure
    assert_output --partial "which is expected for files with the '.lock' extension"

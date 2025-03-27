@@ -1589,6 +1589,7 @@ def validate_fuse_file(fuse_file, hardwareids):
 
     :param fuse_file: Path to fuse yaml file
     :param hardwareids: Hardware IDs that were provided by user
+    :returns: The yaml data that was validated
     """
 
     # First check that hardwareids are not conflicting
@@ -1616,6 +1617,8 @@ def validate_fuse_file(fuse_file, hardwareids):
         raise TorizonCoreBuilderError(
             f"Found {parsed_fuse_num} fuse values in provided yaml file, "
             f"but expected to find {fuse_num} instead.")
+
+    return parsed_file
 
 
 def canonicalize_fuse_file(fuse_file, force=False):
