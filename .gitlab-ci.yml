@@ -181,9 +181,12 @@ build-arm64:
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
     # get all .bats files (excluding raw/wic ones) except platform.bats
     - export TCB_HOST_TESTS="torizoncore-builder $(cd testcases/ && ls -1 *.bats | sed -e 's/\.bats//' -e '/^\(platform\|torizoncore-builder\)$/d' | sort)"
-  after_script:
-    # check results
-    - (! grep "^not ok" tests/integration/workdir/reports/*)
+  artifacts:
+    when: always
+    reports:
+      junit: tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
+    paths:
+      - tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
 
 test-host-tc6-platform:
   extends: .test-base
@@ -249,7 +252,7 @@ test-host-tos7-64bit:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
-test-torizoncore-common:
+test-torizoncore-common-intel:
   variables:
     IS_WIC: true
   extends: .test-base
@@ -261,7 +264,6 @@ test-torizoncore-common:
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
     - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_INTEL} -O workdir/images/${TEST_IMAGE_TC_COMMON_INTEL}'
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_RASPI4} -O workdir/images/${TEST_IMAGE_TC_COMMON_RASPI4}'
     - touch workdir/images/.raw_images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_rawimgs_section\r\e[0K"
     # run tests (Intel)
@@ -269,6 +271,22 @@ test-torizoncore-common:
     - echo -e "\e[0Ksection_start:$(date +%s):test_intel64_section\r\e[0KRun ${TCB_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_intel64_section\r\e[0K"
+
+test-torizoncore-common-rasp4:
+  variables:
+    IS_WIC: true
+  extends: .test-base
+  script:
+    # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
+    - TCB_SKIP_PULL=1 ./setup.sh
+    # TODO: Switch to Bash and use tcb-env-setup.sh script later
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    # prepare image
+    - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
+    - mkdir -p workdir/images
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_RASPI4} -O workdir/images/${TEST_IMAGE_TC_COMMON_RASPI4}'
+    - touch workdir/images/.raw_images_downloaded
+    - echo -e "\e[0Ksection_end:$(date +%s):download_rawimgs_section\r\e[0K"
     # run tests (Raspberry Pi 4)
     - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_RASPI4}" | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\4/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_rasp4_64_section\r\e[0KRun ${TCB_MACHINE} tests"
