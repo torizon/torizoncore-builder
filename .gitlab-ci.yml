@@ -251,8 +251,8 @@ test-torizoncore-common:
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_INTEL} -O workdir/images/${TEST_IMAGE_TC_COMMON_INTEL}'
-    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/907/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_RASPI4} -O workdir/images/${TEST_IMAGE_TC_COMMON_RASPI4}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_INTEL} -O workdir/images/${TEST_IMAGE_TC_COMMON_INTEL}'
+    - 'wget --progress=dot:giga --header "PRIVATE-TOKEN: ${ACCESS_TOKEN}" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/images/${TEST_IMAGES_TC_COMMON_VERSION}/${TEST_IMAGE_TC_COMMON_RASPI4} -O workdir/images/${TEST_IMAGE_TC_COMMON_RASPI4}'
     - touch workdir/images/.raw_images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_rawimgs_section\r\e[0K"
     # run tests (Intel)
@@ -280,6 +280,8 @@ test-torizoncore:
       when: never
     - if: $BUILD_MACHINE
   script:
+    # TODO: Switch to Bash and use tcb-env-setup.sh script later
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit1; fi
     - if [ -z ${ARTIFACTORY_SRC_REPO} ]; then echo "Missing variable ARTIFACTORY_SRC_REPO." && exit 1; fi
     - if [ -z ${BUILD_MANIFEST_BRANCH} ]; then echo "Missing variable BUILD_MANIFEST_BRANCH." && exit 1; fi

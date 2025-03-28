@@ -1,7 +1,10 @@
 # Uses the AVAL container as a base, which is built in its own repo. From there, it adds
 # the docker that is necessary to run the TCB container in the tests, in addition to the
 # "sshpass" and "bats" dependencies that are also used in the tests.
-FROM gitlab.int.toradex.com:4567/rd/torizon-core-containers/aval/aval:main
+ARG CI_REGISTRY
+ARG CI_PROJECT_NAMESPACE
+
+FROM ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/aval/aval:main
 
 RUN apt-get update && \
     apt-get install -y \

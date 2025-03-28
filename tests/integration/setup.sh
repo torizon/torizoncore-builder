@@ -89,8 +89,14 @@ tcb_tests_clean_storage_volume() {
 # Create a docker network for TCB tests
 tcb_create_docker_network() {
     export TCB_BG_ALT_NETWORK="tcb_network"
-    echo "Creating docker network..."
-    if ! docker network create $TCB_BG_ALT_NETWORK >/dev/null; then
+    if docker network ls --format '{{.Name}}' | grep -q "^${TCB_BG_ALT_NETWORK}$"; then
+        echo "Docker network '${TCB_BG_ALT_NETWORK}' already exists."
+        return 0
+    fi
+
+    if docker network create "$TCB_BG_ALT_NETWORK" > /dev/null; then
+        echo "Docker network '${TCB_BG_ALT_NETWORK}' created successfully."
+    else
         echo "Error: could not create docker network!"
         return 1
     fi
