@@ -179,20 +179,22 @@ build-arm64:
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
     - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
-  script:
-    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_TESTCASE"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+    # get all .bats files (excluding raw/wic ones) except platform.bats
+    - export TCB_HOST_TESTS="torizoncore-builder $(cd testcases/ && ls -1 *.bats | sed -e 's/\.bats//' -e '/^\(platform\|torizoncore-builder\)$/d' | sort)"
+  after_script:
     # check results
-    - (! grep "^not ok" workdir/reports/*)
+    - (! grep "^not ok" tests/integration/workdir/reports/*)
 
 test-host-tc6-platform:
   extends: .test-base
   stage: test
   variables:
-    TCB_TESTCASE: platform
     YOCTO_BRANCH: "kirkstone-6.x.y"
     TARGET_BUILD_TYPE: "release"
     TCB_MACHINE: "apalis-imx8"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tos7-platform:
   needs:
@@ -200,46 +202,52 @@ test-host-tos7-platform:
   extends: .test-base
   stage: test
   variables:
-    TCB_TESTCASE: platform
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     TCB_MACHINE: "apalis-imx6"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tc6-32bit:
   extends: .test-base
   variables:
-    # Don't run 'platform' tests
-    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
     YOCTO_BRANCH: "kirkstone-6.x.y"
     TARGET_BUILD_TYPE: "release"
     TCB_MACHINE: "apalis-imx6"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tc6-64bit:
   extends: .test-base
   variables:
-    # Don't run 'platform' tests
-    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
     YOCTO_BRANCH: "kirkstone-6.x.y"
     TARGET_BUILD_TYPE: "release"
     TCB_MACHINE: "apalis-imx8"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tos7-32bit:
   extends: .test-base
   variables:
-    # Don't run 'platform' tests
-    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     TCB_MACHINE: "apalis-imx6"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tos7-64bit:
   extends: .test-base
   variables:
-    # Don't run 'platform' tests
-    TCB_TESTCASE: torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
     TCB_MACHINE: "apalis-imx8"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-torizoncore-common:
   extends: .test-base
@@ -265,15 +273,10 @@ test-torizoncore-common:
     - echo -e "\e[0Ksection_start:$(date +%s):test_rasp4_64_section\r\e[0KRun ${TCB_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_rasp4_64_section\r\e[0K"
-    # check results
-    - (! grep "^not ok" workdir/reports/*)
 
 # Job mostly triggered by Jenkins.
 test-torizoncore:
   extends: .test-base
-  variables:
-    # Don't run 'platform' tests
-    TCB_TESTS: "torizoncore-builder images images-unpack images-download images-serve union deploy isolate dt dto build bundle bundle-registry combine kernel ostree push splash"
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -303,10 +306,8 @@ test-torizoncore:
     - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
     # run tests (32-bit device)
     - echo -e "\e[0Ksection_start:$(date +%s):test_section\r\e[0KRun ${BUILD_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE=${TCB_TESTS} ${T} ./run.sh
+    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE="$TCB_HOST_TESTS" ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
-    # check results
-    - (! grep "^not ok" workdir/reports/*)
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental
