@@ -1,0 +1,10 @@
+fuses:
+  fuse-val1: 0x1A
+  fuse-val2: 0x2B
+  fuse-val3: 0x3C
+  fuse-val4: 0x4D
+  fuse-val5: 0x5E
+  fuse-val6: 0x6F
+  fuse-val7: 0x7a
+  fuse-val8: 0x8b
+  fuse-close: False

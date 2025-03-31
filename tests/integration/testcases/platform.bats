@@ -685,7 +685,7 @@ test_canonicalize_only_success() {
    assert_output --partial "which is expected for files with the '.lock' extension"
 
   # Test case: Push without --force when there is an existing lock file
-  run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-8.yaml" \
+  run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon.yaml" \
         --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
   assert_failure
   assert_output --partial "already exists. Please use the '--force' parameter if you want it to be overwritten."
