@@ -67,6 +67,8 @@ build-aval-docker:
       --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}" "echo $DEVICE_PASSWORD |
       sudo -S sh -c 'systemctl stop aktualizr-torizon && rm -rf /var/sota/sql.db /var/sota/storage/* && systemctl start aktualizr-torizon'"
+    # check results
+    - (! grep "^not ok" workdir/reports/*)
 
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template
