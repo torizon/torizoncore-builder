@@ -260,3 +260,12 @@ aval-verdin-imx8mpq-scarthgap-release:
     TARGET_BUILD_TYPE: "release"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mp"
+
+aval-aquila-am69octa-scarthgap-release:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "aquila-am69octa"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "aquila-am69"
