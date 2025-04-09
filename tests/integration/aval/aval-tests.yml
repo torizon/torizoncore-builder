@@ -38,7 +38,8 @@ build-aval-docker:
     - ${B} docker build --build-arg CI_REGISTRY="${CI_REGISTRY}"
                         --build-arg CI_PROJECT_NAMESPACE="${CI_PROJECT_NAMESPACE}"
                         -f "${DOCKERFILE_NAME}"
-                        -t "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main" .
+                        -t "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:${GITLAB_DOCKERREGISTRY_SUFFIX}" .
+    - ${B} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
 
 .aval-template:
   stage: test
@@ -53,7 +54,7 @@ build-aval-docker:
     - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - when: on_success
-  image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:main
+  image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:${GITLAB_DOCKERREGISTRY_SUFFIX}
   script:
     # pull latest build of TorizonCore Builder
     - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
