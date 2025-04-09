@@ -250,6 +250,8 @@ test-host-tos7-64bit:
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-torizoncore-common:
+  variables:
+    IS_WIC: true
   extends: .test-base
   script:
     - TCB_SKIP_PULL=1 ./setup.sh
