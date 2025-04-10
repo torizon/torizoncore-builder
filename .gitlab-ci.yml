@@ -252,7 +252,6 @@ test-host-tos7-64bit:
 test-torizoncore-common:
   extends: .test-base
   script:
-    # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
     - TCB_SKIP_PULL=1 ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
@@ -283,6 +282,7 @@ test-torizoncore:
       when: never
     - if: $BUILD_MACHINE
   script:
+    - TCB_SKIP_PULL=1 ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit1; fi
