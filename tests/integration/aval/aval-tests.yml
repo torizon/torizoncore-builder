@@ -32,7 +32,7 @@ build-aval-docker:
     IMAGE_NAME_AVAL: aval-docker
     DOCKERFILE_NAME: tests/integration/aval/aval-docker.Dockerfile
   before_script:
-    - docker login -u "${CI_REGISTRY_USER}" -p "${TORIZON_REGISTRY_TOKEN}" "${CI_REGISTRY}"
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
     - docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
   script:
     - ${B} docker build --build-arg CI_REGISTRY="${CI_REGISTRY}"
