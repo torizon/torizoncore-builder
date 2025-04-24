@@ -126,23 +126,29 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -e workdir/images/.images_downloaded ] || [ ! -e workdir/images/.raw_images_downloaded ]; then
-    echo "Images not found. Attempting to download images..."
-
-    if [ -f "./get_tezi_images.sh" ]; then
-        echo "Downloading TEZI images..."
+if [ "$(echo "$IS_WIC" | tr '[:upper:]' '[:lower:]')" != "true" ]; then
+    if [ ! -e workdir/images/.images_downloaded ]; then
+        echo "Images not found. Attempting to download images..."
         ./get_tezi_images.sh
-    fi
 
-    if [ -f "./get_raw_images.sh" ]; then
-        echo "Downloading raw images..."
+        if [ ! -e workdir/images/.images_downloaded ]; then
+            echo "Error: Images not found and could not be downloaded automatically."
+            echo "Please download images manually and place them in workdir/images/."
+            exit 1
+        fi
+    fi
+fi
+
+if [ "$(echo "$IS_WIC" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+    if [ ! -e workdir/images/.raw_images_downloaded ]; then
+        echo "Raw Images not found. Attempting to download images..."
         ./get_raw_images.sh
-    fi
 
-    if [ ! -e workdir/images/.images_downloaded ] || [ ! -e workdir/images/.raw_images_downloaded ]; then
-        echo "Error: Images not found and could not be downloaded automatically."
-        echo "Please download images manually and place them in workdir/images/."
-        exit 1
+        if [ ! -e workdir/images/.raw_images_downloaded ]; then
+            echo "Error: Raw Images not found and could not be downloaded automatically."
+            echo "Please download images manually and place them in workdir/images/."
+            exit 1
+        fi
     fi
 fi
 
