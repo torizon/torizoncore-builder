@@ -287,7 +287,7 @@ test-torizoncore:
     - TCB_SKIP_PULL=1 ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
-    - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit1; fi
+    - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit 1; fi
     - if [ -z ${ARTIFACTORY_SRC_REPO} ]; then echo "Missing variable ARTIFACTORY_SRC_REPO." && exit 1; fi
     - if [ -z ${BUILD_MANIFEST_BRANCH} ]; then echo "Missing variable BUILD_MANIFEST_BRANCH." && exit 1; fi
     - if [ -z ${BUILD_PIPELINETYPE} ]; then echo "Missing variable BUILD_PIPELINETYPE." && exit 1; fi
