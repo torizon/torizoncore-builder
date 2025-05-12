@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import sys
 import io
+import re
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -139,7 +140,14 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
         opt_includes.append(shlex.quote(include_dir))
     opt_includes = " ".join(opt_includes)
     try:
-        subprocess.check_output(
+        # Check if dtc is present in the environment
+        dtc_version = subprocess.check_output(
+            "dtc --version",
+            shell=True, text=True, stderr=subprocess.STDOUT)
+        dtc_version = dtc_version.rstrip().split(': ')[1]
+        log.info(f"Compiling Device Tree with {dtc_version}...")
+
+        dtc_output = subprocess.check_output(
             ("set -o pipefail && "
              f"cpp -nostdinc -undef -x assembler-with-cpp {opt_includes} "
              f"{shlex.quote(source_dts_path)} "
@@ -148,6 +156,20 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
     except subprocess.CalledProcessError as exc:
         log.error(exc.output.strip())
         return False
+
+    dtc_warning_match = re.search('warning', dtc_output, re.IGNORECASE)
+
+    if logging.root.level > logging.DEBUG and dtc_warning_match:
+        log.info("The device tree was compiled with warnings. To view them, run the command again "
+                 "with debug log level enabled (torizoncore-builder --log-level debug <command>).")
+        log.info("Please note that some warnings can come from .dtsi files included in the device "
+                 "tree source e.g. from the SoC vendor.")
+        log.info("The warnings don't necessarily indicate a breaking issue with the device tree.")
+
+    log.debug("OUTPUT FROM DEVICE TREE COMPILER")
+    log.debug(dtc_output)
+    log.debug("END OF DEVICE TREE COMPILER OUTPUT")
+
     # pylint: disable=line-too-long
     # file does not necessarily return Device tree blob as file type. Therefore,
     # check Device tree blob magic. See:
