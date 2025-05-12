@@ -21,12 +21,13 @@ default:
 build-aval-docker:
   stage: build
   rules:
-    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
-      allow_failure: true
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
     - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
     - when: on_success
   variables:
     IMAGE_NAME_AVAL: aval-docker
@@ -47,12 +48,15 @@ build-aval-docker:
     IMAGE_NAME: torizoncore-builder-amd64
     IMAGE_NAME_AVAL: aval-docker
   rules:
-    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
-      allow_failure: true
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
     - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
+    - if: '$AVAL_TEST_ALL !~ /^true$/i'
+      when: never
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
     - when: on_success
   image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:${GITLAB_DOCKERREGISTRY_SUFFIX}
   script:
@@ -71,10 +75,20 @@ build-aval-docker:
     # check results
     - (! grep "^not ok" workdir/reports/*)
 
+# This template does not contain AVAL_TEST_ALL statement, so it's used for devices that will be tested by default
+.rules-template1:
+  rules: &aval-template-alt-rules
+    - if: '$AVAL_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -84,6 +98,7 @@ aval-apalis-imx6q-kirkstone-release:
 
 aval-apalis-imx6q-scarthgap-release:
   extends: .aval-template
+  rules: *aval-template-alt-rules
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -93,8 +108,6 @@ aval-apalis-imx6q-scarthgap-release:
 
 aval-apalis-imx8qm-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -104,8 +117,6 @@ aval-apalis-imx8qm-kirkstone-release:
 
 aval-apalis-imx8qm-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -115,6 +126,7 @@ aval-apalis-imx8qm-scarthgap-release:
 
 aval-colibri-imx6dl-kirkstone-release:
   extends: .aval-template
+  rules: *aval-template-alt-rules
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -124,8 +136,6 @@ aval-colibri-imx6dl-kirkstone-release:
 
 aval-colibri-imx6dl-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -135,8 +145,6 @@ aval-colibri-imx6dl-scarthgap-release:
 
 aval-colibri-imx6ull-emmc-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -146,8 +154,6 @@ aval-colibri-imx6ull-emmc-kirkstone-release:
 
 aval-colibri-imx6ull-emmc-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -157,8 +163,6 @@ aval-colibri-imx6ull-emmc-scarthgap-release:
 
 aval-colibri-imx7d-emmc-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -168,8 +172,6 @@ aval-colibri-imx7d-emmc-kirkstone-release:
 
 aval-colibri-imx7d-emmc-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -179,8 +181,6 @@ aval-colibri-imx7d-emmc-scarthgap-release:
 
 aval-colibri-imx8dx-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -190,8 +190,6 @@ aval-colibri-imx8dx-kirkstone-release:
 
 aval-colibri-imx8dx-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -201,8 +199,6 @@ aval-colibri-imx8dx-scarthgap-release:
 
 aval-verdin-am62dual-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -212,8 +208,6 @@ aval-verdin-am62dual-kirkstone-release:
 
 aval-verdin-am62dual-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -223,6 +217,7 @@ aval-verdin-am62dual-scarthgap-release:
 
 aval-verdin-imx8mmq-kirkstone-release:
   extends: .aval-template
+  rules: *aval-template-alt-rules
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -232,8 +227,6 @@ aval-verdin-imx8mmq-kirkstone-release:
 
 aval-verdin-imx8mmq-scarthgap-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -243,8 +236,6 @@ aval-verdin-imx8mmq-scarthgap-release:
 
 aval-verdin-imx8mpq-kirkstone-release:
   extends: .aval-template
-  rules:
-    - if: '$AVAL_TEST_ALL =~ /^true$/i'
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -254,6 +245,7 @@ aval-verdin-imx8mpq-kirkstone-release:
 
 aval-verdin-imx8mpq-scarthgap-release:
   extends: .aval-template
+  rules: *aval-template-alt-rules
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -263,6 +255,7 @@ aval-verdin-imx8mpq-scarthgap-release:
 
 aval-aquila-am69octa-scarthgap-release:
   extends: .aval-template
+  rules: *aval-template-alt-rules
   variables:
     SOC_UDT: "aquila-am69octa"
     YOCTO_BRANCH: "scarthgap-7.x.y"
