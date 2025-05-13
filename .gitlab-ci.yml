@@ -14,6 +14,9 @@ variables:
   # RUNNER_TAG defined in schedule pipeline will overwrite this variable. This one is useful for commit
   # pipelines.
   RUNNER_TAG: ""
+  ENABLE_XRAY:
+    value: false
+    description: "Whether to send test results to JIRA using XRay"
 
   DEBIAN_RELEASE: "bullseye-slim"
   # Pipeline Settings
@@ -61,6 +64,7 @@ stages:
   - pre-build
   - build
   - test
+  - report
   - build-multiarch
   - deploy
   - deploy-multiarch
@@ -188,7 +192,7 @@ build-arm64:
     paths:
       - tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
 
-test-host-tc6-platform:
+test-host-tc6-platform-release:
   extends: .test-base
   stage: test
   variables:
@@ -199,9 +203,9 @@ test-host-tc6-platform:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
-test-host-tos7-platform:
+test-host-tos7-platform-release:
   needs:
-    - test-host-tc6-platform
+    - test-host-tc6-platform-release
   extends: .test-base
   stage: test
   variables:
@@ -212,7 +216,20 @@ test-host-tos7-platform:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
-test-host-tc6-32bit:
+test-host-tos7-platform-nightly:
+  needs:
+    - test-host-tos7-platform-release
+  extends: .test-base
+  stage: test
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "apalis-imx6"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+
+test-host-tc6-32bit-release:
   extends: .test-base
   variables:
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -222,7 +239,7 @@ test-host-tc6-32bit:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
-test-host-tc6-64bit:
+test-host-tc6-64bit-release:
   extends: .test-base
   variables:
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -232,7 +249,7 @@ test-host-tc6-64bit:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
-test-host-tos7-32bit:
+test-host-tos7-32bit-release:
   extends: .test-base
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -242,11 +259,31 @@ test-host-tos7-32bit:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
-test-host-tos7-64bit:
+test-host-tos7-32bit-nightly:
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "apalis-imx6"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+
+test-host-tos7-64bit-release:
   extends: .test-base
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx8"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+
+test-host-tos7-64bit-nightly:
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
@@ -328,6 +365,44 @@ test-torizoncore:
     - echo -e "\e[0Ksection_start:$(date +%s):test_section\r\e[0KRun ${BUILD_MACHINE} tests"
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE="$TCB_HOST_TESTS" ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
+
+aggregate-reports:
+  stage: report
+  image: homebrew/brew
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    # This avoid to run this step in development branches
+    - if: '$ENABLE_XRAY =~ /^true$/i'
+      when: on_success
+    - when: never
+  script:
+    - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
+    - brew install xray-junit-uploader
+    - ./tests/integration/xray-junit-uploader-wrapper.sh
+  artifacts:
+    paths:
+      - tests/integration/workdir/reports/report-*.xml
+  variables:
+    TEST_HOST_TOS7_PLATFORM_NIGHTLY_TEST_EXEC_KEY: "TCB-511"
+    TEST_HOST_TOS7_32BIT_NIGHTLY_TEST_EXEC_KEY: "TCB-518"
+    TEST_HOST_TOS7_64BIT_NIGHTLY_TEST_EXEC_KEY: "TCB-519"
+    AVAL_APALIS_IMX6Q_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-520"
+    AVAL_APALIS_IMX8QM_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-521"
+    AVAL_COLIBRI_IMX6DL_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-522"
+    AVAL_COLIBRI_IMX6ULL_EMMC_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-523"
+    AVAL_COLIBRI_IMX7D_EMMC_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-524"
+    AVAL_COLIBRI_IMX8DX_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-525"
+    AVAL_VERDIN_AM62DUAL_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-526"
+    AVAL_VERDIN_IMX8MMQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-527"
+    AVAL_VERDIN_IMX8MPQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-528"
+    AVAL_AQUILA_AM69OCTA_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-529"
+    TORIZON_OS_TEST_PLAN_KEY: "TOR-3748"
+    GIT_CLEAN_FLAGS: none
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental
