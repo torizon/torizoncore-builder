@@ -12,6 +12,10 @@ for report_path in tests/integration/workdir/reports/report-*-nightly.xml; do
   var_name="${test_name}_TEST_EXEC_KEY"
 
   if [ -n "${!var_name}" ]; then
+    echo "==> Uploading report: $report_path"
+    echo "    Using test plan key: $TORIZON_OS_TEST_PLAN_KEY"
+    echo "    Using test execution key: ${!var_name} (variable: $var_name)"
+
     xray-junit-uploader \
       --report "$report_path" \
       --test-plan-key "$TORIZON_OS_TEST_PLAN_KEY" \
