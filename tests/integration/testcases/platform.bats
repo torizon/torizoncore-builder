@@ -33,13 +33,18 @@ test_canonicalize_only_success() {
     local LCK_FNAME="${ORG_FNAME%%.yml}.lock.yml"
     shift # Extra arguments will be forwarded to torizoncore-builder.
 
-    local ORG_IMG_COUNT=$(cat "$CANON_DIR/${ORG_FNAME}" | grep -Ee "^\\s+image *:" | wc -l)
+    local ORG_IMG_COUNT=$(cat "$CANON_DIR/${ORG_FNAME}" |
+                              grep -Ee "^[[:space:]]+image *:" |
+                              wc -l)
 
     run torizoncore-builder platform push "$CANON_DIR/${ORG_FNAME}" --canonicalize-only "$@"
     assert_success
     assert_output --partial "'$CANON_DIR/${LCK_FNAME}' has been generated"
 
-    local RES_IMG_COUNT=$(cat "$CANON_DIR/${LCK_FNAME}" | grep -Ee "^\\s+image *:.*@sha256:" | wc -l)
+    local RES_IMG_COUNT=$(cat "$CANON_DIR/${LCK_FNAME}" |
+                              grep -Ee "^[[:space:]]+image *:.*@sha256:" |
+                              grep -Ee ':[-.a-z0-9]+@sha256:' -v |
+                              wc -l)
     if [ "$ORG_IMG_COUNT" -ne "$RES_IMG_COUNT" ]; then
         fail "Canonicalization failed ($ORG_IMG_COUNT != $RES_IMG_COUNT)"
     fi
@@ -155,6 +160,9 @@ test_canonicalize_only_success() {
        skip "avoid hitting DH pull limits in CI"
     fi
     test_canonicalize_only_success "docker-compose-dh.yml" --force
+    # Confirm tags have been ignored:
+    assert_output --partial "Ignoring tag of image specified by tag+digest (hello-world:dummytag"
+    assert_output --partial "Ignoring tag of image specified by tag+digest (torizon/weston:dummytag"
 }
 
 @test "platform push: docker-compose canonicalization (DockerHub with authentication)" {
@@ -170,6 +178,8 @@ test_canonicalize_only_success() {
 
 @test "platform push: docker-compose canonicalization (GCR without authentication)" {
     test_canonicalize_only_success "docker-compose-gcr.yml" --force
+    # Confirm tags have been ignored:
+    assert_output --partial "Ignoring tag of image specified by tag+digest (gcr.io:443/google-containers/alpine-with-bash:dummytag"
 }
 
 @test "platform push: docker-compose canonicalization (DockerHub with required authentication)" {
@@ -576,7 +586,7 @@ test_canonicalize_only_success() {
 
     run torizoncore-builder platform lockbox \
         --credentials "${CREDS_PROD_ZIP}" --platform linux/arm64 \
-        --force  LockBox-With-OCI-64bit-Images \
+        --force LockBox-With-OCI-64bit-Images \
         ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
