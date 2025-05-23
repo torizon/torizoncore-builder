@@ -389,7 +389,8 @@ def get_referenced_images(compose):
         parsed_name = parse_image_name(image)
         assert parsed_name.tag.startswith(SHA256_PREFIX), \
             f"Image '{image}' not specified by digest"
-        image_per_service[svc_name] = (image, image_platform)
+        image_per_service[svc_name] = \
+            (parsed_name.get_name_with_tag(), image_platform)
 
     log.debug(f"Images being used in docker-compose: {image_per_service}")
 
@@ -1395,6 +1396,8 @@ def set_images_hash(compose_file_data):
         image_parsed = parse_image_name(image_name)
         log.debug(f"Parsed {image_name} into {image_parsed}.")
         if image_parsed.uses_digest():
+            # Normalize the name (handle the case where tag+digest is passed)
+            svc_spec['image'] = image_parsed.get_name_with_tag()
             continue
         registry = RegistryOperations(image_parsed.registry)
         response, image_digest = registry.get_manifest(

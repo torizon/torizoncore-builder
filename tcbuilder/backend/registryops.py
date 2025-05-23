@@ -195,14 +195,24 @@ def parse_image_name(image_name):
     ImageName(registry='', name='ubuntu', tag='latest')
     >>> parse_image_name('linux/ubuntu:latest')
     ImageName(registry='', name='linux/ubuntu', tag='latest')
+    >>> parse_image_name('localhost/ubuntu@sha256:123456')
+    ImageName(registry='', name='localhost/ubuntu', tag='sha256:123456')
     >>> parse_image_name('localhost/ubuntu:latest@sha256:123456')
-    ImageName(registry='', name='localhost/ubuntu:latest', tag='sha256:123456')
+    ImageName(registry='', name='localhost/ubuntu', tag='sha256:123456')
 
     # With a registry:
     >>> parse_image_name('localhost:8000/ubuntu:latest')
     ImageName(registry='localhost:8000', name='ubuntu', tag='latest')
     >>> parse_image_name('gcr.io/ubuntu:latest')
     ImageName(registry='gcr.io', name='ubuntu', tag='latest')
+    >>> parse_image_name('gcr.io/ubuntu@sha256:123456')
+    ImageName(registry='gcr.io', name='ubuntu', tag='sha256:123456')
+    >>> parse_image_name('gcr.io/ubuntu:latest@sha256:123456')
+    ImageName(registry='gcr.io', name='ubuntu', tag='sha256:123456')
+    >>> parse_image_name('gcr.io:443/ubuntu:latest@sha256:123456')
+    ImageName(registry='gcr.io:443', name='ubuntu', tag='sha256:123456')
+    >>> parse_image_name('gcr.io:443/linux/ubuntu:latest@sha256:123456')
+    ImageName(registry='gcr.io:443', name='linux/ubuntu', tag='sha256:123456')
     """
 
     mres = re.match(r"^([a-zA-Z][-+.a-zA-Z0-9]+)://", image_name)
@@ -221,7 +231,12 @@ def parse_image_name(image_name):
 
     if "@" in name_with_tag:
         # E.g. ubuntu@sha256:1234...
+        # or   ubuntu:latest@sha256:1234: this can be deemed as a bad notation
+        #      but is accepted by Docker so we handle it here for compatibility
         name, tag = name_with_tag.split("@")
+        if ":" in name:
+            log.info(f"Ignoring tag of image specified by tag+digest ({image_name})")
+            name = name.split(":")[0]
     elif ":" in name_with_tag:
         # E.g. ubuntu:latest
         name, tag = name_with_tag.split(":")
