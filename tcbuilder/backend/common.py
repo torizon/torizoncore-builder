@@ -9,6 +9,9 @@ import sys
 import time
 import threading
 import binascii
+import glob
+import tempfile
+import shlex
 
 from typing import Optional
 
@@ -813,3 +816,71 @@ def run_command_without_sudo(client, command) -> dict:
         "status": status,
         "stdout": stdout.read().decode("utf-8").strip(),
     }
+
+
+def is_tcb_container_64bit():
+    return sys.maxsize > 2**32
+
+
+def check_if_file_exists(filename, directory):
+    """Check if file exists in a given directory. Raises an error if the file is not found.
+
+    :param filename: Name of the file
+    :param directory: Path of directory to search for the file
+    :returns: The file path of the result
+    """
+
+    log.debug(f"Checking for {filename} in {directory}...")
+    file_list = glob.glob(os.path.join(directory, filename))
+
+    list_len = len(file_list)
+
+    if list_len <= 0:
+        raise FileContentMissing(f"Could not find {filename} in {directory}. Aborting.")
+    if list_len >= 2:
+        log.debug(f"Found more than one match for {filename} in {directory}. "
+                  f"Choosing {file_list[0]}.")
+
+    return file_list[0]
+
+
+def get_tezi_uenv_txt_vars(tezi_dir, var_list):
+    """
+    Get the values of specific U-Boot variables declared in uEnv.txt in a
+    Torizon OS image in Toradex Easy Installer format
+
+    :param tezi_dir: Path of Torizon OS Toradex Easy Installer image in directory format
+    :param var_list: List of variables to get the values
+    :returns: Dictionary with the values for each variable in var_list. If an entry is not in
+              uEnv.txt, its value will be None
+    """
+
+    result = {}
+    with tempfile.TemporaryDirectory(dir=tezi_dir) as tempdir:
+        rootfs_tar = get_rootfs_tarball(tezi_dir)
+        tar_compress_options = get_tar_compress_program_options(rootfs_tar)
+        tarcmd = [
+            "tar",
+            "-xf", rootfs_tar,
+            "-C", tempdir,
+        ] + tar_compress_options + ["--wildcards", "./boot/loader*/uEnv.txt"]
+        log.debug(f"Running tar command: {shlex.join(tarcmd)}")
+        subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
+
+        uenv_txt_path = glob.glob(os.path.join(tempdir, "boot/loader*/uEnv.txt"))[0]
+
+        if not os.path.isfile(uenv_txt_path):
+            raise FileContentMissing("Couldn't find uEnv.txt in TEZI image rootfs! Aborting.")
+
+        with open(uenv_txt_path, 'r') as uenv_txt_file:
+            uenv_txt_str = uenv_txt_file.read()
+
+        for var in var_list:
+            match = re.search(r"^" + var + r"=(.*)", uenv_txt_str, re.MULTILINE)
+            if match:
+                result[var] = str(match.group(1))
+            else:
+                log.warning(f'"{var}=" variable not found in uEnv.txt.')
+                result[var] = None
+
+    return result

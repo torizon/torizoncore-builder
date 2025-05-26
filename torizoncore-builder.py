@@ -25,7 +25,7 @@ import subprocess
 import traceback
 
 from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isolate,
-                           kernel, ostree, platform, push, splash, ubootenv, union)
+                           kernel, ostree, platform, push, secboot, splash, ubootenv, union)
 
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 # pylint: enable=wrong-import-position
@@ -147,6 +147,7 @@ kernel.init_parser(subparsers)
 ostree.init_parser(subparsers)
 platform.init_parser(subparsers)
 push.init_parser(subparsers)
+secboot.init_parser(subparsers)
 splash.init_parser(subparsers)
 ubootenv.init_parser(subparsers)
 union.init_parser(subparsers)

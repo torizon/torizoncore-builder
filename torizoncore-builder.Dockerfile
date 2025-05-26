@@ -207,6 +207,12 @@ RUN groupadd --gid $USER_GID $USERNAME && \
 
 FROM tcbuilder-base
 
+# Build U-Boot tools for secure boot support (U-Boot commit hash: 3f772959501c99fbe5aa0b22a36efe3478d1ae1c)
+RUN git clone https://github.com/u-boot/u-boot.git -b v2024.07 /u-boot-repo && \
+    cd /u-boot-repo && make tools-only_defconfig && make tools-only && make scripts && \
+    mkdir /u-boot && mv /u-boot-repo/tools /u-boot && mv /u-boot-repo/scripts /u-boot && \
+    rm -rf /u-boot-repo
+
 # Put all the tools in the /builder directory
 RUN mkdir -p /builder
 ENV PATH=$PATH:/builder
