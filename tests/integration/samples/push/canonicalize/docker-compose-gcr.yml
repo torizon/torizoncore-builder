@@ -14,6 +14,8 @@ services:
     image: gcr.io/google-containers/alpine-with-bash@sha256:0955672451201896cf9e2e5ce30bec0c7f10757af33bf78b7a6afa5672c596f5
   svc4:
     image: gcr.io:443/google-containers/alpine-with-bash@sha256:0955672451201896cf9e2e5ce30bec0c7f10757af33bf78b7a6afa5672c596f5
+  svc5:
+    image: gcr.io:443/google-containers/alpine-with-bash:dummytag@sha256:0955672451201896cf9e2e5ce30bec0c7f10757af33bf78b7a6afa5672c596f5
 
   # ---
   # TODO: Images only accessible after authentication.
