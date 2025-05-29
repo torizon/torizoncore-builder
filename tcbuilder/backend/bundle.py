@@ -128,7 +128,17 @@ class DindManager(DockerManager):
     Installer tool.
     """
 
-    DIND_CONTAINER_IMAGE = "docker:19.03.8-dind"
+    DIND_IMAGE_NAME_DEFAULT = "docker"
+
+    # Noteworthy versions:
+    #
+    # - "19.03.8-dind":  old version used before TCB 3.11
+    # - "20.10.24-dind": (closest to the) version used by Torizon OS 6.x.y
+    # - "23.0.6-dind":   version supporting zstd compression of layers
+    # - "25.0.3-dind":   version used by Torizon OS 7.x.y
+    #
+    DIND_IMAGE_VERSION_DEFAULT = "19.03.8-dind"
+
     DIND_VOLUME_NAME = "dind-volume"
     DIND_CONTAINER_NAME = "tcb-fetch-dind"
     TAR_CONTAINER_NAME = "tcb-build-tar"
@@ -203,6 +213,7 @@ class DindManager(DockerManager):
                 f"{self.cert_dir} is a shared location between this script and "
                 "the Docker host.")
 
+    # pylint: disable=too-many-locals
     def start(self, network_name="fetch-dind-network",
               default_platform=None, dind_params=None, dind_env=None):
         """Start manager
@@ -279,8 +290,11 @@ class DindManager(DockerManager):
 
         log.debug(f"Environment variables for DinD: {environ}")
         log.debug(f"Running DinD container: ports={ports}, network={network_name}")
+        dind_image = "{}:{}".format(
+            os.environ.get("DIND_IMAGE_NAME", self.DIND_IMAGE_NAME_DEFAULT),
+            os.environ.get("DIND_IMAGE_VERSION", self.DIND_IMAGE_VERSION_DEFAULT))
         self.dind_container = self.host_client.containers.run(
-            self.DIND_CONTAINER_IMAGE,
+            dind_image,
             privileged=True,
             environment=environ,
             mounts=mounts,
@@ -297,6 +311,7 @@ class DindManager(DockerManager):
             dind_ip = self.dind_container.attrs \
                 ["NetworkSettings"]["Networks"][network_name]["IPAddress"]
             self.docker_host = "tcp://{}:22376".format(dind_ip)
+    # pylint: enable=too-many-locals
 
     def _stop_container(self):
         log.info("Stopping DIND container")
