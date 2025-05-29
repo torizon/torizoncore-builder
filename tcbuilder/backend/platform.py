@@ -720,7 +720,8 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     # Fetch the manifests of all images.
     manifests_dir = os.path.join(metadata_dir, sha256 + ".manifests")
     os.mkdir(manifests_dir)
-    manifests_per_image = fetch_manifests(images, manifests_dir)
+    manifests_per_image = fetch_manifests(
+        images, manifests_dir, req_platforms=req_platforms)
 
     # Determine (image, platform) pairs referenced in the compose file.
     image_platform_pairs = set(image_per_service.values())
