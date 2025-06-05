@@ -75,13 +75,50 @@ RUN cd aktualizr && \
     tar cjvf aktualizr.tar.bz2 \
         --show-transformed-names --transform="s,^install-dir,," install-dir/
 
+# Build skopeo
+FROM common-base AS skopeo-builder
+
+RUN apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install git ca-certificates wget && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+
+RUN echo "Installing Go..." && \
+    wget https://go.dev/dl/go1.24.3.linux-amd64.tar.gz && \
+    rm -rf /usr/local/go && \
+    tar -C /usr/local -xzf go1.24.3.linux-amd64.tar.gz && \
+    rm go1.24.3.linux-amd64.tar.gz
+
+ENV PATH=/usr/local/go/bin:$PATH
+ENV GOPATH=/root/go
+
+RUN echo "Installing skopeo build dependencies..." && \
+    apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install \
+            libgpgme-dev libassuan-dev libbtrfs-dev pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN echo "Fetching skopeo source code..." && \
+    git clone --depth 1 --branch v1.19.0 \
+        https://github.com/containers/skopeo ${GOPATH}/src/github.com/containers/skopeo
+
+# hadolint ignore=SC2046
+RUN echo "Building skopeo..." && \
+    cd ${GOPATH}/src/github.com/containers/skopeo && \
+    B="$(pwd)" && D="${B}/install-dir" && \
+    make clean && \
+    make EXTRA_LDFLAGS="-w -s" bin/skopeo && \
+    make EXTRA_LDFLAGS="-w -s" DESTDIR="${D}" DISABLE_DOCS="1" install && \
+    tar cjvf /root/skopeo.tar.bz2 -C "${D}" $(cd "${D}" && echo *)
+
 FROM common-base AS tcbuilder-base
 
 RUN apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
             python3 python3-pip python3-setuptools python3-wheel python3-gi \
             file curl gzip xz-utils lz4 lzop zstd cpio jq acl libmpc-dev \
-            device-tree-compiler cpp  bzip2 flex bison kmod libgmp3-dev bc && \
+            device-tree-compiler cpp bzip2 flex bison kmod libgmp3-dev bc && \
     apt-get -q -y --no-install-recommends install \
             python3-paramiko python3-dnspython python3-ifaddr \
             python3-git avahi-daemon && \
@@ -112,11 +149,19 @@ RUN apt-get -q -y update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install aktualizr from our sota-builder generated tarball
-RUN --mount=type=bind,from=sota-builder,source=/root/aktualizr/build,target=/build \
-    tar xvf /build/aktualizr.tar.bz2 -C / && ldconfig -v && \
+RUN --mount=type=bind,from=sota-builder,source=/root/aktualizr/build,target=/build/aktualizr \
+    tar xvf /build/aktualizr/aktualizr.tar.bz2 -C / && ldconfig -v && \
     apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
             libboost-log1.74.0 libboost-program-options1.74.0 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install the skopeo tool from our skopeo-builder generated tarball
+RUN --mount=type=bind,from=skopeo-builder,source=/root,target=/build/skopeo \
+    tar xvf /build/skopeo/skopeo.tar.bz2 -C / && ldconfig -v && \
+    apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install \
+            libgpgme11 libassuan0 libbtrfs0 pkg-config && \
     rm -rf /var/lib/apt/lists/*
 
 # Debian has old version of docker and docker-compose, which does not support some of
