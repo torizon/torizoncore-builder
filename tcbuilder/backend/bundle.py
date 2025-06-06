@@ -137,7 +137,7 @@ class DindManager(DockerManager):
     # - "23.0.6-dind":   version supporting zstd compression of layers
     # - "25.0.3-dind":   version used by Torizon OS 7.x.y
     #
-    DIND_IMAGE_VERSION_DEFAULT = "19.03.8-dind"
+    DIND_IMAGE_VERSION_DEFAULT = "25.0.3-dind"
 
     DIND_VOLUME_NAME = "dind-volume"
     DIND_CONTAINER_NAME = "tcb-fetch-dind"
