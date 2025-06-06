@@ -379,6 +379,14 @@ class DindManager(DockerManager):
         dind_client = docker.DockerClient(base_url=self.docker_host, tls=tls_config)
         return dind_client
 
+    def get_client_env(self):
+        env = {
+            "DOCKER_HOST": self.docker_host,
+            "DOCKER_TLS_VERIFY": "1",
+            "DOCKER_CERT_PATH": os.path.join(self.cert_dir, 'client')
+        }
+        return env
+
     def save_tar(self, output_file):
         """Create compressed tar archive of the Docker images"""
 
