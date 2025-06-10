@@ -897,6 +897,11 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
             log.info(f"Saving {image_spec}\n"
                      f"  into {image_fname}")
 
+            if os.path.exists(image_fname):
+                # Sanity check: images in a Lockbox should be unique.
+                raise TorizonCoreBuilderError(
+                    "Container image file '{image_fname}' already exists")
+
             tar_generator = os.environ.get("LOCKBOX_TARBALL_GENERATOR", "skopeo")
             if tar_generator == "docker":
                 save_image_tarball_docker(dind_client, image_spec_new, image_fname)
@@ -973,6 +978,19 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     # Determine which images will be needed at `docker-compose up` time.
     images_selection = select_unique_images(
         image_platform_pairs, manifests_per_image, req_platforms=req_platforms)
+
+    # At this point the pairs are (image, digest) are unique but let us make
+    # sure the digests alone are also unique. If not, it means the same image is
+    # being referenced in two different ways which the code in Aktualizr would
+    # not handle correctly. Users can easily work around this corner case by
+    # always referencing an image in the same way in their compose file.
+    digests_unique = set()
+    for _spec, sel_digest in images_selection:
+        if sel_digest in digests_unique:
+            raise TorizonCoreBuilderError(
+                f"Image with digest {sel_digest} has been selected more than once"
+                " through different names which is not supported.")
+        digests_unique.add(sel_digest)
 
     # Build tarball with the images.
     docker_dir = os.path.join(images_dir, sha256 + ".images")
