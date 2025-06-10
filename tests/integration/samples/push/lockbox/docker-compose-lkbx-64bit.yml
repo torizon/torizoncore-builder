@@ -1,0 +1,12 @@
+# All images referenced are single platform 64-bit.
+services:
+  svc2-docker:
+    # Docker, single-platform (linux/arm64/v8), no manifest list.
+    image: torizon/manifest-test-arm64v8-vnddck
+  svc2-oci:
+    # OCI, single-platform (linux/arm64/v8), no OCI image index.
+    image: torizon/manifest-test-arm64v8-vndoci
+    platform: linux/arm
+  svc2-oci-prov:
+    # OCI, single-platform (linux/arm64/v8), provenance enabled.
+    image: torizon/manifest-test-arm64v8-vndoci-prov

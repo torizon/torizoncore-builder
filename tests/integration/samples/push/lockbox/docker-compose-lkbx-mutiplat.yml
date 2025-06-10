@@ -1,0 +1,12 @@
+# All images referenced are multi-platform.
+services:
+  svc3-docker:
+    # Docker, multi-platform, with a manifest list.
+    image: torizon/manifest-test-multi-vnddck-manlst
+  svc3-oci:
+    # OCI, multi-platform, with an OCI image index.
+    image: torizon/manifest-test-multi-vndoci-imgidx
+    platform: linux/arm64
+  svc3-oci-prov:
+    # OCI, multi-platform, provenance enabled.
+    image: torizon/manifest-test-multi-vndoci-imgidx-prov

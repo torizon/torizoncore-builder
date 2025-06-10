@@ -1,0 +1,8 @@
+# Refer to the same image directly and indirectly which is not currently supported.
+services:
+  svc2-docker:
+    # Docker, single-platform (linux/arm64/v8), no manifest list.
+    image: torizon/manifest-test-arm64v8-vnddck
+  svc3-docker:
+    # Docker, multi-platform, with a manifest list.
+    image: torizon/manifest-test-multi-vnddck-manlst

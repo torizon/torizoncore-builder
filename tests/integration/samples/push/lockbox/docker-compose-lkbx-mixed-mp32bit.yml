@@ -1,0 +1,11 @@
+# Mix multiplatform and single-platform images targeting a 32-bit device.
+services:
+  svc1-docker:
+    # Docker, single-platform (linux/arm/v7), no manifest list.
+    image: torizon/manifest-test-armv7-vnddck
+  svc3-oci:
+    # OCI, multi-platform, with an OCI image index.
+    image: torizon/manifest-test-multi-vndoci-imgidx
+  svc1-oci-prov:
+    # OCI, single-platform (linux/arm/v7), provenance enabled.
+    image: torizon/manifest-test-armv7-vndoci-prov
