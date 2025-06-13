@@ -588,7 +588,239 @@ def select_unique_images(image_platform_pairs, manifests_per_image,
     return images_selection_unique
 
 
-# pylint:disable=too-many-locals
+def _apply_skopeo_canon_wkaround(tbdir, image_spec):
+    """Apply workarounds for the Skopeo image name canonicalization
+
+    Unlike "docker save", the "skopeo copy" command canonicalizes the names of
+    the images that go inside the generated tarball. This is incompatible with
+    the validation code that runs inside Aktualizr. To deal with it we undo the
+    operation by replacing the canonical names back with the original names as
+    referenced by the compose file.
+    """
+
+    # ---
+    # Fix manifest file:
+    # ---
+    manifest_path = os.path.join(tbdir, "manifest.json")
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r") as fhandle:
+            manifest_data = json.load(fhandle)
+
+        log.debug(f"Original manifest data: {manifest_data}")
+
+        try:
+            # Manifest metadata would look like this:
+            #
+            # [{'Config': '9cad51f33b0fxxxxxxxxxxxx.json',
+            #   'RepoTags': ['docker.io/library/debian:digest_sha256_5c7562ee9fcfxxxxxxxx'],
+            #   'Layers': ['58f07f898f87xxxxxxxxxxxx.tar']}]
+            #
+            # and we want it to become:
+            #
+            # [{'Config': '9cad51f33b0fxxxxxxxxxxxx.json',
+            #   'RepoTags': [<image_spec>],
+            #   'Layers': ['58f07f898f87xxxxxxxxxxxx.tar']}]
+            #
+            assert len(manifest_data) == 1
+            assert len(manifest_data[0]["RepoTags"]) == 1
+            _tag = manifest_data[0]["RepoTags"][0]
+            assert _tag[_tag.index(":digest_"):] == image_spec[image_spec.index(":digest_"):]
+            manifest_data[0]["RepoTags"] = [image_spec]
+
+        except (KeyError, IndexError, ValueError, AssertionError) as _error:
+            raise TorizonCoreBuilderError(
+                f"Couldn't parse manifest metadata from '{tbdir}'")
+
+        log.debug(f"Transformed manifest data: {manifest_data}")
+
+        with open(manifest_path, "w") as fhandle:
+            json.dump(manifest_data, fhandle, separators=(",", ":"))
+
+    # ---
+    # Fix repositories file:
+    # ---
+    repos_path = os.path.join(tbdir, "repositories")
+    if os.path.exists(repos_path):
+        with open(repos_path, "r") as fhandle:
+            repos_data = json.load(fhandle)
+
+        log.debug(f"Original repositories data: {repos_data}")
+        try:
+            # Repositories metadata would look like this:
+            #
+            # {'docker.io/library/debian':
+            #    {'digest_sha256_5c7562ee9fcfxxxxxxxxxxxx':'a56935c728c6xxxxxxxxxxxx'}}
+            #
+            # and we want it to become:
+            #
+            # {'<image_spec (without the tag)>':
+            #    {'digest_sha256_5c7562ee9fcfxxxxxxxxxxxx':'a56935c728c6xxxxxxxxxxxx'}}
+            #
+            assert len(repos_data) == 1
+            assert len(repos_data.keys()) == 1
+            _repo, _digdict = next(iter(repos_data.items()))
+            assert len(_digdict) == 1
+            _tag, _value = next(iter(_digdict.items()))
+            assert _tag == image_spec[image_spec.index(":digest_")+1:]
+            _newrepo = image_spec[:image_spec.index(":digest")]
+            repos_data[_newrepo] = _digdict
+            del repos_data[_repo]
+
+        except (KeyError, IndexError, ValueError, AssertionError) as _error:
+            raise TorizonCoreBuilderError(
+                f"Couldn't parse repositories metadata from '{tbdir}'")
+
+        log.debug("Transformed repositories data: {repos_data}")
+
+        with open(repos_path, "w") as fhandle:
+            json.dump(repos_data, fhandle, separators=(",", ":"))
+
+
+def _apply_aktualizr_blkread_wkaround(tbdir):
+    """Workaround for bug found in image loading in Aktualizr.
+
+    Aktualizr loads Lockbox image tarballs in blocks of 256K and it performs
+    two passes over each tarball. Since the method for loading a tarball is
+    different in each pass, it has been found that sometimes there is a
+    mismatch in the apparent size of the tarball file causing the Lockbox
+    loading to fail. In particular, this happens when the tarball has a size
+    slightly above a multiple of 256K. This seems to happen because the first
+    pass uses libarchive which stops the reading preemptively without reading
+    the end of the file (which is expected to have padding bytes only) while
+    the second pass does not go through libarchive and always reads the whole
+    file.
+
+    To prevent this bug on Aktualizr from ever being hit, here we increase the
+    size of a tarball when its size is slightly above a multiple of 256K.
+    """
+
+    # Estimate tarball size:
+    tbs = 512
+    totsize = 0
+    for fname in os.listdir(tbdir):
+        path = os.path.join(tbdir, fname)
+        if os.path.isdir(path):
+            fsize = tbs
+            psize = tbs
+        else:
+            fsize = os.stat(path).st_size
+            psize = tbs + ((fsize + tbs - 1) // tbs) * tbs
+        totsize += psize
+
+    # As per Wikipedia: The end of an archive is marked by *at least* two consecutive
+    # zero-filled records. The final block of an archive is padded out to full length
+    # with zeros.
+    totsize += 2048 + 1024
+
+    log.debug(f"Estimated image tarball size for '{tbdir}': {totsize}")
+
+    # Aktualizr processes the file in blocks of 256K and we want to avoid a small block
+    # at the end to prevent a bug from showing up. For that, we add a dummy file to the
+    # tarball when the estimated size is close to a multiple of 256K.
+    procbs = 256 * 1024
+    if (totsize % procbs < 8192) or (procbs - (totsize % procbs) < 8192):
+        log.debug(f"Adding dummy file to '{tbdir}'.")
+        dummy_content = "\n" * (4 * 8192)
+        with open(os.path.join(tbdir, "xdummy_"), "w") as dummy_file:
+            dummy_file.write(dummy_content)
+    else:
+        log.debug(f"No need to add dummy file to '{tbdir}'.")
+
+
+def amend_image_tarball(image_fname, image_spec, skopeo_generated=True):
+    # Apply the workaround for Skopeo canonicalizing the image names which
+    # prevents the loading by Aktualizr since the names are validated against
+    # the docker-compose file.
+    canon_wkaround = (skopeo_generated and
+                      os.environ.get("APPLY_SKOPEO_CANON_WKAROUND", "1") == "1")
+
+    # Apply the workaround for a bug in the Docker image validation which happens if the image is
+    # slightly bigger than a multiple of the block reading size (256KB).
+    blkread_wkaround = (os.environ.get("APPLY_AKTUALIZR_BLKREAD_WKAROUND", "1") == "1")
+
+    if not (canon_wkaround or blkread_wkaround):
+        log.debug("No fixes required to the generated Lockbox tarball")
+
+    image_fname_new = image_fname + "_"
+    tbdir = os.path.splitext(image_fname)[0] + "_"
+    try:
+        # Unpack the tarball:
+        log.debug(f"Unpacking '{image_fname}' into '{tbdir}'")
+        shutil.rmtree(tbdir, ignore_errors=True)
+        os.mkdir(tbdir)
+        subprocess.check_output([
+            "tar", "--numeric-owner", "--preserve-permissions",
+            "-xvf", os.path.abspath(image_fname), "-C", tbdir
+        ])
+
+        if canon_wkaround:
+            _apply_skopeo_canon_wkaround(tbdir, image_spec)
+        if blkread_wkaround:
+            _apply_aktualizr_blkread_wkaround(tbdir)
+
+        # Repack files into a tarball:
+        log.debug(f"Repacking '{tbdir}' into '{image_fname_new}'")
+        subprocess.check_output([
+            "tar", "--numeric-owner", "--preserve-permissions",
+            "-cvf", os.path.abspath(image_fname_new), "-C", tbdir,
+            *sorted(os.listdir(tbdir))
+        ])
+
+        log.debug(f"Replacing '{image_fname_new}' -> '{image_fname}'")
+        os.replace(image_fname_new, image_fname)
+
+    finally:
+        shutil.rmtree(tbdir, ignore_errors=True)
+
+
+def save_image_tarball_docker(dind_client, image_spec, image_fname):
+    """Build tarball via `docker image save image:tag > output.tar`
+
+    :param dind_client: Docker API client object.
+    :param image_spec: Image specification such as "hello-world:latest".
+    :param image_fname: Tarball file to generate such as "/a/b/output.tar".
+    """
+    image_obj = dind_client.images.get(image_spec)
+    with open(image_fname, "wb") as outf:
+        for image_data in image_obj.save(named=True):
+            outf.write(image_data)
+
+
+def save_image_tarball_skopeo(dind_env, image_spec, image_fname):
+    """Build tarball via `skopeo copy <image> docker-archive:<file>:...`
+
+    :param dind_env: Dictionary with environment variables specifying how to
+                     access the desired Docker host.
+    :param image_spec: Image specification such as "hello-world:latest".
+    :param image_fname: Tarball file to generate such as "/a/b/output.tar".
+    """
+    cmd = ["skopeo", "copy"]
+
+    # Ensure Docker v2 Schema 2 is always used.
+    cmd += ["--format", "v2s2"]
+
+    # skopeo does not handle the usual host specification environment variables
+    # used by the Docker client CLI; here we translate them into parameters
+    # suitable for the program:
+    if dind_env.get("DOCKER_HOST"):
+        cmd += ["--src-daemon-host", dind_env["DOCKER_HOST"]]
+    if dind_env.get("DOCKER_CERT_PATH"):
+        cmd += ["--src-cert-dir", dind_env["DOCKER_CERT_PATH"]]
+    if dind_env.get("DOCKER_TLS_VERIFY"):
+        # Any non-empty string enables TLS (following Docker's behavior).
+        cmd += ["--src-tls-verify"]
+
+    cmd += [f"docker-daemon:{image_spec}",
+            f"docker-archive:{image_fname}:{image_spec}"]
+
+    res = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if res.returncode != 0:
+        log.error(res.stderr)
+        raise TorizonCoreBuilderError(
+            f"Error: failed to generate image tarball via skopeo for '{image_fname}'.")
+
+
+# pylint: disable=too-many-locals,too-many-statements
 def build_docker_tarballs(unique_images, target_dir, host_workdir,
                           verbose=True, dind_params=None, dind_env=None):
     """Build the docker tarballs of a lockbox image
@@ -624,6 +856,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
         manager.add_cacerts(cacerts)
         # Get DinD client to be used on the pulling operations.
         dind_client = manager.get_client()
+        dind_client_env = manager.get_client_env()
         if dind_client is None:
             return None
         # Login to all registries before trying to fetch anything.
@@ -657,14 +890,29 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
             image_spec_new = f"{image_spec_parts[0]}:{image_spec_tag}"
             image_obj = dind_client.images.get(image_spec_new)
 
-            # Build tarball via `docker image save image:tag > output.tar`:
+            # Name tarball after the image digest:
             image_fname = image_digest[len(SHA256_PREFIX):] + ".tar"
             image_fname = os.path.join(target_dir, image_fname)
+
             log.info(f"Saving {image_spec}\n"
                      f"  into {image_fname}")
-            with open(image_fname, "wb") as outf:
-                for image_data in image_obj.save(named=True):
-                    outf.write(image_data)
+
+            if os.path.exists(image_fname):
+                # Sanity check: images in a Lockbox should be unique.
+                raise TorizonCoreBuilderError(
+                    "Container image file '{image_fname}' already exists")
+
+            tar_generator = os.environ.get("LOCKBOX_TARBALL_GENERATOR", "skopeo")
+            if tar_generator == "docker":
+                save_image_tarball_docker(dind_client, image_spec_new, image_fname)
+                amend_image_tarball(image_fname, image_spec_new, skopeo_generated=False)
+            elif tar_generator == "skopeo":
+                save_image_tarball_skopeo(dind_client_env, image_spec_new, image_fname)
+                amend_image_tarball(image_fname, image_spec_new, skopeo_generated=True)
+            else:
+                raise TorizonCoreBuilderError(
+                    "Unknown generator set through variable LOCKBOX_TARBALL_GENERATOR "
+                    f"({tar_generator})")
 
             tarballs.append({
                 "image_spec": image_spec,
@@ -690,7 +938,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
             log.info(f" * image:  {tarball['image_spec']}")
 
     return tarballs
-# pylint:enable=too-many-locals
+# pylint: enable=too-many-locals,too-many-statements
 
 
 # pylint: disable=too-many-arguments,too-many-locals
@@ -720,7 +968,8 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     # Fetch the manifests of all images.
     manifests_dir = os.path.join(metadata_dir, sha256 + ".manifests")
     os.mkdir(manifests_dir)
-    manifests_per_image = fetch_manifests(images, manifests_dir)
+    manifests_per_image = fetch_manifests(
+        images, manifests_dir, req_platforms=req_platforms)
 
     # Determine (image, platform) pairs referenced in the compose file.
     image_platform_pairs = set(image_per_service.values())
@@ -729,6 +978,19 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     # Determine which images will be needed at `docker-compose up` time.
     images_selection = select_unique_images(
         image_platform_pairs, manifests_per_image, req_platforms=req_platforms)
+
+    # At this point the pairs are (image, digest) are unique but let us make
+    # sure the digests alone are also unique. If not, it means the same image is
+    # being referenced in two different ways which the code in Aktualizr would
+    # not handle correctly. Users can easily work around this corner case by
+    # always referencing an image in the same way in their compose file.
+    digests_unique = set()
+    for _spec, sel_digest in images_selection:
+        if sel_digest in digests_unique:
+            raise TorizonCoreBuilderError(
+                f"Image with digest {sel_digest} has been selected more than once"
+                " through different names which is not supported.")
+        digests_unique.add(sel_digest)
 
     # Build tarball with the images.
     docker_dir = os.path.join(images_dir, sha256 + ".images")

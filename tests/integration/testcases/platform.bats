@@ -554,47 +554,132 @@ test_canonicalize_only_success() {
 @test "platform lockbox: test advanced registry access" {
     skip-no-ota-credentials
     local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
-
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
 
     run check-registries
     assert_success
 
+    # Consider populating the registry with images with different hashes and
+    # making a compose file + Lockbox referencing them. For now we have various
+    # compose files each one testing a different use case of registry access,
+    # but not all of them at the same time.
+    # run torizoncore-builder platform lockbox \
+    #     --credentials "${CREDS_PROD_ZIP}"  \
+    #     --cacert-to "${SR_NO_AUTH_IP}" "${SR_NO_AUTH_CERTS}/cacert.crt" \
+    #     --login-to "${SR_WITH_AUTH_IP}" toradex test \
+    #     --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
+    #     --force lockbox-with-docker-compose-lkbx-regaccess \
+    #     ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+    #                                     "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    # assert_success
+
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}"  \
+        --force lockbox-with-docker-compose-lkbx-regaccess-dh \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                        "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+
     run torizoncore-builder platform lockbox \
         --credentials "${CREDS_PROD_ZIP}"  \
         --cacert-to "${SR_NO_AUTH_IP}" "${SR_NO_AUTH_CERTS}/cacert.crt" \
+        --force lockbox-with-docker-compose-lkbx-regaccess-noauth \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                        "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}"  \
         --login-to "${SR_WITH_AUTH_IP}" toradex test \
         --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
-        --force LockBox-Test \
+        --force lockbox-with-docker-compose-lkbx-regaccess-auth \
         ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
-                           "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+                                        "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
+
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}"  \
+        --login-to "${SR_WITH_AUTH_IP}" toradex test \
+        --cacert-to "${SR_WITH_AUTH_IP}" "${SR_WITH_AUTH_CERTS}/cacert.crt" \
+        --cacert-to "${SR_NO_AUTH_IP}" "${SR_NO_AUTH_CERTS}/cacert.crt" \
+        --force lockbox-with-docker-compose-lkbx-regaccess-err \
+        ${ci_dockerhub_login:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                        "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_failure
+    assert_output --regexp "${SR_NO_AUTH_IP}/test1@sha256"
+    assert_output --regexp "${SR_NO_AUTH_IP}/test2@sha256"
+    assert_output --regexp "${SR_WITH_AUTH_IP}/test1@sha256"
+    assert_output --regexp "${SR_WITH_AUTH_IP}/test2@sha256"
 }
 
-@test "platform lockbox: generate lockbox with OCI and non-OCI images" {
+@test "platform lockbox: generate lockbox from 32-bit Docker+OCI images" {
     skip-no-ota-credentials
-
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
 
     # TODO: Consider generating the Lockbox as part of the test with the new platform API.
     run torizoncore-builder platform lockbox \
         --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
-        --force LockBox-With-OCI-32bit-Images \
-        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
-                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
-    assert_success
-
-    run torizoncore-builder platform lockbox \
-        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm64 \
-        --force LockBox-With-OCI-64bit-Images \
+        --force lockbox-with-docker-compose-lkbx-32bit \
         ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
     assert_success
 }
 
+@test "platform lockbox: generate lockbox from 64-bit Docker+OCI images" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm64 \
+        --force lockbox-with-docker-compose-lkbx-64bit \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+}
+
+@test "platform lockbox: generate lockbox from mixed single/multi-platform Docker+OCI images" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
+        --force lockbox-with-docker-compose-lkbx-mixed-mp32bit \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+}
+
+@test "platform lockbox: generate lockbox from multi-platform Docker+OCI images" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" --platform linux/arm64 \
+        --force lockbox-with-docker-compose-lkbx-mutiplat \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_success
+}
+
+@test "platform lockbox: fail when referencing same image by different names" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+
+    # TODO: Consider generating the Lockbox as part of the test with the new platform API.
+    run torizoncore-builder platform lockbox \
+        --credentials "${CREDS_PROD_ZIP}" \
+        --force lockbox-with-docker-compose-lkbx-badmix \
+        ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
+                                             "${CI_DOCKER_HUB_PULL_PASSWORD}"}
+    assert_failure
+    assert_output --regexp "has been selected more than once through different names"
+}
+
 @test "platform lockbox: check --dind-param parameter" {
     skip-no-ota-credentials
-
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
 
     # TODO: Consider generating the Lockbox as part of the test with the new platform API.
@@ -603,7 +688,7 @@ test_canonicalize_only_success() {
         --\
         platform lockbox \
         --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
-        --force LockBox-With-OCI-32bit-Images \
+        --force lockbox-with-docker-compose-lkbx-32bit \
         --dind-param="--invalid-param" \
         ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
                                              "${CI_DOCKER_HUB_PULL_PASSWORD}"}
@@ -613,7 +698,6 @@ test_canonicalize_only_success() {
 
 @test "platform lockbox: check --dind-env parameter" {
     skip-no-ota-credentials
-
     local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
 
     # TODO: Consider generating the Lockbox as part of the test with the new platform API.
@@ -622,7 +706,7 @@ test_canonicalize_only_success() {
         --\
         platform lockbox \
         --credentials "${CREDS_PROD_ZIP}" --platform linux/arm/v7 \
-        --force LockBox-With-OCI-32bit-Images \
+        --force lockbox-with-docker-compose-lkbx-32bit \
         --dind-env "HTTP_PROXY=http://localhost:33456" \
         --dind-env "HTTPS_PROXY=http://localhost:33456" \
         ${CI_DOCKER_HUB_PULL_USER:+"--login" "${CI_DOCKER_HUB_PULL_USER}"
