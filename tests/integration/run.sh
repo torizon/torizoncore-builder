@@ -6,7 +6,7 @@ IMAGES_DIR=$WORK_DIR/images
 TESTCASES_DIR=$BASE_DIR/testcases
 
 REPORT_DIR=$WORK_DIR/reports
-REPORT_FILE=$REPORT_DIR/$(date +"%Y%02m%02d%H%M%S").log
+REPORT_FILE=$REPORT_DIR/$(date +"%Y%02m%02d%H%M%S").xml
 
 TESTCASES="\
 $TESTCASES_DIR/setup.bats \
@@ -223,9 +223,19 @@ echo -e "Starting integration tests...\n"
 
 # run tests
 if [ "$TCB_REPORT" = "1" ]; then
-    $BATS_CMD 2>&1 | tee $REPORT_FILE
-    echo "Test report available in $REPORT_FILE"
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        BATS_CMD="$BATS_CMD --report-formatter junit --output $REPORT_DIR"
+        echo "Running in CI with JUnit formatter..."
+        $BATS_CMD
+        mv "$REPORT_DIR/report.xml" "$REPORT_DIR/report-${CI_JOB_NAME}.xml"
+        echo "Test report available in $REPORT_DIR/report-${CI_JOB_NAME}.xml"
+    else
+        echo "Running locally with tee to save report..."
+        $BATS_CMD 2>&1 | tee "$REPORT_FILE"
+        echo "Test report available in $REPORT_FILE"
+    fi
 else
+    echo "Running without report..."
     $BATS_CMD
 fi
 

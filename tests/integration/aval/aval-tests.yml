@@ -72,8 +72,12 @@ build-aval-docker:
       --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}" "echo $DEVICE_PASSWORD |
       sudo -S sh -c 'systemctl stop aktualizr-torizon && rm -rf /var/sota/sql.db /var/sota/storage/* && systemctl start aktualizr-torizon'"
-    # check results
-    - (! grep "^not ok" workdir/reports/*)
+  artifacts:
+    when: always
+    reports:
+      junit: tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
+    paths:
+      - tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
 
 # This template does not contain AVAL_TEST_ALL statement, so it's used for devices that will be tested by default
 .rules-template1:
@@ -106,6 +110,15 @@ aval-apalis-imx6q-scarthgap-release:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "apalis-imx6"
 
+aval-apalis-imx6q-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "apalis-imx6q"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "apalis-imx6"
+
 aval-apalis-imx8qm-kirkstone-release:
   extends: .aval-template
   variables:
@@ -121,6 +134,16 @@ aval-apalis-imx8qm-scarthgap-release:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "apalis-imx8"
+
+aval-apalis-imx8qm-scarthgap-nightly:
+  extends: .aval-template
+  rules: *aval-template-alt-rules
+  variables:
+    SOC_UDT: "apalis-imx8qm"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "apalis-imx8"
 
@@ -143,6 +166,15 @@ aval-colibri-imx6dl-scarthgap-release:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx6"
 
+aval-colibri-imx6dl-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "colibri-imx6dl"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx6"
+
 aval-colibri-imx6ull-emmc-kirkstone-release:
   extends: .aval-template
   variables:
@@ -158,6 +190,15 @@ aval-colibri-imx6ull-emmc-scarthgap-release:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+aval-colibri-imx6ull-emmc-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "colibri-imx6ull-emmc"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx6ull-emmc"
 
@@ -179,6 +220,16 @@ aval-colibri-imx7d-emmc-scarthgap-release:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx7-emmc"
 
+aval-colibri-imx7d-emmc-scarthgap-nightly:
+  extends: .aval-template
+  rules: *aval-template-alt-rules
+  variables:
+    SOC_UDT: "colibri-imx7d-emmc"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx7-emmc"
+
 aval-colibri-imx8dx-kirkstone-release:
   extends: .aval-template
   variables:
@@ -197,6 +248,15 @@ aval-colibri-imx8dx-scarthgap-release:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx8x"
 
+aval-colibri-imx8dx-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "colibri-imx8dx"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx8x"
+
 aval-verdin-am62dual-kirkstone-release:
   extends: .aval-template
   variables:
@@ -212,6 +272,15 @@ aval-verdin-am62dual-scarthgap-release:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-am62"
+
+aval-verdin-am62dual-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "verdin-am62dual"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-am62"
 
@@ -234,6 +303,15 @@ aval-verdin-imx8mmq-scarthgap-release:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mm"
 
+aval-verdin-imx8mmq-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "verdin-imx8mmq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-imx8mm"
+
 aval-verdin-imx8mpq-kirkstone-release:
   extends: .aval-template
   variables:
@@ -253,6 +331,15 @@ aval-verdin-imx8mpq-scarthgap-release:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mp"
 
+aval-verdin-imx8mpq-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "verdin-imx8mpq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-imx8mp"
+
 aval-aquila-am69octa-scarthgap-release:
   extends: .aval-template
   rules: *aval-template-alt-rules
@@ -260,5 +347,14 @@ aval-aquila-am69octa-scarthgap-release:
     SOC_UDT: "aquila-am69octa"
     YOCTO_BRANCH: "scarthgap-7.x.y"
     TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "aquila-am69"
+
+aval-aquila-am69octa-scarthgap-nightly:
+  extends: .aval-template
+  variables:
+    SOC_UDT: "aquila-am69octa"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "aquila-am69"
