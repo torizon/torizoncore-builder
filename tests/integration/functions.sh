@@ -243,3 +243,24 @@ ci-dockerhub-login-flag() {
     [ "${TCB_UNDER_CI}" = "1" ] && is-dockerhub-login-set && echo "1"
 }
 export -f ci-dockerhub-login-flag
+
+requires-signed-image() {
+    if [ -z "${DEFAULT_SIGNED_TEZI_IMAGE}" ]; then
+        skip "signed image not found"
+    fi
+}
+export -f requires-signed-image
+
+requires-supported-kernel-signing-machine() {
+    if [ "${IS_KERNEL_SIGNING_SUPPORTED}" != "1" ]; then
+        skip "machine not supported"
+    fi
+}
+export -f requires-supported-kernel-signing-machine
+
+requires-supported-hab-signing-machine() {
+    if [ "${IS_HAB_SIGNING_SUPPORTED}" != "1" ]; then
+        skip "machine not supported"
+    fi
+}
+export -f requires-supported-hab-signing-machine

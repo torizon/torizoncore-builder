@@ -3,6 +3,7 @@
 BASE_DIR=$PWD
 WORK_DIR=$PWD/workdir
 IMAGES_DIR=$WORK_DIR/images
+SIGNED_IMAGES_DIR=$WORK_DIR/images-tdx-signed
 TESTCASES_DIR=$BASE_DIR/testcases
 
 REPORT_DIR=$WORK_DIR/reports
@@ -15,6 +16,7 @@ $TESTCASES_DIR/images.bats \
 $TESTCASES_DIR/images-unpack.bats \
 $TESTCASES_DIR/images-download.bats \
 $TESTCASES_DIR/images-serve.bats \
+$TESTCASES_DIR/secboot.bats \
 $TESTCASES_DIR/union.bats \
 $TESTCASES_DIR/deploy.bats \
 $TESTCASES_DIR/isolate.bats \
@@ -195,6 +197,7 @@ fi
 
 # copy image that will be used in the tests
 export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.tar 2>&-) 2>&-)"
+export DEFAULT_SIGNED_TEZI_IMAGE="$(basename $(ls $SIGNED_IMAGES_DIR/*-${MACHINE}*.tar 2>&-) 2>&-)"
 export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.wic 2>&-) 2>&-)"
 
 # There's probably a better way to put the .wic and .img search in a single regex,
@@ -206,6 +209,10 @@ fi
 if [ "$IS_WIC" != "1" ] && [ ! -z "$DEFAULT_TEZI_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_TEZI_IMAGE for machine $MACHINE."
     cp $IMAGES_DIR/$DEFAULT_TEZI_IMAGE $WORK_DIR
+    if [ -n "$DEFAULT_SIGNED_TEZI_IMAGE" ]; then
+        cp $SIGNED_IMAGES_DIR/$DEFAULT_SIGNED_TEZI_IMAGE $WORK_DIR
+        echo "Secure boot related test cases using signed image $DEFAULT_SIGNED_TEZI_IMAGE for machine $MACHINE."
+    fi
 elif [ "$IS_WIC" = "1" ] && [ ! -z "$DEFAULT_WIC_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_WIC_IMAGE for machine $MACHINE."
     cp $IMAGES_DIR/$DEFAULT_WIC_IMAGE $WORK_DIR
