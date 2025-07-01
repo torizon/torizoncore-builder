@@ -20,7 +20,7 @@ from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
-                                      run_with_loading_animation)
+                                      run_with_loading_animation, run_command_without_sudo)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
@@ -33,6 +33,7 @@ EXTRA_ROOTFS_SIZE_KB = 0
 # Value based on
 # https://github.com/torizon/meta-toradex-torizon/blob/953aacb8b3241ea26f98e853d1a1d4c8463636a4/recipes-images/images/torizon-core-common.inc#L11
 IMAGE_OVERHEAD_FACTOR = 2.3
+
 
 def create_sysroot(deploy_sysroot_dir):
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(deploy_sysroot_dir))
@@ -174,8 +175,10 @@ def create_installed_versions(path, ref, branch):
         versioninfo[ref] = branch + "-" + ref
         json.dump(versioninfo, versionfile)
 
+
 def copy_tezi_image(src_tezi_dir, dst_tezi_dir):
     shutil.copytree(src_tezi_dir, dst_tezi_dir)
+
 
 def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     image_filename = get_rootfs_tarball(output_dir)
@@ -416,7 +419,8 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
                               rootfs_size_kb, dst_sysroot_dir)
     log.info(f"Image {os.path.basename(output_raw_img)} created successfully!")
 
-def run_command_with_sudo(client, command, password):
+
+def run_command_with_sudo(client, command, password) -> dict[str, str]:
     stdin, stdout, stderr = client.exec_command("sudo -S -- " + command)
     stdin.write(f"{password}\n")
     stdin.flush()
@@ -436,6 +440,46 @@ def run_command_with_sudo(client, command, password):
         log.debug(stdout_str)
     if len(stderr_str) > 0:
         log.debug(stderr_str)
+
+    return {'stdout': stdout_str, 'stderr': stderr_str}
+
+
+def is_ostree_compatible(srcmeta, client):
+    # Check if OSTree is present on the device
+    hash_result = run_command_without_sudo(
+        client,
+        r"ostree admin status | sed -ne 's/^ *\* .* \([0-9a-f]\+\)\.[0-9]\+/\1/p'",
+    )
+    hash_status = hash_result.get("status", 1)
+    hash_stdout = hash_result.get("stdout", "")
+
+    if hash_status > 0 or not hash_stdout:
+        log.warning("OSTree not present on host device.")
+        return False
+
+    machine_result = run_command_without_sudo(
+        client,
+        f"ostree show {hash_stdout} --print-metadata-key oe.machine",
+    )
+    machine_status = machine_result.get("status", 1)
+    machine_stdout = machine_result.get("stdout", "")
+
+    if machine_status > 0 or not machine_stdout:
+        log.warning("Machine is not set in device OSTree metadata.")
+        return False
+
+    # The output machine is wrapped in quotes, and python duplicates them
+    # We must remove the duplicated quotes before comparing
+    host_machine = machine_stdout.strip("\"'")
+
+    image_machine = srcmeta["oe.machine"]
+    compatibility = image_machine == host_machine
+    if not compatibility:
+        log.warning(
+            f"Image for device '{image_machine}' is NOT compatible with machine '{host_machine}'"
+        )
+
+    return compatibility
 
 
 # pylint: disable=too-many-locals
@@ -497,6 +541,13 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
                                                client.get_transport()))
     forwarding_thread.daemon = True
     forwarding_thread.start()
+
+    is_compatible = is_ostree_compatible(srcmeta, client)
+
+    if not is_compatible:
+        raise TorizonCoreBuilderError("Device is NOT compatible. Operation aborted.")
+
+    log.debug("Device compatible with image.")
 
     run_command_with_sudo(
         client,

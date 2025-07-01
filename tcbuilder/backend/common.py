@@ -803,3 +803,13 @@ def validate_compose_file(compose_file_data):
         image_name = svc_spec.get('image')
         if not image_name:
             raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
+
+
+def run_command_without_sudo(client, command) -> dict:
+    _stdin, stdout, _stderr = client.exec_command(command)
+    status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
+
+    return {
+        "status": status,
+        "stdout": stdout.read().decode("utf-8").strip(),
+    }

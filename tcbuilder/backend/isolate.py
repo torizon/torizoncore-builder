@@ -7,7 +7,7 @@ import paramiko
 
 from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
-from tcbuilder.backend.common import resolve_remote_host
+from tcbuilder.backend.common import resolve_remote_host, run_command_without_sudo
 
 IGNORE_FILES = [
     'group-',
@@ -39,13 +39,6 @@ def run_command_with_sudo(client, command, password):
     stdin, stdout, _stderr = client.exec_command(command=command, get_pty=True)
     stdin.write(password + '\n')
     stdin.flush()
-    status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
-
-    return status, stdin, stdout
-
-
-def run_command_without_sudo(client, command):
-    stdin, stdout, _stderr = client.exec_command(command)
     status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
 
     return status, stdin, stdout
@@ -88,11 +81,11 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
     create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(
         tmp_dir_name, deleted_file_dir_to_tar.rsplit('/', 1)[0],
         shlex.quote(deleted_file_dir_to_tar))
-    status, _stdin, stdout = run_command_without_sudo(client, create_deleted_info_cmd)
-    if status > 0:
+    output = run_command_without_sudo(client, create_deleted_info_cmd)
+    if output.get("status", 1) > 0:
         raise OperationFailureError(
             f'Could not create dir in {tmp_dir_name}',
-            stdout.read().decode('utf-8').strip())
+            output.get("stdout", ""))
 
 
 def get_tcattr_file_content(files_dir_to_tar, ssh_client, sftp_client,

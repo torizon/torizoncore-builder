@@ -21,6 +21,7 @@ DEFAULT_DEPLOY_DIR = "/deploy"
 DEFAULT_OUTPUT_WIC_NAME = "tcb_common_torizon_os.wic"
 DEFAULT_OUTPUT_IMG_NAME = "tcb_common_torizon_os.img"
 
+
 def progress_update(asyncprogress, _user_data=None):
     """ Update progress status
 
@@ -67,6 +68,7 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
         cbe.update_tezi_files(output_dir_, tezi_props)
 
     common.set_output_ownership(output_dir_)
+
 
 def deploy_raw_image(ostree_ref, base_raw_img, output_raw_img, storage_dir,
                      deploy_sysroot_dir, rootfs_label):
@@ -200,22 +202,22 @@ def do_deploy_ostree_remote(args):
 
 def do_deploy(args):
 
-    if (args.output_directory and args.base_raw_image and args.remote_host):
+    if args.output_directory and args.base_raw_image and args.remote_host:
         raise InvalidArgumentError(
             "--output-directory, --base-raw and --remote-host are "
             "mutually exclusive. Aborting.")
 
-    if (args.output_directory and args.base_raw_image):
+    if args.output_directory and args.base_raw_image:
         raise InvalidArgumentError(
             "--output-directory and --base-raw are "
             "mutually exclusive. Aborting.")
 
-    if (args.output_directory and args.remote_host):
+    if args.output_directory and args.remote_host:
         raise InvalidArgumentError(
             "--output-directory and --remote-host are "
             "mutually exclusive. Aborting.")
 
-    if (args.base_raw_image and args.remote_host):
+    if args.base_raw_image and args.remote_host:
         raise InvalidArgumentError(
             "--base-raw and --remote-host are "
             "mutually exclusive. Aborting.")
