@@ -15,7 +15,7 @@ variables:
   # pipelines.
   RUNNER_TAG: ""
   ENABLE_XRAY:
-    value: false
+    value: "false"
     description: "Whether to send test results to JIRA using XRay"
 
   DEBIAN_RELEASE: "bullseye-slim"
