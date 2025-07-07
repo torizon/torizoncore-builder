@@ -1,8 +1,4 @@
 variables:
-  # Variables defined in schedule pipelines has more precedente than this defined in gitlab-ci.yml. So,
-  # RUNNER_TAG defined in schedule pipeline will overwrite this variable. This one is useful for commit
-  # pipelines.
-  RUNNER_TAG: ""
   AVAL_TEST_ALL:
     value: false
     description: "Whether to test all machines using AVAL"
@@ -13,12 +9,10 @@ variables:
     value: false
     description: "Whether to allow the pipeline to continue upon failures in AVAL jobs."
 
-default:
-  tags:
-    - $RUNNER_TAG
-
 # Build the AVAL container with docker that will run the tests on the host PC
 build-aval-docker:
+  tags:
+    - aws-toradex-large
   stage: build
   rules:
     - if: '$AVAL_DISABLED =~ /^true$/i'
@@ -47,17 +41,6 @@ build-aval-docker:
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
     IMAGE_NAME_AVAL: aval-docker
-  rules:
-    - if: '$AVAL_DISABLED =~ /^true$/i'
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "trigger"
-      when: never
-    - if: '$AVAL_TEST_ALL !~ /^true$/i'
-      when: never
-    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
-      when: on_success
-      allow_failure: true
-    - when: on_success
   image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_AVAL}:${GITLAB_DOCKERREGISTRY_SUFFIX}
   script:
     # pull latest build of TorizonCore Builder
@@ -79,9 +62,41 @@ build-aval-docker:
     paths:
       - tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
 
-# This template does not contain AVAL_TEST_ALL statement, so it's used for devices that will be tested by default
-.rules-template1:
-  rules: &aval-template-alt-rules
+.aval-template-linux-default-machines:
+  extends: .aval-template
+  tags:
+    - all
+  rules:
+    - if: '$AVAL_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+
+.aval-template-linux-all-machines:
+  extends: .aval-template
+  tags:
+    - all
+  rules:
+    - if: '$AVAL_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$AVAL_TEST_ALL !~ /^true$/i'
+      when: never
+    - if: '$AVAL_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+
+.aval-template-wsl:
+  extends: .aval-template
+  tags:
+    - windows-wsl
+  rules:
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
     - if: $CI_PIPELINE_SOURCE == "trigger"
@@ -92,7 +107,7 @@ build-aval-docker:
     - when: on_success
 
 aval-apalis-imx6q-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -101,8 +116,7 @@ aval-apalis-imx6q-kirkstone-release:
     TCB_MACHINE: "apalis-imx6"
 
 aval-apalis-imx6q-scarthgap-release:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -111,7 +125,7 @@ aval-apalis-imx6q-scarthgap-release:
     TCB_MACHINE: "apalis-imx6"
 
 aval-apalis-imx6q-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -120,7 +134,7 @@ aval-apalis-imx6q-scarthgap-nightly:
     TCB_MACHINE: "apalis-imx6"
 
 aval-apalis-imx8qm-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -129,7 +143,7 @@ aval-apalis-imx8qm-kirkstone-release:
     TCB_MACHINE: "apalis-imx8"
 
 aval-apalis-imx8qm-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -138,8 +152,7 @@ aval-apalis-imx8qm-scarthgap-release:
     TCB_MACHINE: "apalis-imx8"
 
 aval-apalis-imx8qm-scarthgap-nightly:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -148,8 +161,7 @@ aval-apalis-imx8qm-scarthgap-nightly:
     TCB_MACHINE: "apalis-imx8"
 
 aval-colibri-imx6dl-kirkstone-release:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -158,7 +170,7 @@ aval-colibri-imx6dl-kirkstone-release:
     TCB_MACHINE: "colibri-imx6"
 
 aval-colibri-imx6dl-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -167,7 +179,7 @@ aval-colibri-imx6dl-scarthgap-release:
     TCB_MACHINE: "colibri-imx6"
 
 aval-colibri-imx6dl-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -176,7 +188,7 @@ aval-colibri-imx6dl-scarthgap-nightly:
     TCB_MACHINE: "colibri-imx6"
 
 aval-colibri-imx6ull-emmc-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -185,7 +197,7 @@ aval-colibri-imx6ull-emmc-kirkstone-release:
     TCB_MACHINE: "colibri-imx6ull-emmc"
 
 aval-colibri-imx6ull-emmc-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -194,7 +206,16 @@ aval-colibri-imx6ull-emmc-scarthgap-release:
     TCB_MACHINE: "colibri-imx6ull-emmc"
 
 aval-colibri-imx6ull-emmc-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "colibri-imx6ull-emmc"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+wsl-aval-colibri-imx6ull-emmc-scarthgap-nightly:
+  extends: .aval-template-wsl
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -203,7 +224,7 @@ aval-colibri-imx6ull-emmc-scarthgap-nightly:
     TCB_MACHINE: "colibri-imx6ull-emmc"
 
 aval-colibri-imx7d-emmc-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -212,7 +233,7 @@ aval-colibri-imx7d-emmc-kirkstone-release:
     TCB_MACHINE: "colibri-imx7-emmc"
 
 aval-colibri-imx7d-emmc-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -221,8 +242,7 @@ aval-colibri-imx7d-emmc-scarthgap-release:
     TCB_MACHINE: "colibri-imx7-emmc"
 
 aval-colibri-imx7d-emmc-scarthgap-nightly:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -231,7 +251,7 @@ aval-colibri-imx7d-emmc-scarthgap-nightly:
     TCB_MACHINE: "colibri-imx7-emmc"
 
 aval-colibri-imx8dx-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -240,7 +260,7 @@ aval-colibri-imx8dx-kirkstone-release:
     TCB_MACHINE: "colibri-imx8x"
 
 aval-colibri-imx8dx-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -249,7 +269,16 @@ aval-colibri-imx8dx-scarthgap-release:
     TCB_MACHINE: "colibri-imx8x"
 
 aval-colibri-imx8dx-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "colibri-imx8dx"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx8x"
+
+wsl-aval-colibri-imx8dx-scarthgap-nightly:
+  extends: .aval-template-wsl
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -258,7 +287,7 @@ aval-colibri-imx8dx-scarthgap-nightly:
     TCB_MACHINE: "colibri-imx8x"
 
 aval-verdin-am62dual-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -267,7 +296,7 @@ aval-verdin-am62dual-kirkstone-release:
     TCB_MACHINE: "verdin-am62"
 
 aval-verdin-am62dual-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -276,7 +305,7 @@ aval-verdin-am62dual-scarthgap-release:
     TCB_MACHINE: "verdin-am62"
 
 aval-verdin-am62dual-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -285,8 +314,7 @@ aval-verdin-am62dual-scarthgap-nightly:
     TCB_MACHINE: "verdin-am62"
 
 aval-verdin-imx8mmq-kirkstone-release:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -295,7 +323,7 @@ aval-verdin-imx8mmq-kirkstone-release:
     TCB_MACHINE: "verdin-imx8mm"
 
 aval-verdin-imx8mmq-scarthgap-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -304,7 +332,7 @@ aval-verdin-imx8mmq-scarthgap-release:
     TCB_MACHINE: "verdin-imx8mm"
 
 aval-verdin-imx8mmq-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -313,7 +341,7 @@ aval-verdin-imx8mmq-scarthgap-nightly:
     TCB_MACHINE: "verdin-imx8mm"
 
 aval-verdin-imx8mpq-kirkstone-release:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -322,8 +350,7 @@ aval-verdin-imx8mpq-kirkstone-release:
     TCB_MACHINE: "verdin-imx8mp"
 
 aval-verdin-imx8mpq-scarthgap-release:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -332,7 +359,7 @@ aval-verdin-imx8mpq-scarthgap-release:
     TCB_MACHINE: "verdin-imx8mp"
 
 aval-verdin-imx8mpq-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -341,8 +368,7 @@ aval-verdin-imx8mpq-scarthgap-nightly:
     TCB_MACHINE: "verdin-imx8mp"
 
 aval-aquila-am69octa-scarthgap-release:
-  extends: .aval-template
-  rules: *aval-template-alt-rules
+  extends: .aval-template-linux-default-machines
   variables:
     SOC_UDT: "aquila-am69octa"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -351,7 +377,7 @@ aval-aquila-am69octa-scarthgap-release:
     TCB_MACHINE: "aquila-am69"
 
 aval-aquila-am69octa-scarthgap-nightly:
-  extends: .aval-template
+  extends: .aval-template-linux-all-machines
   variables:
     SOC_UDT: "aquila-am69octa"
     YOCTO_BRANCH: "scarthgap-7.x.y"
