@@ -4,6 +4,11 @@
 OUTDIR="$PWD/workdir/images"
 STAMP="$OUTDIR/.images_downloaded"
 
+# CONFIGME: uncomment for nightly images
+#TARGET_BUILD_TYPE="nightly"
+#YOCTO_BRANCH="scarthgap-7.x.y"
+#TCB_MACHINE="colibri-imx6"
+
 prepare() {
     rm -rf workdir/images
     mkdir -p "$OUTDIR"
