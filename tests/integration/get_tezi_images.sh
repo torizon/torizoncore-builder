@@ -12,6 +12,21 @@ STAMP="$OUTDIR/.images_downloaded"
 prepare() {
     rm -rf workdir/images
     mkdir -p "$OUTDIR"
+
+    if [ -z "$TARGET_BUILD_TYPE" ]; then
+        echo "TARGET_BUILD_TYPE is empty. Check the CONFIGME section in the script."
+        exit 1
+    fi
+
+    if [ -z "$YOCTO_BRANCH" ]; then
+        echo "YOCTO_BRANCH is empty. Check the CONFIGME section in the script."
+        exit 1
+    fi
+
+    if [ -z "$TCB_MACHINE" ]; then
+        echo "TCB_MACHINE is empty. Check the CONFIGME section in the script."
+        exit 1
+    fi
 }
 
 download() {
