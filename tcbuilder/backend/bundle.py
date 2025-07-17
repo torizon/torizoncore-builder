@@ -39,7 +39,7 @@ def get_compression_command(output_file):
     output_file_tar = output_file
     if output_file.endswith(".xz"):
         output_file_tar = output_file[:-3]
-        command = ["xz", "-3", "-z", output_file_tar]
+        command = ["xz", "-T0", "-3", "-z", output_file_tar]
     elif output_file.endswith(".gz"):
         output_file_tar = output_file[:-3]
         command = ["gzip", output_file_tar]
