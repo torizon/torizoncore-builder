@@ -13,8 +13,8 @@ OUTDIR="$PWD/workdir/images"
 TMPDIR="$OUTDIR/tmp"
 STAMP="$OUTDIR/.raw_images_downloaded"
 
-# CONFIGME: version
-TCVERSION="6.6.0-common"
+# default values
+TCVERSION="${TCVERSION:-6.6.0-common}"
 
 prepare() {
     mkdir -p $OUTDIR
