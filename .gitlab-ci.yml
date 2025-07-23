@@ -15,7 +15,7 @@ variables:
   # pipelines.
   RUNNER_TAG: ""
   ENABLE_XRAY:
-    value: false
+    value: "false"
     description: "Whether to send test results to JIRA using XRay"
 
   DEBIAN_RELEASE: "bullseye-slim"
@@ -826,6 +826,8 @@ on-custom-test-error:
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$CI_COMMIT_REF_PROTECTED != "true"'
       when: never
     # Following condition for execution with custom TorizonCore images only (triggered by Jenkins).
     - if: $BUILD_MACHINE
