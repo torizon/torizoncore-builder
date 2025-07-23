@@ -1,0 +1,49 @@
+[Header]
+    Version = 4.3
+    Hash Algorithm = sha256
+    Engine = CAAM
+    Engine Configuration = 0
+    Certificate Format = X509
+    Signature Format = CMS
+
+[Install SRK]
+    # Index of the key location in the SRK table to be installed
+    File = "@@CST_SRK@@"
+    Source index = @@CST_KIDX@@
+
+#+START_INSTALL_CSFK_BLOCK (present only if CA flag is set)
+[Install CSFK]
+    # Key used to authenticate the CSF data
+    File = "@@CST_CSF_CERT@@"
+
+#+END_INSTALL_CSFK_BLOCK
+#+START_INSTALL_NOCAK_BLOCK (present only if CA flag is not set)
+[Install NOCAK]
+    File = "@@CST_SRK_CERT@@"
+
+#+END_INSTALL_NOCAK_BLOCK
+[Authenticate CSF]
+
+#+START_UNLOCK_BLOCK (present only if signing the SPL)
+[Unlock]
+    # Leave Job Ring and DECO master ID registers Unlocked
+    Engine = CAAM
+    Features = MID
+
+#+END_UNLOCK_BLOCK
+#+START_INSTALL_KEY_BLOCK (present only if CA flag is set)
+[Install Key]
+    # Key slot index used to authenticate the key to be installed
+    Verification index = 0
+    # Target key slot in HAB key store where key will be installed
+    Target index = 2
+    # Key to install
+    File = "@@CST_IMG_CERT@@"
+
+#+END_INSTALL_KEY_BLOCK
+[Authenticate Data]
+    # Key slot index used to authenticate the image data
+    Verification index = @@CST_AUTH_KIDX@@
+    # Authenticate Start Address, Offset, Length and file
+    # Notice that the following line will be replaced.
+    Blocks = 0x7e0fc0 0x1a000 0x2a600 "flash.bin"
