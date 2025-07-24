@@ -72,6 +72,10 @@ stages:
 
 lint-dockerfiles:
   stage: pre-build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - when: on_success
   image: hadolint/hadolint:latest-debian
   script:
     # Some rules cannot be applied in our specific cases.
@@ -87,6 +91,10 @@ lint-dockerfiles:
 
 lint-python:
   stage: pre-build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - when: on_success
   script:
     # Refresh a cached image with pylint and all employed libraries.
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
