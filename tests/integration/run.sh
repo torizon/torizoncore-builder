@@ -234,18 +234,22 @@ if [ "$TCB_REPORT" = "1" ]; then
         BATS_CMD="$BATS_CMD --report-formatter junit --output $REPORT_DIR"
         echo "Running in CI with JUnit formatter..."
         $BATS_CMD
+        EXIT_CODE_TESTS=$?
         mv "$REPORT_DIR/report.xml" "$REPORT_DIR/report-${CI_JOB_NAME}.xml"
         echo "Test report available in $REPORT_DIR/report-${CI_JOB_NAME}.xml"
     else
         echo "Running locally with tee to save report..."
         $BATS_CMD 2>&1 | tee "$REPORT_FILE"
+        EXIT_CODE_TESTS=$?
         echo "Test report available in $REPORT_FILE"
     fi
 else
     echo "Running without report..."
     $BATS_CMD
+    EXIT_CODE_TESTS=$?
 fi
 
 # end tests
 echo "Integration tests finished!"
 cd $BASE_DIR
+exit $EXIT_CODE_TESTS
