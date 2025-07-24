@@ -59,7 +59,13 @@ download() {
                 sort -r | head -n1)
     torizon_tar_url="$torizon_tar_url/$filename"
 
-    wget --no-verbose -P workdir/images "$torizon_tar_url"
+    # The loading bar of wget is dynamically rendered using terminal control characters,
+    # this breaks the logs. So, disable the loading bar in CI
+    if [ "$TCB_UNDER_CI" = "1" ]; then
+        wget --no-verbose -P workdir/images "$torizon_tar_url"
+    else
+        wget -P workdir/images "$torizon_tar_url"
+    fi
 }
 
 main() {
