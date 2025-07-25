@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "ubootversion": {
+      "type": "string"
+    },
+    "ubootrelease": {
+      "type": "string"
+    },
+    "envoffset": {
+      "type": "number"
+    },
+    "envsize": {
+      "type": "number"
+    }
+  },
+  "required": ["ubootrelease", "envoffset", "envsize"]
+}
+

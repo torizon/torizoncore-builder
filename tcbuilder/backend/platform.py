@@ -19,12 +19,13 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urljoin
 
 import docker.errors
+import jsonschema
 import requests
 import yaml
 
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidDataError, OperationFailureError,
-     FetchError)
+     FetchError, ParseError, ParseErrors)
 from tcbuilder.backend import ostree, sotaops
 from tcbuilder.backend.bundle import \
     (DindManager, login_to_registries, show_pull_progress_xterm)
@@ -73,6 +74,21 @@ FUSE_HARDWAREIDS = {
 }
 
 FUSE_SCHEMA_FILE = "fuse.schema.yaml"
+
+BOOTLOADER_HARDWAREIDS = {
+    "verdin-imx8mp-bootloader": "seek=0",
+    "verdin-imx8mm-bootloader": "seek=2",
+    "verdin-am62-bootloader": "seek=0",
+    "verdin-am62p-bootloader": "seek=0",
+    "apalis-imx8-bootloader": "seek=0",
+    "apalis-imx6-bootloader": "seek=2",
+    "colibri-imx8x-bootloader": "seek=0",
+    "colibri-imx6-bootloader": "seek=2",
+    "colibri-imx6ull-emmc-bootloader": "seek=2",
+    "colibri-imx7-emmc-bootloader": "seek=2"
+}
+
+UBOOT_JSON_SCHEMA_FILE = "uboot-schema.json"
 
 
 def load_metadata(fname, ftype=None, maxlen=DEFAULT_METADATA_MAXLEN):
@@ -2014,5 +2030,130 @@ def uptane_sign_push(credentials, push_file, target, version,
                         "--repo", TUF_REPO_DIR], verbose)
 
     log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
+
+
+# pylint: disable=too-many-arguments
+def push_bootloader(credentials, target, version, boot_bin, json_file,
+                    keep_vars, set_vars, reset, hardwareids, description,
+                    verbose):
+    """
+    Push bootloader binary to OTA server
+
+    :param credentials: Credentials file corresponding to the OTA server that
+                        will be pushed to
+    :param target: The name of the package
+    :param version: The version of the package
+    :param boot_bin: The bootloader binary file that will be pushed
+    :param json_file: The json file containing metadata information about the
+                      bootloader binary
+    :param keep_vars: List of U-boot variables to keep during an update with
+                      this package
+    :param set_vars: Key-value list of U-boot variables to set during an update
+                     with this package
+    :param reset: Boolean switch on whether the U-Boot enviornment should be
+                  reset during an update with this package
+    :param hardwareids: List of hardwareids to associate this package with
+    :param description: Package description
+    :param verbose: Boolean switch on whether to print additional logs
+    """
+
+    # Get main '*-bootloader' hardwareid
+    hwid = list(set(hardwareids) & set(BOOTLOADER_HARDWAREIDS.keys()))
+    custom_meta = create_bootloader_meta(json_file, keep_vars, set_vars, reset,
+                                         hwid[0])
+
+    hardwareids_str = ' '.join(hardwareids)
+
+    if target is None:
+        target = os.path.basename(boot_bin)
+
+    uptane_sign_push(credentials=credentials,
+                     push_file=boot_bin,
+                     target=target,
+                     version=version,
+                     hardwareids_str=hardwareids_str,
+                     custom_metadata=custom_meta,
+                     verbose=verbose)
+
+    if description is not None:
+        update_description(description, target, version, credentials)
+
+# pylint: enable=too-many-arguments
+
+
+# pylint: disable=too-many-locals
+def create_bootloader_meta(json_file, keep_vars, set_vars, reset, hwid):
+    """
+    Create the required custom metadata for a bootloader package
+
+    :param json_file: The json file containing metadata information about
+                      the bootloader
+    :param keep_vars: List of U-boot variables to keep
+    :param set_vars: Key-value list of U-Boot variables to set
+    :param reset: Whether to reset U-Boot environment during update or not
+    :param hwid: Main '*-bootloader' hardwareid
+    """
+
+    metadata_template = """\
+    {
+      "bootloader": {
+        "ddOptions": "options",
+        "dtVersion": "version",
+        "env": {
+          "type": "embedded",
+          "resetOnUpdate": true,
+          "embeddedOffset": 1234,
+          "embeddedSize": 5678,
+          "keepVars": null,
+          "setVars": null
+        }
+      }
+    }
+    """
+    metadata = json.loads(metadata_template)
+
+    # Check if json_file is valid
+    with open(json_file, 'r') as file:
+        try:
+            data = json.load(file)
+        except:
+            raise ParseError(f"File \"{json_file}\" is not valid Json; aborting.")
+
+    schema_path = os.path.join(os.path.dirname(__file__), UBOOT_JSON_SCHEMA_FILE)
+    with open(schema_path) as schema_file:
+        schema = json.load(schema_file)
+
+    validate = jsonschema.Draft7Validator(schema)
+    errors = []
+    for error in validate.iter_errors(data):
+        error_exc = ParseError(error.message)
+        error_exc.set_source(file=json_file, prop=error.path)
+        errors.append(error_exc)
+    if errors:
+        raise ParseErrors(f"Errors found in \"{json_file}\"; aborting.", payload=errors)
+
+    # Get set_vars in the right format
+    if set_vars:
+        set_vars_dict = {}
+        for pair in set_vars:
+            key_value = pair.split('=', maxsplit=1)
+            set_vars_dict[key_value[0].strip()] = key_value[1].strip()
+    else:
+        set_vars_dict = None
+
+    # Populate final metadata
+    metadata['bootloader']['ddOptions'] = BOOTLOADER_HARDWAREIDS[hwid]
+    metadata['bootloader']['dtVersion'] = data['ubootrelease']
+    metadata['bootloader']['env']['resetOnUpdate'] = reset
+    metadata['bootloader']['env']['embeddedOffset'] = data['envoffset']
+    metadata['bootloader']['env']['embeddedSize'] = data['envsize']
+    metadata['bootloader']['env']['keepVars'] = keep_vars or None
+    metadata['bootloader']['env']['setVars'] = set_vars_dict or None
+
+    log.debug(f"Bootloader metadata:\n{json.dumps(metadata, indent=2)}")
+
+    return metadata
+
+# pylint: enable=too-many-locals
 
 # EOF
