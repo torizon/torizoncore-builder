@@ -401,7 +401,7 @@ aggregate-reports:
       when: never
     # This avoid to run this step in development branches
     - if: '$ENABLE_XRAY =~ /^true$/i'
-      when: on_success
+      when: always
     - when: never
   script:
     - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
