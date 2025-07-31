@@ -34,12 +34,14 @@ $ touch $PWD/workdir/images/.images_downloaded
 Another option is to use get_tezi_images.sh script to automatically
 download the images based on a specific Torizon OS version.
 
-To use the script, open it and set the parameters to download the Tezi
-images (search for CONFIGME in the script).
-
-And then run the script:
+To use the script, you can run the script with the default values:
 
 $ ./get_tezi_images.sh
+
+If you want to change build type, machine or the yocto branch please set 
+the respectively enviroment variables, an example would be:
+
+$ TARGET_BUILD_TYPE=release YOCTO_BRANCH=kirkstone-6.x.y TCB_MACHINE=verdin-am62 ./get_tezi_images.sh
 
 Download Common Torizon OS WIC/raw images
 =====================================
@@ -57,7 +59,9 @@ $ touch $PWD/workdir/images/.raw_images_downloaded
 
 There's also the option to use get_raw_images.sh to automatically
 download specific Common Torizon versions according to user-defined
-parameters (CONFIGME options).
+parameters. To have this please set the enviroment variable TCVERSION:
+
+$ TCVERSION=6.4.0-common ./get_raw_images.sh
 
 Install a fresh Torizon OS image in a device
 ============================================

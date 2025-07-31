@@ -4,6 +4,11 @@
 OUTDIR="$PWD/workdir/images"
 STAMP="$OUTDIR/.images_downloaded"
 
+# default values
+TARGET_BUILD_TYPE="${TARGET_BUILD_TYPE:-nightly}"
+YOCTO_BRANCH="${YOCTO_BRANCH:-scarthgap-7.x.y}"
+TCB_MACHINE="${TCB_MACHINE:-colibri-imx6}"
+
 prepare() {
     rm -rf workdir/images
     mkdir -p "$OUTDIR"
