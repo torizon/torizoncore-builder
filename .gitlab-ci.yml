@@ -10,10 +10,6 @@ variables:
   RELEASE_TYPE:
     value: "official"
     description: "Type of pipeline to run. Allowed values: 'official', 'early-access' or 'internal'."
-  # Variables defined in schedule pipelines has more precedente than this defined in gitlab-ci.yml. So,
-  # RUNNER_TAG defined in schedule pipeline will overwrite this variable. This one is useful for commit
-  # pipelines.
-  RUNNER_TAG: ""
   ENABLE_XRAY:
     value: "false"
     description: "Whether to send test results to JIRA using XRay"
@@ -55,7 +51,7 @@ variables:
 
 default:
   tags:
-    - $RUNNER_TAG
+    - aws-toradex-large
 
 services:
   - name: docker:dind
@@ -237,6 +233,13 @@ test-host-tos7-platform-nightly:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
+wsl-test-host-tos7-platform-nightly:
+  needs:
+    - test-host-tos7-platform-nightly
+  extends: test-host-tos7-platform-nightly
+  tags:
+    - windows-wsl
+
 test-host-tc6-32bit-release:
   extends: .test-base
   variables:
@@ -246,6 +249,11 @@ test-host-tc6-32bit-release:
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+
+wsl-test-host-tc6-32bit-release:
+  extends: test-host-tc6-32bit-release
+  tags:
+    - windows-wsl
 
 test-host-tc6-64bit-release:
   extends: .test-base
@@ -297,6 +305,11 @@ test-host-tos7-64bit-nightly:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
+wsl-test-host-tos7-64bit-nightly:
+  extends: test-host-tos7-64bit-nightly
+  tags:
+    - windows-wsl
+
 test-torizoncore-common-intel:
   variables:
     IS_WIC: true
@@ -340,6 +353,8 @@ test-torizoncore-common-rasp4:
 
 # Job mostly triggered by Jenkins.
 test-torizoncore:
+  tags:
+    - "all"
   extends: .test-base
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
