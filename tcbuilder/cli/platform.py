@@ -2,6 +2,8 @@
 CLI handling for platform subcommand
 """
 
+# pylint: disable=too-many-lines
+
 import argparse
 import base64
 import binascii
@@ -23,7 +25,7 @@ from tcbuilder.cli.build import l2_pref
 from tcbuilder.backend import platform, sotaops, common, ostree
 from tcbuilder.backend.platform import \
     (JSON_EXT, OFFLINE_SNAPSHOT_FILE, validate_package_selection_criteria,
-     translate_compatible_packages, FUSE_HARDWAREIDS)
+     translate_compatible_packages, FUSE_HARDWAREIDS, BOOTLOADER_HARDWAREIDS)
 from tcbuilder.errors import \
     (PathNotExistError, InvalidStateError, InvalidDataError, InvalidArgumentError,
      TorizonCoreBuilderError, NoProvisioningDataInCredsFile,
@@ -816,6 +818,9 @@ def init_parser(subparsers):
     # platform static-delta
     add_static_delta_subcommands(subparsers)
 
+    # platform push-bootloader
+    add_push_bootloader_subcommand(subparsers)
+
 
 # static delta subcommand logic
 def update_progress(progress):
@@ -958,3 +963,132 @@ def add_static_delta_subcommands(subparsers):
         action="store_false", default=True)
 
     subparser.set_defaults(func=do_static_delta_create)
+
+
+def do_platform_push_bootloader(args):
+    """Main handler for 'platform push-bootloader' subcommand"""
+
+    # First check that required file inputs exist
+    for file in (args.boot_bin, args.uboot_json, args.credentials):
+        if not os.path.isfile(file):
+            raise InvalidArgumentError(f"File \"{file}\" does not exist; aborting.")
+
+    # Check if hardwareids contains exactly 1 supported '*-bootloader' ID
+    supported_ids = set(BOOTLOADER_HARDWAREIDS.keys())
+    shared_ids = list(set(args.hardwareids) & supported_ids)
+    if len(shared_ids) != 1:
+        print_list = "\n".join(supported_ids)
+        raise InvalidArgumentError("'--hardwareid' must specify exactly one ID from "
+                                   f"the following list:\n\n{print_list}\n\naborting.")
+
+    # Check custom text fields
+    _stop_on_invalid_chars("package name", args.package_name)
+    _stop_on_invalid_chars("package version", args.package_version)
+    _stop_on_invalid_chars("description", args.description)
+
+    # Sanity check on set_vars
+    if args.set_vars:
+        for var in args.set_vars:
+            if not "=" in var:
+                raise InvalidArgumentError(f"Input \"{var}\" provided to '--set-var' "
+                                           "is not of the form \"variable=value\"; aborting.")
+
+    try:
+        platform.push_bootloader(
+            credentials=args.credentials,
+            target=args.package_name,
+            version=args.package_version or datetime.today().strftime("%Y-%m-%d-%H%M%S"),
+            boot_bin=args.boot_bin,
+            json_file=args.uboot_json,
+            keep_vars=args.keep_vars,
+            set_vars=args.set_vars,
+            reset=args.reset,
+            hardwareids=args.hardwareids,
+            description=args.description,
+            verbose=args.verbose)
+    except ParseError as exc:
+        log.warning(l2_pref("Parsing errors found:"))
+        log.warning(f"{str(exc)}")
+        sys.exit(2)
+    except ParseErrors as exc:
+        log.warning(l2_pref("Parsing errors found:"))
+        assert isinstance(exc.payload, list)
+        for error in exc.payload:
+            log.warning(str(error))
+        sys.exit(2)
+    except TorizonCoreBuilderError as exc:
+        exc.msg = "Error: " + exc.msg
+        raise exc
+
+
+# TODO: Reorganize this subcommand when "platform push" gets reworked
+def add_push_bootloader_subcommand(subparsers):
+    """Initialize 'push-bootloader' subcommand command line interface."""
+
+    subparser = subparsers.add_parser(
+        "push-bootloader",
+        help="Push bootloader binary to Torizon Cloud server as a new update package.",
+        epilog=("Creating a bootloader package requires the actual binary 'u-boot-ota.bin', "
+                "and a json file 'u-boot-ota.json'. These files can be found in the deploy "
+                "directory of a Torizon OS Yocto build. Both files should come from "
+                "the same build."),
+        allow_abbrev=False)
+
+    subparser.add_argument(
+        "--credentials", dest="credentials",
+        help="Relative path to credentials.zip.", required=True)
+    subparser.add_argument(
+        "--hardwareid", dest="hardwareids", action="append",
+        help=("Define the hardware ID which the package is compatible with; this can be "
+              "specified multiple times. Exactly one of these hardware IDs must be of the form "
+              "'<machine name>-bootloader'."),
+        required=True, default=None)
+    subparser.add_argument(
+        "--package-name", dest="package_name",
+        help=("Package name for bootloader package (default: name of bootloader binary file)"),
+        required=False, default=None)
+    subparser.add_argument(
+        "--package-version", dest="package_version",
+        help=("Package version for bootloader package, (default: current"
+              "date in the 'yyyy-mm-dd' format)"),
+        required=False, default=None)
+    subparser.add_argument(
+        "--description", dest="description",
+        help="Add a description to the package",
+        required=False, default=None)
+    subparser.add_argument(
+        "--verbose", dest="verbose",
+        action="store_true",
+        help="Show more output", required=False)
+    subparser.add_argument(
+        "--uboot-json", dest="uboot_json",
+        help=("Json file containing metadata information related to the bootloader binary "
+              "that is to be pushed. (i.e. 'u-boot-ota.json')"),
+        required=True, default=None)
+    subparser.add_argument(
+        "--keep-var", dest="keep_vars", action="append",
+        help=("Define U-Boot variables that should be kept from the previous U-Boot environment "
+              "when doing a bootloader update with this package; this can be specified multiple "
+              "times. For example if 'foo' is provided, then the U-Boot variable 'foo' will be "
+              "kept with its value after an update with this package, if 'foo' existed prior "
+              "to the update. This will have no effect if '--no-reset' is also specified."),
+        required=False, default=None)
+    subparser.add_argument(
+        "--set-var", dest="set_vars", action="append",
+        help=("Define U-Boot variables and values that should be set when doing a bootloader "
+              "update with this package; this can be specified multiple times. For example "
+              "if 'foo=bar' is provided, then the U-Boot variable 'foo' with value 'bar' "
+              "will be set after an update with this package."),
+        required=False, default=None)
+    subparser.add_argument(
+        "--no-reset", dest="reset", action="store_false",
+        help=("If specified the old U-Boot environment will be kept and not replaced by the "
+              "new environment when doing a bootloader update with this package. CAUTION: "
+              "If the old environment is not compatible with the new bootloader binary, then "
+              "your system may have issues or not boot."),
+        required=False, default=True)
+    subparser.add_argument(
+        metavar="BOOTLOADER_BINARY", dest="boot_bin",
+        help="Path to bootloader binary file that is to be pushed to the server.")
+
+    subparser.set_defaults(func=do_platform_push_bootloader)

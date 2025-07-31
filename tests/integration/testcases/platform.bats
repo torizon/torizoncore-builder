@@ -825,3 +825,95 @@ test_canonicalize_only_success() {
 
     rm -f "${FUSE_DIR}/fuse-non-canon-16.lock.yaml"
 }
+
+@test "platform push-bootloader: errors cases" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+    local BOOT_DIR="$SAMPLES_DIR/push/bootloader"
+    local BOOT_BIN="$BOOT_DIR/u-boot-ota.bin"
+
+    # Test case: required file does not exist
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_DIR}/u-boot-ota.json" --hardwareid verdin-imx8mp-bootloader \
+        "foo"
+    assert_failure
+    assert_output --partial "does not exist"
+
+    # Test case: no valid *-bootloader hardwareid
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_DIR}/u-boot-ota.json" --hardwareid foo \
+        "${BOOT_BIN}"
+    assert_failure
+    assert_output --partial "must specify exactly one ID"
+
+    # Test case: more than one valid *-bootloader hardwareid
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_DIR}/u-boot-ota.json" --hardwareid verdin-imx8mp-bootloader \
+        --hardwareid verdin-imx8mm-bootloader "${BOOT_BIN}"
+    assert_failure
+    assert_output --partial "must specify exactly one ID"
+
+    # Test case: invalid input to --set-var
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_DIR}/u-boot-ota.json" --hardwareid verdin-imx8mp-bootloader \
+        --set-var foo "${BOOT_BIN}"
+    assert_failure
+    assert_output --partial "is not of the form"
+
+    # Test case: provided json file is not proper json
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_DIR}/u-boot-ota-invalid.json" --hardwareid verdin-imx8mp-bootloader \
+        "${BOOT_BIN}"
+    assert_failure
+    assert_output --partial "is not valid Json"
+
+    # Test case: provided json file does not follow expected schema
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_DIR}/u-boot-ota-bad.json" --hardwareid verdin-imx8mp-bootloader \
+        "${BOOT_BIN}"
+    assert_failure
+    assert_output --partial "Parsing errors found"
+}
+
+@test "platform push-bootloader: success cases" {
+    skip-no-ota-credentials
+    local CREDS_PROD_ZIP=$(decrypt-credentials-file "$SAMPLES_DIR/credentials/credentials-prod.zip.enc")
+    local BOOT_DIR="$SAMPLES_DIR/push/bootloader"
+    local BOOT_BIN="$BOOT_DIR/u-boot-ota.bin"
+    local BOOT_JSON="$BOOT_DIR/u-boot-ota.json"
+
+    # Test case: standard usage
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_JSON}" --hardwareid verdin-imx8mp-bootloader \
+        --package-version "$(get-unique-version)" "${BOOT_BIN}"
+    assert_success
+    assert_output --partial "Successfully pushed"
+
+    # Test case: with --keep-var and --set-var
+    run torizoncore-builder --log-level debug platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_JSON}" --hardwareid verdin-imx8mp-bootloader \
+        --package-version "$(get-unique-version)" --keep-var "foobar" --set-var "set=success" \
+        "${BOOT_BIN}"
+    assert_success
+    assert_output --partial "foobar"
+    assert_output --partial "\"set\": \"success\""
+    assert_output --partial "Successfully pushed"
+
+    # Test case: with --no-reset
+    run torizoncore-builder --log-level debug platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_JSON}" --hardwareid verdin-imx8mp-bootloader \
+        --package-version "$(get-unique-version)" --no-reset \
+        "${BOOT_BIN}"
+    assert_success
+    assert_output --partial "\"resetOnUpdate\": false"
+    assert_output --partial "Successfully pushed"
+
+    # Test case: with --description
+    run torizoncore-builder platform push-bootloader --credentials "${CREDS_PROD_ZIP}" \
+        --uboot-json "${BOOT_JSON}" --hardwareid verdin-imx8mp-bootloader \
+        --package-version "$(get-unique-version)" --description "test" \
+        "${BOOT_BIN}"
+    assert_success
+    assert_output --partial "Successfully pushed"
+    assert_output --partial "Description for"
+}
