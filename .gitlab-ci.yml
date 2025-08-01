@@ -401,7 +401,7 @@ aggregate-reports:
       when: never
     # This avoid to run this step in development branches
     - if: '$ENABLE_XRAY =~ /^true$/i'
-      when: on_success
+      when: always
     - when: never
   script:
     - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
@@ -424,7 +424,6 @@ aggregate-reports:
     AVAL_VERDIN_IMX8MMQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-527"
     AVAL_VERDIN_IMX8MPQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-528"
     AVAL_AQUILA_AM69OCTA_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-529"
-    TORIZON_OS_TEST_PLAN_KEY: "TOR-3748"
     GIT_CLEAN_FLAGS: none
 
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
