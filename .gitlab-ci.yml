@@ -315,7 +315,7 @@ test-torizoncore-common-intel:
     IS_WIC: true
   extends: .test-base
   script:
-    - TCB_SKIP_PULL=1 ./setup.sh
+    - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     # prepare image
@@ -336,7 +336,7 @@ test-torizoncore-common-rasp4:
   extends: .test-base
   script:
     # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
-    - TCB_SKIP_PULL=1 ./setup.sh
+    - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     # prepare image
@@ -362,7 +362,7 @@ test-torizoncore:
       when: never
     - if: $BUILD_MACHINE
   script:
-    - TCB_SKIP_PULL=1 ./setup.sh
+    - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
     - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit 1; fi
