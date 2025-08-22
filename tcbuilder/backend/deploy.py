@@ -11,7 +11,7 @@ import threading
 import shlex
 
 import guestfs
-import paramiko
+import fabric
 
 # pylint: disable=wrong-import-position
 import gi
@@ -20,7 +20,7 @@ from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
-                                      run_with_loading_animation, run_command_without_sudo)
+                                      run_with_loading_animation, REMOTE_CMD_TIMEOUT)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
@@ -420,51 +420,41 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
     log.info(f"Image {os.path.basename(output_raw_img)} created successfully!")
 
 
-def run_command_with_sudo(client, command, password) -> dict[str, str]:
-    stdin, stdout, stderr = client.exec_command("sudo -S -- " + command)
-    stdin.write(f"{password}\n")
-    stdin.flush()
-    status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
+def run_command_with_sudo(ssh_connection, command) -> dict:
 
-    stdout_str = stdout.read().decode('utf-8').strip()
-    stderr_str = stderr.read().decode('utf-8').strip()
+    result = ssh_connection.sudo(command, pty=True, hide=True, timeout=REMOTE_CMD_TIMEOUT)
 
-    if status != 0:
-        if len(stdout_str) > 0:
-            log.info(stdout_str)
-        if len(stderr_str) > 0:
-            log.error(stderr_str)
+    # Check exit status
+    if result.failed:
+        log.error(result.stdout.strip())
+        ssh_connection.close()
         raise TorizonCoreBuilderError(f"Failed to run command on module: {command}")
+
+    stdout_str = result.stdout.strip()
 
     if len(stdout_str) > 0:
         log.debug(stdout_str)
-    if len(stderr_str) > 0:
-        log.debug(stderr_str)
 
-    return {'stdout': stdout_str, 'stderr': stderr_str}
+    return {"status": result.exited, "stdout": stdout_str}
 
 
-def is_ostree_compatible(srcmeta, client):
+def is_ostree_compatible(srcmeta, ssh_conn):
     # Check if OSTree is present on the device
-    hash_result = run_command_without_sudo(
-        client,
-        r"ostree admin status | sed -ne 's/^ *\* .* \([0-9a-f]\+\)\.[0-9]\+/\1/p'",
+    hash_result = ssh_conn.run(
+        r"ostree admin status | sed -ne 's/^ *\* .* \([0-9a-f]\+\)\.[0-9]\+/\1/p'"
     )
-    hash_status = hash_result.get("status", 1)
-    hash_stdout = hash_result.get("stdout", "")
+    hash_stdout = hash_result.stdout.strip()
 
-    if hash_status > 0 or not hash_stdout:
+    if hash_result.failed or not hash_stdout:
         log.warning("OSTree not present on host device.")
         return False
 
-    machine_result = run_command_without_sudo(
-        client,
+    machine_result = ssh_conn.run(
         f"ostree show {hash_stdout} --print-metadata-key oe.machine",
     )
-    machine_status = machine_result.get("status", 1)
-    machine_stdout = machine_result.get("stdout", "")
+    machine_stdout = machine_result.stdout.strip()
 
-    if machine_status > 0 or not machine_stdout:
+    if machine_result.failed or not machine_stdout:
         log.warning("Machine is not set in device OSTree metadata.")
         return False
 
@@ -523,75 +513,74 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
     local_ostree_server_port = http_server_thread.server_port
     log.info(f'OSTree server listening on "localhost:{local_ostree_server_port}".')
 
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
     resolved_remote_host = resolve_remote_host(remote_host, remote_mdns)
-    client.connect(hostname=resolved_remote_host,
-                   username=remote_username,
-                   password=remote_password,
-                   port=remote_port)
+    connection_args = {
+        "host": resolved_remote_host,
+        "user": remote_username,
+        "port": remote_port,
+        "connect_kwargs": {'password': remote_password},
+        "config": fabric.Config(overrides={'sudo': {'password': remote_password}})
+    }
+    with fabric.Connection(**connection_args) as conn:
 
-    # Get the reverse TCP port that was chosen by the remote SSH
-    reverse_ostree_server_port = request_port_forward(client.get_transport())
+        conn.open()
+        # Get the reverse TCP port that was chosen by the remote SSH
+        reverse_ostree_server_port = request_port_forward(conn.transport)
 
-    forwarding_thread = threading.Thread(target=reverse_forward_tunnel,
-                                         args=("localhost",
-                                               local_ostree_server_port,
-                                               client.get_transport()))
-    forwarding_thread.daemon = True
-    forwarding_thread.start()
+        forwarding_thread = threading.Thread(target=reverse_forward_tunnel,
+                                             args=("localhost",
+                                                   local_ostree_server_port,
+                                                   conn.transport))
+        forwarding_thread.daemon = True
+        forwarding_thread.start()
 
-    is_compatible = is_ostree_compatible(srcmeta, client)
+        is_compatible = is_ostree_compatible(srcmeta, conn)
 
-    if not is_compatible:
-        raise TorizonCoreBuilderError("Device is NOT compatible. Operation aborted.")
+        if not is_compatible:
+            raise TorizonCoreBuilderError("Device is NOT compatible. Operation aborted.")
 
-    log.debug("Device compatible with image.")
+        log.debug("Device compatible with image.")
 
-    run_command_with_sudo(
-        client,
-        "ostree remote add --no-gpg-verify --force tcbuilder "
-        f"http://localhost:{reverse_ostree_server_port}/",
-        remote_password)
+        run_command_with_sudo(
+            conn,
+            "ostree remote add --no-gpg-verify --force tcbuilder "
+            f"http://localhost:{reverse_ostree_server_port}/")
 
-    log.info("Starting OSTree pull on the device...")
-    run_command_with_sudo(
-        client, f"ostree pull tcbuilder:{csumdeploy}", remote_password)
+        log.info("Starting OSTree pull on the device...")
+        run_command_with_sudo(
+            conn, f"ostree pull tcbuilder:{csumdeploy}")
 
-    log.info("Deploying new OSTree on the device...")
-    # Do the final staging after we set upgrade_available, therefore option --stage
-    run_command_with_sudo(
-        client, f"ostree admin deploy --stage {args_cli} tcbuilder:{csumdeploy}", remote_password)
+        log.info("Deploying new OSTree on the device...")
+        # Do the final staging after we set upgrade_available, therefore option --stage
+        run_command_with_sudo(
+            conn, f"ostree admin deploy --stage {args_cli} tcbuilder:{csumdeploy}")
 
-    # Make sure we set bootcount to 0, it can be > 1 from previous runs
-    run_command_with_sudo(
-        client, "fw_setenv bootcount 0", remote_password)
+        # Make sure we set bootcount to 0, it can be > 1 from previous runs
+        run_command_with_sudo(
+            conn, "fw_setenv bootcount 0")
 
-    # Make sure we remove the rollback flag from previous runs
-    run_command_with_sudo(
-        client, "fw_setenv rollback 0", remote_password)
+        # Make sure we remove the rollback flag from previous runs
+        run_command_with_sudo(
+            conn, "fw_setenv rollback 0")
 
-    # Set upgrade_available for U-Boot
-    run_command_with_sudo(
-        client, "fw_setenv upgrade_available 1", remote_password)
+        # Set upgrade_available for U-Boot
+        run_command_with_sudo(
+            conn, "fw_setenv upgrade_available 1")
 
-    # Finalize the update after we set upgrade_available for U-Boot
-    run_command_with_sudo(
-        client, "ostree admin finalize-staged", remote_password)
+        # Finalize the update after we set upgrade_available for U-Boot
+        run_command_with_sudo(
+            conn, "ostree admin finalize-staged")
 
-    log.info("Deploying successfully finished.")
+        log.info("Deploying successfully finished.")
 
-    if reboot:
-        # If reboot is started in foreground it leads to exit code <> 0 sometimes
-        # which leads to a stack trace in torizoncore-builder. Start in background
-        # to make the command run successfully always.
-        run_command_with_sudo(client, "sh -c 'reboot &'", remote_password)
-        log.info("Device reboot initiated...")
-    else:
-        log.info("Please reboot the device to boot into the new deployment.")
-
-    client.close()
+        if reboot:
+            # If reboot is started in foreground it leads to exit code <> 0 sometimes
+            # which leads to a stack trace in torizoncore-builder. Start in background
+            # to make the command run successfully always.
+            run_command_with_sudo(conn, "sh -c 'reboot &'")
+            log.info("Device reboot initiated...")
+        else:
+            log.info("Please reboot the device to boot into the new deployment.")
 
     ostree.serve_ostree_stop(http_server_thread)
 # pylint: enable=too-many-locals

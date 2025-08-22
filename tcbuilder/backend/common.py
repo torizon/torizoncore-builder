@@ -65,6 +65,8 @@ RAW_PROP_DEFAULTS = {
     "raw_rootfs_label" : DEFAULT_RAW_ROOTFS_LABEL
 }
 
+REMOTE_CMD_TIMEOUT = 30
+
 # Based on this solution: https://stackoverflow.com/a/50690347
 # Usage of Event object to stop thread was based on:
 # https://www.pythontutorial.net/python-concurrency/python-stop-thread/
@@ -806,16 +808,6 @@ def validate_compose_file(compose_file_data):
         image_name = svc_spec.get('image')
         if not image_name:
             raise InvalidDataError(f"Error: No image specified for service '{svc_name}'.")
-
-
-def run_command_without_sudo(client, command) -> dict:
-    _stdin, stdout, _stderr = client.exec_command(command)
-    status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
-
-    return {
-        "status": status,
-        "stdout": stdout.read().decode("utf-8").strip(),
-    }
 
 
 def is_tcb_container_64bit():

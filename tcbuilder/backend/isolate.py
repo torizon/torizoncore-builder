@@ -3,11 +3,11 @@ import os
 import subprocess
 import shlex
 
-import paramiko
+import fabric
 
 from tcbuilder.errors import OperationFailureError, TorizonCoreBuilderError
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
-from tcbuilder.backend.common import resolve_remote_host, run_command_without_sudo
+from tcbuilder.backend.common import resolve_remote_host, REMOTE_CMD_TIMEOUT
 
 IGNORE_FILES = [
     'group-',
@@ -35,15 +35,6 @@ NO_CHANGES = 0
 CHANGES_CAPTURED = 1
 
 
-def run_command_with_sudo(client, command, password):
-    stdin, stdout, _stderr = client.exec_command(command=command, get_pty=True)
-    stdin.write(password + '\n')
-    stdin.flush()
-    status = stdout.channel.recv_exit_status()  # wait for exec_command to finish
-
-    return status, stdin, stdout
-
-
 def ignore_changes_deletion(change):
     # NOTE: this offset must match the output of `ostree admin config`:
     fname = change[5:]
@@ -53,8 +44,8 @@ def ignore_changes_deletion(change):
     return True
 
 
-def remove_tmp_dir(client, tmp_dir_name):
-    run_command_without_sudo(client, 'rm -rf ' + tmp_dir_name)
+def remove_tmp_dir(conn, tmp_dir_name):
+    conn.run('rm -rf ' + tmp_dir_name, hide=True, timeout=REMOTE_CMD_TIMEOUT)
 
 
 def check_path(path):
@@ -62,7 +53,7 @@ def check_path(path):
         path.rsplit('/', 1)[0])
 
 
-def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
+def whiteouts(ssh_conn, sftp_channel, tmp_dir_name, deleted_f_d):
     # check if deleted file/dir was in subdirectory of /etc --> '/' for file/dir at /etc
     path = check_path(deleted_f_d)
     if path != '/':  # file/dir was in subdirectory of /etc
@@ -81,37 +72,38 @@ def whiteouts(client, sftp_channel, tmp_dir_name, deleted_f_d):
     create_deleted_info_cmd = 'mkdir -p {0}/{1} && touch {0}/{2}'.format(
         tmp_dir_name, deleted_file_dir_to_tar.rsplit('/', 1)[0],
         shlex.quote(deleted_file_dir_to_tar))
-    output = run_command_without_sudo(client, create_deleted_info_cmd)
-    if output.get("status", 1) > 0:
+    result = ssh_conn.run(create_deleted_info_cmd, hide=True, timeout=REMOTE_CMD_TIMEOUT)
+    if result.failed:
         raise OperationFailureError(
             f'Could not create dir in {tmp_dir_name}',
-            output.get("stdout", ""))
+            result.stdout)
 
 
-def get_tcattr_file_content(files_dir_to_tar, ssh_client, sftp_client,
-                            remote_password, tmp_dir_name):
+def get_tcattr_file_content(files_dir_to_tar, ssh_conn, tmp_dir_name):
     """
     Get the content (permission/ownership) for the "/etc/.tcattr"
     metadata file of all files that will be isolated and will be
     used later by the "union" command.
     """
 
-    facl_command = "sudo getfacl -n {0} 2>/dev/null".format(files_dir_to_tar)
-    status, _stdin, stdout = run_command_with_sudo(ssh_client, facl_command,
-                                                   remote_password)
-    if status > 0:
-        remove_tmp_dir(ssh_client, tmp_dir_name)
-        sftp_client.close()
-        ssh_client.close()
-        facl_command_error = 'Unable to save permissions/ownership at target'
-        raise OperationFailureError(facl_command_error,
-                                    stdout.read().decode('utf-8').strip())
+    facl_command = "getfacl -n {0}".format(files_dir_to_tar)
+    result = ssh_conn.sudo(facl_command, pty=True, hide=True, timeout=REMOTE_CMD_TIMEOUT)
 
-    tcattr = stdout.read().decode("utf-8").strip().split("\r\n")
+    if result.failed:
+        remove_tmp_dir(ssh_conn, tmp_dir_name)
+        ssh_conn.close()
+        facl_command_error = 'Unable to save permissions/ownership at target'
+        raise OperationFailureError(facl_command_error, result.stdout.strip())
+
+    tcattr = result.stdout.strip("\r").split("\r\n")
     # remove upto password keyword
-    indx = tcattr.index("Password: ")
+    indx = tcattr.index("[sudo] password: ")
     tcattr = tcattr[(indx + 1):]
-    tcattr = "\n".join(tcattr) + "\n"
+
+    # remove any getfacl warnings from the list
+    tcattr = [e for e in tcattr if 'getfacl:' not in e]
+
+    tcattr = "\n".join(tcattr)
     return tcattr
 
 
@@ -135,25 +127,26 @@ def list_to_string_with_quote(args_list):
 
 # pylint: disable=too-many-locals
 def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_port, r_mdns):
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     resolved_remote_host = resolve_remote_host(r_name_ip, r_mdns)
-    client.connect(hostname=resolved_remote_host,
-                   username=r_username,
-                   password=r_password,
-                   port=r_port)
+    conn = fabric.Connection(host=resolved_remote_host,
+                             user=r_username,
+                             port=r_port,
+                             connect_kwargs={'password': r_password},
+                             config=fabric.Config(overrides={'sudo': {'password': r_password}}))
+    conn.open()
     # get config diff
-    status, _stdin, stdout = run_command_with_sudo(
-        client, 'sudo ostree admin config-diff', r_password)
-    if status > 0:
-        client.close()
-        raise OperationFailureError('Unable to get user changes',
-                                    stdout.read().decode('utf-8').strip())
+    result = conn.sudo('ostree admin config-diff', pty=True, hide=True, timeout=REMOTE_CMD_TIMEOUT)
 
-    output = stdout.read().decode("utf-8").split("\r\n")
+    # Check exit status
+    if result.failed:
+        conn.close()
+        raise OperationFailureError('Unable to get user changes',
+                                    result.stdout.strip())
+
+    output = result.stdout.split("\r\n")
     # remove upto password keyword
-    indx = output.index("Password: ")
+    indx = output.index("[sudo] password: ")
     output = output[(indx + 1):]
 
     # filter out files
@@ -165,7 +158,7 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_port, r_
     # Buffer to store the content for the ".tcattr" file
     tcattr = None
 
-    sftp = client.open_sftp()
+    sftp = conn.sftp()
     if sftp is not None:
         # perform all operations in /tmp
         tmp_dir_name = '/tmp/torizon-builder-' + str(datetime.datetime.now().date()) + '_' + str(
@@ -182,38 +175,37 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_port, r_
                 files_list.append('/etc/' + f_name)
             else:
                 f_delete_exists = True
-                whiteouts(client, sftp, tmp_dir_name, f_name)
+                whiteouts(conn, sftp, tmp_dir_name, f_name)
 
         files_dir_to_tar = list_to_string_with_quote(files_list)
         if f_delete_exists:
-            tar_command = "sudo tar --exclude={0} --xattrs --acls -cf {1}/{0} -C {1} . {2}". \
+            tar_command = "tar --exclude={0} --xattrs --acls -cf {1}/{0} -C {1} . {2}". \
                 format(TAR_NAME, tmp_dir_name, files_dir_to_tar)
         else:
             # don't include current directory i.e. '.':
             # whiteout files does not exist in /tmp/torizon-builder/
-            tar_command = "sudo tar --xattrs --acls -cf {1}/{0} {2}".format(
+            tar_command = "tar --xattrs --acls -cf {1}/{0} {2}".format(
                 TAR_NAME, tmp_dir_name, files_dir_to_tar)
         # make tar
-        status, _stdin, stdout = run_command_with_sudo(client, tar_command, r_password)
-        if status > 0:
-            remove_tmp_dir(client, tmp_dir_name)
+        result = conn.sudo(tar_command, pty=True, hide=True, timeout=REMOTE_CMD_TIMEOUT)
+        if result.failed:
+            remove_tmp_dir(conn, tmp_dir_name)
             sftp.close()
-            client.close()
+            conn.close()
             raise OperationFailureError('Unable to bundle up changes at target',
-                                        stdout.read().decode('utf-8').strip())
+                                        result.stdout.strip())
 
         # get the tar
         sftp.get(tmp_dir_name + '/' + TAR_NAME, diff_dir + '/' + TAR_NAME, None)
-        remove_tmp_dir(client, tmp_dir_name)
+        remove_tmp_dir(conn, tmp_dir_name)
         sftp.close()
 
-        tcattr = get_tcattr_file_content(files_dir_to_tar, client, sftp,
-                                         r_password, tmp_dir_name)
+        tcattr = get_tcattr_file_content(files_dir_to_tar, conn, tmp_dir_name)
     else:
-        client.close()
+        conn.close()
         raise TorizonCoreBuilderError('Unable to create SSH connection for transferring of files')
 
-    client.close()
+    conn.close()
 
     # Extract tar to diff_dir/usr/ so that at time of union
     # they can be committed to /usr/etc of unpacked image as it is
