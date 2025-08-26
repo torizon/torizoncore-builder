@@ -312,6 +312,24 @@ aval-verdin-am62dual-scarthgap-nightly:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-am62"
 
+aval-verdin-am62pq-scarthgap-release:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "verdin-am62pq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-am62p"
+
+aval-verdin-am62pq-scarthgap-nightly:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "verdin-am62pq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-am62p"
+
 aval-verdin-imx8mmq-kirkstone-release:
   extends: .aval-template-linux-default-machines
   variables:
@@ -365,6 +383,15 @@ aval-verdin-imx8mpq-scarthgap-nightly:
     TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mp"
+
+aval-verdin-imx95h-scarthgap-nightly:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "verdin-imx95h"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-imx95"
 
 aval-aquila-am69octa-scarthgap-release:
   extends: .aval-template-linux-default-machines
