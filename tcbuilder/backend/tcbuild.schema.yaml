@@ -46,6 +46,7 @@ properties:
                       machine:
                         type: string
                         enum:
+                          - aquila-am69
                           - apalis-imx6
                           - apalis-imx8
                           - apalis-imx8x
@@ -55,9 +56,13 @@ properties:
                           - colibri-imx7-emmc
                           - colibri-imx8x
                           - colibri-imx8x-v10b
+                          - toradex-smarc-imx8mp
+                          - toradex-smarc-imx95
                           - verdin-imx8mm
                           - verdin-imx8mp
+                          - verdin-imx95
                           - verdin-am62
+                          - verdin-am62p
                         description: "target module type"
                       distro:
                         type: string
