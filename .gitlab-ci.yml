@@ -51,7 +51,7 @@ variables:
 
 default:
   tags:
-    - aws-toradex-large
+    - saas-linux-small-amd64
 
 services:
   - name: docker:dind
@@ -87,6 +87,8 @@ lint-dockerfiles:
            --info DL3003 --info DL3008 --info DL3029 --info DL4006
 
 lint-python:
+  tags:
+    - saas-linux-large-amd64
   stage: pre-build
   rules:
     - if: $CI_PIPELINE_SOURCE == "trigger"
@@ -149,6 +151,8 @@ lint-python:
     - ${B} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
 
 build-amd64:
+  tags:
+    - saas-linux-large-amd64
   extends: .build-base
   variables:
     IMAGE_ARCH: linux/amd64
