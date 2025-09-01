@@ -26,6 +26,7 @@ for report_path in tests/integration/workdir/reports/report-*-nightly.xml; do
       --test-plan-key "$TORIZON_OS_TEST_PLAN_KEY" \
       --test-exec-key "${!var_name}"
   else
-    echo "Warning: Variable ${var_name} is not set, skipping $report_path"
+    echo "Error: Variable ${var_name} is not set"
+    exit 1
   fi
 done
