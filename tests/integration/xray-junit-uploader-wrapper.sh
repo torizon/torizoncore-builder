@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ -z "$TORIZON_OS_TEST_PLAN_KEY" ]; then
+  echo "Error: TORIZON_OS_TEST_PLAN_KEY is not set."
+  exit 1
+fi
+
 for report_path in tests/integration/workdir/reports/report-*-nightly.xml; do
   if [ ! -e "$report_path" ]; then
     echo "Warning: Report path '$report_path' does not exist, skipping."
