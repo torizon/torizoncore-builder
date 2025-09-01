@@ -6,7 +6,9 @@ import logging
 import os
 
 from tcbuilder.backend import secboot
-from tcbuilder.errors import InvalidStateError, InvalidArgumentError
+from tcbuilder.backend import kernel
+from tcbuilder.backend.common import images_unpack_executed, unpacked_image_type
+from tcbuilder.errors import InvalidArgumentError, InvalidDataError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -56,36 +58,38 @@ def validate_kernel_key_arg(kernel_key):
 def do_sign_kernel(args):
     """Run 'secboot sign-kernel' subcommand"""
 
-    for directory in (args.input_dir, args.kernel_key_dir):
-        if not os.path.isdir(directory):
-            raise InvalidArgumentError(
-                f"Directory \"{directory}\" does not exist: aborting.")
-
-    # Create output directory or abort:
-    if os.path.isdir(args.output_dir) and not args.force:
-        raise InvalidStateError(
-            f"Output directory '{args.output_dir}' already exists; please remove "
-            "it, choose another output directory name or rerun with --force to overwrite it.")
+    if not os.path.isdir(args.kernel_key_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{args.kernel_key_dir}\" does not exist: aborting.")
 
     kernel_key_name, kernel_key_algo = validate_kernel_key_arg(args.kernel_key)
 
+    storage_dir = os.path.abspath(args.storage_directory)
+
+    images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "raw":
+        raise InvalidDataError("Secboot commands are not supported for WIC/raw images. "
+                               "Aborting.")
+
+    kernel_changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+    if not os.path.isdir(kernel_changes_dir):
+        os.mkdir(kernel_changes_dir)
+
     secboot.sign_kernel(
-        input_dir=args.input_dir,
+        storage_dir=storage_dir,
+        kernel_changes_dir=kernel_changes_dir,
         key_dir=args.kernel_key_dir,
         key_algo=kernel_key_algo,
-        key_name=kernel_key_name,
-        output_dir=args.output_dir,
-        force=args.force
+        key_name=kernel_key_name
     )
 
 
 def do_sign_bootloader_hab(args):
     """Run 'secboot sign-bootloader-hab' subcommand"""
 
-    for directory in (args.input_dir, args.cst_dir):
-        if not os.path.isdir(directory):
-            raise InvalidArgumentError(
-                f"Directory \"{directory}\" does not exist: aborting.")
+    if not os.path.isdir(args.cst_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{args.cst_dir}\" does not exist: aborting.")
 
     if args.kernel_key_dir:
         if not os.path.isdir(args.kernel_key_dir):
@@ -103,11 +107,12 @@ def do_sign_bootloader_hab(args):
                 "--kernel-key was passed but --kernel-key-dir was not provided. Aborting.")
         kernel_key_name, kernel_key_algo = validate_kernel_key_arg(args.kernel_key)
 
-    # Create output directory or abort:
-    if os.path.isdir(args.output_dir) and not args.force:
-        raise InvalidStateError(
-            f"Output directory '{args.output_dir}' already exists; please remove "
-            "it, choose another output directory name or rerun with --force to overwrite it.")
+    storage_dir = os.path.abspath(args.storage_directory)
+
+    images_unpack_executed(storage_dir)
+    if unpacked_image_type(storage_dir) == "raw":
+        raise InvalidDataError("Secboot commands are not supported for WIC/raw images. "
+                               "Aborting.")
 
     cst_args = {
         "crypto": args.cst_crypto,
@@ -121,9 +126,7 @@ def do_sign_bootloader_hab(args):
     }
 
     secboot.sign_bootloader_hab(
-        input_dir=args.input_dir,
-        output_dir=args.output_dir,
-        force=args.force,
+        storage_dir=storage_dir,
         kernel_key_dir=args.kernel_key_dir,
         kernel_key_name=kernel_key_name,
         kernel_key_algo=kernel_key_algo,
@@ -137,7 +140,7 @@ def init_parser(subparsers):
 
     parser = subparsers.add_parser(
         "secboot",
-        help=("Sign different components of a specified Torizon OS image in "
+        help=("Sign different components of an unpacked Torizon OS image in "
               "Toradex Easy Installer format."),
         allow_abbrev=False)
 
@@ -146,33 +149,15 @@ def init_parser(subparsers):
     # secboot sign-kernel
     subparser = subparsers.add_parser(
         "sign-kernel",
-        help=("Sign the kernel fitImage."),
+        help=("Sign the kernel fitImage of an unpacked Torizon OS image."),
         description=("Currently supported machines: "
                      f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
 
     subparser.add_argument(
-        dest="input_dir",
-        metavar="INPUT_DIRECTORY",
-        help="Path of Torizon OS 7 image (in Toradex Easy Installer format) to be signed. "
-             "The kernel must be in fitImage format, and the image needs to have a file with "
-             "the required components to be signed named "
-             f"{secboot.DEFAULT_TCB_SIGNING_FILES_TARNAME}.")
-
-    subparser.add_argument(
-        dest="output_dir",
-        metavar="OUTPUT_DIRECTORY",
-        help="Path of resulting Torizon OS image.")
-
-    subparser.add_argument(
-        "--force", dest="force",
-        default=False, action="store_true",
-        help="Force program output, overwriting any existing file/directory.")
-
-    subparser.add_argument(
-        "--kernel-key-dir", dest="kernel_key_dir",
+        dest="kernel_key_dir",
+        metavar="KERNEL_KEY_DIR",
         help="Kernel fitImage key directory path. This directory must contain a private key in "
-             ".key format",
-        required=True)
+             "PEM format having the .key extension.")
 
     subparser.add_argument(
         "--kernel-key", dest="kernel_key",
@@ -196,29 +181,16 @@ def init_parser(subparsers):
                      f"{', '.join(secboot.HAB_SIGNING_SUPPORTED_MACHINES)}"))
 
     subparser.add_argument(
-        dest="input_dir",
-        metavar="INPUT_DIRECTORY",
-        help="Path of Torizon OS 7 image (in Toradex Easy Installer format) to be signed. U-Boot "
-             "needs to be built with secure boot support, and the image needs to have a file with "
-             "the required components to be signed named "
-             f"{secboot.DEFAULT_TCB_SIGNING_FILES_TARNAME}.")
-
-    subparser.add_argument(
-        dest="output_dir",
-        metavar="OUTPUT_DIRECTORY",
-        help="Path of resulting Torizon OS image.")
-
-    subparser.add_argument(
-        "--force", dest="force",
-        default=False, action="store_true",
-        help="Force program output, overwriting any existing file/directory.")
+        dest="cst_dir",
+        metavar="CST_DIR",
+        help="CST directory path.")
 
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",
         help="Kernel fitImage key directory path. If specified the U-Boot DTB and Control DTBs "
              "will be updated with the public key before signing the bootloader. This directory "
-             "must contain a private key in .key format and a certificate with "
-             "the public key in .crt format, both with the same name.")
+             "must contain a private key (.key extension) and a certificate (.crt extension) with "
+             "the public key, both in PEM format and with the same name.")
 
     subparser.add_argument(
         "--kernel-key", dest="kernel_key",
@@ -227,11 +199,6 @@ def init_parser(subparsers):
              "hashing and crypto algorithms used to sign the kernel "
              "(e.g. 'name=prod;algo=sha256,rsa2048'). If <ALGO> is not provided, "
              f"it defaults to '{KERNEL_KEY_DEFAULT_ALGO}'.")
-
-    subparser.add_argument(
-        "--cst-dir", dest="cst_dir",
-        help="CST directory path.",
-        required=True)
 
     subparser.add_argument(
         "--cst-crypto", dest="cst_crypto", choices=CST_CRYPTO_TYPES,

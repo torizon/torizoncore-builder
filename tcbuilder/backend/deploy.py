@@ -20,8 +20,10 @@ from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
-                                      run_with_loading_animation, REMOTE_CMD_TIMEOUT)
+                                      run_with_loading_animation, REMOTE_CMD_TIMEOUT,
+                                      SECBOOT_ARTIFACTS_DIR)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
+from tcbuilder.backend.secboot import FUSE_CMD_TXT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
 # pylint: enable=wrong-import-position
@@ -279,6 +281,8 @@ def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
     log.info("Copy files not under OSTree control from original deployment.")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     copy_files_from_old_sysroot(src_sysroot, sysroot)
+
+    return csumdeploy
 # pylint: enable=too-many-locals
 
 
@@ -289,12 +293,18 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     Creates a new Toradex Easy Installer image with a OSTree deployment of the
     given OSTree reference.
     """
-    deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
+    commit = deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
     log.info("Packing rootfs...")
     copy_tezi_image(tezi_dir, output_dir)
     pack_rootfs_for_tezi(dst_sysroot_dir, output_dir)
     log.info("Packing rootfs done.")
+
+    # Check if there is a signed bootloader to be copied for this ref
+    commit_dir = os.path.join(SECBOOT_ARTIFACTS_DIR, commit)
+    if os.path.isdir(commit_dir):
+        log.info(f"Copying signed artifacts linked with {commit} to output image.")
+        copy_signed_artifacts(commit_dir, output_dir)
 
 
 def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partition, rootfs_label,
@@ -584,3 +594,28 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
 
     ostree.serve_ostree_stop(http_server_thread)
 # pylint: enable=too-many-locals
+
+
+def copy_signed_artifacts(src_commit_dir, tezi_dir):
+    """
+    Copy artifacts signed by TCB to the Torizon OS image in tezi_dir, overwriting
+    existing content. These include the bootloader container, the text file with
+    fusing instructions, and the tarball with the signing files.
+
+    :param src_commit_dir: Commit directory where the artifacts are located
+    :param tezi_dir: Path of Torizon OS image in Toradex Easy Installer format (directory)
+    """
+
+    # Add the signed artifacts to the tezi image, overwriting existing files
+    shutil.copytree(src_commit_dir, tezi_dir, dirs_exist_ok=True)
+
+    fuse_cmd_txt = os.path.join(tezi_dir, FUSE_CMD_TXT_NAME)
+    if os.path.isfile(fuse_cmd_txt):
+        with open(fuse_cmd_txt, 'r') as fuse_file:
+            print()
+            print("# Fusing instructions to be executed in U-Boot:")
+            print()
+            print(fuse_file.read())
+            print(f"# You can recheck the instructions given above in {FUSE_CMD_TXT_NAME} "
+                  f"created in directory '{os.path.basename(tezi_dir)}'.")
+            print()

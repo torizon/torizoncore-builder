@@ -1,9 +1,12 @@
 import datetime
 import logging
 import os
+import shutil
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
+from tcbuilder.backend.secboot import SIGNED_BOOTLOADER_ARTIFACTS_DIR
+from tcbuilder.backend.common import SECBOOT_ARTIFACTS_DIR
 from tcbuilder.errors import TorizonCoreBuilderError
 
 # pylint: disable=wrong-import-order,wrong-import-position
@@ -165,4 +168,29 @@ def union_changes(changes_dir, ostree_archive_dir, union_branch,
         repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch,
         subject, body, pre_apply_callback=pre_apply_callback)
 
+    track_signed_bootloader(final_commit)
+
     return final_commit
+
+
+def track_signed_bootloader(commit_hash):
+    """
+    If applicable, internally track the bootloader and fusing instructions text file in
+    FLASH_BIN_SIGNING_DIR by copying them inside a directory named after commit_hash
+    in SECBOOT_ARTIFACTS_DIR.
+
+    :param commit_hash: OSTree commit hash to be associated with the signed bootloader
+    """
+
+    # Check if there's any signed bootloader artifacts to track, and if so store them to be
+    # deployed with the new branch
+    if (os.path.isdir(SIGNED_BOOTLOADER_ARTIFACTS_DIR) and
+            os.listdir(SIGNED_BOOTLOADER_ARTIFACTS_DIR)):
+        log.info("Found signed bootloader in storage. Applying changes.")
+
+        # Create a new directory named after the commit hash (if it doesn't exist already)
+        # and put the signed bootloader in it
+        commit_dir = os.path.join(SECBOOT_ARTIFACTS_DIR, commit_hash)
+        shutil.copytree(SIGNED_BOOTLOADER_ARTIFACTS_DIR, commit_dir, dirs_exist_ok=True)
+        log.info(f"Signed bootloader will be applied when deploying {commit_hash} "
+                 "to a local directory.")
