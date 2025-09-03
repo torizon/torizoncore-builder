@@ -294,6 +294,42 @@ aval-colibri-imx8dx-scarthgap-nightly:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx8x"
 
+aval-smarc-imx8mpq-scarthgap-release:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "smarc-imx8mpq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "toradex-smarc-imx8mp"
+
+aval-smarc-imx8mpq-scarthgap-nightly:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "smarc-imx8mpq"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "toradex-smarc-imx8mp"
+
+aval-smarc-imx95h-scarthgap-release:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "smarc-imx95h"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "toradex-smarc-imx95"
+
+aval-smarc-imx95h-scarthgap-nightly:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "smarc-imx95h"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "toradex-smarc-imx95"
+
 wsl-aval-colibri-imx8dx-scarthgap-nightly:
   extends: .aval-template-wsl
   variables:
@@ -401,6 +437,15 @@ aval-verdin-imx8mpq-scarthgap-nightly:
     TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "verdin-imx8mp"
+
+aval-verdin-imx95h-scarthgap-release:
+  extends: .aval-template-linux-all-machines
+  variables:
+    SOC_UDT: "verdin-imx95h"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "verdin-imx95"
 
 aval-verdin-imx95h-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
