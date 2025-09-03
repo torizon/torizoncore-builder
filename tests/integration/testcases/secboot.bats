@@ -55,69 +55,54 @@ setup_file() {
     run torizoncore-builder secboot sign-kernel
     assert_failure
     assert_output --partial \
-        "the following arguments are required: INPUT_DIRECTORY, OUTPUT_DIRECTORY, --kernel-key-dir, --kernel-key"
+        "the following arguments are required: KERNEL_KEY_DIR, --kernel-key"
+}
+
+@test "secboot sign-kernel: attempt to sign kernel FIT without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
+                                                --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
 }
 
 @test "secboot sign-kernel: invalid parameters" {
 
-    local INPUT_IMAGE_DIR="TEST_$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')"
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
+    # Unpack an unsigned image just so the initial 'images unpack' check is passed
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
-    # create dummy input directory
-    mkdir -p "${INPUT_IMAGE_DIR}"
-
-    # non-existent input directory
-    run torizoncore-builder secboot sign-kernel "foo" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
-                                                --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    # kernel key directory not specified
+    run torizoncore-builder secboot sign-kernel --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
-    assert_output --partial 'does not exist'
-
-    # output directory already exists and --force was not passed
-    mkdir -p "${OUTPUT_IMAGE_DIR}"
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
-                                                --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial 'already exists'
-    rm -rf "${OUTPUT_IMAGE_DIR}"
-
-    # --kernel-key-dir not specified
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial 'the following arguments are required: --kernel-key-dir'
+    assert_output --partial 'the following arguments are required: KERNEL_KEY_DIR'
 
     # --kernel-key not specified
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}"
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}"
     assert_failure
     assert_output --partial 'the following arguments are required: --kernel-key'
 
     # non-existent kernel fitImage key directory
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "foo" \
+    run torizoncore-builder secboot sign-kernel "foo" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial 'does not exist'
 
     # key name that does not match file in key directory
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=foo;algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial 'Could not find'
 
     # Invalid --kernel-key format (comma instead of semicolon)
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME},algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial '--kernel-key is not correctly formatted'
 
     # --kernel-key without name
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial "Could not find value of 'name' in --kernel-key"
@@ -126,25 +111,20 @@ setup_file() {
 @test "secboot sign-kernel: image with unsupported kernel format" {
     requires-supported-kernel-signing-machine
 
-    unpack-image "${DEFAULT_TEZI_IMAGE}"
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
+    # Unpack an unsigned image, which has an unsupported kernel format
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
     # unsigned Torizon Docker images have the kernel in Image.gz format
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
-    assert_output --partial 'Provided input image does not have the kernel in fitImage format'
-
-    rm -rf "${INPUT_IMAGE_DIR}"
+    assert_output --partial 'Unpacked image does not have the kernel in fitImage format'
 }
 
 @test "secboot sign-kernel: unsupported machine" {
 
     unpack-image "${DEFAULT_TEZI_IMAGE}"
     local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
 
     # change the U-Boot environment file to change the machine name to an invalid one
     UBOOT_ENV_FILE=$(cat "${INPUT_IMAGE_DIR}/image.json" \
@@ -152,11 +132,14 @@ setup_file() {
                          | sed 's/.*"u_boot_env": "\(.*\)",/\1/')
     sed -i 's/^board=/board=dummy-/' "${INPUT_IMAGE_DIR}/${UBOOT_ENV_FILE}"
 
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
+    # Unpack the image to internal storage
+    torizoncore-builder images --remove-storage unpack "${INPUT_IMAGE_DIR}"
+
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial "TorizonCore Builder doesn't support signing the kernel of images for"
+    torizoncore-builder-clean-storage
     rm -rf "${INPUT_IMAGE_DIR}"
 }
 
@@ -165,62 +148,53 @@ setup_file() {
     requires-supported-kernel-signing-machine
     requires-signed-image
 
-    unpack-image "${DEFAULT_SIGNED_TEZI_IMAGE}"
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_SIGNED_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
 
-    if [ -d  "${OUTPUT_IMAGE_DIR}" ]; then
-        rm -rf "${OUTPUT_IMAGE_DIR}"
-    fi
-    # run without --force
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_success
     assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
     assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
     assert_output --partial 'Kernel fitImage signed successfully'
-    assert_output --partial 'Copying signed kernel fitImage to image rootfs'
-    assert_output --partial 'Kernel in Torizon OS image signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
 
-    # run with --force
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
-                                                --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
-                                                --force
+    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
+    assert_success
+
+    torizoncore-builder-clean-storage
+
+    # run with --kernel-key parameters separated with space (should still work)
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
+                                                --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}"
     assert_success
     assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
     assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
     assert_output --partial 'Kernel fitImage signed successfully'
-    assert_output --partial 'Removing pre-existing directory'
-    assert_output --partial 'Copying signed kernel fitImage to image rootfs'
-    assert_output --partial 'Kernel in Torizon OS image signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
 
-    # run with --force, --kernel-key parameters separated with space (should still work)
-    run torizoncore-builder secboot sign-kernel "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
-                                                --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}" \
-                                                --force
+    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
     assert_success
-    assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
-    assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
-    assert_output --partial 'Kernel fitImage signed successfully'
-    assert_output --partial 'Removing pre-existing directory'
-    assert_output --partial 'Copying signed kernel fitImage to image rootfs'
-    assert_output --partial 'Kernel in Torizon OS image signed successfully'
 
-    # sign image in place
-    run torizoncore-builder secboot sign-kernel "${OUTPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                --kernel-key-dir "${KERNEL_KEY_DIR}" \
-                                                --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
-                                                --force
+    local CONFIG_LIST=$(torizoncore-builder-shell \
+                        "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                        /configurations -l")
+
+    local CONFIG1=$(echo "${CONFIG_LIST}" | head -n 1)
+
+    local CONFIG1_SUBNODES=$(torizoncore-builder-shell \
+                             "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                             /configurations/${CONFIG1} -l")
+
+    local SIG_NODE=$(echo "${CONFIG1_SUBNODES}" | grep signature)
+
+    local FOUND_KEY_NAME=$(torizoncore-builder-shell \
+                           "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                           /configurations/${CONFIG1}/${SIG_NODE} key-name-hint")
+
+    run test "${FOUND_KEY_NAME}" == "${KERNEL_KEY_NAME}"
     assert_success
-    assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
-    assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
-    assert_output --partial 'Kernel fitImage signed successfully'
-    assert_output --partial 'Updating Torizon OS image in place'
-    assert_output --partial 'Copying signed kernel fitImage to image rootfs'
-    assert_output --partial 'Kernel in Torizon OS image signed successfully'
 }
 
 @test "secboot sign-bootloader-hab: check help output" {
@@ -234,37 +208,32 @@ setup_file() {
     run torizoncore-builder secboot sign-bootloader-hab
     assert_failure
     assert_output --partial \
-        "the following arguments are required: INPUT_DIRECTORY, OUTPUT_DIRECTORY, --cst-dir"
+        "the following arguments are required: CST_DIR"
+}
+
+@test "secboot sign-bootloader-hab: attempt to sign kernel FIT without images unpack" {
+    torizoncore-builder-clean-storage
+
+    local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
+
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
+                                                        --cst-dig-algo sha256 --cst-srk-index 1 \
+                                                        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+                                                        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
 }
 
 @test "secboot sign-bootloader-hab: invalid parameters" {
 
-    local INPUT_IMAGE_DIR="TEST_$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')"
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
-    # create dummy input directory
-    mkdir -p "${INPUT_IMAGE_DIR}"
-
-    # non-existent input directory
-    run torizoncore-builder secboot sign-bootloader-hab "foo" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
-                                                        --cst-dig-algo sha256 --cst-srk-index 1
-    assert_failure
-    assert_output --partial 'does not exist'
-
-    # output directory already exists and --force was not passed
-    mkdir -p "${OUTPUT_IMAGE_DIR}"
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
-                                                        --cst-dig-algo sha256 --cst-srk-index 1
-    assert_failure
-    assert_output --partial 'already exists'
-    rm -rf "${OUTPUT_IMAGE_DIR}"
+    # Unpack an unsigned image just so the initial 'images unpack' check is passed
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
     # non-existent kernel key directory
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-dig-algo sha256 --cst-srk-index 1 \
                                                         --kernel-key-dir "foo" \
                                                         --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
@@ -272,8 +241,7 @@ setup_file() {
     assert_output --partial 'does not exist'
 
     # non-existent key with provided name
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-dig-algo sha256 --cst-srk-index 1 \
                                                         --kernel-key-dir "${KERNEL_KEY_DIR}" \
                                                         --kernel-key "name=foo;algo=${KERNEL_KEY_ALGO}"
@@ -281,69 +249,57 @@ setup_file() {
     assert_output --partial 'Could not find'
 
     # Provide --kernel-key-dir but not --kernel-key
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-dig-algo sha256 --cst-srk-index 1 \
                                                         --kernel-key-dir "${KERNEL_KEY_DIR}"
     assert_failure
     assert_output --partial '--kernel-key-dir was passed but --kernel-key was not'
 
     # Provide --kernel-key but not --kernel-key-dir
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-dig-algo sha256 --cst-srk-index 1 \
                                                         --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial '--kernel-key was passed but --kernel-key-dir was not'
 
     # invalid type of cryptographic keys
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
                                                         --cst-crypto invalid_key_type
     assert_failure
     assert_output --partial 'argument --cst-crypto: invalid choice:'
 
     # invalid CST digest algorithm
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
                                                         --cst-dig-algo invalid_dig_algo
     assert_failure
     assert_output --partial 'argument --cst-dig-algo: invalid choice:'
 
     # invalid SRK table index
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-srk-index 0
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-srk-index 0
     assert_failure
     assert_output --partial 'argument --cst-srk-index: invalid choice:'
-
-    # delete dummy input directory
-    rm -rf "${INPUT_IMAGE_DIR}"
 }
 
 @test "secboot sign-bootloader-hab: image with unsupported kernel format" {
     requires-supported-hab-signing-machine
 
-    unpack-image "${DEFAULT_TEZI_IMAGE}"
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
+    # Unpack an unsigned image, which has an unsupported kernel format
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
     # unsigned Torizon Docker images have the kernel in Image.gz format
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1
     assert_failure
-    assert_output --partial 'Provided input image does not have the kernel in fitImage format'
-
-    rm -rf "${INPUT_IMAGE_DIR}"
+    assert_output --partial 'Unpacked image does not have the kernel in fitImage format'
 }
 
 @test "secboot sign-bootloader-hab: machine not compatible with HAB" {
 
     unpack-image "${DEFAULT_TEZI_IMAGE}"
     local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
     # change the U-Boot environment file to change the machine name to an invalid one
@@ -352,8 +308,10 @@ setup_file() {
                          | sed 's/.*"u_boot_env": "\(.*\)",/\1/')
     sed -i 's/^board=/board=dummy-/' "${INPUT_IMAGE_DIR}/${UBOOT_ENV_FILE}"
 
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    # Unpack the image to internal storage
+    torizoncore-builder images --remove-storage unpack "${INPUT_IMAGE_DIR}"
+
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1
     assert_failure
@@ -365,30 +323,23 @@ setup_file() {
     requires-supported-hab-signing-machine
     requires-signed-image
 
-    unpack-image "${DEFAULT_SIGNED_TEZI_IMAGE}"
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_SIGNED_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
     # copy CST binaries to CST_DIR before running tests
     cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
     cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
 
-    if [ -d "${OUTPUT_IMAGE_DIR}" ]; then
-        rm -rf "${OUTPUT_IMAGE_DIR}"
-    fi
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
 
     # non-existent CST directory
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "cst_foo" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "cst_foo" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1
     assert_failure
     assert_output --partial 'does not exist'
 
     # non-existent SRK table binary
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1 \
                                                         --cst-srk-table "foo.bin"
@@ -396,55 +347,38 @@ setup_file() {
     assert_output --partial 'Could not find'
 
     # non-existent SRK fuse binary
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1 \
                                                         --cst-srk-fuse "foo.bin"
     assert_failure
     assert_output --partial 'Could not find'
 
-    # run without --force
-    run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
+    # run without providing a kernel FIT public key
+    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1
     assert_success
     assert_output --partial 'flash.bin created successfully'
     assert_output --partial 'Using SRK1 for signing'
     assert_output --partial 'Bootloader container signed successfully'
+    assert_output --partial 'The bootloader DTBs were NOT updated with a new public key'
     assert_output --partial 'Bootloader in Torizon OS image signed successfully'
 
-    # sign image in place
-    run torizoncore-builder secboot sign-bootloader-hab "${OUTPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
-                                                        --cst-dir "${CST_DIR}" --cst-crypto rsa \
-                                                        --cst-key-size 2048 --cst-key-exp 65537 \
-                                                        --cst-dig-algo sha256 --cst-srk-index 1 \
-                                                        --force
-    assert_success
-    assert_output --partial 'flash.bin created successfully'
-    assert_output --partial 'Using SRK1 for signing'
-    assert_output --partial 'Bootloader container signed successfully'
-    assert_output --partial 'Updating Torizon OS image in place'
-    assert_output --partial 'Bootloader in Torizon OS image signed successfully'
-
-
-    # run with --force for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
+    # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}
     do
-        run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
                                                             --kernel-key-dir "${KERNEL_KEY_DIR}" \
                                                             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
-                                                            --cst-dir "${CST_DIR}" --cst-crypto rsa \
-                                                            --cst-key-size 2048 --cst-key-exp 65537 \
-                                                            --cst-dig-algo sha256 --cst-srk-index ${i} \
-                                                            --force
+                                                            --cst-crypto rsa --cst-key-size 2048 \
+                                                            --cst-key-exp 65537 --cst-dig-algo sha256 \
+                                                            --cst-srk-index ${i}
         assert_success
         assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_KEY_DIR} to U-Boot DTB"
         assert_output --partial 'flash.bin created successfully'
         assert_output --partial "Using SRK${i} for signing"
         assert_output --partial 'Bootloader container signed successfully'
-        assert_output --partial 'Removing pre-existing directory'
         assert_output --partial 'Bootloader in Torizon OS image signed successfully'
     done
 
@@ -457,30 +391,29 @@ setup_file() {
     requires-supported-hab-signing-machine
     requires-signed-image
 
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_SIGNED_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_1024_no_ca"
 
     # copy CST binaries to CST_DIR before running tests
     cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
     cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
 
-    # run with --force for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}
     do
-        run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
                                                             --kernel-key-dir "${KERNEL_KEY_DIR}" \
                                                             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
-                                                            --cst-dir "${CST_DIR}" --cst-crypto rsa \
-                                                            --cst-key-size 1024 --cst-key-exp 65537 \
-                                                            --cst-dig-algo sha256 --cst-srk-index ${i} \
-                                                            --cst-srk-no-ca --force
+                                                            --cst-crypto rsa --cst-key-size 1024 \
+                                                            --cst-key-exp 65537 --cst-dig-algo sha256 \
+                                                            --cst-srk-index ${i} --cst-srk-no-ca
+
         assert_success
         assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_KEY_DIR} to U-Boot DTB"
         assert_output --partial 'flash.bin created successfully'
         assert_output --partial "Using SRK${i} for signing"
         assert_output --partial 'Bootloader container signed successfully'
-        assert_output --partial 'Removing pre-existing directory'
         assert_output --partial 'Bootloader in Torizon OS image signed successfully'
     done
 
@@ -493,29 +426,28 @@ setup_file() {
     requires-supported-hab-signing-machine
     requires-signed-image
 
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_SIGNED_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_ecdsa_p384"
 
     # copy CST binaries to CST_DIR before running tests
     cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
     cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
 
-    # run with --force for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}
     do
-        run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
                                                             --kernel-key-dir "${KERNEL_KEY_DIR}" \
                                                             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
-                                                            --cst-dir "${CST_DIR}" --cst-crypto ecdsa \
-                                                            --cst-key-size secp384r1 --cst-dig-algo sha256 \
-                                                            --cst-srk-index ${i} --force
+                                                            --cst-crypto ecdsa --cst-key-size secp384r1 \
+                                                            --cst-dig-algo sha256 --cst-srk-index ${i}
+
         assert_success
         assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_KEY_DIR} to U-Boot DTB"
         assert_output --partial 'flash.bin created successfully'
         assert_output --partial "Using SRK${i} for signing"
         assert_output --partial 'Bootloader container signed successfully'
-        assert_output --partial 'Removing pre-existing directory'
         assert_output --partial 'Bootloader in Torizon OS image signed successfully'
     done
 
@@ -528,29 +460,28 @@ setup_file() {
     requires-supported-hab-signing-machine
     requires-signed-image
 
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_SIGNED_TEZI_IMAGE} | sed 's/\.tar$//g')
-    local OUTPUT_IMAGE_DIR="SIGNED_${INPUT_IMAGE_DIR}"
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_ecdsa_p521_no_ca"
 
     # copy CST binaries to CST_DIR before running tests
     cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
     cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
 
-    # run with --force for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}
     do
-        run torizoncore-builder secboot sign-bootloader-hab "${INPUT_IMAGE_DIR}" "${OUTPUT_IMAGE_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
                                                             --kernel-key-dir "${KERNEL_KEY_DIR}" \
                                                             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
-                                                            --cst-dir "${CST_DIR}" --cst-crypto ecdsa \
-                                                            --cst-key-size secp521r1 --cst-dig-algo sha256 \
-                                                            --cst-srk-index ${i} --cst-srk-no-ca --force
+                                                            --cst-crypto ecdsa --cst-key-size secp521r1 \
+                                                            --cst-dig-algo sha256 --cst-srk-index ${i} \
+                                                            --cst-srk-no-ca
         assert_success
         assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_KEY_DIR} to U-Boot DTB"
         assert_output --partial 'flash.bin created successfully'
         assert_output --partial "Using SRK${i} for signing"
         assert_output --partial 'Bootloader container signed successfully'
-        assert_output --partial 'Removing pre-existing directory'
         assert_output --partial 'Torizon OS image signed successfully'
     done
 
