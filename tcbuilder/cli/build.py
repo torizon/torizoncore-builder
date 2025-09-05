@@ -16,13 +16,15 @@ from tcbuilder.backend.registryops import RegistryOperations
 from tcbuilder.errors import (
     FileContentMissing, FeatureNotImplementedError, InvalidDataError,
     InvalidStateError, LicenceAcceptanceError, TorizonCoreBuilderError,
-    ParseError, ParseErrors)
+    ParseError, ParseErrors, InvalidArgumentError)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
 from tcbuilder.backend import combine as comb_be
 from tcbuilder.backend import dt as dt_be
 from tcbuilder.backend import images as images_be
+from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend import secboot as secboot_be
 from tcbuilder.cli import deploy as deploy_cli
 from tcbuilder.cli import dt as dt_cli
 from tcbuilder.cli import dto as dto_cli
@@ -30,6 +32,7 @@ from tcbuilder.cli import kernel as kernel_cli
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import splash as splash_cli
 from tcbuilder.cli import union as union_cli
+from tcbuilder.cli import secboot as secboot_cli
 
 DEFAULT_BUILD_FILE = "tcbuild.yaml"
 TEMPLATE_BUILD_FILE = "tcbuild.template.yaml"
@@ -187,6 +190,9 @@ def handle_customization_section(props, storage_dir=None):
 
     assert storage_dir is not None, "Parameter `storage_dir` must be passed"
 
+    if "secboot" in props:
+        handle_secboot_customization(props["secboot"], storage_dir=storage_dir)
+
     if "splash-screen" in props:
         log.info(l2_pref("Setting splash screen"))
         splash_cli.splash(props["splash-screen"], storage_dir=storage_dir)
@@ -261,6 +267,119 @@ def handle_kernel_customization(props, storage_dir=None):
         kernel_cli.kernel_set_custom_args(
             kernel_args=props["arguments"],
             storage_dir=storage_dir)
+
+
+def handle_secboot_customization(props, storage_dir=None):
+    """Handle the secure boot customization section."""
+
+    common.images_unpack_executed(storage_dir)
+    if common.unpacked_image_type(storage_dir) == "raw":
+        raise InvalidDataError("TorizonCore Builder does not support signing components for "
+                               "WIC/raw images. Aborting.")
+
+    if "sign-kernel" in props:
+        sign_kernel_props = props["sign-kernel"]
+        key_dir = sign_kernel_props["kernel-key-dir"]
+
+        if len(sign_kernel_props["kernel-key"]) > 1:
+            raise InvalidArgumentError(
+                "TorizonCore Builder only supports signing the kernel FIT with one key. Aborting.")
+
+        kernel_key = sign_kernel_props["kernel-key"][0]
+
+        if not os.path.isdir(key_dir):
+            raise InvalidArgumentError(
+                f"Directory \"{key_dir}\" does not exist: aborting.")
+
+        assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+
+        if "algo" not in kernel_key:
+            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
+                     f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+
+        kernel_changes_dir = kernel_be.get_kernel_changes_dir(storage_dir)
+        if not os.path.isdir(kernel_changes_dir):
+            os.mkdir(kernel_changes_dir)
+
+        secboot_be.sign_kernel(
+            storage_dir=storage_dir,
+            kernel_changes_dir=kernel_changes_dir,
+            key_dir=key_dir,
+            key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
+            key_name=kernel_key["name"]
+        )
+
+    if "sign-bootloader-hab" in props:
+        sign_hab_props = props["sign-bootloader-hab"]
+        cst_dir = sign_hab_props["cst-dir"]
+        cst_dict = sign_hab_props.get("cst-args", {})
+        kernel_key_dir = sign_hab_props.get("kernel-key-dir", None)
+        kernel_key_list = sign_hab_props.get("kernel-key", [])
+        kernel_key = {}
+
+        if not os.path.isdir(cst_dir):
+            raise InvalidArgumentError(
+                f"Directory \"{cst_dir}\" does not exist: aborting.")
+
+        if kernel_key_dir:
+            if not os.path.isdir(kernel_key_dir):
+                raise InvalidArgumentError(
+                    f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+            if not kernel_key_list:
+                raise InvalidArgumentError(
+                    "sign-bootloader-hab: 'kernel-key-dir' was passed but 'kernel-key' was "
+                    "not provided. Aborting.")
+
+        if kernel_key_list:
+            if not kernel_key_dir:
+                raise InvalidArgumentError(
+                    "sign-bootloader-hab: 'kernel-key' was passed but 'kernel-key-dir' was "
+                    "not provided. Aborting.")
+
+            if len(kernel_key_list) > 1:
+                raise InvalidArgumentError(
+                    "TorizonCore Builder only supports updating one public key. Aborting.")
+
+            kernel_key = kernel_key_list[0]
+
+            assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+
+            if "algo" not in kernel_key:
+                log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
+                         f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+
+        cst_args = {
+            "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),
+            "key_size": cst_dict.get("key-size", secboot_cli.CST_DEFAULT_KEY_SIZE),
+            "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEAFULT_KEY_EXP),
+            "dig_algo": cst_dict.get("dig-algo", secboot_cli.CST_DIG_ALGO_TYPES[0]),
+            "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
+            "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),
+            "srk_fuse": cst_dict.get("srk-fuse", secboot_cli.CST_SRK_DEFAULT_FUSE),
+            "srk_no_ca": cst_dict.get("srk-no-ca-flag", False)
+        }
+
+        secboot_be.sign_bootloader_hab(
+            storage_dir=storage_dir,
+            kernel_key_dir=kernel_key_dir,
+            kernel_key_name=kernel_key.get("name"),
+            kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
+            cst_dir=cst_dir,
+            cst_args=cst_args
+        )
+
+        if kernel_key_dir:
+            log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
+                     "the bootloader to verify the kernel signature.")
+        else:
+            log.warning("The bootloader DTBs were NOT updated with a new public key.")
+            log.warning("If the kernel fitImage will be signed with a new key, please set "
+                        "'kernel-key-dir' and 'kernel-key' and re-run the command so the new "
+                        "kernel signature can be properly verified by the bootloader.")
+            log.warning("Otherwise, this message can be ignored.")
+        print()
+
+        log.info("Bootloader in Torizon OS image signed successfully!")
 
 
 def handle_output_section(props, storage_dir, changes_dirs=None, default_base_raw_image=None):

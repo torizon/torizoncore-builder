@@ -134,6 +134,19 @@ def do_sign_bootloader_hab(args):
         cst_args=cst_args
     )
 
+    if args.kernel_key_dir:
+        log.info(f"Public key '{kernel_key_name}' in {args.kernel_key_dir} will be used by "
+                 "the bootloader to verify the kernel signature.")
+    else:
+        log.warning("The bootloader DTBs were NOT updated with a new public key.")
+        log.warning("If the kernel fitImage will be signed with a new key, please re-run the "
+                    "command with --kernel-key-dir and --kernel-key so the new kernel signature "
+                    "can be properly verified by the bootloader.")
+        log.warning("Otherwise, this message can be ignored.")
+    print()
+
+    log.info("Bootloader in Torizon OS image signed successfully!")
+
 
 def init_parser(subparsers):
     """Initialize argument parser"""

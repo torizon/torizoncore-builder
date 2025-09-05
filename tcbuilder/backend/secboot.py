@@ -703,6 +703,17 @@ def sign_bootloader_hab(storage_dir, kernel_key_dir,
     # Using absolute path as the signing script will be executed relative from its own directory
     cst_dir = os.path.abspath(cst_dir)
 
+    log.info("Attempting to sign the bootloader container with the following options:")
+    log.info(f"- Key type: {cst_args['crypto']}")
+    log.info(f"- Key length: {cst_args['key_size']}")
+    if cst_args['crypto'] == "rsa":
+        log.info(f"- Key exponent: {cst_args['key_exp']}")
+    log.info(f"- Digest algorithm: {cst_args['dig_algo']}")
+    log.info(f"- SRK index: {cst_args['srk_index']}")
+    log.info(f"- SRK table filename: {os.path.basename(cst_args['srk_table'])}")
+    log.info(f"- SRK fuse filename: {os.path.basename(cst_args['srk_fuse'])}")
+    log.info(f"- SRK CA flag disabled: {'YES' if cst_args['srk_no_ca'] else 'NO'}")
+
     check_cst_dir(cst_dir, cst_args)
 
     tezi_dir = os.path.join(storage_dir, "tezi")
