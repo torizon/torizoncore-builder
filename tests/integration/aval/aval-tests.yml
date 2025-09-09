@@ -294,6 +294,15 @@ aval-colibri-imx8dx-scarthgap-nightly:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "colibri-imx8x"
 
+wsl-aval-colibri-imx8dx-scarthgap-nightly:
+  extends: .aval-template-wsl
+  variables:
+    SOC_UDT: "colibri-imx8dx"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "colibri-imx8x"
+
 aval-smarc-imx8mpq-scarthgap-release:
   extends: .aval-template-linux-all-machines
   variables:
@@ -329,15 +338,6 @@ aval-smarc-imx95h-scarthgap-nightly:
     TARGET_BUILD_TYPE: "nightly"
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "toradex-smarc-imx95"
-
-wsl-aval-colibri-imx8dx-scarthgap-nightly:
-  extends: .aval-template-wsl
-  variables:
-    SOC_UDT: "colibri-imx8dx"
-    YOCTO_BRANCH: "scarthgap-7.x.y"
-    TARGET_BUILD_TYPE: "nightly"
-    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
-    TCB_MACHINE: "colibri-imx8x"
 
 aval-verdin-am62dual-kirkstone-release:
   extends: .aval-template-linux-all-machines
