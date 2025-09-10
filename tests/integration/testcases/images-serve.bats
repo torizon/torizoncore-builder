@@ -25,9 +25,9 @@ teardown() {
 
 @test "images serve: check zeroconf tezi service response." {
     IMAGE_DIR="samples/images"
-    torizoncore-builder-bg-alt_network images serve $IMAGE_DIR
+    torizoncore-builder-bg images serve $IMAGE_DIR
 
-    run docker run -i --rm --privileged --network=$TCB_BG_ALT_NETWORK alpine:latest sh -c "
+    run docker run -i --rm --privileged --network=host alpine:latest sh -c "
         apk update && apk add avahi avahi-tools dbus &&
         mkdir -p /run/dbus &&
         dbus-uuidgen > /var/lib/dbus/machine-id &&
