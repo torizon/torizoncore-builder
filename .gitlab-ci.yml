@@ -416,6 +416,7 @@ aggregate-reports:
     paths:
       - tests/integration/workdir/reports/report-*.xml
   variables:
+    # Only nightly tests should be included here to Xray report
     TEST_HOST_TOS7_PLATFORM_NIGHTLY_TEST_EXEC_KEY: "TCB-511"
     TEST_HOST_TOS7_32BIT_NIGHTLY_TEST_EXEC_KEY: "TCB-518"
     TEST_HOST_TOS7_64BIT_NIGHTLY_TEST_EXEC_KEY: "TCB-519"
