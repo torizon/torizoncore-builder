@@ -86,27 +86,10 @@ tcb_tests_clean_storage_volume() {
     fi
 }
 
-# Create a docker network for TCB tests
-tcb_create_docker_network() {
-    export TCB_BG_ALT_NETWORK="tcb_network"
-    if docker network ls --format '{{.Name}}' | grep -q "^${TCB_BG_ALT_NETWORK}$"; then
-        echo "Docker network '${TCB_BG_ALT_NETWORK}' already exists."
-        return 0
-    fi
-
-    if docker network create "$TCB_BG_ALT_NETWORK" > /dev/null; then
-        echo "Docker network '${TCB_BG_ALT_NETWORK}' created successfully."
-    else
-        echo "Error: could not create docker network!"
-        return 1
-    fi
-}
-
 tcb_tests_main() {
     local WORKDIR="workdir"
     tcb_tests_prepare $WORKDIR && \
         tcb_tests_install_bats $WORKDIR && \
-        tcb_create_docker_network && \
         tcb_tests_pull_container $WORKDIR && \
         tcb_tests_clean_storage_volume && \
         echo "Environment successfully configured to start integration tests."
