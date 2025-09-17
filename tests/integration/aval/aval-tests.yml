@@ -107,6 +107,7 @@ build-aval-docker:
 
 aval-apalis-imx6q-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: apalis-imx6q
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -116,6 +117,7 @@ aval-apalis-imx6q-kirkstone-release:
 
 aval-apalis-imx6q-scarthgap-release:
   extends: .aval-template-linux-default-machines
+  resource_group: apalis-imx6q
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -125,6 +127,7 @@ aval-apalis-imx6q-scarthgap-release:
 
 aval-apalis-imx6q-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: apalis-imx6q
   variables:
     SOC_UDT: "apalis-imx6q"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -134,6 +137,7 @@ aval-apalis-imx6q-scarthgap-nightly:
 
 aval-apalis-imx8qm-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: apalis-imx8qm
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -143,6 +147,7 @@ aval-apalis-imx8qm-kirkstone-release:
 
 aval-apalis-imx8qm-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: apalis-imx8qm
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -152,6 +157,7 @@ aval-apalis-imx8qm-scarthgap-release:
 
 aval-apalis-imx8qm-scarthgap-nightly:
   extends: .aval-template-linux-default-machines
+  resource_group: apalis-imx8qm
   variables:
     SOC_UDT: "apalis-imx8qm"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -161,6 +167,7 @@ aval-apalis-imx8qm-scarthgap-nightly:
 
 aval-aquila-am69octa-scarthgap-release:
   extends: .aval-template-linux-default-machines
+  resource_group: aquila-am69octa
   variables:
     SOC_UDT: "aquila-am69octa"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -170,6 +177,7 @@ aval-aquila-am69octa-scarthgap-release:
 
 aval-aquila-am69octa-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: aquila-am69octa
   variables:
     SOC_UDT: "aquila-am69octa"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -179,6 +187,7 @@ aval-aquila-am69octa-scarthgap-nightly:
 
 aval-colibri-imx6dl-kirkstone-release:
   extends: .aval-template-linux-default-machines
+  resource_group: colibri-imx6dl
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -188,6 +197,7 @@ aval-colibri-imx6dl-kirkstone-release:
 
 aval-colibri-imx6dl-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx6dl
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -197,6 +207,7 @@ aval-colibri-imx6dl-scarthgap-release:
 
 aval-colibri-imx6dl-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx6dl
   variables:
     SOC_UDT: "colibri-imx6dl"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -206,6 +217,7 @@ aval-colibri-imx6dl-scarthgap-nightly:
 
 aval-colibri-imx6ull-emmc-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx6ull-emmc
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -215,6 +227,7 @@ aval-colibri-imx6ull-emmc-kirkstone-release:
 
 aval-colibri-imx6ull-emmc-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx6ull-emmc
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -224,6 +237,7 @@ aval-colibri-imx6ull-emmc-scarthgap-release:
 
 aval-colibri-imx6ull-emmc-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx6ull-emmc
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -233,6 +247,7 @@ aval-colibri-imx6ull-emmc-scarthgap-nightly:
 
 wsl-aval-colibri-imx6ull-emmc-scarthgap-nightly:
   extends: .aval-template-wsl
+  resource_group: colibri-imx6ull-emmc
   variables:
     SOC_UDT: "colibri-imx6ull-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -242,6 +257,7 @@ wsl-aval-colibri-imx6ull-emmc-scarthgap-nightly:
 
 aval-colibri-imx7d-emmc-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx7d-emmc
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -251,6 +267,7 @@ aval-colibri-imx7d-emmc-kirkstone-release:
 
 aval-colibri-imx7d-emmc-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx7d-emmc
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -260,6 +277,7 @@ aval-colibri-imx7d-emmc-scarthgap-release:
 
 aval-colibri-imx7d-emmc-scarthgap-nightly:
   extends: .aval-template-linux-default-machines
+  resource_group: colibri-imx7d-emmc
   variables:
     SOC_UDT: "colibri-imx7d-emmc"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -269,6 +287,7 @@ aval-colibri-imx7d-emmc-scarthgap-nightly:
 
 aval-colibri-imx8dx-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx8dx
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -278,6 +297,7 @@ aval-colibri-imx8dx-kirkstone-release:
 
 aval-colibri-imx8dx-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx8dx
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -287,6 +307,7 @@ aval-colibri-imx8dx-scarthgap-release:
 
 aval-colibri-imx8dx-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: colibri-imx8dx
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -296,6 +317,7 @@ aval-colibri-imx8dx-scarthgap-nightly:
 
 wsl-aval-colibri-imx8dx-scarthgap-nightly:
   extends: .aval-template-wsl
+  resource_group: colibri-imx8dx
   variables:
     SOC_UDT: "colibri-imx8dx"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -305,6 +327,7 @@ wsl-aval-colibri-imx8dx-scarthgap-nightly:
 
 aval-smarc-imx8mpq-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: smarc-imx8mpq
   variables:
     SOC_UDT: "smarc-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -314,6 +337,7 @@ aval-smarc-imx8mpq-scarthgap-release:
 
 aval-smarc-imx8mpq-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: smarc-imx8mpq
   variables:
     SOC_UDT: "smarc-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -323,6 +347,7 @@ aval-smarc-imx8mpq-scarthgap-nightly:
 
 aval-smarc-imx95h-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: smarc-imx95h
   variables:
     SOC_UDT: "smarc-imx95h"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -332,6 +357,7 @@ aval-smarc-imx95h-scarthgap-release:
 
 aval-smarc-imx95h-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: smarc-imx95h
   variables:
     SOC_UDT: "smarc-imx95h"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -341,6 +367,7 @@ aval-smarc-imx95h-scarthgap-nightly:
 
 aval-verdin-am62dual-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-am62dual
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -350,6 +377,7 @@ aval-verdin-am62dual-kirkstone-release:
 
 aval-verdin-am62dual-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-am62dual
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -359,6 +387,7 @@ aval-verdin-am62dual-scarthgap-release:
 
 aval-verdin-am62dual-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-am62dual
   variables:
     SOC_UDT: "verdin-am62dual"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -368,6 +397,7 @@ aval-verdin-am62dual-scarthgap-nightly:
 
 aval-verdin-am62pq-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-am62pq
   variables:
     SOC_UDT: "verdin-am62pq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -377,6 +407,7 @@ aval-verdin-am62pq-scarthgap-release:
 
 aval-verdin-am62pq-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-am62pq
   variables:
     SOC_UDT: "verdin-am62pq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -386,6 +417,7 @@ aval-verdin-am62pq-scarthgap-nightly:
 
 aval-verdin-imx8mmq-kirkstone-release:
   extends: .aval-template-linux-default-machines
+  resource_group: verdin-imx8mmq
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -395,6 +427,7 @@ aval-verdin-imx8mmq-kirkstone-release:
 
 aval-verdin-imx8mmq-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-imx8mmq
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -404,6 +437,7 @@ aval-verdin-imx8mmq-scarthgap-release:
 
 aval-verdin-imx8mmq-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-imx8mmq
   variables:
     SOC_UDT: "verdin-imx8mmq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -413,6 +447,7 @@ aval-verdin-imx8mmq-scarthgap-nightly:
 
 aval-verdin-imx8mpq-kirkstone-release:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-imx8mpq
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -422,6 +457,7 @@ aval-verdin-imx8mpq-kirkstone-release:
 
 aval-verdin-imx8mpq-scarthgap-release:
   extends: .aval-template-linux-default-machines
+  resource_group: verdin-imx8mpq
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -431,6 +467,7 @@ aval-verdin-imx8mpq-scarthgap-release:
 
 aval-verdin-imx8mpq-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-imx8mpq
   variables:
     SOC_UDT: "verdin-imx8mpq"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -440,6 +477,7 @@ aval-verdin-imx8mpq-scarthgap-nightly:
 
 aval-verdin-imx95h-scarthgap-release:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-imx95h
   variables:
     SOC_UDT: "verdin-imx95h"
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -449,6 +487,7 @@ aval-verdin-imx95h-scarthgap-release:
 
 aval-verdin-imx95h-scarthgap-nightly:
   extends: .aval-template-linux-all-machines
+  resource_group: verdin-imx95h
   variables:
     SOC_UDT: "verdin-imx95h"
     YOCTO_BRANCH: "scarthgap-7.x.y"
