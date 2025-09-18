@@ -62,6 +62,39 @@ teardown() {
     stop-torizoncore-builder-bg
 }
 
+# bats test_tags=requires-device
+@test "ostree serve: serve repo from storage and check if it's reachable by device" {
+    skip-under-ci
+    requires-device
+    ORIGINAL_REFERENCES=("base")
+    run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    assert_success
+    assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
+
+    run torizoncore-builder-shell "ostree --repo=/storage/sysroot/ostree/repo refs"
+    assert_success
+    while IFS= read -r line; do
+      ORIGINAL_REFERENCES+=("${line#*:}")
+    done < <(echo "$output" | sed -E '/ostree\/[0-9]+\/[0-9]+\/[0-9]+/d')
+
+    torizoncore-builder-bg ostree serve
+
+    HOST_IP=$(get-host-ip $DEVICE_ADDR)
+    run device-shell "wget -S http://$HOST_IP:8080/config -O -"
+    assert_success
+
+    run device-shell "ostree --repo=/tmp/test-repo init && \
+      ostree --repo=/tmp/test-repo remote add srv1 http://$HOST_IP:8080 && \
+      ostree --repo=/tmp/test-repo remote refs srv1"
+    assert_success
+
+    for ref in "${ORIGINAL_REFERENCES[@]}"; do
+        assert_line --partial "$ref"
+    done
+    stop-torizoncore-builder-bg
+}
+
+
 @test "ostree serve: serve repo from external directory" {
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
@@ -70,6 +103,22 @@ teardown() {
     torizoncore-builder-bg ostree serve --ostree-repo-directory "samples/ostree-empty/"
 
     run docker run --rm --network=host busybox:stable wget -S http://localhost:8080/config -O -
+    assert_success
+    stop-torizoncore-builder-bg
+}
+
+# bats test_tags=requires-device
+@test "ostree serve: serve repo from external directory and check if it's reachable by device" {
+    skip-under-ci
+    requires-device
+    run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    assert_success
+    assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
+
+    torizoncore-builder-bg ostree serve --ostree-repo-directory "samples/ostree-empty/"
+
+    HOST_IP=$(get-host-ip $DEVICE_ADDR)
+    run device-shell "wget -S http://$HOST_IP:8080/config -O -"
     assert_success
     stop-torizoncore-builder-bg
 }

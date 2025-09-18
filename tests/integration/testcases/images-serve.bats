@@ -52,3 +52,19 @@ teardown() {
     assert_output --partial '/image.json'
     stop-torizoncore-builder-bg
 }
+
+# bats test_tags=requires-device
+@test "images serve: check if 'image_list.json' is reachable by device." {
+    skip-under-ci
+    requires-device
+    IMAGE_DIR="samples/images"
+    torizoncore-builder-bg images serve $IMAGE_DIR
+
+    HOST_IP=$(get-host-ip $DEVICE_ADDR)
+    run device-shell "wget -S http://$HOST_IP/image_list.json -O -"
+    assert_success
+    assert_output --partial 'Cache-Control: no-store,max-age=0'
+    assert_output --partial 'config_format'
+    assert_output --partial '/image.json'
+    stop-torizoncore-builder-bg
+}
