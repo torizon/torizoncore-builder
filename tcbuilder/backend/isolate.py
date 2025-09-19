@@ -2,6 +2,7 @@ import datetime
 import os
 import subprocess
 import shlex
+import re
 
 import fabric
 
@@ -103,18 +104,27 @@ def get_tcattr_file_content(files_dir_to_tar, ssh_conn, tmp_dir_name):
     # remove any getfacl warnings from the list
     tcattr = [e for e in tcattr if 'getfacl:' not in e]
 
-    tcattr = "\n".join(tcattr)
     return tcattr
 
 
-def create_tcattr_file(diff_dir, tcattr):
+def create_tcattr_file(diff_dir, tcattr_list):
     """
         Create the {diff_dir}/usr/etc/.tcattr file using the content of
         tcattr buffer so it can be used later by the "union" command to
         set file and/or directory permissions and/or ownership.
     """
+
+    # Replace any space characters in the file name with its 3-digit octal ASCII code (\040)
+    # so that setfacl can properly include them when searching the file.
+    _tcattr_list = ["# file: " + line[8:].replace(" ", "\\040") if line.startswith("# file: ")
+                    else line for line in tcattr_list]
+
+    tcattr_str = "\n".join(_tcattr_list)
+    # Remove etc/ at the beginning of the file path
+    tcattr_str = re.sub(r'^# file: etc/', '# file: ', tcattr_str, flags=re.MULTILINE)
+
     with open(f"{diff_dir}/usr/etc/.tcattr", "w") as fd_tcattr:
-        fd_tcattr.write(tcattr.replace('# file: etc/', '# file: '))
+        fd_tcattr.write(tcattr_str)
 
 
 def list_to_string_with_quote(args_list):
