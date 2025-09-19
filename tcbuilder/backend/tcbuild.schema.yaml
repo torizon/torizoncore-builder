@@ -47,6 +47,7 @@ properties:
                         type: string
                         enum:
                           - aquila-am69
+                          - aquila-imx95
                           - apalis-imx6
                           - apalis-imx8
                           - apalis-imx8x
