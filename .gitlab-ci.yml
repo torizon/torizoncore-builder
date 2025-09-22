@@ -203,6 +203,7 @@ build-arm64:
 
 test-host-tc6-platform-release:
   extends: .test-base
+  resource_group: platform
   stage: test
   variables:
     YOCTO_BRANCH: "kirkstone-6.x.y"
@@ -213,9 +214,8 @@ test-host-tc6-platform-release:
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tos7-platform-release:
-  needs:
-    - test-host-tc6-platform-release
   extends: .test-base
+  resource_group: platform
   stage: test
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -226,9 +226,8 @@ test-host-tos7-platform-release:
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 test-host-tos7-platform-nightly:
-  needs:
-    - test-host-tos7-platform-release
   extends: .test-base
+  resource_group: platform
   stage: test
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -239,9 +238,8 @@ test-host-tos7-platform-nightly:
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
 
 wsl-test-host-tos7-platform-nightly:
-  needs:
-    - test-host-tos7-platform-nightly
   extends: test-host-tos7-platform-nightly
+  resource_group: platform
   tags:
     - windows-wsl
 
