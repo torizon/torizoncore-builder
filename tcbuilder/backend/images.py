@@ -20,7 +20,7 @@ from zipfile import ZipFile
 from tempfile import TemporaryDirectory
 
 import guestfs
-import paramiko
+import fabric
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
                                       set_output_ownership, run_with_loading_animation,
@@ -126,16 +126,14 @@ def get_device_info(r_host, r_username, r_password, r_port):
         container: Container runtime engine.
     """
 
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    client.connect(hostname=r_host,
-                   username=r_username,
-                   password=r_password,
-                   port=r_port)
+    conn = fabric.Connection(host=r_host,
+                             user=r_username,
+                             port=r_port,
+                             connect_kwargs={'password': r_password})
+    conn.open()
 
     # Gather module and version information remotely from device
-    sftp = client.open_sftp()
+    sftp = conn.sftp()
     if sftp is not None:
         release_file = sftp.file("/etc/os-release")
         for line in release_file:
@@ -150,10 +148,10 @@ def get_device_info(r_host, r_username, r_password, r_port):
             container = "docker"
         sftp.close()
     else:
-        client.close()
+        conn.close()
         raise TorizonCoreBuilderError("Unable to create SSH connection")
 
-    client.close()
+    conn.close()
 
     return version, hostname, container
 
