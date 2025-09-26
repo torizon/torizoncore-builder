@@ -183,6 +183,10 @@ def deploy_ostree_remote(storage_dir, remote_host, remote_username,
 
     src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
 
+    log.warning("WARNING: Beware that artifacts not managed by OSTree (e.g. bootloader, container "
+                "images, platform provisioning data, fuse values, U-Boot environment) will not be "
+                "deployed by this operation.")
+
     dbe.deploy_ostree_remote(remote_host, remote_username, remote_password,
                              remote_port, mdns_source, src_ostree_archive_dir,
                              ref, reboot)

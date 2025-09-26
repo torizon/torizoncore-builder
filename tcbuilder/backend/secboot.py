@@ -8,16 +8,16 @@ import re
 import shutil
 import shlex
 import subprocess
-import tempfile
 
 from tcbuilder.backend.common import \
-    (set_output_ownership, get_tar_compress_program_options, check_valid_tezi_image,
-     get_rootfs_tarball, is_tcb_container_64bit, check_if_file_exists,
-     get_tezi_uenv_txt_vars, get_tezi_image_version)
+    (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
+     check_if_file_exists, get_unpacked_uenv_txt_vars, get_tezi_image_version)
 from tcbuilder.backend.ubootenv import \
     (get_env_filename, find_board)
 from tcbuilder.backend.platform import \
     (FUSE_HARDWAREIDS)
+from tcbuilder.backend import ostree
+
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidArgumentError,
      FileContentMissing, InvalidStateError, InvalidDataError)
@@ -29,12 +29,14 @@ DEFAULT_TCB_SIGNING_FILES_TARNAME = "tcb_signing_files.tar.gz"
 UBOOT_TOOLS_DIR = "/u-boot/tools"
 SECURE_BOOT_WORKDIR = "/storage/secure_boot_workdir"
 UBOOT_DTB = "u-boot.dtb"
-KERNEL_FITIMAGE = "fitImage-initramfs-ostree-torizon-*.bin"
+KERNEL_FIT_FILENAME = "vmlinuz"
+KERNEL_DEPLOY_PATH_WILDCARD = "ostree/deploy/torizon/deploy/*/usr/lib/modules/*/"
 UBOOT_CONFIG_FILE = "uboot_config"
 UBOOT_DTBS_DIR = "u-boot-dtbs"
 
 BINMAN_OUTPUT_DIR = f"{SECURE_BOOT_WORKDIR}/binman_output"
-FLASH_BIN_SIGNING_DIR = f"{SECURE_BOOT_WORKDIR}/flash_bin_signing"
+FLASH_BIN_SIGNING_DIR = "/storage/flash_bin_signing"
+SIGNED_BOOTLOADER_ARTIFACTS_DIR = "/storage/signed_bootloader_artifacts"
 
 MKIMAGE_DTC_OPT = "-I dts -O dtb -p 2000"
 
@@ -493,24 +495,23 @@ def run_hab_signing_script(signing_dir, uboot_config_path, binman_output_dir,
     os.chdir("/workdir")
 
 
-def check_basic_signing_prerequisites(tezi_dir):
+def check_basic_signing_prerequisites(storage_dir):
     """
-    Check if the given Torizon OS image in Toradex Easy Installer format has the minimum
+    Check if the unpacked Torizon OS image in Toradex Easy Installer format has the minimum
     requirements necessary for the signing feature
 
-    :param tezi_dir: Path of Toradex Easy Installer image in directory format
+    :param storage_dir: Path to storage directory, where the image was unpacked
     """
 
-    img_major, _, _ = get_tezi_image_version(tezi_dir)
+    img_major, _, _ = get_tezi_image_version(os.path.join(storage_dir, "tezi"))
     if img_major is None:
-        raise InvalidArgumentError("Unable to determine image version in input directory. "
-                                   "Aborting.")
+        raise InvalidArgumentError("Unable to determine unpacked image version. Aborting.")
 
     if img_major < 7:
         raise InvalidArgumentError("Feature only supported on Torizon OS 7 images. Aborting.")
 
-    log.info("Checking if the input image has the kernel in fitImage format...")
-    uenv_var = get_tezi_uenv_txt_vars(tezi_dir, ["kernel_image_type"])
+    log.info("Checking if the unpacked image has the kernel in fitImage format...")
+    uenv_var = get_unpacked_uenv_txt_vars(storage_dir, ["kernel_image_type"])
 
     if uenv_var["kernel_image_type"]:
         log.info(f"Detected kernel image format: {uenv_var['kernel_image_type']}")
@@ -519,15 +520,16 @@ def check_basic_signing_prerequisites(tezi_dir):
 
     if uenv_var["kernel_image_type"] != "fitImage":
         raise InvalidArgumentError(
-            "Provided input image does not have the kernel in fitImage format. Aborting.")
+            "Unpacked image does not have the kernel in fitImage format. Aborting.")
 
 
-def check_kernel_signing_support(tezi_dir):
-    """Check if TorizonCore Builder can sign the kernel of the given Toradex Easy Installer image
+def check_unpacked_tezi_kernel_signing_support(storage_dir):
+    """Check if TorizonCore Builder can sign the kernel of the unpacked TEZI image
 
-    :param tezi_dir: Path of Toradex Easy Installer image in directory format
-    :returns: The name of the machine compatible with the image
+    :param storage_dir: Path to storage directory, where the image was unpacked
     """
+
+    tezi_dir = os.path.join(storage_dir, "tezi")
 
     initial_env_filename = get_env_filename(tezi_dir)
     initial_env = os.path.join(tezi_dir, initial_env_filename)
@@ -544,19 +546,18 @@ def check_kernel_signing_support(tezi_dir):
             "Aborting.\n"
             f"Currently supported machines: {', '.join(KERNEL_SIGNING_SUPPORTED_MACHINES)}")
 
-    check_basic_signing_prerequisites(tezi_dir)
-
-    return board
+    check_basic_signing_prerequisites(storage_dir)
 
 
-def check_hab_signing_support(tezi_dir):
+def check_unpacked_tezi_hab_signing_support(storage_dir):
     """
     Check if TorizonCore Builder can sign the HAB-compatible bootloader of the given
     Toradex Easy Installer image
 
-    :param tezi_dir: Path of Toradex Easy Installer image in directory format
+    :param storage_dir: Path to storage directory, where the image was unpacked
     :returns: The name of the machine compatible with the image
     """
+    tezi_dir = os.path.join(storage_dir, "tezi")
 
     initial_env_filename = get_env_filename(tezi_dir)
     initial_env = os.path.join(tezi_dir, initial_env_filename)
@@ -579,7 +580,7 @@ def check_hab_signing_support(tezi_dir):
             f"\"{board}\". Aborting.\n"
             f"Currently supported machines: {', '.join(HAB_SIGNING_SUPPORTED_MACHINES)}")
 
-    check_basic_signing_prerequisites(tezi_dir)
+    check_basic_signing_prerequisites(storage_dir)
 
     return board
 
@@ -618,24 +619,19 @@ def check_cst_dir(abs_cst_dir, cst_args):
     cst_args["srk_fuse"] = check_if_file_exists(cst_args["srk_fuse"], cst_crts_dir)
 
 
-def sign_kernel(input_dir, key_dir, key_algo, key_name, output_dir, force):
-    """Sign kernel fitImage of image in input_dir
+def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
+    """Sign kernel fitImage of unpacked Easy Installer image in storage_dir
 
-    :param input_dir: Path to input Tezi image
+    :param storage_dir: Path to storage directory, where the image was unpacked
+    :param kernel_changes_dir: Path to directory with all kernel changes to be commited
     :param key_dir: Path to directory with the key to sign the kernel fitImage
     :param key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param key_name: Name of the provided key
-    :param output_dir: Path to output Tezi image
-    :param force: Whether to overwrite existing output
     """
 
     check_if_file_exists(f"{key_name}.key", key_dir)
 
-    check_valid_tezi_image(input_dir)
-
-    board = check_kernel_signing_support(input_dir)
-
-    signing_binaries_file = check_if_file_exists(DEFAULT_TCB_SIGNING_FILES_TARNAME, input_dir)
+    check_unpacked_tezi_kernel_signing_support(storage_dir)
 
     # Check if secure boot work directory exists, and if so, remove it
     # so we have a clean work directory
@@ -644,35 +640,53 @@ def sign_kernel(input_dir, key_dir, key_algo, key_name, output_dir, force):
 
     os.mkdir(SECURE_BOOT_WORKDIR)
 
-    tar_compress_options = get_tar_compress_program_options(signing_binaries_file)
-    if signing_binaries_file.endswith(".tar") or tar_compress_options:
-        tarcmd = [
-            "tar",
-            "-xf", signing_binaries_file,
-            "-C", SECURE_BOOT_WORKDIR,
-        ] + tar_compress_options
-        log.debug(f"Running tar command: {shlex.join(tarcmd)}")
-        subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
-
-    kernel_fitimage_path = check_if_file_exists(KERNEL_FITIMAGE, SECURE_BOOT_WORKDIR)
+    # Copy kernel FIT in current image deployment to the work directory
+    kernel_deploy_path = check_if_file_exists(KERNEL_FIT_FILENAME,
+                                              os.path.join(storage_dir, "sysroot",
+                                                           KERNEL_DEPLOY_PATH_WILDCARD))
+    kernel_fitimage_path = os.path.join(SECURE_BOOT_WORKDIR, KERNEL_FIT_FILENAME)
+    shutil.copy2(kernel_deploy_path, kernel_fitimage_path)
 
     # Before signing, update the expected key name of the fitImage.
     update_fit_configs_keyname(kernel_fitimage_path, key_name)
 
     sign_with_mkimage(kernel_fitimage_path, key_dir, key_algo)
 
-    create_output_image(input_dir, output_dir, board, force, "kernel")
-    set_output_ownership(output_dir)
-    log.info("Kernel in Torizon OS image signed successfully!")
+    prepare_kernel_for_ostree_commit(storage_dir, kernel_fitimage_path, kernel_changes_dir)
+
+    log.info("Kernel in unpacked Torizon OS image signed successfully!")
 
 
-def sign_bootloader_hab(input_dir, output_dir, force,
-                        kernel_key_dir, kernel_key_name, kernel_key_algo, cst_dir, cst_args):
+def prepare_kernel_for_ostree_commit(storage_dir, kernel_path, kernel_changes_dir):
+    """
+    Setup a directory tree in kernel_changes_dir with the correct path to update the kernel
+    in an OSTree commit, and copy the file in kernel_path to it.
+
+    :param storage_dir: Path to storage directory, where the image was unpacked
+    :param kernel_path: Path of the kernel file to be committed
+    :param kernel_changes_dir: Path to directory with all kernel changes to be commited
+    """
+
+    # get kernel path of current deployment inside sysroot
+    # in this path there's a directory named after the kernel version, so we need to get it first
+    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
+    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
+
+    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
+
+    # create directory to store the finalized kernel
+    new_kernel_dst = os.path.join(kernel_changes_dir, "usr/lib/modules", kernel_version)
+    os.makedirs(new_kernel_dst, exist_ok=True)
+
+    shutil.copy2(kernel_path, os.path.join(new_kernel_dst, KERNEL_FIT_FILENAME))
+
+
+def sign_bootloader_hab(storage_dir, kernel_key_dir,
+                        kernel_key_name, kernel_key_algo, cst_dir, cst_args):
     """Sign bootloader container of a HAB-compatible image in input_dir
 
-    :param input_dir: Path to input Tezi image
-    :param output_dir: Path to output Tezi image
-    :param force: Whether to overwrite existing output
+    :param storage_dir: Path to storage directory, where the image was unpacked
     :param kernel_key_dir: Path to directory with the key to sign the kernel fitImage
     :param kernel_key_name: Name of the provided kernel key
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
@@ -684,16 +698,27 @@ def sign_bootloader_hab(input_dir, output_dir, force,
         check_if_file_exists(f"{kernel_key_name}.key", kernel_key_dir)
         check_if_file_exists(f"{kernel_key_name}.crt", kernel_key_dir)
 
-    check_valid_tezi_image(input_dir)
-
-    board = check_hab_signing_support(input_dir)
+    board = check_unpacked_tezi_hab_signing_support(storage_dir)
 
     # Using absolute path as the signing script will be executed relative from its own directory
     cst_dir = os.path.abspath(cst_dir)
 
+    log.info("Attempting to sign the bootloader container with the following options:")
+    log.info(f"- Key type: {cst_args['crypto']}")
+    log.info(f"- Key length: {cst_args['key_size']}")
+    if cst_args['crypto'] == "rsa":
+        log.info(f"- Key exponent: {cst_args['key_exp']}")
+    log.info(f"- Digest algorithm: {cst_args['dig_algo']}")
+    log.info(f"- SRK index: {cst_args['srk_index']}")
+    log.info(f"- SRK table filename: {os.path.basename(cst_args['srk_table'])}")
+    log.info(f"- SRK fuse filename: {os.path.basename(cst_args['srk_fuse'])}")
+    log.info(f"- SRK CA flag disabled: {'YES' if cst_args['srk_no_ca'] else 'NO'}")
+
     check_cst_dir(cst_dir, cst_args)
 
-    signing_binaries_file = check_if_file_exists(DEFAULT_TCB_SIGNING_FILES_TARNAME, input_dir)
+    tezi_dir = os.path.join(storage_dir, "tezi")
+
+    signing_binaries_file = check_if_file_exists(DEFAULT_TCB_SIGNING_FILES_TARNAME, tezi_dir)
 
     # Check if secure boot work directory exists, and if so, remove it
     # so we have a clean work directory
@@ -730,161 +755,25 @@ def sign_bootloader_hab(input_dir, output_dir, force,
     run_hab_signing_script(FLASH_BIN_SIGNING_DIR, uboot_config_path, BINMAN_OUTPUT_DIR, board,
                            cst_dir, cst_args)
 
-    create_output_image(input_dir, output_dir, board, force, "bootloader")
-    set_output_ownership(output_dir)
+    # Copy resulting bootloader container binary with the correct filename and fusing instructions
+    # text file to SIGNED_BOOTLOADER_ARTIFACTS_DIR
+    if os.path.isdir(SIGNED_BOOTLOADER_ARTIFACTS_DIR):
+        shutil.rmtree(SIGNED_BOOTLOADER_ARTIFACTS_DIR)
 
-    if kernel_key_dir:
-        log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by the "
-                 "bootloader to verify the kernel signature.")
-    else:
-        log.warning("The bootloader DTBs were NOT updated with a new public key.")
-        log.warning("If the kernel fitImage will be signed with a new key, please re-run the "
-                    "command with --kernel-key-dir and --kernel-key so the new kernel signature "
-                    "can be properly verified by the bootloader.")
-        log.warning("Otherwise, this message can be ignored.")
-    print()
+    os.mkdir(SIGNED_BOOTLOADER_ARTIFACTS_DIR)
 
-    log.info("Bootloader in Torizon OS image signed successfully!")
+    shutil.copy2(os.path.join(FLASH_BIN_SIGNING_DIR, FLASH_BIN),
+                 os.path.join(SIGNED_BOOTLOADER_ARTIFACTS_DIR, BOOTLOADER_CONTAINER_NAME[board]))
+    shutil.copy2(os.path.join(FLASH_BIN_SIGNING_DIR, FUSE_CMD_TXT_NAME),
+                 SIGNED_BOOTLOADER_ARTIFACTS_DIR)
 
-
-def copy_signed_kernel(tezi_dir):
-    """
-    Copy the kernel fitImage signed by TCB to the Torizon OS image in tezi_dir, overwriting
-    the previous kernel.
-
-    :param tezi_dir: Path of Torizon OS image in Toradex Easy Installer format (directory)
-    """
-
-    log.info("Copying signed kernel fitImage to image rootfs...")
-    with tempfile.TemporaryDirectory(dir=tezi_dir) as tempdir:
-
-        rootfs_compressed_tar = get_rootfs_tarball(tezi_dir)
-        untarcmd = [
-            "tar",
-            "-xf", rootfs_compressed_tar,
-            "-C", tempdir,
-        ] + get_tar_compress_program_options(rootfs_compressed_tar)
-
-        log.debug(f"Running tar command: {shlex.join(untarcmd)}")
-        subprocess.check_output(untarcmd, stderr=subprocess.STDOUT)
-
-        os.remove(rootfs_compressed_tar)
-
-        uenv_txt_path = os.path.join(tempdir, "boot/loader/uEnv.txt")
-        with open(uenv_txt_path, 'r') as uenv_txt_file:
-            uenv_txt_str = uenv_txt_file.read()
-
-        match = re.search(r"^kernel_image=(.*)", uenv_txt_str, re.MULTILINE)
-
-        if match:
-            # Transform the given kernel path into a relative one
-            kernel_path = str(match.group(1)).lstrip('/')
-        else:
-            raise InvalidDataError("Couldn't find the kernel fitImage path in the root filesystem.")
-
-        kernel_path = os.path.join(tempdir, kernel_path)
-
-        # Remove the old kernel fitImage and add the new one
-        os.remove(kernel_path)
-        shutil.copy2(check_if_file_exists(KERNEL_FITIMAGE, SECURE_BOOT_WORKDIR), kernel_path)
-
-        # Put everything back together again
-        rootfs_tar, _ = os.path.splitext(rootfs_compressed_tar)
-        tarcmd = [
-            "tar", "--xattrs", "--xattrs-include=*", "--owner=0", "--group=0",
-            "-C", tempdir,
-            "-cf", rootfs_tar, "."
-        ]
-        subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
-
-    # Compress rootfs, and delete the uncompressed file
-    zstdcmd = [
-        "zstd", "-f", "-k", "-c", "--threads=0", "-3", rootfs_tar, "-o", rootfs_compressed_tar
-    ]
-    subprocess.check_output(zstdcmd, stderr=subprocess.STDOUT)
-    os.remove(rootfs_tar)
-
-
-def copy_signed_bootloader(tezi_dir, board):
-    """
-    Copy the bootloader container signed by TCB to the Torizon OS image in tezi_dir, overwriting
-    the previous bootloader. Also copy the text file with the fusing instructions to tezi_dir.
-
-    :param tezi_dir: Path of Torizon OS image in Toradex Easy Installer format (directory)
-    :param board: Name of the board compatible with the OS image
-    """
-
-    # Add the new bootloader container to the tezi image, overwriting the old one
-    shutil.copy2(check_if_file_exists(FLASH_BIN, FLASH_BIN_SIGNING_DIR),
-                 os.path.join(tezi_dir, BOOTLOADER_CONTAINER_NAME[board]))
-
-    # Copy the text file with the fuse commands
-    shutil.copy2(check_if_file_exists(FUSE_CMD_TXT_NAME, FLASH_BIN_SIGNING_DIR), tezi_dir)
-
-    fuse_cmd_txt = os.path.join(tezi_dir, FUSE_CMD_TXT_NAME)
-    if os.path.isfile(fuse_cmd_txt):
-        with open(fuse_cmd_txt, 'r') as fuse_file:
-            print()
-            log.info("# Fusing instructions to be executed in U-Boot:")
-            print()
-            log.info(fuse_file.read())
-            log.info(f"# You can recheck the instructions given above in {FUSE_CMD_TXT_NAME} "
-                     f"created in directory '{tezi_dir}'.")
-            print()
-
-
-def create_output_image(input_dir, output_dir, board, force, signed_component):
-    """Create output image with the signed components
-
-    :param input_dir: Path to input Tezi image
-    :param output_dir: Path to output Tezi image
-    :param board: Name of the board compatible with the OS image
-    :param force: Whether to overwrite existing output
-    :param signed_component: String indicating which component has been signed
-    """
-
-    if not signed_component:
-        raise InvalidStateError("Internal error: No component to be signed has been specified. "
-                                "Aborting.")
-
-    if force and os.path.isdir(output_dir) and os.path.samefile(input_dir, output_dir):
-        log.info("Updating Torizon OS image in place.")
-    else:
-        if os.path.isdir(output_dir):
-            log.info(f"Removing pre-existing directory '{output_dir}'")
-            shutil.rmtree(output_dir)
-
-        # Copy input image contents to output directory
-        shutil.copytree(input_dir, output_dir)
-
-
-    # Remove the old signing binaries tar
-    output_signing_files_tar = os.path.join(output_dir, DEFAULT_TCB_SIGNING_FILES_TARNAME)
-    os.remove(output_signing_files_tar)
-    # Put the updated contents of the signing binaries to the tar file
+    # Tar the updated contents of the signing binaries to SIGNED_BOOTLOADER_ARTIFACTS_DIR,
+    # excluding work directories
     tarcmd = [
         "tar", "--xattrs", "--xattrs-include=*", "--owner=0", "--group=0",
         "-C", SECURE_BOOT_WORKDIR,
-        "-czf", output_signing_files_tar, "."
+        "--exclude", os.path.basename(BINMAN_OUTPUT_DIR),
+        "-czf", os.path.join(SIGNED_BOOTLOADER_ARTIFACTS_DIR, DEFAULT_TCB_SIGNING_FILES_TARNAME),
+        "."
     ]
     subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
-
-    try:
-        if signed_component == "kernel":
-            copy_signed_kernel(output_dir)
-
-        elif signed_component == "bootloader":
-            copy_signed_bootloader(output_dir, board)
-
-        else:
-            # Remove output directory if it was created previously
-            if not os.path.samefile(input_dir, output_dir):
-                shutil.rmtree(output_dir)
-            raise InvalidStateError("Internal error: Unknown component signed. Aborting.")
-
-    except (FileContentMissing, InvalidDataError,
-            subprocess.CalledProcessError, FileNotFoundError, OSError) as exception:
-        # Remove output directory if it was created previously
-        if not os.path.samefile(input_dir, output_dir):
-            shutil.rmtree(output_dir)
-        log.error(f"Error when copying signed content to output image: {exception}")

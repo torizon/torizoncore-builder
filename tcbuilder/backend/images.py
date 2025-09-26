@@ -25,8 +25,9 @@ import fabric
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
                                       set_output_ownership, run_with_loading_animation,
                                       get_tezi_image_version, DEFAULT_RAW_ROOTFS_LABEL,
-                                      RAW_PROP_TO_ARGNAME)
+                                      RAW_PROP_TO_ARGNAME, SECBOOT_ARTIFACTS_DIR)
 from tcbuilder.backend import ostree
+from tcbuilder.backend.secboot import DEFAULT_TCB_SIGNING_FILES_TARNAME, BOOTLOADER_CONTAINER_NAME
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
 from tezi.image import ImageConfig, DEFAULT_IMAGE_JSON_FILENAME
 from tezi.errors import TeziError
@@ -386,6 +387,7 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
     metadata, _, _ = ostree.get_metadata_from_checksum(src_sysroot.repo(), csum)
 
     if os.path.exists(tezi_dir):
+        track_tezi_signed_files(tezi_dir, csum, metadata.get("oe.machine"))
         log.info("Unpacked OSTree from Toradex Easy Installer image:")
     else:
         log.info("Unpacked OSTree from WIC/raw image:")
@@ -564,4 +566,38 @@ def provision(input_dir, output_dir, shared_data, online_data, hibernated=False,
         raise
 
 
+def track_tezi_signed_files(tezi_dir, commit_hash, machine):
+    """
+    Check if input TEZI image has a tarfile with signing files and if so,
+    associate it and the bootloader container with the current OSTree commit of the image.
+    Otherwise, do nothing.
+
+    :param tezi_dir: Path of directory containing input TEZI image.
+    :param commit_hash: Current OSTree commit hash of the TEZI image.
+    :machine: Machine name compatible with the TEZI image
+    """
+
+    if not machine:
+        log.warning("Warning: Could not determine compatible machine for the image.")
+        log.warning("Secboot commands will not be usable with this image.")
+        log.warning("Proceeding anyway.")
+        return
+
+    tcb_signing_files_tar = os.path.join(tezi_dir, DEFAULT_TCB_SIGNING_FILES_TARNAME)
+    if os.path.isfile(tcb_signing_files_tar):
+
+        # Assume the signing feature for the machine is not supported if TCB doesn't have its
+        # entry in BOOTLOADER_CONTAINER_NAME
+        if machine not in BOOTLOADER_CONTAINER_NAME:
+            log.warning("Warning: secboot commands are not supported for this machine.")
+            return
+
+        log.info(f"Found {DEFAULT_TCB_SIGNING_FILES_TARNAME}. Linking it to {commit_hash}.")
+        commit_dir = os.path.join(SECBOOT_ARTIFACTS_DIR, commit_hash)
+        os.makedirs(commit_dir, exist_ok=True)
+        shutil.copy2(tcb_signing_files_tar, commit_dir)
+
+        log.info(f"Linking bootloader container to {commit_hash}.")
+        shutil.copy2(os.path.join(tezi_dir, BOOTLOADER_CONTAINER_NAME[machine]),
+                     commit_dir)
 # EOF

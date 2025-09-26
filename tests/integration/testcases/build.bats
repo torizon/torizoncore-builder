@@ -4,6 +4,27 @@ bats_load_library 'bats/bats-file/load.bash'
 load 'lib/registries.sh'
 load 'lib/common.bash'
 
+setup_file() {
+    KERNEL_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-kernel --help \
+                                        | grep '^Currently supported machines:')
+    if echo "${KERNEL_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+        IS_KERNEL_SIGNING_SUPPORTED="1"
+    else
+        IS_KERNEL_SIGNING_SUPPORTED="0"
+    fi
+
+    HAB_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-bootloader-hab --help \
+                                     | grep '^Currently supported machines:')
+    if echo "${HAB_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+        IS_HAB_SIGNING_SUPPORTED="1"
+    else
+        IS_HAB_SIGNING_SUPPORTED="0"
+    fi
+
+    export IS_KERNEL_SIGNING_SUPPORTED
+    export IS_HAB_SIGNING_SUPPORTED
+}
+
 teardown_file() {
     stop-registries
 }
@@ -90,6 +111,139 @@ teardown_file() {
     refute_output --partial 'is not valid under any of the given schemas'
     assert_output --partial 'Error: Could not fetch URL'
     rm -rf dummy_output_directory
+}
+
+@test "build: re-signing of kernel FIT and bootloader with HAB" {
+
+    requires-supported-kernel-signing-machine
+    requires-supported-hab-signing-machine
+    requires-signed-image
+
+    # sign-kernel related variables
+    local SIGNING_KEYS_DIR="${SAMPLES_DIR}/signing_keys"
+    local KERNEL_KEY_DIR="${SIGNING_KEYS_DIR}/kernel_fitimage"
+    local KERNEL_KEY_NAME="test"
+    local KERNEL_KEY_ALGO="sha256,rsa2048"
+
+    # sign-bootloader-hab related variables
+    local CST_DIRS="cst_dirs"
+    local CST_TARBALL="${SIGNING_KEYS_DIR}/${CST_DIRS}.tar.gz"
+    local CST_BINARIES_DIR="${CST_DIRS}/cst-3.4.1"
+    local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_1024_no_ca"
+
+    local CST_CRYPTO="rsa"
+    local CST_KEY_SIZE="1024"
+    local CST_KEY_EXP="65537"
+    local CST_DIGEST_ALGO="sha256"
+    local CST_SRK_INDEX="3"
+    local CST_SRK_TABLE_NAME="SRK_1_2_3_4_table.bin"
+    local CST_SRK_FUSE_NAME="SRK_1_2_3_4_fuse.bin"
+    local CST_SRK_NO_CA_FLAG="1"
+
+    local TCBUILD_YAML="$SAMPLES_DIR/config/tcbuild-hab-re-signing-components.yaml"
+    local OUTDIR='re_signed_image'
+
+    unpack-image "${CST_TARBALL}"
+
+    # copy CST binaries to CST_DIR before running tests
+    cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
+    cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
+
+    if [ "$CST_SRK_NO_CA_FLAG" == "1" ]; then
+        # Enable `srk-no-ca-flag`
+        cat "$TCBUILD_YAML" | \
+                sed -Ee 's/## srk-no-ca-flag/srk-no-ca-flag/' > \
+                "$TCBUILD_YAML-no-ca.yaml"
+        TCBUILD_YAML="$TCBUILD_YAML-no-ca.yaml"
+
+        CST_SRK_NO_CA_FLAG="YES"
+    else
+        CST_SRK_NO_CA_FLAG="NO"
+    fi
+
+    run torizoncore-builder build \
+        --file "$TCBUILD_YAML" \
+        --set KERNEL_KEY_DIR="$KERNEL_KEY_DIR" \
+        --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
+        --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
+        --set CST_DIR="$CST_DIR" \
+        --set CST_CRYPTO="$CST_CRYPTO" \
+        --set CST_KEY_SIZE="$CST_KEY_SIZE" \
+        --set CST_KEY_EXP="$CST_KEY_EXP" \
+        --set CST_DIGEST_ALGO="$CST_DIGEST_ALGO" \
+        --set CST_SRK_INDEX="$CST_SRK_INDEX" \
+        --set CST_SRK_TABLE_NAME="$CST_SRK_TABLE_NAME" \
+        --set CST_SRK_FUSE_NAME="$CST_SRK_FUSE_NAME" \
+        --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_success
+    # sign-kernel output
+    assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
+    assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
+    assert_output --partial 'Kernel fitImage signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+    # sign-bootloader-hab output
+    assert_output --partial "Key type: ${CST_CRYPTO}"
+    assert_output --partial "Key length: ${CST_KEY_SIZE}"
+    assert_output --partial "Key exponent: ${CST_KEY_EXP}"
+    assert_output --partial "Digest algorithm: ${CST_DIGEST_ALGO}"
+    assert_output --partial "SRK index: ${CST_SRK_INDEX}"
+    assert_output --partial "SRK table filename: ${CST_SRK_TABLE_NAME}"
+    assert_output --partial "SRK fuse filename: ${CST_SRK_FUSE_NAME}"
+    assert_output --partial "SRK CA flag disabled: ${CST_SRK_NO_CA_FLAG}"
+    assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_KEY_DIR} to U-Boot DTB"
+    assert_output --partial 'flash.bin created successfully'
+    assert_output --partial "Using SRK${CST_SRK_INDEX} for signing"
+    assert_output --partial 'Bootloader container signed successfully'
+    assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+
+    assert_output --partial 'Deploying commit ref: re-signed-branch'
+
+    local ARCHIVE='/storage/ostree-archive/'
+    local COMMIT='re-signed-branch'
+
+    # Check output/ostree/commit-{subject,body} props:
+    run torizoncore-builder-shell "ostree --repo=$ARCHIVE log $COMMIT"
+    assert_output --partial 're-signed image subject'
+    assert_output --partial 're-signed image body'
+
+    # Check output/easy-installer/{name,description}:
+    run cat "$OUTDIR/image.json"
+    assert_output --partial '"name": "image with re-signed kernel FIT and bootloader"'
+    assert_output --partial '"description": "HAB image with both the kernel FIT and the bootloader re-signed"'
+
+    # Check the ostree branch ref-binding:
+    run torizoncore-builder-shell \
+      "ostree --repo=$ARCHIVE show --print-metadata-key='ostree.ref-binding' $COMMIT"
+    assert_success
+    assert_output --partial "['$COMMIT']"
+
+    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
+    assert_success
+
+    local CONFIG_LIST=$(torizoncore-builder-shell \
+                        "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                        /configurations -l")
+
+    local CONFIG1=$(echo "${CONFIG_LIST}" | head -n 1)
+
+    local CONFIG1_SUBNODES=$(torizoncore-builder-shell \
+                             "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                             /configurations/${CONFIG1} -l")
+
+    local SIG_NODE=$(echo "${CONFIG1_SUBNODES}" | grep signature)
+
+    local FOUND_KEY_NAME=$(torizoncore-builder-shell \
+                           "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                           /configurations/${CONFIG1}/${SIG_NODE} key-name-hint")
+
+    run test "${FOUND_KEY_NAME}" == "${KERNEL_KEY_NAME}"
+    assert_success
+
+    # delete copied CST binaries as they're no longer needed
+    rm -rf "${CST_DIR}/linux32"
+    rm -rf "${CST_DIR}/linux64"
 }
 
 @test "build: full customization checked on host" {

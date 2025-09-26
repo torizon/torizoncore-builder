@@ -72,6 +72,45 @@ input:
     # modules:
       # - source-dir: virtual_touchscreen/
       #   autoload: false
+  # >> Secure Boot related Options
+  # >> NOTE: All secboot options need a Torizon OS image with secure boot support built-in.
+  # >> This includes kernel in FIT format, U-Boot built with the corresponding secure boot kconfigs, etc.
+  # secboot:
+    # >> Sign kernel FIT image
+    # sign-kernel:
+      # >> (REQUIRED) directory path with the keys to sign the kernel
+      # kernel-key-dir: ./kernel_keys/
+      # >> (REQUIRED) Key details
+      # kernel-key:
+         # >> 'algo' corresponds to the hashing and crypto algorithms to be used for the signing
+         # >> process. If not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "sha256,rsa2048"
+    # >> Sign bootloader for NXP SoCs supporting High Assurance Boot (HAB)
+    # sign-bootloader-hab:
+      # >> (REQUIRED) directory path with the CST directory pre-configured with
+      # >> keys, cerfiticates, SRK table and e-fuse hash binaries
+      # cst-dir: ./cst-3.4.1/
+      # >> (OPTIONAL) CST related options. If an option is not set,
+      # >> it will default to the values given below
+      # cst-args:
+        # crypto: "rsa"
+        # key-size: "2048"
+        # key-exp: "65537"
+        # dig-algo: "sha256"
+        # srk-index: "1"
+        # srk-table: "SRK_1_2_3_4_table.bin"
+        # srk-fuse: "SRK_1_2_3_4_fuse.bin"
+        # srk-no-ca-flag: false
+      # >> (OPTIONAL) If the options below are provided, the public key used to verify
+      # >> the kernel FIT will be updated. These must be set if signing the kernel FIT
+      # >> with a new key.
+      # kernel-key-dir: ./kernel_keys/
+      # kernel-key:
+         # >> 'algo' corresponds to the hashing and crypto algorithms used to verify and sign the
+         # >> kernel, respectively. If not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "sha256,rsa2048"
 
 # >> The output section defines properties of the output image.
 output:

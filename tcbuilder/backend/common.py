@@ -10,8 +10,6 @@ import time
 import threading
 import binascii
 import glob
-import tempfile
-import shlex
 
 from typing import Optional
 
@@ -66,6 +64,8 @@ RAW_PROP_DEFAULTS = {
 }
 
 REMOTE_CMD_TIMEOUT = 30
+
+SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
 
 # Based on this solution: https://stackoverflow.com/a/50690347
 # Usage of Event object to stop thread was based on:
@@ -836,43 +836,33 @@ def check_if_file_exists(filename, directory):
     return file_list[0]
 
 
-def get_tezi_uenv_txt_vars(tezi_dir, var_list):
+def get_unpacked_uenv_txt_vars(storage_dir, var_list):
     """
     Get the values of specific U-Boot variables declared in uEnv.txt in a
-    Torizon OS image in Toradex Easy Installer format
+    Torizon OS image unpacked in storage_dir
 
-    :param tezi_dir: Path of Torizon OS Toradex Easy Installer image in directory format
+    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
     :param var_list: List of variables to get the values
     :returns: Dictionary with the values for each variable in var_list. If an entry is not in
               uEnv.txt, its value will be None
     """
 
     result = {}
-    with tempfile.TemporaryDirectory(dir=tezi_dir) as tempdir:
-        rootfs_tar = get_rootfs_tarball(tezi_dir)
-        tar_compress_options = get_tar_compress_program_options(rootfs_tar)
-        tarcmd = [
-            "tar",
-            "-xf", rootfs_tar,
-            "-C", tempdir,
-        ] + tar_compress_options + ["--wildcards", "./boot/loader*/uEnv.txt"]
-        log.debug(f"Running tar command: {shlex.join(tarcmd)}")
-        subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
+    rootfs_dir = os.path.join(storage_dir, "sysroot")
+    uenv_txt_path = glob.glob(os.path.join(rootfs_dir, "boot/loader*/uEnv.txt"))[0]
 
-        uenv_txt_path = glob.glob(os.path.join(tempdir, "boot/loader*/uEnv.txt"))[0]
+    if not os.path.isfile(uenv_txt_path):
+        raise FileContentMissing("Couldn't find uEnv.txt in unpacked image rootfs! Aborting.")
 
-        if not os.path.isfile(uenv_txt_path):
-            raise FileContentMissing("Couldn't find uEnv.txt in TEZI image rootfs! Aborting.")
+    with open(uenv_txt_path, 'r') as uenv_txt_file:
+        uenv_txt_str = uenv_txt_file.read()
 
-        with open(uenv_txt_path, 'r') as uenv_txt_file:
-            uenv_txt_str = uenv_txt_file.read()
-
-        for var in var_list:
-            match = re.search(r"^" + var + r"=(.*)", uenv_txt_str, re.MULTILINE)
-            if match:
-                result[var] = str(match.group(1))
-            else:
-                log.warning(f'"{var}=" variable not found in uEnv.txt.')
-                result[var] = None
+    for var in var_list:
+        match = re.search(r"^" + var + r"=(.*)", uenv_txt_str, re.MULTILINE)
+        if match:
+            result[var] = str(match.group(1))
+        else:
+            log.warning(f'"{var}=" variable not found in uEnv.txt.')
+            result[var] = None
 
     return result
