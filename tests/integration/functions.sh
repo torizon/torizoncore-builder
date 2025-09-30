@@ -118,6 +118,23 @@ device-reboot() {
 }
 export -f device-reboot
 
+# run get-host-ip
+get-host-ip() {
+    local TARGET_IP=${1?target IP must be passed}
+    if uname -r 2>/dev/null | grep -iq "microsoft"; then
+        ipconfig.exe 2>/dev/null |
+        sed -n '/adapter \(Ethernet\|Wi[- ]Fi\)/,/^[^[:space:]]/{
+            /^[[:space:]]*IPv4 Address/{
+                s/.*: *\([0-9.]\+\).*/\1/p
+                q
+            }
+        }'
+    else
+        ip route get $TARGET_IP | sed -ne 's/.*\bsrc\b \b\([^ ]\+\)\b.*/\1/p'
+    fi
+}
+export -f get-host-ip
+
 # skip test if device not configured
 requires-device() {
     if [ -z "$DEVICE_ADDR" ]; then

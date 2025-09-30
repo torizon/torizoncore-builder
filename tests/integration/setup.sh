@@ -54,7 +54,7 @@ tcb_tests_pull_container() {
     local SCRIPT_PARAMS="-a remote"
     if uname -r | grep -i "microsoft" > /dev/null; then
         # Add extra parameters to allow "ostree serve" to work under Windows.
-        SCRIPT_PARAMS="${SCRIPT_PARAMS} -- -p 8080:8080"
+        SCRIPT_PARAMS="${SCRIPT_PARAMS} -- --network=host"
     fi
 
     echo "Pulling TorizonCore Builder container..."
