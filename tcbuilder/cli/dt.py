@@ -17,9 +17,12 @@ from tcbuilder.backend.common import (checkout_dt_git_repo,
                                       set_output_ownership,
                                       images_unpack_executed,
                                       update_dt_git_repo,
-                                      unpacked_image_type)
+                                      unpacked_image_type,
+                                      find_kernel_in_sysroot,
+                                      is_file_type_fit)
 from tcbuilder.errors import (
-    TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
+    TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError,
+    FeatureNotImplementedError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -29,8 +32,12 @@ def do_dt_status(args):
 
     images_unpack_executed(args.storage_directory)
     if unpacked_image_type(args.storage_directory) == "raw":
-        raise InvalidDataError("dt commands are not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
+                                         "Aborting.")
 
     dtb_basename = dt.get_current_dtb_basename(args.storage_directory)
     if not dtb_basename:
@@ -71,8 +78,13 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
-        raise InvalidDataError("dt commands are not supported for WIC/raw images. "
+        raise InvalidDataError("Device tree customization is not supported for WIC/raw images. "
                                "Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Device tree customization is not supported for kernel in "
+                                         "FIT format. Aborting.")
 
     # Sanity check parameters.
     assert dts_path, "panic: missing device tree source parameter"

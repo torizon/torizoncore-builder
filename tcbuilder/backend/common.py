@@ -63,6 +63,14 @@ RAW_PROP_DEFAULTS = {
     "raw_rootfs_label" : DEFAULT_RAW_ROOTFS_LABEL
 }
 
+#  Hex value taken from the Devicetree Specification available at:
+#  https://devicetree-specification.readthedocs.io/en/stable/flattened-format.html
+FDT_HEADER_MAGIC = "d00dfeed"
+
+OSTREE_KERNEL_FILENAME = "vmlinuz"
+
+OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
+
 REMOTE_CMD_TIMEOUT = 30
 
 SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
@@ -866,3 +874,96 @@ def get_unpacked_uenv_txt_vars(storage_dir, var_list):
             result[var] = None
 
     return result
+
+
+def is_file_type_dtb(file_path):
+    """
+    Check if the file located in file_path is in DTB format by looking at the first bytes
+    of the file, which must be the value FDT_HEADER_MAGIC.
+    This can be used to quickly check if a binary is a Device Tree Blob or a Flattened Image
+    Tree (FIT) file.
+
+    :param file_path: Path of the file to be checked.
+    :returns: True if the first bytes of the file match FDT_HEADER_MAGIC, False otherwise.
+    """
+
+    expected_value = bytes.fromhex(FDT_HEADER_MAGIC)
+    value_length = len(expected_value)
+
+    with open(file_path, "rb") as _file:
+        found_value = _file.read(value_length)
+
+    return found_value == expected_value
+
+
+def is_file_type_fit(file_path):
+    """
+    Check if the binary located in file_path is a valid Flattened Image Tree (FIT) file by looking
+    if it has the required nodes and properties at the root node. Raises an error if the file is in
+    FDT format but doesn't have the required FIT properties or nodes.
+
+    :param file_path: Path of the file to be checked.
+    :returns: True if the file has the required properties and nodes,
+              False if the file is not in FDT format.
+    """
+
+    # Values taken from 'Flattened Image Tree (FIT) Format' in the U-Boot v2024.07 Documentation:
+    # https://docs.u-boot.org/en/v2024.07/usage/fit/source_file_format.html
+    required_props = ["timestamp"]
+    required_nodes = ["images", "configurations"]
+
+    if not is_file_type_dtb(file_path):
+        return False
+
+    try:
+        output = subprocess.run(["fdtget", file_path, "/", "-p"],
+                                text=True, check=True, stdout=subprocess.PIPE)
+
+        # Check if file has the required properties in the root node
+        if not all(prop in output.stdout for prop in required_props):
+            raise InvalidDataError("File is in FDT format but doesn't have the required FIT "
+                                   "properties. Aborting.")
+
+        output = subprocess.run(["fdtget", file_path, "/", "-l"],
+                                text=True, check=True, stdout=subprocess.PIPE)
+
+        # Check if file has the required nodes in the root node
+        if not all(node in output.stdout for node in required_nodes):
+            raise InvalidDataError("File is in FDT format but doesn't have the required FIT "
+                                   "nodes. Aborting.")
+
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(f"Error running fdtget: {exc.output.strip()}")
+
+    return True
+
+
+def find_kernel_in_sysroot(storage_dir):
+    """
+    Find kernel binary path in the unpacked image sysroot. Raises an error if it cannot find it.
+
+    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
+    :returns: String with absolute path of the kernel binary inside sysroot.
+    """
+
+    sysroot_path = os.path.join(storage_dir, "sysroot")
+
+    # As the kernel path is composed of directories named after the deployment commit and the
+    # kernel version, get them via OSTree metadata.
+
+    sysroot_obj = ostree.load_sysroot(sysroot_path)
+
+    csum, _ = ostree.get_deployment_info_from_sysroot(sysroot_obj)
+    kernel_version = ostree.get_kernel_version(sysroot_obj.repo(), csum)
+
+    # Add deployment index part to checksum string, which is 0 for a new deployment
+    csum += ".0"
+
+    kernel_path = OSTREE_KERNEL_DEPLOY_PATH.format(csum=csum, kver=kernel_version)
+
+    kernel_path = os.path.join(sysroot_path, kernel_path, OSTREE_KERNEL_FILENAME)
+
+    if not os.path.isfile(kernel_path):
+        raise PathNotExistError("Kernel not found in unpacked rootfs. Aborting.")
+
+    return kernel_path

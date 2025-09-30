@@ -11,7 +11,8 @@ import subprocess
 
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
-     check_if_file_exists, get_unpacked_uenv_txt_vars, get_tezi_image_version)
+     check_if_file_exists, get_unpacked_uenv_txt_vars, get_tezi_image_version,
+     OSTREE_KERNEL_DEPLOY_PATH, OSTREE_KERNEL_FILENAME)
 from tcbuilder.backend.ubootenv import \
     (get_env_filename, find_board)
 from tcbuilder.backend.platform import \
@@ -29,8 +30,8 @@ DEFAULT_TCB_SIGNING_FILES_TARNAME = "tcb_signing_files.tar.gz"
 UBOOT_TOOLS_DIR = "/u-boot/tools"
 SECURE_BOOT_WORKDIR = "/storage/secure_boot_workdir"
 UBOOT_DTB = "u-boot.dtb"
-KERNEL_FIT_FILENAME = "vmlinuz"
-KERNEL_DEPLOY_PATH_WILDCARD = "ostree/deploy/torizon/deploy/*/usr/lib/modules/*/"
+KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
+
 UBOOT_CONFIG_FILE = "uboot_config"
 UBOOT_DTBS_DIR = "u-boot-dtbs"
 
@@ -643,7 +644,7 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
     # Copy kernel FIT in current image deployment to the work directory
     kernel_deploy_path = check_if_file_exists(KERNEL_FIT_FILENAME,
                                               os.path.join(storage_dir, "sysroot",
-                                                           KERNEL_DEPLOY_PATH_WILDCARD))
+                                                           OSTREE_KERNEL_DEPLOY_PATH))
     kernel_fitimage_path = os.path.join(SECURE_BOOT_WORKDIR, KERNEL_FIT_FILENAME)
     shutil.copy2(kernel_deploy_path, kernel_fitimage_path)
 

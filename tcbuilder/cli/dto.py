@@ -9,14 +9,15 @@ import sys
 import tempfile
 
 from tcbuilder.backend import dt, dto, common
-from tcbuilder.backend.common import images_unpack_executed, unpacked_image_type
+from tcbuilder.backend.common import (images_unpack_executed, unpacked_image_type, is_file_type_fit,
+                                      find_kernel_in_sysroot)
 
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import dt as dt_cli
 from tcbuilder.cli import union as union_cli
 from tcbuilder.cli import deploy as deploy_cli
 
-from tcbuilder.errors import InvalidDataError
+from tcbuilder.errors import InvalidDataError, FeatureNotImplementedError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -50,8 +51,13 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
-        raise InvalidDataError("dto commands are not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
+                               "images. Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
+                                         "kernel in FIT format. Aborting.")
 
     applied_overlay_basenames = dto.get_applied_overlays_base_names(storage_dir)
     dtob_target_basename = os.path.splitext(os.path.basename(dtos_path))[0] + ".dtbo"
@@ -148,6 +154,15 @@ def do_dto_apply(args):
 def do_dto_list(args):
     '''Perform the 'dto list' command.'''
 
+    images_unpack_executed(args.storage_directory)
+    if unpacked_image_type(args.storage_directory) == "raw":
+        raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
+                                         "Aborting.")
+
     # Sanity check for overlay sources to scan.
     overlays_subdir = "device-trees/overlays"
     if not os.path.isdir(overlays_subdir):
@@ -161,11 +176,6 @@ def do_dto_list(args):
         log.error("Please pass either a device tree source file or device "
                   "tree binary to --device-tree.")
         sys.exit(1)
-
-    images_unpack_executed(args.storage_directory)
-    if unpacked_image_type(args.storage_directory) == "raw":
-        raise InvalidDataError("dto commands are not supported for WIC/raw images. "
-                               "Aborting.")
 
     # Find a device tree to check overlay compatibility against.
     dtb_path = args.device_tree
@@ -266,8 +276,12 @@ def do_dto_status(args):
 
     images_unpack_executed(args.storage_directory)
     if unpacked_image_type(args.storage_directory) == "raw":
-        raise InvalidDataError("dto commands are not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
+                                         "Aborting.")
 
     # Show the enabled device tree.
     (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(args.storage_directory)
@@ -287,8 +301,13 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
-        raise InvalidDataError("dto commands are not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
+                               "images. Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
+                                         "kernel in FIT format. Aborting.")
 
     dtob_basenames = dto.get_applied_overlays_base_names(storage_dir)
     if not dtob_basename in dtob_basenames:
@@ -323,8 +342,13 @@ def dto_remove_all(storage_dir):
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
-        raise InvalidDataError("dto commands are not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
+                               "images. Aborting.")
+
+    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
+                                         "kernel in FIT format. Aborting.")
 
     log.debug("Removing all overlays")
 

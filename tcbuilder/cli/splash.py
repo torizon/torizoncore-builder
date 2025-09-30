@@ -7,9 +7,10 @@ import os
 import shutil
 import logging
 
-from tcbuilder.errors import PathNotExistError, InvalidArgumentError
+from tcbuilder.errors import PathNotExistError, InvalidArgumentError, FeatureNotImplementedError
 from tcbuilder.backend import splash as sbe
-from tcbuilder.backend.common import images_unpack_executed
+from tcbuilder.backend.common import (images_unpack_executed, is_file_type_fit,
+                                      find_kernel_in_sysroot)
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -24,6 +25,11 @@ def splash(splash_image, storage_dir):
     """
 
     storage_dir = os.path.abspath(storage_dir)
+
+    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError("Changing the splash screen is not supported for kernel "
+                                         "in FIT format. Aborting.")
 
     work_dir = os.path.join(storage_dir, "splash")
     if os.path.exists(work_dir):
