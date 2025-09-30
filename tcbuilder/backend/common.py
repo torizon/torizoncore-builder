@@ -71,7 +71,7 @@ OSTREE_KERNEL_FILENAME = "vmlinuz"
 
 OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
 
-REMOTE_CMD_TIMEOUT = 30
+REMOTE_CMD_TIMEOUT = 90
 
 SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
 
