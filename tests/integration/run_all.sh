@@ -38,6 +38,8 @@ usage() {
     exit 0
 }
 
+export IS_WIC=${IS_WIC:-0}
+
 USE_DEVICE=0
 DEVICE_INFO_FILE="device_information.json"
 export TCB_TESTCASE=""
@@ -126,7 +128,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-if [ "$(echo "$IS_WIC" | tr '[:upper:]' '[:lower:]')" != "true" ]; then
+if [ $IS_WIC = "0" ]; then
     if [ ! -e workdir/images/.images_downloaded ]; then
         echo "Images not found. Attempting to download images..."
         ./get_tezi_images.sh
@@ -137,9 +139,7 @@ if [ "$(echo "$IS_WIC" | tr '[:upper:]' '[:lower:]')" != "true" ]; then
             exit 1
         fi
     fi
-fi
-
-if [ "$(echo "$IS_WIC" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+elif [ $IS_WIC = "1" ]; then
     if [ ! -e workdir/images/.raw_images_downloaded ]; then
         echo "Raw Images not found. Attempting to download images..."
         ./get_raw_images.sh
@@ -150,6 +150,9 @@ if [ "$(echo "$IS_WIC" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
             exit 1
         fi
     fi
+else
+    echo "Error: IS_WIC (${IS_WIC}) is not set correctly (\"0\" or \"1\")."
+    exit 1
 fi
 
 echo "Running integration tests..."
@@ -164,4 +167,3 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Integration tests completed successfully."
-

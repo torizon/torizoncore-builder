@@ -76,8 +76,12 @@ if [[ -n "$TCB_DEVICE" ]]; then
     fi
 fi
 
+# Variable IS_WIC can be passed to force a specific value; when not passed, it
+# is automatically set with a default value that depends on the current machine.
 if [[ "$WIC_MACHINES" == *"$MACHINE"* ]]; then
-    export IS_WIC="1"
+    export IS_WIC="${IS_WIC:-1}"
+else
+    export IS_WIC="${IS_WIC:-0}"
 fi
 
 # test case to run

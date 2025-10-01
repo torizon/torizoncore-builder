@@ -315,7 +315,7 @@ wsl-test-host-tos7-64bit-nightly:
 
 test-torizoncore-common-intel:
   variables:
-    IS_WIC: true
+    IS_WIC: 1
   extends: .test-base
   script:
     - TCB_SKIP_PULL=1 source ./setup.sh
@@ -335,7 +335,7 @@ test-torizoncore-common-intel:
 
 test-torizoncore-common-rasp4:
   variables:
-    IS_WIC: true
+    IS_WIC: 1
   extends: .test-base
   script:
     # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
