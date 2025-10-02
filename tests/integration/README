@@ -44,7 +44,7 @@ the respectively enviroment variables, an example would be:
 $ TARGET_BUILD_TYPE=release YOCTO_BRANCH=kirkstone-6.x.y TCB_MACHINE=verdin-am62 ./get_tezi_images.sh
 
 Download Common Torizon OS WIC/raw images
-=====================================
+=========================================
 
 You can manually download Torizon OS WIC/raw images from the Common Torizon
 GitHub repository:
