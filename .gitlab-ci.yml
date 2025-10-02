@@ -34,7 +34,13 @@ variables:
   TEST_IMAGES_TC_COMMON_VERSION: "6.6.0-common"
   TEST_IMAGE_TC_COMMON_INTEL: "torizon-core-common-docker-dev-intel-corei7-64-20240226043251.rootfs.wic"
   TEST_IMAGE_TC_COMMON_RASPI4: "torizon-core-common-docker-dev-v6.6.0-common-raspberrypi4-64.img"
-  # TC custom image parameters
+
+  # Parameters required for fetching signed images:
+  SIGIMG_ARTIFACTORY_URL: "" # http://artifacts.toradex.com/artifactory
+  SIGIMG_ARTIFACTORY_PROD_REPO: ""
+  SIGIMG_ARTIFACTORY_PRERELEASE_REPO: "" # torizoncore-oe-prerelease-frankfurt
+
+  # Parameters required when triggering the pipeline externally (e.g. Jenkins):
   INTERNAL_ARTIFACTORY_URL: "" # "https://artifactory-horw.int.toradex.com/artifactory"
   ARTIFACTORY_SRC_REPO: "" # "devtorizoncore-oe-prerelease-horw"
   BUILD_DISTRO: "" # "torizon-upstream"
@@ -44,6 +50,7 @@ variables:
   BUILD_RECIPE: "" # "torizon-core-docker""
   DISTRO_VERSION: "" # "5.7.3-devel-20230502+build.25"
   MATRIX_BUILD_NUMBER: "" # "25""
+
   # Set to "echo" for dry running specific actions:
   D: ""        # deployment actions
   T: ""        # test actions
@@ -314,6 +321,48 @@ wsl-test-host-tos7-64bit-nightly:
   extends: test-host-tos7-64bit-nightly
   tags:
     - windows-wsl
+
+test-host-tos7-32bit-signed-nightly:
+  # TODO: Review once signed images are available publicly.
+  tags:
+    - "all"
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "apalis-imx6"
+    TARGET_SIGNING_CLASS: "tdx-signed"
+    ACCEPT_VARIANTS: "torizon-minimal"
+  script:
+    # set extra variables for downloading signed images from the internal Artifactory
+    - export BASE_ARTIFACTORY_URL_PROD=""
+    - export BASE_ARTIFACTORY_URL_PRERELEASE=""
+    - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
+test-host-tos7-64bit-signed-nightly:
+  # TODO: Review once signed images are available publicly.
+  tags:
+    - "all"
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "verdin-imx8mp"
+    TARGET_SIGNING_CLASS: "tdx-signed"
+    ACCEPT_VARIANTS: "torizon-minimal"
+  script:
+    # set extra variables for downloading signed images from the internal Artifactory
+    - export BASE_ARTIFACTORY_URL_PROD=""
+    - export BASE_ARTIFACTORY_URL_PRERELEASE=""
+    - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-torizoncore-common-intel:
   variables:
