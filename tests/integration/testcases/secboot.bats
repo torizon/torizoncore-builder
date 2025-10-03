@@ -118,7 +118,7 @@ setup_file() {
     run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
-    assert_output --partial 'Unpacked image does not have the kernel in fitImage format'
+    assert_output --partial 'Unpacked image does not have the kernel in FIT format'
 }
 
 @test "secboot sign-kernel: unsupported machine" {
@@ -293,7 +293,7 @@ setup_file() {
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1
     assert_failure
-    assert_output --partial 'Unpacked image does not have the kernel in fitImage format'
+    assert_output --partial 'Unpacked image does not have the kernel in FIT format'
 }
 
 @test "secboot sign-bootloader-hab: machine not compatible with HAB" {

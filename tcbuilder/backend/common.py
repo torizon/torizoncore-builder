@@ -844,38 +844,6 @@ def check_if_file_exists(filename, directory):
     return file_list[0]
 
 
-def get_unpacked_uenv_txt_vars(storage_dir, var_list):
-    """
-    Get the values of specific U-Boot variables declared in uEnv.txt in a
-    Torizon OS image unpacked in storage_dir
-
-    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
-    :param var_list: List of variables to get the values
-    :returns: Dictionary with the values for each variable in var_list. If an entry is not in
-              uEnv.txt, its value will be None
-    """
-
-    result = {}
-    rootfs_dir = os.path.join(storage_dir, "sysroot")
-    uenv_txt_path = glob.glob(os.path.join(rootfs_dir, "boot/loader*/uEnv.txt"))[0]
-
-    if not os.path.isfile(uenv_txt_path):
-        raise FileContentMissing("Couldn't find uEnv.txt in unpacked image rootfs! Aborting.")
-
-    with open(uenv_txt_path, 'r') as uenv_txt_file:
-        uenv_txt_str = uenv_txt_file.read()
-
-    for var in var_list:
-        match = re.search(r"^" + var + r"=(.*)", uenv_txt_str, re.MULTILINE)
-        if match:
-            result[var] = str(match.group(1))
-        else:
-            log.warning(f'"{var}=" variable not found in uEnv.txt.')
-            result[var] = None
-
-    return result
-
-
 def is_file_type_dtb(file_path):
     """
     Check if the file located in file_path is in DTB format by looking at the first bytes

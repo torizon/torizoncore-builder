@@ -11,8 +11,8 @@ import subprocess
 
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
-     check_if_file_exists, get_unpacked_uenv_txt_vars, get_tezi_image_version,
-     OSTREE_KERNEL_DEPLOY_PATH, OSTREE_KERNEL_FILENAME)
+     check_if_file_exists, find_kernel_in_sysroot, get_tezi_image_version, is_file_type_fit,
+     OSTREE_KERNEL_FILENAME)
 from tcbuilder.backend.ubootenv import \
     (get_env_filename, find_board)
 from tcbuilder.backend.platform import \
@@ -511,17 +511,14 @@ def check_basic_signing_prerequisites(storage_dir):
     if img_major < 7:
         raise InvalidArgumentError("Feature only supported on Torizon OS 7 images. Aborting.")
 
-    log.info("Checking if the unpacked image has the kernel in fitImage format...")
-    uenv_var = get_unpacked_uenv_txt_vars(storage_dir, ["kernel_image_type"])
+    log.debug("Checking if the unpacked image has the kernel in FIT format...")
 
-    if uenv_var["kernel_image_type"]:
-        log.info(f"Detected kernel image format: {uenv_var['kernel_image_type']}")
-    else:
-        log.info("Could not determine the kernel image format")
-
-    if uenv_var["kernel_image_type"] != "fitImage":
+    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    if not is_file_type_fit(unpacked_kernel_path):
         raise InvalidArgumentError(
-            "Unpacked image does not have the kernel in fitImage format. Aborting.")
+            "Unpacked image does not have the kernel in FIT format. Aborting.")
+
+    log.info("Found kernel in FIT format.")
 
 
 def check_unpacked_tezi_kernel_signing_support(storage_dir):
@@ -642,9 +639,7 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
     os.mkdir(SECURE_BOOT_WORKDIR)
 
     # Copy kernel FIT in current image deployment to the work directory
-    kernel_deploy_path = check_if_file_exists(KERNEL_FIT_FILENAME,
-                                              os.path.join(storage_dir, "sysroot",
-                                                           OSTREE_KERNEL_DEPLOY_PATH))
+    kernel_deploy_path = find_kernel_in_sysroot(storage_dir)
     kernel_fitimage_path = os.path.join(SECURE_BOOT_WORKDIR, KERNEL_FIT_FILENAME)
     shutil.copy2(kernel_deploy_path, kernel_fitimage_path)
 
