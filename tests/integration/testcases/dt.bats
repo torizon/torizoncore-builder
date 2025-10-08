@@ -97,6 +97,8 @@ load 'lib/common.bash'
 }
 
 @test "dt: check currently enabled device tree" {
+    requires-non-fit-kernel
+
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder dt status
@@ -114,6 +116,8 @@ load 'lib/common.bash'
 }
 
 @test "dt: apply device tree in the image" {
+    requires-non-fit-kernel
+
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     torizoncore-builder-shell "rm -rf device-trees"
 
@@ -146,6 +150,7 @@ load 'lib/common.bash'
 # bats test_tags=requires-device
 @test "dt: deploy device tree in the device" {
     requires-device
+    requires-non-fit-kernel
     torizoncore-builder-shell "rm -rf device-trees"
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
@@ -200,4 +205,17 @@ load 'lib/common.bash'
     run device-shell "cat /proc/device-tree/model"
     assert_success
     assert_output --partial "$MODEL"
+}
+
+@test "dt: throw error on kernel FIT format" {
+    requires-fit-kernel
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    run torizoncore-builder dt status
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
+
+    run torizoncore-builder dt apply foo.dtb
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
 }

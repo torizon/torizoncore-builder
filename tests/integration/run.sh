@@ -223,11 +223,28 @@ fi
 
 # prepare tests
 export BATS_LIB_PATH="$WORK_DIR"
+export IS_DEFAULT_TEZI_IMAGE_FIT=""
 cd $WORK_DIR
 rm -rf $SAMPLES_DIR && cp -a ../$SAMPLES_DIR .
 mkdir -p $REPORT_DIR
 echo -e "Starting integration tests...\n"
 
+# If using TEZI image, check if it has a kernel in FIT format as some tests need this info
+if [ "$IS_WIC" != "1" ] && [ -n "$DEFAULT_TEZI_IMAGE" ]; then
+    torizoncore-builder images --remove-storage unpack "$DEFAULT_TEZI_IMAGE"
+    if unpacked-kernel-in-fit-format; then
+        echo "Image has kernel in FIT format"
+        IS_DEFAULT_TEZI_IMAGE_FIT="1" # valid FIT kernel
+    else
+        status=$?
+        if [ $status -eq 1 ]; then
+            IS_DEFAULT_TEZI_IMAGE_FIT="0" # non-FIT kernel
+        else
+            # Error case: specific error message provided by the function
+            exit $status
+        fi
+    fi
+fi
 # run tests
 if [ "$TCB_REPORT" = "1" ]; then
     if [ "$TCB_UNDER_CI" = "1" ]; then

@@ -19,6 +19,8 @@ load 'lib/common.bash'
 }
 
 @test "kernel: check build_module ownership for output files" {
+    requires-non-fit-kernel
+
     local MOD_FILE="hello"
     local MAKEFILE="Makefile"
     local README="README.md"
@@ -63,4 +65,26 @@ load 'lib/common.bash'
     assert_output --partial "Please use the 'images' command to unpack an image before running this command."
 
     torizoncore-builder-shell "rm -rf $SRC_DIR"
+}
+
+@test "kernel: throw error on kernel FIT format" {
+    requires-fit-kernel
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+
+    run torizoncore-builder kernel build_module $SRC_DIR
+    assert_failure
+    assert_output --partial "not supported for FIT format"
+
+    run torizoncore-builder kernel set_custom_args "foo=bar"
+    assert_failure
+    assert_output --partial "not supported for FIT format"
+
+    run torizoncore-builder kernel get_custom_args
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
+
+    run torizoncore-builder kernel clear_custom_args
+    assert_failure
+    assert_output --partial "not supported for FIT format"
 }

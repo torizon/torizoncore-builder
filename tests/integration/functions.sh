@@ -248,3 +248,75 @@ requires-supported-hab-signing-machine() {
     fi
 }
 export -f requires-supported-hab-signing-machine
+
+contains-all-words() {
+    local haystack=$(echo "$1" | tr '\n' ' ')
+    local needle=$(echo "$2" | tr '\n' ' ')
+    local word
+
+    for word in $needle; do
+        case " $haystack " in
+            *" $word "*) ;; # found — continue
+            *) return 1 ;;  # missing — fail immediately
+        esac
+    done
+    return 0
+}
+export -f contains-all-words
+
+unpacked-kernel-in-fit-format() {
+    local FDT_HEADER_MAGIC="d00dfeed"
+    local OSTREE_KERNEL_FILENAME="vmlinuz"
+    local OSTREE_KERNEL_DEPLOY_PATH="/storage/sysroot/ostree/deploy/torizon/deploy/*/usr/lib/modules/*/"
+
+    local REQUIRED_PROPS="timestamp"
+    local REQUIRED_NODES="images configurations"
+
+    local OSTREE_KERNEL="${OSTREE_KERNEL_DEPLOY_PATH}${OSTREE_KERNEL_FILENAME}"
+
+    local kernel_header found_props found_nodes
+
+    if torizoncore-builder-shell "[ ! -f ${OSTREE_KERNEL} ]"; then
+        # Error case
+        echo "Cannot find kernel in unpacked image. Did you run 'images unpack' beforehand?" >&2
+        return 3
+    fi
+
+    kernel_header=$(torizoncore-builder-shell "hexdump -n 4 -e '4/1 \"%02x\"' ${OSTREE_KERNEL}")
+
+    if [ "${kernel_header}" = "${FDT_HEADER_MAGIC}" ]; then
+        found_props=$(torizoncore-builder-shell "fdtget ${OSTREE_KERNEL} / -p")
+        found_nodes=$(torizoncore-builder-shell "fdtget ${OSTREE_KERNEL} / -l")
+
+        if ! contains-all-words "${found_props}" "${REQUIRED_PROPS}"; then
+            # Error case
+            echo "Kernel in invalid FIT format" >&2
+            return 2
+        fi
+
+        if ! contains-all-words "${found_nodes}" "${REQUIRED_NODES}"; then
+            # Error case
+            echo "Kernel in invalid FIT format" >&2
+            return 2
+        fi
+
+        return 0 # Kernel is in FIT format
+    else
+        return 1 # Kernel is not in FIT format
+    fi
+}
+export -f unpacked-kernel-in-fit-format
+
+requires-non-fit-kernel() {
+    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+        skip "kernel in FIT format is unsupported"
+    fi
+}
+export -f requires-non-fit-kernel
+
+requires-fit-kernel() {
+    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" != "1" ]; then
+        skip "kernel is not in FIT format"
+    fi
+}
+export -f requires-fit-kernel
