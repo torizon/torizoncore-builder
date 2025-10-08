@@ -320,3 +320,17 @@ requires-fit-kernel() {
     fi
 }
 export -f requires-fit-kernel
+
+signing-artifacts-in-unpacked-tezi-image() {
+    local DEFAULT_TCB_SIGNING_FILES_TARNAME="tcb_signing_files.tar.gz"
+
+    if torizoncore-builder-shell "[ ! -d /storage/tezi ]"; then
+        # Error case
+        echo "Cannot find unpacked image in internal storage. Did you run 'images unpack' beforehand?" >&2
+        return 1
+    fi
+
+    # Check if image has signing artifacts
+    torizoncore-builder-shell "[ -f /storage/tezi/${DEFAULT_TCB_SIGNING_FILES_TARNAME} ]"
+}
+export -f signing-artifacts-in-unpacked-tezi-image

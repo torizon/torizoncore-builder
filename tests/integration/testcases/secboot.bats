@@ -110,11 +110,10 @@ setup_file() {
 
 @test "secboot sign-kernel: image with unsupported kernel format" {
     requires-supported-kernel-signing-machine
+    requires-non-fit-kernel
 
-    # Unpack an unsigned image, which has an unsupported kernel format
     torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
-    # unsigned Torizon Docker images have the kernel in Image.gz format
     run torizoncore-builder secboot sign-kernel "${KERNEL_KEY_DIR}" \
                                                 --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
@@ -282,13 +281,12 @@ setup_file() {
 
 @test "secboot sign-bootloader-hab: image with unsupported kernel format" {
     requires-supported-hab-signing-machine
+    requires-non-fit-kernel
 
-    # Unpack an unsigned image, which has an unsupported kernel format
     torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
-    # unsigned Torizon Docker images have the kernel in Image.gz format
     run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto rsa \
                                                         --cst-key-size 2048 --cst-key-exp 65537 \
                                                         --cst-dig-algo sha256 --cst-srk-index 1
