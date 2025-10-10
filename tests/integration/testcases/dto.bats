@@ -66,6 +66,8 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "dto: apply overlay in the image" {
+    requires-non-fit-kernel
+
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
@@ -91,6 +93,8 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "dto: check currently applied overlays" {
+    requires-non-fit-kernel
+
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
 
@@ -102,6 +106,7 @@ bats_load_library 'bats/bats-file/load.bash'
 # bats test_tags=requires-device
 @test "dto: deploy overlay on the device" {
     requires-device
+    requires-non-fit-kernel
 
     run device-shell "cat /proc/device-tree/tcb_prop_test"
     assert_failure 1
@@ -124,6 +129,8 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "dto: remove overlay in the image" {
+    requires-non-fit-kernel
+
     run torizoncore-builder dto remove sample_overlay.dtbo
     assert_success
 
@@ -135,6 +142,7 @@ bats_load_library 'bats/bats-file/load.bash'
 # bats test_tags=requires-device
 @test "dto: remove overlay from the device" {
     requires-device
+    requires-non-fit-kernel
 
     # This test assumes that sample_overlay.dtbo is already
     # present and used in the device
@@ -171,6 +179,8 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "dto: remove all overlays in the image" {
+    requires-non-fit-kernel
+
     run torizoncore-builder dto remove --all
     assert_success
 
@@ -186,4 +196,21 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_failure
     assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
     assert_output --partial "Please use the 'images' command to unpack an image before running this command."
+}
+
+@test "dto throw error on kernel FIT format" {
+    requires-fit-kernel
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    run torizoncore-builder dto apply --force $SAMPLES_DIR/dts/sample_overlay.dts
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
+
+    run torizoncore-builder dto status
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
+
+    run torizoncore-builder dto remove sample_overlay.dtbo
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
 }

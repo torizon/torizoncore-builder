@@ -40,6 +40,8 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "splash: create splash" {
+    requires-non-fit-kernel
+
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
@@ -51,4 +53,13 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder-shell "ls -l /storage/splash/usr/share/plymouth/themes/spinner/watermark.png"
     assert_success
+}
+
+@test "splash: throw error on kernel FIT format" {
+    requires-fit-kernel
+
+    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
+    assert_failure
+    assert_output --partial "not supported for kernel in FIT format"
 }

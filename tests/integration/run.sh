@@ -3,7 +3,6 @@
 BASE_DIR=$PWD
 WORK_DIR=$PWD/workdir
 IMAGES_DIR=$WORK_DIR/images
-SIGNED_IMAGES_DIR=$WORK_DIR/images-tdx-signed
 TESTCASES_DIR=$BASE_DIR/testcases
 
 REPORT_DIR=$WORK_DIR/reports
@@ -197,7 +196,7 @@ fi
 
 # copy image that will be used in the tests
 export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.tar 2>&-) 2>&-)"
-export DEFAULT_SIGNED_TEZI_IMAGE="$(basename $(ls $SIGNED_IMAGES_DIR/*-${MACHINE}*.tar 2>&-) 2>&-)"
+export DEFAULT_SIGNED_TEZI_IMAGE=""
 export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.wic 2>&-) 2>&-)"
 
 # There's probably a better way to put the .wic and .img search in a single regex,
@@ -209,10 +208,6 @@ fi
 if [ "$IS_WIC" != "1" ] && [ ! -z "$DEFAULT_TEZI_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_TEZI_IMAGE for machine $MACHINE."
     cp $IMAGES_DIR/$DEFAULT_TEZI_IMAGE $WORK_DIR
-    if [ -n "$DEFAULT_SIGNED_TEZI_IMAGE" ]; then
-        cp $SIGNED_IMAGES_DIR/$DEFAULT_SIGNED_TEZI_IMAGE $WORK_DIR
-        echo "Secure boot related test cases using signed image $DEFAULT_SIGNED_TEZI_IMAGE for machine $MACHINE."
-    fi
 elif [ "$IS_WIC" = "1" ] && [ ! -z "$DEFAULT_WIC_IMAGE" ]; then
     echo "Test cases using image $DEFAULT_WIC_IMAGE for machine $MACHINE."
     cp $IMAGES_DIR/$DEFAULT_WIC_IMAGE $WORK_DIR
@@ -223,11 +218,34 @@ fi
 
 # prepare tests
 export BATS_LIB_PATH="$WORK_DIR"
+export IS_DEFAULT_TEZI_IMAGE_FIT=""
 cd $WORK_DIR
 rm -rf $SAMPLES_DIR && cp -a ../$SAMPLES_DIR .
 mkdir -p $REPORT_DIR
 echo -e "Starting integration tests...\n"
 
+# If using TEZI image, check if it has a kernel in FIT format as some tests need this info
+if [ "$IS_WIC" != "1" ] && [ -n "$DEFAULT_TEZI_IMAGE" ]; then
+    torizoncore-builder images --remove-storage unpack "$DEFAULT_TEZI_IMAGE"
+    if unpacked-kernel-in-fit-format; then
+        echo "Image has kernel in FIT format"
+        IS_DEFAULT_TEZI_IMAGE_FIT="1" # valid FIT kernel
+
+        # Check if image with FIT kernel has signing artifacts
+        if signing-artifacts-in-unpacked-tezi-image; then
+            echo "Image has signing artifacts - Secure boot related tests will be executed for machine $MACHINE"
+            DEFAULT_SIGNED_TEZI_IMAGE="${DEFAULT_TEZI_IMAGE}"
+        fi
+    else
+        status=$?
+        if [ $status -eq 1 ]; then
+            IS_DEFAULT_TEZI_IMAGE_FIT="0" # non-FIT kernel
+        else
+            # Error case: specific error message provided by the function
+            exit $status
+        fi
+    fi
+fi
 # run tests
 if [ "$TCB_REPORT" = "1" ]; then
     if [ "$TCB_UNDER_CI" = "1" ]; then
