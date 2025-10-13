@@ -1,0 +1,36 @@
+
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  secboot:
+    sign-kernel:
+      kernel-key-dir: "${KERNEL_KEY_DIR:?Please specify kernel key directory}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME:?Please specify kernel key name}"
+           algo: "${KERNEL_KEY_ALGO:?Please specify kernel key algo}"
+    sign-bootloader-hab:
+      cst-dir: "${CST_DIR:?Please specify CST directory}"
+      cst-args:
+        crypto: "${CST_CRYPTO:?Please specify CST key algorithm}"
+        key-size: "${CST_KEY_SIZE:?Please specify CST key size}"
+        key-exp: "${CST_KEY_EXP:?Please specify CST key exponent}"
+        dig-algo: "${CST_DIGEST_ALGO:?Please specify CST digest algorithm}"
+        srk-index: "${CST_SRK_INDEX:?Please specify CST SRK index}"
+        srk-table: "${CST_SRK_TABLE_NAME:?Please specify CST SRK table filename}"
+        srk-fuse: "${CST_SRK_FUSE_NAME:?Please specify CST SRK fuse filename}"
+        ## srk-no-ca-flag: true
+      kernel-key-dir: "${KERNEL_KEY_DIR:?Please specify kernel key directory}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME:?Please specify kernel key name}"
+           algo: "${KERNEL_KEY_ALGO:?Please specify kernel key algo}"
+output:
+  ostree:
+    branch: re-signed-branch
+    commit-subject: "re-signed image subject"
+    commit-body: "re-signed image body"
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    name: "image with re-signed kernel FIT and bootloader"
+    description: "HAB image with both the kernel FIT and the bootloader re-signed"
