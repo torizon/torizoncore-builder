@@ -114,7 +114,6 @@ teardown_file() {
 }
 
 @test "build: re-signing of kernel FIT and bootloader with HAB" {
-
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine
     requires-signed-image
@@ -246,7 +245,8 @@ teardown_file() {
     rm -rf "${CST_DIR}/linux64"
 }
 
-@test "build: full customization checked on host" {
+@test "build: full customization checked on host (non-FIT)" {
+    requires-non-fit-kernel
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
 
     local OUTDIR='fully_customized_image'
@@ -311,6 +311,21 @@ teardown_file() {
       "ostree --repo=$ARCHIVE show --print-metadata-key='ostree.ref-binding' $COMMIT"
     assert_success
     assert_output --partial "['$COMMIT']"
+}
+
+@test "build: full customization checked on host (FIT)" {
+    requires-fit-kernel
+    requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
+
+    local OUTDIR='fully_customized_image'
+    run torizoncore-builder build \
+        --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
+        --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_failure
+    assert_output --partial \
+	'Error: Changing the splash screen is not supported for kernel in FIT format'
 }
 
 # bats test_tags=requires-device
@@ -428,7 +443,9 @@ teardown_file() {
     rm -rf "$DUMMY_OUTPUT"
 }
 
-@test "build: check overlays's clear" {
+@test "build: check overlays's clear (non-FIT)" {
+    requires-non-fit-kernel
+
     local OVERLAY_IMAGE="overlay_image"
     local DUMMY_OUTPUT="dummy_output_directory"
 
@@ -510,6 +527,34 @@ teardown_file() {
     actual_result=$(echo "$output" | sed -En -e 's/^\s*-\s*(\S+)\.dtbo/\1/p' | tr -s '\n\r' '  ')
     expect_result="sample_overlay sample_overlay1 sample_overlay2 "
     assert_equal "$actual_result" "$expect_result"
+
+    rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
+}
+
+@test "build: check overlays's clear (FIT)" {
+    requires-fit-kernel
+
+    local OVERLAY_IMAGE="overlay_image"
+    local DUMMY_OUTPUT="dummy_output_directory"
+
+    rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
+
+    torizoncore-builder-clean-storage
+
+    # Create input image, clearing all overlays and adding 2 dummy overlays.
+    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
+              sed -Ee 's/## add:/add:/' \
+                  -Ee '/\badd:/ s/sample_overlay2/sample_overlay/' \
+                  -Ee '/\badd:/ s@]@, samples/dts/sample_overlay1.dts]@' > \
+              "$SAMPLES_DIR/config/tcbuild-modified.yaml"
+
+    run torizoncore-builder build \
+              --file "$SAMPLES_DIR/config/tcbuild-modified.yaml" \
+              --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+              --set OUTPUT_DIR="$OVERLAY_IMAGE" --force
+    assert_failure
+    assert_output --partial \
+        'Error: Device tree overlay customization is not supported for kernel in FIT format'
 
     rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
 }

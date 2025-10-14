@@ -34,7 +34,13 @@ variables:
   TEST_IMAGES_TC_COMMON_VERSION: "6.6.0-common"
   TEST_IMAGE_TC_COMMON_INTEL: "torizon-core-common-docker-dev-intel-corei7-64-20240226043251.rootfs.wic"
   TEST_IMAGE_TC_COMMON_RASPI4: "torizon-core-common-docker-dev-v6.6.0-common-raspberrypi4-64.img"
-  # TC custom image parameters
+
+  # Parameters required for fetching signed images:
+  SIGIMG_ARTIFACTORY_URL: "" # http://artifacts.toradex.com/artifactory
+  SIGIMG_ARTIFACTORY_PROD_REPO: ""
+  SIGIMG_ARTIFACTORY_PRERELEASE_REPO: "" # torizoncore-oe-prerelease-frankfurt
+
+  # Parameters required when triggering the pipeline externally (e.g. Jenkins):
   INTERNAL_ARTIFACTORY_URL: "" # "https://artifactory-horw.int.toradex.com/artifactory"
   ARTIFACTORY_SRC_REPO: "" # "devtorizoncore-oe-prerelease-horw"
   BUILD_DISTRO: "" # "torizon-upstream"
@@ -44,6 +50,7 @@ variables:
   BUILD_RECIPE: "" # "torizon-core-docker""
   DISTRO_VERSION: "" # "5.7.3-devel-20230502+build.25"
   MATRIX_BUILD_NUMBER: "" # "25""
+
   # Set to "echo" for dry running specific actions:
   D: ""        # deployment actions
   T: ""        # test actions
@@ -186,11 +193,13 @@ build-arm64:
     - apk update && apk add git sshpass zstd wget bash tar openssl zip curl jq
     - cd tests/integration/
     - rm -Rf workdir/reports/*
+    # define TCB image name to be used by the test job:
+    - export TCB_IMAGE_UNDER_TEST="${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
     # pull latest build of TorizonCore Builder
     - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
     - ${T} docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
-    - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - ${T} docker pull "${TCB_IMAGE_UNDER_TEST}"
     - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
     # get all .bats files (excluding raw/wic ones) except platform.bats
     - export TCB_HOST_TESTS="torizoncore-builder $(cd testcases/ && ls -1 *.bats | sed -e 's/\.bats//' -e '/^\(platform\|torizoncore-builder\)$/d' | sort)"
@@ -211,7 +220,7 @@ test-host-tc6-platform-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-host-tos7-platform-release:
   extends: .test-base
@@ -223,7 +232,7 @@ test-host-tos7-platform-release:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-host-tos7-platform-nightly:
   extends: .test-base
@@ -235,7 +244,7 @@ test-host-tos7-platform-nightly:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 wsl-test-host-tos7-platform-nightly:
   extends: test-host-tos7-platform-nightly
@@ -251,7 +260,7 @@ test-host-tc6-32bit-release:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 wsl-test-host-tc6-32bit-release:
   extends: test-host-tc6-32bit-release
@@ -266,7 +275,7 @@ test-host-tc6-64bit-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-host-tos7-32bit-release:
   extends: .test-base
@@ -276,7 +285,7 @@ test-host-tos7-32bit-release:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-host-tos7-32bit-nightly:
   extends: .test-base
@@ -286,7 +295,7 @@ test-host-tos7-32bit-nightly:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-host-tos7-64bit-release:
   extends: .test-base
@@ -296,7 +305,7 @@ test-host-tos7-64bit-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 test-host-tos7-64bit-nightly:
   extends: .test-base
@@ -306,21 +315,63 @@ test-host-tos7-64bit-nightly:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 wsl-test-host-tos7-64bit-nightly:
   extends: test-host-tos7-64bit-nightly
   tags:
     - windows-wsl
 
+test-host-tos7-32bit-signed-nightly:
+  # TODO: Review once signed images are available publicly.
+  tags:
+    - "all"
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "apalis-imx6"
+    TARGET_SIGNING_CLASS: "tdx-signed"
+    ACCEPT_VARIANTS: "torizon-minimal"
+  script:
+    # set extra variables for downloading signed images from the internal Artifactory
+    - export BASE_ARTIFACTORY_URL_PROD=""
+    - export BASE_ARTIFACTORY_URL_PRERELEASE=""
+    - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
+test-host-tos7-64bit-signed-nightly:
+  # TODO: Review once signed images are available publicly.
+  tags:
+    - "all"
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "verdin-imx8mp"
+    TARGET_SIGNING_CLASS: "tdx-signed"
+    ACCEPT_VARIANTS: "torizon-minimal"
+  script:
+    # set extra variables for downloading signed images from the internal Artifactory
+    - export BASE_ARTIFACTORY_URL_PROD=""
+    - export BASE_ARTIFACTORY_URL_PRERELEASE=""
+    - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
 test-torizoncore-common-intel:
   variables:
-    IS_WIC: true
+    IS_WIC: 1
   extends: .test-base
   script:
     - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${TCB_IMAGE_UNDER_TEST}"
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
@@ -335,13 +386,13 @@ test-torizoncore-common-intel:
 
 test-torizoncore-common-rasp4:
   variables:
-    IS_WIC: true
+    IS_WIC: 1
   extends: .test-base
   script:
     # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
     - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${TCB_IMAGE_UNDER_TEST}"
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
@@ -367,7 +418,7 @@ test-torizoncore:
   script:
     - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${TCB_IMAGE_UNDER_TEST}"
     - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit 1; fi
     - if [ -z ${ARTIFACTORY_SRC_REPO} ]; then echo "Missing variable ARTIFACTORY_SRC_REPO." && exit 1; fi
     - if [ -z ${BUILD_MANIFEST_BRANCH} ]; then echo "Missing variable BUILD_MANIFEST_BRANCH." && exit 1; fi
