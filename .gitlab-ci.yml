@@ -185,7 +185,15 @@ build-arm64:
     # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
     - if: $BUILD_MACHINE
       when: never
+    # The following condition allows the pipeline to continue for official releases even if tests
+    # fail. In such cases, subsequent steps let the developer decide, at their discretion, whether
+    # to proceed with the release.
+    - if: '$RELEASE_TYPE == "official"'
+      when: on_success
+      allow_failure: true
+    # In all other cases the pipeline continues only if there no failures.
     - when: on_success
+      allow_failure: false
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
   before_script:
