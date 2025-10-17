@@ -185,7 +185,15 @@ build-arm64:
     # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
     - if: $BUILD_MACHINE
       when: never
+    # The following condition allows the pipeline to continue for official releases even if tests
+    # fail. In such cases, subsequent steps let the developer decide, at their discretion, whether
+    # to proceed with the release.
+    - if: '$RELEASE_TYPE == "official"'
+      when: on_success
+      allow_failure: true
+    # In all other cases the pipeline continues only if there no failures.
     - when: on_success
+      allow_failure: false
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
   before_script:
@@ -453,9 +461,14 @@ aggregate-reports:
     # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
     - if: $BUILD_MACHINE
       when: never
-    # This avoid to run this step in development branches
-    - if: '$ENABLE_XRAY =~ /^true$/i'
+    # On early-access releases (and Xray enabled): always runs this job so we take a picture of the
+    # current situation and store it into Xray.
+    - if: '$RELEASE_TYPE == "early-access" && $ENABLE_XRAY =~ /^true$/i'
       when: always
+    # On official releases (and Xray enabled): run this job manually (give opportunity for us
+    # fixing/repeating previous jobs even before posting the report).
+    - if: '$RELEASE_TYPE == "official" && $ENABLE_XRAY =~ /^true$/i'
+      when: manual
     - when: never
   script:
     - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
@@ -469,6 +482,8 @@ aggregate-reports:
     TEST_HOST_TOS7_PLATFORM_NIGHTLY_TEST_EXEC_KEY: "TCB-511"
     TEST_HOST_TOS7_32BIT_NIGHTLY_TEST_EXEC_KEY: "TCB-518"
     TEST_HOST_TOS7_64BIT_NIGHTLY_TEST_EXEC_KEY: "TCB-519"
+    TEST_HOST_TOS7_32BIT_SIGNED_NIGHTLY_TEST_EXEC_KEY: "TCB-780"
+    TEST_HOST_TOS7_64BIT_SIGNED_NIGHTLY_TEST_EXEC_KEY: "TCB-781"
     AVAL_APALIS_IMX6Q_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-520"
     AVAL_APALIS_IMX8QM_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-521"
     AVAL_COLIBRI_IMX6DL_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-522"
