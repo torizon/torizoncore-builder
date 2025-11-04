@@ -315,6 +315,10 @@ def platform_lockbox(
 def do_platform_lockbox(args):
     """Wrapper for 'platform lockbox' subcommand"""
 
+    # First check if the provided credentials file exists
+    if not os.path.isfile(args.credentials):
+        raise InvalidArgumentError(f"File \"{args.credentials}\" does not exist; aborting.")
+
     RegistryOperations.set_cacerts(args.cacerts)
 
     # Build list of logins:
@@ -364,6 +368,10 @@ def do_platform_provdata(args):
 
     # Validate command line:
     try:
+        # Check if the provided credentials file exists
+        if not os.path.isfile(args.credentials):
+            raise InvalidArgumentError(f"File \"{args.credentials}\" does not exist; aborting.")
+
         if args.shared_data_file is not None:
             if not args.shared_data_file.endswith(".tar.gz"):
                 raise InvalidArgumentError(
@@ -541,6 +549,10 @@ def do_platform_push(args):
 
     if not args.credentials:
         raise TorizonCoreBuilderError("--credentials parameter is required.")
+
+    # Check if the provided credentials file exists
+    if not os.path.isfile(args.credentials):
+        raise InvalidArgumentError(f"File \"{args.credentials}\" does not exist; aborting.")
 
     storage_dir = os.path.abspath(args.storage_directory)
     credentials = os.path.abspath(args.credentials)
@@ -877,6 +889,10 @@ def static_delta_create(credentials, from_delta, to_delta, upload_delta=True):
     local_ostree_repo = "/tmp/ostree-repo"
 
     try:
+        # Check if the provided credentials file exists
+        if not os.path.isfile(credentials):
+            raise InvalidArgumentError(f"File \"{credentials}\" does not exist; aborting.")
+
         server_creds = sotaops.ServerCredentials(credentials)
         token = sotaops.get_access_token(server_creds)
         ostree_url = server_creds.ostree_server
