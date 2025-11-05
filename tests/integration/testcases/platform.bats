@@ -331,7 +331,7 @@ test_canonicalize_only_success() {
         --credentials "credentials-pilot-XYZ.zip" \
         --online-data "DEFAULT"
     assert_failure
-    assert_output --partial 'No such file or directory'
+    assert_output --partial 'does not exist'
 
     # case: bad credentials file
     run torizoncore-builder platform provisioning-data \
