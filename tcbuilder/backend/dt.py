@@ -21,13 +21,23 @@ def get_dt_changes_dir(storage_dir):
 
 def get_current_uenv_txt_path(storage_dir):
     '''Get the path to the currently applied uEnv.txt, the bootloader environment file.'''
+    # Check for file in the changes directory.
     path = os.path.join(get_dt_changes_dir(storage_dir), "usr", "lib", "ostree-boot", "uEnv.txt")
     if os.path.exists(path):
-        # Found a recently applied (but not yet deployed) uEnv.txt.
+        log.debug("Found uEnv.txt in changes dir: '{path}'")
         return path
-    # Fallback to uEnv.txt from the base image.
-    path = os.path.join(storage_dir, "sysroot", "boot", "loader", "uEnv.txt")
-    assert os.path.exists(path), "panic: missing uEnv.txt in base image!"
+
+    # Check for the ostree-managed version of the file in the deployment; this
+    # finds the commited version of the file rather the modified copy produced
+    # by libostree in the boot directory when a deployment is created.
+    path = subprocess.check_output(
+        ["find", f"{storage_dir}/sysroot/ostree/deploy",
+         "-wholename", "*/usr/lib/ostree-boot/uEnv.txt",
+         "-print", "-quit"],
+        shell=False, text=True).strip()
+    assert path and os.path.exists(path), "panic: missing uEnv.txt in base image!"
+    log.debug("Found uEnv.txt in deployment: '{path}'")
+
     return path
 
 
