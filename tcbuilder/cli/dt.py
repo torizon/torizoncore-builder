@@ -73,13 +73,56 @@ def do_dt_checkout(args):
             set_output_ownership("device-trees")
 
 
+def _abort_if_overlay(dts_path):
+    '''Abort operation if given device-tree source is an overlay'''
+    with open(dts_path, "r", encoding="utf-8") as fhandle:
+        file_string = fhandle.read()
+    match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
+    if match:
+        raise InvalidArgumentError(
+            f"error: {dts_path} is a device tree overlay and cannot be applied")
+
+
+def _deploy_dtb(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
+    dtb_target_dir = os.path.join(
+        changes_dir, dt.get_dtb_kernel_subdir(storage_dir))
+    os.makedirs(dtb_target_dir, exist_ok=True)
+    dtb_tgt_path = os.path.join(dtb_target_dir, dtb_name)
+    shutil.move(dtb_src_path, dtb_tgt_path)
+
+
+def _deploy_updated_uenv_txt(*, fdtfile, changes_dir, storage_dir):
+    # Deploy the enablement of the device tree blob.
+    uenv_target_dir = os.path.join(changes_dir, "usr", "lib", "ostree-boot")
+    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
+    os.makedirs(uenv_target_dir, exist_ok=True)
+    with open(uenv_target_path, "w", encoding="utf-8") as fhandle:
+        fhandle.write(f"fdtfile={fdtfile}\n")
+    subprocess.check_call(
+        "set -o pipefail && "
+        f"ostree --repo={shlex.quote(storage_dir)}/ostree-archive "
+        f"cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d "
+        f">>{shlex.quote(uenv_target_path)}",
+        shell=True)
+
+
+def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):
+    # Deploy an empty overlays config file, so any overlays from the base image are disabled.
+    log.info("warning: removing currently applied device tree overlays")
+    dtb_target_dir = os.path.join(changes_dir, dt.get_dtb_kernel_subdir(storage_dir))
+    overlays_txt_path = os.path.join(dtb_target_dir, "overlays.txt")
+    with open(overlays_txt_path, "w", encoding="utf-8") as fhandle:
+        fhandle.write("fdt_overlays=\n")
+
+
 def dt_apply(dts_path, storage_dir, include_dirs=None):
     '''Perform the work of the 'dt apply' command.'''
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
-        raise InvalidDataError("Device tree customization is not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError(
+            "Device tree customization is not supported for WIC/raw images. "
+            "Aborting.")
 
     unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
@@ -93,51 +136,37 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
 
     log.debug(f"dt_apply: include directories: {','.join(include_dirs)}")
 
-    # Check if the device tree blob passed is an overlay
-    with open(dts_path, 'r') as file:
-        file_string = file.read()
-    match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
-    if match:
-        raise InvalidArgumentError(
-            f"error: {dts_path} is a device tree overlay and cannot be applied")
+    # Ensure user is not trying to compile an overlay.
+    _abort_if_overlay(dts_path)
 
-    # Compile the device tree.
-    with tempfile.NamedTemporaryFile(delete=False) as file:
-        dtb_tmp_path = file.name
+    # Compile the device tree into a temporary dtb.
+    dtb_tmp_path = tempfile.mktemp(suffix=".dtb")
     if not dt.build_dts(dts_path, include_dirs, dtb_tmp_path):
         log.error(f"error: cannot apply {dts_path}.")
         sys.exit(1)
 
-    # Deploy the device tree blob.
+    # Compute the final/deployed name of the DTB.
+    dtb_name = os.path.splitext(os.path.basename(dts_path))[0] + ".dtb"
+
+    # Determine the changes directory for DTB-related changes.
     dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
+
     # Erase device tree and overlays of the current session.
     shutil.rmtree(dt_changes_dir, ignore_errors=True)
-    dtb_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir))
-    os.makedirs(dtb_target_dir, exist_ok=True)
-    dtb_target_basename = os.path.splitext(os.path.basename(dts_path))[0] + ".dtb"
-    dtb_target_path = os.path.join(dtb_target_dir, dtb_target_basename)
-    shutil.move(dtb_tmp_path, dtb_target_path)
 
-    # Deploy the enablement of the device tree blob.
-    uenv_target_dir = os.path.join(dt_changes_dir, "usr", "lib", "ostree-boot")
-    os.makedirs(uenv_target_dir, exist_ok=True)
-    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
-    with open(uenv_target_path, "w") as file:
-        file.write(f"fdtfile={dtb_target_basename}\n")
-    subprocess.check_call(
-        "set -o pipefail && "
-        f"ostree --repo={shlex.quote(storage_dir)}/ostree-archive "
-        f"cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d "
-        f">>{shlex.quote(uenv_target_path)}",
-        shell=True)
+    _deploy_dtb(
+        dtb_src_path=dtb_tmp_path, dtb_name=dtb_name,
+        changes_dir=dt_changes_dir, storage_dir=storage_dir)
 
-    # Deploy an empty overlays config file, so any overlays from the base image are disabled.
-    log.info("warning: removing currently applied device tree overlays")
-    with open(os.path.join(dtb_target_dir, "overlays.txt"), "w") as file:
-        file.write("fdt_overlays=\n")
+    _deploy_updated_uenv_txt(
+        fdtfile=dtb_name,
+        changes_dir=dt_changes_dir, storage_dir=storage_dir)
+
+    _deploy_empty_overlays_txt(
+        changes_dir=dt_changes_dir, storage_dir=storage_dir)
 
     # All set.
-    log.info(f"Device tree {dtb_target_basename} successfully applied.")
+    log.info(f"Device tree {dtb_name} successfully applied.")
 
 
 def do_dt_apply(args):
