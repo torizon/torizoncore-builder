@@ -12,7 +12,7 @@ import subprocess
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
      check_if_file_exists, find_kernel_in_sysroot, get_tezi_image_version, is_file_type_fit,
-     OSTREE_KERNEL_FILENAME)
+     get_kernel_dir, OSTREE_KERNEL_FILENAME)
 from tcbuilder.backend.ubootenv import \
     (get_env_filename, find_board)
 from tcbuilder.backend.platform import \
@@ -663,16 +663,9 @@ def prepare_kernel_for_ostree_commit(storage_dir, kernel_path, kernel_changes_di
     :param kernel_changes_dir: Path to directory with all kernel changes to be commited
     """
 
-    # get kernel path of current deployment inside sysroot
-    # in this path there's a directory named after the kernel version, so we need to get it first
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
-
-    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
-
     # create directory to store the finalized kernel
-    new_kernel_dst = os.path.join(kernel_changes_dir, "usr/lib/modules", kernel_version)
+    kernel_dir = get_kernel_dir(storage_dir)
+    new_kernel_dst = os.path.join(kernel_changes_dir, kernel_dir)
     os.makedirs(new_kernel_dst, exist_ok=True)
 
     shutil.copy2(kernel_path, os.path.join(new_kernel_dst, KERNEL_FIT_FILENAME))
