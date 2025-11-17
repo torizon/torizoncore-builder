@@ -97,8 +97,6 @@ load 'lib/common.bash'
 }
 
 @test "dt: check currently enabled device tree" {
-    requires-non-fit-kernel
-
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder dt status
@@ -116,35 +114,51 @@ load 'lib/common.bash'
 }
 
 @test "dt: apply device tree in the image" {
-    requires-non-fit-kernel
-
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     torizoncore-builder-shell "rm -rf device-trees"
 
-    run torizoncore-builder dt checkout --update
-    if is-major-version-greater-than-5; then
-        assert_failure
-        assert_output --partial "dt checkout command is not supported"
-        return 0
-    fi
-    assert_success
-    refute_output --regexp "'device-trees' (is already up to date|successfully updated)"
+    local exp_dts_path="samples/dts/small-nodev.dts"
+    local exp_dts_name=${exp_dts_path##*/}
+    local exp_dtb_name=${exp_dts_name%%.*}.dtb
 
-    run torizoncore-builder-shell "ls /storage/sysroot/boot/ostree/torizon-*/dtb/*.dtb"
-    local DTB=$(basename "${lines[0]}")
-    local DTS="${DTB%.*}.dts"
-
-    run find device-trees/ -name $DTS
-    assert_success
-    local DTS_LOCATION=$output
-
-    run torizoncore-builder dt apply $DTS_LOCATION
+    run torizoncore-builder dt apply "${exp_dts_path}"
     assert_success
     assert_output --regexp "Device tree.*successfully applied"
 
     run torizoncore-builder dt status
     assert_success
     assert_output --partial "$DTB"
+
+    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+        echo "Checking existence of device-tree inside FIT image."
+        run torizoncore-builder-shell \
+            "VMLINUZ=\$(find /storage/kernel -name vmlinuz); echo \${VMLINUZ}; test -n \"\${VMLINUZ}\""
+        assert_success
+        local vmlinuz_path="${output}"
+
+        echo "Checking existence of a new configuration node."
+        run torizoncore-builder-shell \
+            "fdtget ${vmlinuz_path} -l /configurations | grep -F '${exp_dtb_name}'"
+        assert_success
+        local config_node="${output}"
+
+        echo "Checking existence of a new image node."
+        run torizoncore-builder-shell \
+            "fdtget ${vmlinuz_path} -l /images | grep -F '${exp_dtb_name}'"
+        assert_success
+        local image_node="${output}"
+
+        echo "Ensuring config node points to image node."
+        run torizoncore-builder-shell \
+            "test \"\$(fdtget ${vmlinuz_path} /configurations/${config_node} fdt)\" == \"${image_node}\""
+        assert_success
+
+    else
+        echo "Checking existence of device-tree file in kernel dtb directory."
+        run torizoncore-builder-shell \
+            "DTB=\$(find /storage/dt/ -wholename '*/usr/lib/modules/*/dtb/${exp_dtb_name}'); echo \${DTB}; test -n \"\${DTB}\""
+        assert_success
+    fi
 }
 
 # bats test_tags=requires-device
@@ -205,17 +219,4 @@ load 'lib/common.bash'
     run device-shell "cat /proc/device-tree/model"
     assert_success
     assert_output --partial "$MODEL"
-}
-
-@test "dt: throw error on kernel FIT format" {
-    requires-fit-kernel
-
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    run torizoncore-builder dt status
-    assert_failure
-    assert_output --partial "not supported for kernel in FIT format"
-
-    run torizoncore-builder dt apply foo.dtb
-    assert_failure
-    assert_output --partial "not supported for kernel in FIT format"
 }

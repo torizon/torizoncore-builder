@@ -1,0 +1,10 @@
+/*
+ * Small Device Tree / not device specific
+ */
+
+/dts-v1/;
+
+/ {
+	model = "Small Device Tree / not device specific";
+	compatible = "unknown,device";
+};
