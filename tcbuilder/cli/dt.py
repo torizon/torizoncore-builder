@@ -4,27 +4,27 @@ CLI for the DT (device-tree) command.
 
 import logging
 import os
-import shlex
+import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import traceback
-import re
 
-from tcbuilder.backend import dt
-from tcbuilder.backend.common import (checkout_dt_git_repo,
-                                      set_output_ownership,
-                                      images_unpack_executed,
-                                      update_dt_git_repo,
-                                      unpacked_image_type,
-                                      find_kernel_in_sysroot,
-                                      is_file_type_fit)
-from tcbuilder.errors import (
-    TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError,
-    FeatureNotImplementedError)
+from tcbuilder.backend import dt as dt_be
+from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend.common import \
+    (checkout_dt_git_repo, set_output_ownership, images_unpack_executed, update_dt_git_repo,
+     unpacked_image_type, find_kernel_in_sysroot, get_kernel_dir, is_file_type_fit,
+     OSTREE_KERNEL_FILENAME)
+from tcbuilder.backend.kernelfit import KernelFit
+from tcbuilder.errors import \
+    (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
 
 log = logging.getLogger("torizon." + __name__)
+
+KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
+MAX_DTB_FILE_SIZE = 1*1024*1024
+DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
 
 def do_dt_status(args):
@@ -34,12 +34,7 @@ def do_dt_status(args):
     if unpacked_image_type(args.storage_directory) == "raw":
         raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
-    if is_file_type_fit(unpacked_kernel_path):
-        raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
-                                         "Aborting.")
-
-    dtb_basename = dt.get_current_dtb_basename(args.storage_directory)
+    dtb_basename = dt_be.get_current_dtb_basename(args.storage_directory)
     if not dtb_basename:
         log.error("error: cannot identify the enabled device tree in the image "
                   "because it is dynamically selected at runtime.")
@@ -73,18 +68,125 @@ def do_dt_checkout(args):
             set_output_ownership("device-trees")
 
 
+def _abort_if_overlay(dts_path):
+    '''Abort operation if given device-tree source is an overlay'''
+    with open(dts_path, "r", encoding="utf-8") as fhandle:
+        file_string = fhandle.read()
+    match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
+    if match:
+        raise InvalidArgumentError(
+            f"error: {dts_path} is a device tree overlay and cannot be applied")
+
+
+def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
+    '''Deploy the given DTB into a changes directory (non-FIT kernel case)'''
+
+    dtb_target_dir = os.path.join(
+        changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
+    os.makedirs(dtb_target_dir, exist_ok=True)
+    dtb_tgt_path = os.path.join(dtb_target_dir, dtb_name)
+    shutil.move(dtb_src_path, dtb_tgt_path)
+
+
+def _get_dtb_prefix(storage_dir, defval=None):
+    uenv_path = dt_be.get_current_uenv_txt_path(storage_dir)
+    with open(uenv_path, "r", encoding="utf-8") as fhandle:
+        lines = fhandle.readlines()
+    res = None
+    for line in lines:
+        match = DTB_PREFIX_RE.search(line)
+        if match:
+            res = match.group(1)
+            break
+    if res is None and defval is None:
+        raise InvalidDataError(
+            "Cannot determine DTB prefix used inside FIT image from uEnv.txt")
+    if res is None:
+        res = defval
+    log.debug("Determined DTB prefix from uEnv.txt: '%s'", res)
+    return res
+
+
+def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
+    '''Deploy the given DTB into a changes directory (FIT kernel case)'''
+
+    # Copy kernel to changes directory when needed:
+    kernel_tgt_dir = os.path.join(changes_dir, get_kernel_dir(storage_dir))
+    kernel_tgt_path = os.path.join(kernel_tgt_dir, KERNEL_FIT_FILENAME)
+    if not os.path.exists(kernel_tgt_path):
+        log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
+        os.makedirs(kernel_tgt_dir, exist_ok=True)
+        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
+        shutil.copy2(kernel_src_path, kernel_tgt_path)
+    else:
+        log.debug("Kernel already exists in '%s'", kernel_tgt_path)
+
+    dtb_prefix = _get_dtb_prefix(storage_dir)
+
+    # Load kernel FIT into memory:
+    with open(kernel_tgt_path, "rb") as fhandle:
+        fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
+
+    # Load DTB into memory:
+    with open(dtb_src_path, "rb") as fhandle:
+        dtb_data = fhandle.read(MAX_DTB_FILE_SIZE+1)
+        if len(dtb_data) > MAX_DTB_FILE_SIZE:
+            raise InvalidDataError(
+                f"DTB file size exceeds limit of {MAX_DTB_FILE_SIZE} bytes.")
+
+    # Store into FIT.
+    log.debug("Storing DTB with %d bytes in size into FIT image.", len(dtb_data))
+    fit.add_dtb(dtb_name, dtb_data)
+
+    # Update kernel FIT image on disk.
+    with open(kernel_tgt_path, "wb") as fhandle:
+        fit.write(fhandle)
+
+
+def _deploy_updated_uenv_txt(*, fdtfile, changes_dir, storage_dir):
+    # Load original file:
+    uenv_src_path = dt_be.get_current_uenv_txt_path(storage_dir)
+    with open(uenv_src_path, "r", encoding="utf-8") as fhandle:
+        lines = fhandle.readlines()
+    # Drop lines assigning to the desired variable:
+    var_name = "fdtfile"
+    new_lines = []
+    for line in lines:
+        if not line.startswith(f"{var_name}="):
+            new_lines.append(line)
+    # Add assignment as the first line.
+    new_lines.insert(0, f"{var_name}={fdtfile}\n")
+    # Save modified version of the file:
+    uenv_target_dir = os.path.join(changes_dir, "usr", "lib", "ostree-boot")
+    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
+    os.makedirs(uenv_target_dir, exist_ok=True)
+    with open(uenv_target_path, "w", encoding="utf-8") as fhandle:
+        fhandle.writelines(new_lines)
+
+
+def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):
+    # Deploy an empty overlays config file, so any overlays from the base image are disabled.
+    log.info("warning: removing currently applied device tree overlays")
+    overlays_txt_dir = os.path.join(changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
+    overlays_txt_path = os.path.join(overlays_txt_dir, "overlays.txt")
+    os.makedirs(overlays_txt_dir, exist_ok=True)
+    with open(overlays_txt_path, "w", encoding="utf-8") as fhandle:
+        fhandle.write("fdt_overlays=\n")
+
+
 def dt_apply(dts_path, storage_dir, include_dirs=None):
     '''Perform the work of the 'dt apply' command.'''
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
-        raise InvalidDataError("Device tree customization is not supported for WIC/raw images. "
-                               "Aborting.")
+        raise InvalidDataError(
+            "Device tree customization is not supported for WIC/raw images. "
+            "Aborting.")
 
     unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
-    if is_file_type_fit(unpacked_kernel_path):
-        raise FeatureNotImplementedError("Device tree customization is not supported for kernel in "
-                                         "FIT format. Aborting.")
+    kernel_is_fit = is_file_type_fit(unpacked_kernel_path)
+    log.debug(f"dt_apply: kernel_is_fit={kernel_is_fit}")
 
     # Sanity check parameters.
     assert dts_path, "panic: missing device tree source parameter"
@@ -93,51 +195,44 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
 
     log.debug(f"dt_apply: include directories: {','.join(include_dirs)}")
 
-    # Check if the device tree blob passed is an overlay
-    with open(dts_path, 'r') as file:
-        file_string = file.read()
-    match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
-    if match:
-        raise InvalidArgumentError(
-            f"error: {dts_path} is a device tree overlay and cannot be applied")
+    # Ensure user is not trying to compile an overlay.
+    _abort_if_overlay(dts_path)
 
-    # Compile the device tree.
-    with tempfile.NamedTemporaryFile(delete=False) as file:
-        dtb_tmp_path = file.name
-    if not dt.build_dts(dts_path, include_dirs, dtb_tmp_path):
+    # Compile the device tree into a temporary dtb.
+    dtb_tmp_path = tempfile.mktemp(suffix=".dtb")
+    if not dt_be.build_dts(dts_path, include_dirs, dtb_tmp_path):
         log.error(f"error: cannot apply {dts_path}.")
         sys.exit(1)
 
-    # Deploy the device tree blob.
-    dt_changes_dir = dt.get_dt_changes_dir(storage_dir)
-    # Erase device tree and overlays of the current session.
-    shutil.rmtree(dt_changes_dir, ignore_errors=True)
-    dtb_target_dir = os.path.join(dt_changes_dir, dt.get_dtb_kernel_subdir(storage_dir))
-    os.makedirs(dtb_target_dir, exist_ok=True)
-    dtb_target_basename = os.path.splitext(os.path.basename(dts_path))[0] + ".dtb"
-    dtb_target_path = os.path.join(dtb_target_dir, dtb_target_basename)
-    shutil.move(dtb_tmp_path, dtb_target_path)
+    # Compute the final/deployed name of the DTB.
+    dtb_name = os.path.splitext(os.path.basename(dts_path))[0] + ".dtb"
 
-    # Deploy the enablement of the device tree blob.
-    uenv_target_dir = os.path.join(dt_changes_dir, "usr", "lib", "ostree-boot")
-    os.makedirs(uenv_target_dir, exist_ok=True)
-    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
-    with open(uenv_target_path, "w") as file:
-        file.write(f"fdtfile={dtb_target_basename}\n")
-    subprocess.check_call(
-        "set -o pipefail && "
-        f"ostree --repo={shlex.quote(storage_dir)}/ostree-archive "
-        f"cat base /usr/lib/ostree-boot/uEnv.txt | sed /^fdtfile=/d "
-        f">>{shlex.quote(uenv_target_path)}",
-        shell=True)
+    if kernel_is_fit:
+        # FIT case: all changes go to the kernel-changes directory.
+        changes_dir = kernel_be.get_kernel_changes_dir(storage_dir)
+        # Deploy the DTB into the kernel FIT container:
+        _deploy_dtb_fit(
+            dtb_src_path=dtb_tmp_path, dtb_name=dtb_name,
+            changes_dir=changes_dir, storage_dir=storage_dir)
+    else:
+        # non-FIT case: changes go to the DT-changes directory.
+        changes_dir = dt_be.get_dt_changes_dir(storage_dir)
+        # Erase device tree and overlays of the current session.
+        shutil.rmtree(changes_dir, ignore_errors=True)
+        # Deploy the DTB into the appropriate changes directory:
+        _deploy_dtb_nonfit(
+            dtb_src_path=dtb_tmp_path, dtb_name=dtb_name,
+            changes_dir=changes_dir, storage_dir=storage_dir)
 
-    # Deploy an empty overlays config file, so any overlays from the base image are disabled.
-    log.info("warning: removing currently applied device tree overlays")
-    with open(os.path.join(dtb_target_dir, "overlays.txt"), "w") as file:
-        file.write("fdt_overlays=\n")
+    _deploy_updated_uenv_txt(
+        fdtfile=dtb_name,
+        changes_dir=changes_dir, storage_dir=storage_dir)
+
+    _deploy_empty_overlays_txt(
+        changes_dir=changes_dir, storage_dir=storage_dir)
 
     # All set.
-    log.info(f"Device tree {dtb_target_basename} successfully applied.")
+    log.info(f"Device tree {dtb_name} successfully applied.")
 
 
 def do_dt_apply(args):

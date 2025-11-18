@@ -11,6 +11,9 @@ import sys
 import io
 import re
 
+from tcbuilder.errors import InvalidStateError
+from tcbuilder.backend.kernel import get_kernel_changes_dir
+
 log = logging.getLogger("torizon." + __name__)
 
 
@@ -21,21 +24,42 @@ def get_dt_changes_dir(storage_dir):
 
 def get_current_uenv_txt_path(storage_dir):
     '''Get the path to the currently applied uEnv.txt, the bootloader environment file.'''
-    path = os.path.join(get_dt_changes_dir(storage_dir), "usr", "lib", "ostree-boot", "uEnv.txt")
-    if os.path.exists(path):
-        # Found a recently applied (but not yet deployed) uEnv.txt.
-        return path
-    # Fallback to uEnv.txt from the base image.
-    path = os.path.join(storage_dir, "sysroot", "boot", "loader", "uEnv.txt")
-    assert os.path.exists(path), "panic: missing uEnv.txt in base image!"
-    return path
+
+    # Look for the file in two changes directories; the former is used with
+    # non-FIT whereas the latter with FIT images.
+    dchangesdir = get_dt_changes_dir(storage_dir)
+    dpath = os.path.join(dchangesdir, "usr", "lib", "ostree-boot", "uEnv.txt")
+    kchangesdir = get_kernel_changes_dir(storage_dir)
+    kpath = os.path.join(kchangesdir, "usr", "lib", "ostree-boot", "uEnv.txt")
+
+    if os.path.exists(dpath) and os.path.exists(kpath):
+        raise InvalidStateError(
+            "Bad state: uEnv.txt was found both in '{dpath}' and '{kpath}'")
+
+    for _path in (dpath, kpath):
+        if os.path.exists(_path):
+            log.debug(f"Found uEnv.txt in changes dir: '{_path}'")
+            return _path
+
+    # Check for the ostree-managed version of the file in the deployment; this
+    # finds the commited version of the file rather the modified copy produced
+    # by libostree in the boot directory when a deployment is created.
+    dpath = subprocess.check_output(
+        ["find", f"{storage_dir}/sysroot/ostree/deploy",
+         "-wholename", "*/usr/lib/ostree-boot/uEnv.txt",
+         "-print", "-quit"],
+        shell=False, text=True).strip()
+    assert dpath and os.path.exists(dpath), "panic: missing uEnv.txt in base image!"
+    log.debug(f"Found uEnv.txt in deployment: '{dpath}'")
+
+    return dpath
 
 
 def get_uboot_initial_env_path(storage_dir):
     '''Get the path to u-boot-initial-env-sd, the initial bootloader environment set by Tezi.'''
     image_json_path = os.path.join(storage_dir, "tezi", "image.json")
     assert os.path.exists(image_json_path), "panic: missing image.json in Tezi directory!"
-    with open(image_json_path, "r") as jsonf:
+    with open(image_json_path, "r", encoding="utf-8") as jsonf:
         image_json = json.load(jsonf)
     try:
         initial_env_basename = image_json["u_boot_env"]

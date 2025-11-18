@@ -12,12 +12,9 @@ import subprocess
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
      check_if_file_exists, find_kernel_in_sysroot, get_tezi_image_version, is_file_type_fit,
-     OSTREE_KERNEL_FILENAME)
-from tcbuilder.backend.ubootenv import \
-    (get_env_filename, find_board)
-from tcbuilder.backend.platform import \
-    (FUSE_HARDWAREIDS)
-from tcbuilder.backend import ostree
+     get_kernel_dir, OSTREE_KERNEL_FILENAME)
+from tcbuilder.backend.ubootenv import (get_env_filename, find_board)
+from tcbuilder.backend.platform import (FUSE_HARDWAREIDS)
 
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidArgumentError,
@@ -631,51 +628,34 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
 
     check_unpacked_tezi_kernel_signing_support(storage_dir)
 
-    # Check if secure boot work directory exists, and if so, remove it
-    # so we have a clean work directory
+    # Ensure we have a clean secure boot work directory.
     if os.path.isdir(SECURE_BOOT_WORKDIR):
         shutil.rmtree(SECURE_BOOT_WORKDIR)
-
     os.mkdir(SECURE_BOOT_WORKDIR)
 
-    # Copy kernel FIT in current image deployment to the work directory
-    kernel_deploy_path = find_kernel_in_sysroot(storage_dir)
-    kernel_fitimage_path = os.path.join(SECURE_BOOT_WORKDIR, KERNEL_FIT_FILENAME)
-    shutil.copy2(kernel_deploy_path, kernel_fitimage_path)
+    # Determine final destination of kernel binary.
+    kernel_dst_dir = os.path.join(kernel_changes_dir, get_kernel_dir(storage_dir))
+    kernel_dst_path = os.path.join(kernel_dst_dir, KERNEL_FIT_FILENAME)
 
-    # Before signing, update the expected key name of the fitImage.
-    update_fit_configs_keyname(kernel_fitimage_path, key_name)
+    # Select kernel and copy it to the work directory.
+    kernel_workdir_path = os.path.join(SECURE_BOOT_WORKDIR, KERNEL_FIT_FILENAME)
+    if os.path.exists(kernel_dst_path):
+        kernel_src_path = kernel_dst_path
+        log.debug("Taking customized kernel from '%s' for signing.", kernel_src_path)
+    else:
+        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        log.debug("Taking original kernel from '%s' for signing.", kernel_src_path)
+    shutil.copy2(kernel_src_path, kernel_workdir_path)
 
-    sign_with_mkimage(kernel_fitimage_path, key_dir, key_algo)
+    # Update key names and re-sign the kernel in the work directory.
+    update_fit_configs_keyname(kernel_workdir_path, key_name)
+    sign_with_mkimage(kernel_workdir_path, key_dir, key_algo)
 
-    prepare_kernel_for_ostree_commit(storage_dir, kernel_fitimage_path, kernel_changes_dir)
+    # Store finalized kernel into the "changes" directory.
+    os.makedirs(kernel_dst_dir, exist_ok=True)
+    shutil.copy2(kernel_workdir_path, kernel_dst_path)
 
     log.info("Kernel in unpacked Torizon OS image signed successfully!")
-
-
-def prepare_kernel_for_ostree_commit(storage_dir, kernel_path, kernel_changes_dir):
-    """
-    Setup a directory tree in kernel_changes_dir with the correct path to update the kernel
-    in an OSTree commit, and copy the file in kernel_path to it.
-
-    :param storage_dir: Path to storage directory, where the image was unpacked
-    :param kernel_path: Path of the kernel file to be committed
-    :param kernel_changes_dir: Path to directory with all kernel changes to be commited
-    """
-
-    # get kernel path of current deployment inside sysroot
-    # in this path there's a directory named after the kernel version, so we need to get it first
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
-
-    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
-
-    # create directory to store the finalized kernel
-    new_kernel_dst = os.path.join(kernel_changes_dir, "usr/lib/modules", kernel_version)
-    os.makedirs(new_kernel_dst, exist_ok=True)
-
-    shutil.copy2(kernel_path, os.path.join(new_kernel_dst, KERNEL_FIT_FILENAME))
 
 
 def sign_bootloader_hab(storage_dir, kernel_key_dir,
