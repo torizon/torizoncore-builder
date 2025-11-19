@@ -5,6 +5,7 @@ import os
 import subprocess
 
 from tcbuilder.backend import dt
+from tcbuilder.backend.common import is_file_type_dtb
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -83,21 +84,26 @@ def modify_dtb_by_overlays(source_dtb_path, source_dtob_paths, target_dtb_path):
     Returns True on successful application, False otherwise.
     """
 
+    source_dtob_names = [os.path.basename(_name) for _name in source_dtob_paths]
+
     assert source_dtob_paths, "panic: empty list of overlays!"
-    res = subprocess.run([
-        "fdtoverlay", "-i", source_dtb_path, "-o", target_dtb_path
-    ] + source_dtob_paths, check=False, capture_output=True, text=True)
+    res = subprocess.run(
+        ["fdtoverlay", "-i", source_dtb_path, "-o",
+         target_dtb_path] + source_dtob_paths,
+        check=False, capture_output=True, text=True)
+
     if res.returncode != 0:
         log.error(res.stderr)
-        log.error(f"error: cannot apply device tree overlays {source_dtob_paths} "
-                  f"against device tree {source_dtb_path}.")
-        return False
-    dtb_check = subprocess.check_output(["file", target_dtb_path], text=True).strip()
-    log.info(dtb_check)
-    if not "Device Tree Blob" in dtb_check:
         log.error(
-            f"error: application of overlays {source_dtob_paths} against "
-            f"device tree {source_dtb_path} did not produce a device tree blob.")
+            f"error: cannot apply device tree overlays {source_dtob_names} "
+            f"against device tree {os.path.basename(source_dtb_path)}.")
+        return False
+
+    if not is_file_type_dtb(target_dtb_path):
+        log.error(
+            f"error: application of overlays {source_dtob_names} against "
+            f"device tree {os.path.basename(source_dtb_path)} did not produce"
+            " a Device Tree Blob.")
         return False
 
     return True

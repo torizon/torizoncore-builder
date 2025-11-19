@@ -8,11 +8,11 @@ import os
 import shlex
 import subprocess
 import sys
-import io
 import re
 
 from tcbuilder.errors import InvalidStateError
 from tcbuilder.backend.kernel import get_kernel_changes_dir
+from tcbuilder.backend.common import is_file_type_dtb
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -34,7 +34,7 @@ def get_current_uenv_txt_path(storage_dir):
 
     if os.path.exists(dpath) and os.path.exists(kpath):
         raise InvalidStateError(
-            "Bad state: uEnv.txt was found both in '{dpath}' and '{kpath}'")
+            f"Bad storage state: uEnv.txt was found both in '{dpath}' and '{kpath}'")
 
     for _path in (dpath, kpath):
         if os.path.exists(_path):
@@ -194,16 +194,10 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
     log.debug(dtc_output)
     log.debug("END OF DEVICE TREE COMPILER OUTPUT")
 
-    # pylint: disable=line-too-long
-    # file does not necessarily return Device tree blob as file type. Therefore,
-    # check Device tree blob magic. See:
-    # https://github.com/devicetree-org/devicetree-specification/releases/download/v0.3/devicetree-specification-v0.3.pdf
-    # pylint: enable=line-too-long
-    with io.open(target_dtb_path, 'rb') as dtbf:
-        dtb_check = int.from_bytes(dtbf.read(4), 'big')
-        if not dtb_check == 0xd00dfeed:
-            log.error(
-                f"error: compilation of '{source_dts_path}' did not produce a Device Tree Blob.")
-            return False
-    log.info(f"'{os.path.basename(source_dts_path)}' compiles successfully.")
+    if not is_file_type_dtb(target_dtb_path):
+        log.error(f"error: compilation of '{source_dts_path}' did not produce"
+                  " a Device Tree Blob.")
+        return False
+
+    log.info(f"File '{os.path.basename(source_dts_path)}' compiles successfully.")
     return True

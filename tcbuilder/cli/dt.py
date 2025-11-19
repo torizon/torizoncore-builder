@@ -167,7 +167,7 @@ def _deploy_updated_uenv_txt(*, fdtfile, changes_dir, storage_dir):
 
 def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):
     # Deploy an empty overlays config file, so any overlays from the base image are disabled.
-    log.info("warning: removing currently applied device tree overlays")
+    log.info("warning: removing currently applied device tree overlays.")
     overlays_txt_dir = os.path.join(changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
     overlays_txt_path = os.path.join(overlays_txt_dir, "overlays.txt")
     os.makedirs(overlays_txt_dir, exist_ok=True)
