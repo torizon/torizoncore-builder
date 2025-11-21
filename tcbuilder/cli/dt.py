@@ -21,9 +21,7 @@ from tcbuilder.errors import \
 
 log = logging.getLogger("torizon." + __name__)
 
-KERNEL_FIT_FILENAME = kernel_be.OSTREE_KERNEL_FILENAME
 MAX_DTB_FILE_SIZE = 1*1024*1024
-DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
 
 def do_dt_status(args):
@@ -87,45 +85,14 @@ def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     shutil.move(dtb_src_path, dtb_tgt_path)
 
 
-def _get_dtb_prefix(storage_dir, defval=None):
-    uenv_path = dt_be.get_current_uenv_txt_path(storage_dir)
-    with open(uenv_path, "r", encoding="utf-8") as fhandle:
-        lines = fhandle.readlines()
-    res = None
-    for line in lines:
-        match = DTB_PREFIX_RE.search(line)
-        if match:
-            res = match.group(1)
-            break
-    if res is None and defval is None:
-        raise InvalidDataError(
-            "Cannot determine DTB prefix used inside FIT image from uEnv.txt")
-    if res is None:
-        res = defval
-    log.debug("Determined DTB prefix from uEnv.txt: '%s'", res)
-    return res
-
-
 def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     '''Deploy the given DTB into a changes directory (FIT kernel case)'''
 
-    # Copy kernel to changes directory when needed:
-    kernel_subdir = kernel_be.get_kernel_subdir(storage_dir)
-    kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
-    kernel_tgt_path = os.path.join(kernel_tgt_dir, KERNEL_FIT_FILENAME)
-    if not os.path.exists(kernel_tgt_path):
-        log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
-        os.makedirs(kernel_tgt_dir, exist_ok=True)
-        kernel_src_path = kernel_be.find_kernel_in_sysroot(storage_dir)
-        log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
-        shutil.copy2(kernel_src_path, kernel_tgt_path)
-    else:
-        log.debug("Kernel already exists in '%s'", kernel_tgt_path)
-
-    dtb_prefix = _get_dtb_prefix(storage_dir)
+    kernel_path = kernel_be.copy_kernelfit_to_changes_dir(changes_dir, storage_dir)
 
     # Load kernel FIT into memory:
-    with open(kernel_tgt_path, "rb") as fhandle:
+    dtb_prefix = dt_be.get_kernelfit_dtb_prefix(storage_dir)
+    with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
 
     # Load DTB into memory:
@@ -140,7 +107,7 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     fit.add_dtb(dtb_name, dtb_data)
 
     # Update kernel FIT image on disk.
-    with open(kernel_tgt_path, "wb") as fhandle:
+    with open(kernel_path, "wb") as fhandle:
         fit.write(fhandle)
 
 

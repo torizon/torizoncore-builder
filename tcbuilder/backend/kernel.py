@@ -26,6 +26,7 @@ IMAGE_MAJOR_TO_GCC_MAP = {
 
 OSTREE_KERNEL_FILENAME = "vmlinuz"
 OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
+KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
 
 
 def get_kernel_changes_dir(storage_dir):
@@ -252,3 +253,26 @@ def get_kernel_subdir(storage_dir):
     csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
     kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
     return os.path.join("usr/lib/modules", kernel_version)
+
+
+def copy_kernelfit_to_changes_dir(changes_dir, storage_dir):
+    """Copy kernel FIT image from sysroot to changes directory.
+
+    Find kernel in sysroot and copy it to the appropriate subdirectory in the
+    specified changes directory. The copy is done only if the kernel binary
+    does not yet exist in the destination.
+    """
+
+    kernel_subdir = get_kernel_subdir(storage_dir)
+    kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
+    kernel_tgt_path = os.path.join(kernel_tgt_dir, KERNEL_FIT_FILENAME)
+    if not os.path.exists(kernel_tgt_path):
+        log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
+        os.makedirs(kernel_tgt_dir, exist_ok=True)
+        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
+        shutil.copy2(kernel_src_path, kernel_tgt_path)
+    else:
+        log.debug("Kernel already exists in '%s'", kernel_tgt_path)
+
+    return kernel_tgt_path

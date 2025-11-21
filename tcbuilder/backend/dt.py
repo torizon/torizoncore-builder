@@ -10,11 +10,13 @@ import subprocess
 import sys
 import re
 
-from tcbuilder.errors import InvalidStateError
+from tcbuilder.errors import (InvalidDataError, InvalidStateError)
 from tcbuilder.backend.kernel import get_kernel_changes_dir
 from tcbuilder.backend.common import is_file_type_dtb
 
 log = logging.getLogger("torizon." + __name__)
+
+DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
 
 def get_dt_changes_dir(storage_dir):
@@ -201,3 +203,35 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
 
     log.info(f"File '{os.path.basename(source_dts_path)}' compiles successfully.")
     return True
+
+
+def get_kernelfit_dtb_prefix(storage_dir, defval=None):
+    """Get the configuration name prefix used with kernel FIT images.
+
+    The configuration name prefix is a string added to the name of a DTB when
+    referencing that DTB inside a FIT image in the "bootm" command. For example,
+    with NXP the prefix could be "freescale_" and when booting with a DTB file
+    named "my-device-tree.dtb" the "bootm" command would be something like this:
+
+    bootm KERNEL_ADDR#conf-freescale_my-device-tree.dtb
+
+    The prefix is determined from uEnv.txt which is supposed to have the "bootm"
+    invocation.
+    """
+
+    uenv_path = get_current_uenv_txt_path(storage_dir)
+    with open(uenv_path, "r", encoding="utf-8") as fhandle:
+        lines = fhandle.readlines()
+    res = None
+    for line in lines:
+        match = DTB_PREFIX_RE.search(line)
+        if match:
+            res = match.group(1)
+            break
+    if res is None and defval is None:
+        raise InvalidDataError(
+            "Cannot determine DTB prefix used inside FIT image from uEnv.txt")
+    if res is None:
+        res = defval
+    log.debug("Determined DTB prefix from uEnv.txt: '%s'", res)
+    return res
