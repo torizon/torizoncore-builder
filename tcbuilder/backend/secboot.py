@@ -12,7 +12,7 @@ import subprocess
 from tcbuilder.backend import kernel
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
-     check_if_file_exists, get_tezi_image_version, is_file_type_fit, get_kernel_dir)
+     check_if_file_exists, get_tezi_image_version, is_file_type_fit)
 from tcbuilder.backend.ubootenv import (get_env_filename, find_board)
 from tcbuilder.backend.platform import (FUSE_HARDWAREIDS)
 
@@ -634,7 +634,8 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
     os.mkdir(SECURE_BOOT_WORKDIR)
 
     # Determine final destination of kernel binary.
-    kernel_dst_dir = os.path.join(kernel_changes_dir, get_kernel_dir(storage_dir))
+    kernel_subdir = kernel.get_kernel_subdir(storage_dir)
+    kernel_dst_dir = os.path.join(kernel_changes_dir, kernel_subdir)
     kernel_dst_path = os.path.join(kernel_dst_dir, KERNEL_FIT_FILENAME)
 
     # Select kernel and copy it to the work directory.

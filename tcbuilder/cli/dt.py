@@ -14,7 +14,7 @@ from tcbuilder.backend import dt as dt_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, set_output_ownership, images_unpack_executed, update_dt_git_repo,
-     unpacked_image_type, get_kernel_dir, is_file_type_fit)
+     unpacked_image_type, is_file_type_fit)
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
@@ -110,7 +110,8 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     '''Deploy the given DTB into a changes directory (FIT kernel case)'''
 
     # Copy kernel to changes directory when needed:
-    kernel_tgt_dir = os.path.join(changes_dir, get_kernel_dir(storage_dir))
+    kernel_subdir = kernel_be.get_kernel_subdir(storage_dir)
+    kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
     kernel_tgt_path = os.path.join(kernel_tgt_dir, KERNEL_FIT_FILENAME)
     if not os.path.exists(kernel_tgt_path):
         log.debug("Kernel does not exist in '%s'", kernel_tgt_path)

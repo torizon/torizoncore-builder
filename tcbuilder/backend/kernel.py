@@ -238,3 +238,17 @@ def find_kernel_in_sysroot(storage_dir):
         raise PathNotExistError("Kernel not found in unpacked rootfs. Aborting.")
 
     return kernel_path
+
+
+def get_kernel_subdir(storage_dir):
+    """Get the versioned kernel directory.
+
+    Returns "usr/lib/modules/<kver>" where <kver> is determined
+    automatically. This is where the kernel binary is supposed to live.
+    """
+
+    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
+    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
+    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
+    return os.path.join("usr/lib/modules", kernel_version)

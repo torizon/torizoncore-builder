@@ -900,17 +900,3 @@ def is_file_type_fit(file_path):
         raise TorizonCoreBuilderError(f"Error running fdtget: {exc.output.strip()}")
 
     return True
-
-
-def get_kernel_dir(storage_dir):
-    """Get the versioned kernel directory.
-
-    Returns "usr/lib/modules/<kver>" where <kver> is determined
-    automatically. This is where the kernel binary is supposed to live.
-    """
-
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
-    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
-    return os.path.join("usr/lib/modules", kernel_version)
