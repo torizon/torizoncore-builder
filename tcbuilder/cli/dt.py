@@ -14,15 +14,14 @@ from tcbuilder.backend import dt as dt_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, set_output_ownership, images_unpack_executed, update_dt_git_repo,
-     unpacked_image_type, find_kernel_in_sysroot, get_kernel_dir, is_file_type_fit,
-     OSTREE_KERNEL_FILENAME)
+     unpacked_image_type, get_kernel_dir, is_file_type_fit)
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
 
 log = logging.getLogger("torizon." + __name__)
 
-KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
+KERNEL_FIT_FILENAME = kernel_be.OSTREE_KERNEL_FILENAME
 MAX_DTB_FILE_SIZE = 1*1024*1024
 DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
@@ -116,7 +115,7 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     if not os.path.exists(kernel_tgt_path):
         log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
         os.makedirs(kernel_tgt_dir, exist_ok=True)
-        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        kernel_src_path = kernel_be.find_kernel_in_sysroot(storage_dir)
         log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
         shutil.copy2(kernel_src_path, kernel_tgt_path)
     else:
@@ -184,7 +183,7 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
             "Device tree customization is not supported for WIC/raw images. "
             "Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot(storage_dir)
     kernel_is_fit = is_file_type_fit(unpacked_kernel_path)
     log.debug(f"dt_apply: kernel_is_fit={kernel_is_fit}")
 

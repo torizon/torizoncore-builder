@@ -9,10 +9,10 @@ import shutil
 import shlex
 import subprocess
 
+from tcbuilder.backend import kernel
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
-     check_if_file_exists, find_kernel_in_sysroot, get_tezi_image_version, is_file_type_fit,
-     get_kernel_dir, OSTREE_KERNEL_FILENAME)
+     check_if_file_exists, get_tezi_image_version, is_file_type_fit, get_kernel_dir)
 from tcbuilder.backend.ubootenv import (get_env_filename, find_board)
 from tcbuilder.backend.platform import (FUSE_HARDWAREIDS)
 
@@ -27,7 +27,7 @@ DEFAULT_TCB_SIGNING_FILES_TARNAME = "tcb_signing_files.tar.gz"
 UBOOT_TOOLS_DIR = "/u-boot/tools"
 SECURE_BOOT_WORKDIR = "/storage/secure_boot_workdir"
 UBOOT_DTB = "u-boot.dtb"
-KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
+KERNEL_FIT_FILENAME = kernel.OSTREE_KERNEL_FILENAME
 
 UBOOT_CONFIG_FILE = "uboot_config"
 UBOOT_DTBS_DIR = "u-boot-dtbs"
@@ -510,7 +510,7 @@ def check_basic_signing_prerequisites(storage_dir):
 
     log.debug("Checking if the unpacked image has the kernel in FIT format...")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
     if not is_file_type_fit(unpacked_kernel_path):
         raise InvalidArgumentError(
             "Unpacked image does not have the kernel in FIT format. Aborting.")
@@ -643,7 +643,7 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
         kernel_src_path = kernel_dst_path
         log.debug("Taking customized kernel from '%s' for signing.", kernel_src_path)
     else:
-        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        kernel_src_path = kernel.find_kernel_in_sysroot(storage_dir)
         log.debug("Taking original kernel from '%s' for signing.", kernel_src_path)
     shutil.copy2(kernel_src_path, kernel_workdir_path)
 

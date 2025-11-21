@@ -8,9 +8,9 @@ import subprocess
 import sys
 import tempfile
 
-from tcbuilder.backend import dt, dto, common
-from tcbuilder.backend.common import (images_unpack_executed, unpacked_image_type, is_file_type_fit,
-                                      find_kernel_in_sysroot)
+from tcbuilder.backend import dt, dto, common, kernel
+from tcbuilder.backend.common import \
+    (images_unpack_executed, unpacked_image_type, is_file_type_fit)
 
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import dt as dt_cli
@@ -54,7 +54,7 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
         raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
                                "images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
                                          "kernel in FIT format. Aborting.")
@@ -158,7 +158,7 @@ def do_dto_list(args):
     if unpacked_image_type(args.storage_directory) == "raw":
         raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(args.storage_directory)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
                                          "Aborting.")
@@ -278,7 +278,7 @@ def do_dto_status(args):
     if unpacked_image_type(args.storage_directory) == "raw":
         raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(args.storage_directory)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
                                          "Aborting.")
@@ -304,7 +304,7 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
         raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
                                "images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
                                          "kernel in FIT format. Aborting.")
@@ -345,7 +345,7 @@ def dto_remove_all(storage_dir):
         raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
                                "images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
                                          "kernel in FIT format. Aborting.")

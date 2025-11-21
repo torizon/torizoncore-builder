@@ -7,10 +7,12 @@ import os
 import shutil
 import logging
 
-from tcbuilder.errors import PathNotExistError, InvalidArgumentError, FeatureNotImplementedError
-from tcbuilder.backend import splash as sbe
-from tcbuilder.backend.common import (images_unpack_executed, is_file_type_fit,
-                                      find_kernel_in_sysroot)
+from tcbuilder.errors import \
+    (PathNotExistError, InvalidArgumentError, FeatureNotImplementedError)
+from tcbuilder.backend import splash as splash_be
+from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend.common import \
+    (images_unpack_executed, is_file_type_fit)
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -26,7 +28,7 @@ def splash(splash_image, storage_dir):
 
     storage_dir = os.path.abspath(storage_dir)
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Changing the splash screen is not supported for kernel "
                                          "in FIT format. Aborting.")
@@ -42,7 +44,7 @@ def splash(splash_image, storage_dir):
 
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
-    sbe.create_splash_initramfs(work_dir, splash_image, src_ostree_archive_dir)
+    splash_be.create_splash_initramfs(work_dir, splash_image, src_ostree_archive_dir)
     log.info("splash screen merged to initramfs")
 
 

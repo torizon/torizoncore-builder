@@ -11,9 +11,10 @@ import logging
 import urllib.request
 
 from tcbuilder.backend import ostree
-from tcbuilder.backend.common import (get_tar_compress_program_options, progress,
-                                      set_output_ownership)
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.backend.common import \
+    (get_tar_compress_program_options, progress, set_output_ownership)
+from tcbuilder.errors import \
+    (TorizonCoreBuilderError, PathNotExistError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -23,10 +24,12 @@ IMAGE_MAJOR_TO_GCC_MAP = {
     7: "arm-gnu-toolchain-13.3.rel1"
 }
 
+OSTREE_KERNEL_FILENAME = "vmlinuz"
+OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
+
 
 def get_kernel_changes_dir(storage_dir):
     """Return directory containing kernel related changes"""
-
     return os.path.join(storage_dir, "kernel")
 
 
@@ -205,3 +208,33 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
     subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
     os.remove(tarball)
     log.info("Toolchain successfully unpacked.\n")
+
+
+def find_kernel_in_sysroot(storage_dir):
+    """
+    Find kernel binary path in the unpacked image sysroot. Raises an error if it cannot find it.
+
+    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
+    :returns: String with absolute path of the kernel binary inside sysroot.
+    """
+
+    sysroot_path = os.path.join(storage_dir, "sysroot")
+
+    # As the kernel path is composed of directories named after the deployment commit and the
+    # kernel version, get them via OSTree metadata.
+
+    sysroot_obj = ostree.load_sysroot(sysroot_path)
+
+    csum, _ = ostree.get_deployment_info_from_sysroot(sysroot_obj)
+    kernel_version = ostree.get_kernel_version(sysroot_obj.repo(), csum)
+
+    # Add deployment index part to checksum string, which is 0 for a new deployment
+    csum += ".0"
+
+    kernel_path = OSTREE_KERNEL_DEPLOY_PATH.format(csum=csum, kver=kernel_version)
+    kernel_path = os.path.join(sysroot_path, kernel_path, OSTREE_KERNEL_FILENAME)
+
+    if not os.path.isfile(kernel_path):
+        raise PathNotExistError("Kernel not found in unpacked rootfs. Aborting.")
+
+    return kernel_path
