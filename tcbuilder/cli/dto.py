@@ -59,7 +59,7 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
         raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
                                          "kernel in FIT format. Aborting.")
 
-    applied_overlay_basenames = dto.get_applied_overlays_base_names(storage_dir)
+    applied_overlay_basenames = dto.get_applied_overlay_names(storage_dir)
     dtob_target_basename = os.path.splitext(os.path.basename(dtos_path))[0] + ".dtbo"
 
     # Detect a redundant overlay application.
@@ -292,7 +292,7 @@ def do_dto_status(args):
         log.info("Enabled overlays over unknown device tree:")
 
     # Show the enabled overlays.
-    for overlay_basename in dto.get_applied_overlays_base_names(args.storage_directory):
+    for overlay_basename in dto.get_applied_overlay_names(args.storage_directory):
         log.info(f"- {overlay_basename}")
 
 
@@ -309,7 +309,7 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
         raise FeatureNotImplementedError("Device tree overlay customization is not supported for "
                                          "kernel in FIT format. Aborting.")
 
-    dtob_basenames = dto.get_applied_overlays_base_names(storage_dir)
+    dtob_basenames = dto.get_applied_overlay_names(storage_dir)
     if not dtob_basename in dtob_basenames:
         if presence_required:
             log.error(f"error: overlay '{dtob_basename}' is already not applied.")
@@ -366,7 +366,7 @@ def dto_remove_all(storage_dir):
     shutil.rmtree(dtob_target_dir, ignore_errors=True)
 
     # Sanity check.
-    assert not dto.get_applied_overlays_base_names(storage_dir), \
+    assert not dto.get_applied_overlay_names(storage_dir), \
         "panic: all overlays removal failed; please contact the maintainers of this tool."
 
 

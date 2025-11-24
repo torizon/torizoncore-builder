@@ -33,7 +33,7 @@ def get_active_overlays_txt_path(storage_dir):
     return None
 
 
-def get_applied_overlays_base_names(storage_dir):
+def get_applied_overlay_names(storage_dir):
     """Query the base names of the currently applied overlay blobs."""
 
     overlays_txt_path = get_active_overlays_txt_path(storage_dir)
@@ -71,7 +71,7 @@ def find_path_to_overlay(storage_dir, basename):
 def get_applied_overlay_paths(storage_dir, base_names=None):
     """Query the paths to the currently applied overlays."""
     if base_names is None:
-        base_names = get_applied_overlays_base_names(storage_dir)
+        base_names = get_applied_overlay_names(storage_dir)
     return [find_path_to_overlay(storage_dir, basename) for basename in base_names]
 
 

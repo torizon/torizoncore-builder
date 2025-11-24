@@ -206,7 +206,7 @@ def do_kernel_get_custom_args(args):
     assert_custom_kargs_compat_image(args.storage_directory)
 
     # Check if the custom kernel args overlays is being applied.
-    applied_overlay_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
+    applied_overlay_basenames = dto.get_applied_overlay_names(args.storage_directory)
     dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
     if dtob_basename not in applied_overlay_basenames:
         # No arguments set: nothing wrong with that.
