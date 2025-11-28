@@ -11,13 +11,15 @@ import tempfile
 import traceback
 
 from tcbuilder.backend import dt as dt_be
+from tcbuilder.backend import dto as dto_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, set_output_ownership, images_unpack_executed, update_dt_git_repo,
      unpacked_image_type, is_file_type_fit)
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.errors import \
-    (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
+    (InvalidArgumentError, InvalidStateError, InvalidDataError, FeatureNotImplementedError,
+     TorizonCoreBuilderError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -45,6 +47,11 @@ def do_dt_checkout(args):
     storage_dir = os.path.abspath(args.storage_directory)
 
     images_unpack_executed(storage_dir)
+
+    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError(
+            "Error: Command not supported for images with kernel in the FIT format.")
 
     # Retrieve the Toradex device-tree repository, if not already retrieved.
     try:
@@ -88,7 +95,7 @@ def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
 def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     '''Deploy the given DTB into a changes directory (FIT kernel case)'''
 
-    kernel_path = kernel_be.copy_kernelfit_to_changes_dir(changes_dir, storage_dir)
+    kernel_path = kernel_be.copy_kernel_to_changes_dir(changes_dir, storage_dir)
 
     # Load kernel FIT into memory:
     dtb_prefix = dt_be.get_kernelfit_dtb_prefix(storage_dir)
@@ -135,11 +142,7 @@ def _deploy_updated_uenv_txt(*, fdtfile, changes_dir, storage_dir):
 def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):
     # Deploy an empty overlays config file, so any overlays from the base image are disabled.
     log.info("warning: removing currently applied device tree overlays.")
-    overlays_txt_dir = os.path.join(changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
-    overlays_txt_path = os.path.join(overlays_txt_dir, "overlays.txt")
-    os.makedirs(overlays_txt_dir, exist_ok=True)
-    with open(overlays_txt_path, "w", encoding="utf-8") as fhandle:
-        fhandle.write("fdt_overlays=\n")
+    dto_be.set_applied_overlay_names([], changes_dir, storage_dir)
 
 
 def dt_apply(dts_path, storage_dir, include_dirs=None):

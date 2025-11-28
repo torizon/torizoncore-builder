@@ -122,6 +122,9 @@ def get_dtb_kernel_subdir(storage_dir):
 def get_current_dtb_path(storage_dir):
     '''Query the path to the currently applied device tree blob.
 
+    This works with non-FIT kernel images only. With FIT, the DTBs do not have a path
+    since they are just nodes inside the kernel image.
+
     Returns a tuple (path, ensured) where:
         - 'path' is the path to a device tree blob in the filesystem (ensured to exist).
         - 'ensured' is True if 'path' was detected as the current device tree in the
@@ -129,6 +132,7 @@ def get_current_dtb_path(storage_dir):
           be retrieved from configs (e.g. decided at runtime), and an arbitrary device
           tree blob of the base image was chosen instead.
     '''
+
     dtb_basename = get_current_dtb_basename(storage_dir)
     if dtb_basename:
         # Found a real definition of the device tree in boot loader configuration.

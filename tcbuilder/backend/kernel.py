@@ -255,7 +255,22 @@ def get_kernel_subdir(storage_dir):
     return os.path.join("usr/lib/modules", kernel_version)
 
 
-def copy_kernelfit_to_changes_dir(changes_dir, storage_dir):
+def find_kernel_in_changes_dir(changes_dir, storage_dir, basename=None):
+    """Find path of kernel binary in the given changes directory."""
+
+    kernel_subdir = get_kernel_subdir(storage_dir)
+    kernel_src_dir = os.path.join(changes_dir, kernel_subdir)
+    kernel_src_path = os.path.join(kernel_src_dir, basename or OSTREE_KERNEL_FILENAME)
+    if os.path.exists(kernel_src_path):
+        log.debug("Kernel found at '%s'", kernel_src_path)
+    else:
+        log.debug("Kernel not found at '%s'", kernel_src_path)
+        return None
+
+    return kernel_src_path
+
+
+def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
     """Copy kernel FIT image from sysroot to changes directory.
 
     Find kernel in sysroot and copy it to the appropriate subdirectory in the
@@ -265,7 +280,7 @@ def copy_kernelfit_to_changes_dir(changes_dir, storage_dir):
 
     kernel_subdir = get_kernel_subdir(storage_dir)
     kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
-    kernel_tgt_path = os.path.join(kernel_tgt_dir, KERNEL_FIT_FILENAME)
+    kernel_tgt_path = os.path.join(kernel_tgt_dir, basename or OSTREE_KERNEL_FILENAME)
     if not os.path.exists(kernel_tgt_path):
         log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
         os.makedirs(kernel_tgt_dir, exist_ok=True)
