@@ -30,9 +30,13 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout
-    if is-major-version-greater-than-5; then
+    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
         assert_failure
-        assert_output --partial "dt checkout command is not supported"
+        assert_output --partial "Command not supported for images with kernel in the FIT format"
+        return 0
+    elif is-major-version-greater-than-5; then
+        assert_failure
+        assert_output --partial "The dt checkout command is not supported"
         return 0
     fi
     assert_success
@@ -54,9 +58,13 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout --update
-    if is-major-version-greater-than-5; then
+    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
         assert_failure
-        assert_output --partial "dt checkout command is not supported"
+        assert_output --partial "Command not supported for images with kernel in the FIT format"
+        return 0
+    elif is-major-version-greater-than-5; then
+        assert_failure
+        assert_output --partial "The dt checkout command is not supported"
         return 0
     fi
     assert_success
@@ -117,7 +125,7 @@ load 'lib/common.bash'
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     torizoncore-builder-shell "rm -rf device-trees"
 
-    local exp_dts_path="samples/dts/small-nodev.dts"
+    local exp_dts_path="$SAMPLES_DIR/dts/small-nodev.dts"
     local exp_dts_name=${exp_dts_path##*/}
     local exp_dtb_name=${exp_dts_name%%.*}.dtb
 
@@ -152,7 +160,6 @@ load 'lib/common.bash'
         run torizoncore-builder-shell \
             "test \"\$(fdtget ${vmlinuz_path} /configurations/${config_node} fdt)\" == \"${image_node}\""
         assert_success
-
     else
         echo "Checking existence of device-tree file in kernel dtb directory."
         run torizoncore-builder-shell \
@@ -171,7 +178,7 @@ load 'lib/common.bash'
     run torizoncore-builder dt checkout --update
     if is-major-version-greater-than-5; then
         assert_failure
-        assert_output --partial "dt checkout command is not supported"
+        assert_output --partial "The dt checkout command is not supported"
         return 0
     fi
     assert_success

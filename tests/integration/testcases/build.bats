@@ -443,9 +443,7 @@ teardown_file() {
     rm -rf "$DUMMY_OUTPUT"
 }
 
-@test "build: check overlays's clear (non-FIT)" {
-    requires-non-fit-kernel
-
+@test "build: check overlays's clear" {
     local OVERLAY_IMAGE="overlay_image"
     local DUMMY_OUTPUT="dummy_output_directory"
 
@@ -527,34 +525,6 @@ teardown_file() {
     actual_result=$(echo "$output" | sed -En -e 's/^\s*-\s*(\S+)\.dtbo/\1/p' | tr -s '\n\r' '  ')
     expect_result="sample_overlay sample_overlay1 sample_overlay2 "
     assert_equal "$actual_result" "$expect_result"
-
-    rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
-}
-
-@test "build: check overlays's clear (FIT)" {
-    requires-fit-kernel
-
-    local OVERLAY_IMAGE="overlay_image"
-    local DUMMY_OUTPUT="dummy_output_directory"
-
-    rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
-
-    torizoncore-builder-clean-storage
-
-    # Create input image, clearing all overlays and adding 2 dummy overlays.
-    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
-              sed -Ee 's/## add:/add:/' \
-                  -Ee '/\badd:/ s/sample_overlay2/sample_overlay/' \
-                  -Ee '/\badd:/ s@]@, samples/dts/sample_overlay1.dts]@' > \
-              "$SAMPLES_DIR/config/tcbuild-modified.yaml"
-
-    run torizoncore-builder build \
-              --file "$SAMPLES_DIR/config/tcbuild-modified.yaml" \
-              --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
-              --set OUTPUT_DIR="$OVERLAY_IMAGE" --force
-    assert_failure
-    assert_output --partial \
-        'Error: Device tree overlay customization is not supported for kernel in FIT format'
 
     rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
 }
