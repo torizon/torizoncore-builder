@@ -20,12 +20,12 @@ DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
 
 def get_dt_changes_dir(storage_dir):
-    '''Returns the directory that contains external device tree related changes.'''
+    """Returns the directory that contains external device tree related changes."""
     return os.path.join(storage_dir, "dt")
 
 
 def get_current_uenv_txt_path(storage_dir):
-    '''Get the path to the currently applied uEnv.txt, the bootloader environment file.'''
+    """Get the path to the currently applied uEnv.txt, the bootloader environment file."""
 
     # Look for the file in two changes directories; the former is used with
     # non-FIT whereas the latter with FIT images.
@@ -58,7 +58,7 @@ def get_current_uenv_txt_path(storage_dir):
 
 
 def get_uboot_initial_env_path(storage_dir):
-    '''Get the path to u-boot-initial-env-sd, the initial bootloader environment set by Tezi.'''
+    """Get the path to u-boot-initial-env-sd, the initial bootloader environment set by Tezi."""
     image_json_path = os.path.join(storage_dir, "tezi", "image.json")
     assert os.path.exists(image_json_path), "panic: missing image.json in Tezi directory!"
     with open(image_json_path, "r", encoding="utf-8") as jsonf:
@@ -76,8 +76,8 @@ def get_uboot_initial_env_path(storage_dir):
 
 
 def query_variable_in_config_file(name, path):
-    '''Query the value of variable 'name' in configuration file 'path'.
-       Returns an empty string if the variable does not exist in the file.'''
+    """Query the value of variable 'name' in configuration file 'path'.
+       Returns an empty string if the variable does not exist in the file."""
     proc = subprocess.run(
         ["sed", "-e", f"/^{name}=/!d", "-e", "s/^[^=]*=//", "-e", "q", path],
         check=False, capture_output=True, text=True)
@@ -90,7 +90,7 @@ def query_variable_in_config_file(name, path):
 
 
 def get_current_dtb_basename(storage_dir):
-    '''Query the base name of the currently applied device tree blob.'''
+    """Query the base name of the currently applied device tree blob."""
 
     # Find the value of fdtfile in uEnv.txt
     dtb_basename = query_variable_in_config_file("fdtfile", get_current_uenv_txt_path(storage_dir))
@@ -108,7 +108,7 @@ def get_current_dtb_basename(storage_dir):
 
 
 def get_dtb_kernel_subdir(storage_dir):
-    '''Returns "usr/lib/modules/<kernel_version/dtb".'''
+    """Returns "usr/lib/modules/<kernel_version/dtb"."""
 
     answer = subprocess.check_output(
         ("set -o pipefail && "
@@ -120,7 +120,7 @@ def get_dtb_kernel_subdir(storage_dir):
 
 
 def get_current_dtb_path(storage_dir):
-    '''Query the path to the currently applied device tree blob.
+    """Query the path to the currently applied device tree blob.
 
     This works with non-FIT kernel images only. With FIT, the DTBs do not have a path
     since they are just nodes inside the kernel image.
@@ -131,7 +131,7 @@ def get_current_dtb_path(storage_dir):
           boot loader configuration. False means that the current device tree cannot
           be retrieved from configs (e.g. decided at runtime), and an arbitrary device
           tree blob of the base image was chosen instead.
-    '''
+    """
 
     dtb_basename = get_current_dtb_basename(storage_dir)
     if dtb_basename:
@@ -161,9 +161,11 @@ def get_current_dtb_path(storage_dir):
 
 
 def build_dts(source_dts_path, include_dirs, target_dtb_path):
-    '''Compile the device tree source file 'source_dts_path' to 'target_dtb_path'.
-       Returns True on successful compilation, False otherwise.
-   '''
+    """Compile a device tree source file.
+
+    Compile the device tree source file 'source_dts_path' to 'target_dtb_path'.
+    Returns True on successful compilation, False otherwise.
+    """
     opt_includes = []
     for include_dir in include_dirs:
         opt_includes.append("-I")

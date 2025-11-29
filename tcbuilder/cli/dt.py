@@ -27,7 +27,7 @@ MAX_DTB_FILE_SIZE = 1*1024*1024
 
 
 def do_dt_status(args):
-    '''Perform the 'dt status' command.'''
+    """Perform the 'dt status' command."""
 
     images_unpack_executed(args.storage_directory)
     if unpacked_image_type(args.storage_directory) == "raw":
@@ -43,7 +43,7 @@ def do_dt_status(args):
 
 
 def do_dt_checkout(args):
-    '''Perform the 'dt checkout' command.'''
+    """Perform the 'dt checkout' command."""
     storage_dir = os.path.abspath(args.storage_directory)
 
     images_unpack_executed(storage_dir)
@@ -73,7 +73,7 @@ def do_dt_checkout(args):
 
 
 def _abort_if_overlay(dts_path):
-    '''Abort operation if given device-tree source is an overlay'''
+    """Abort operation if given device-tree source is an overlay."""
     with open(dts_path, "r", encoding="utf-8") as fhandle:
         file_string = fhandle.read()
     match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
@@ -83,7 +83,7 @@ def _abort_if_overlay(dts_path):
 
 
 def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
-    '''Deploy the given DTB into a changes directory (non-FIT kernel case)'''
+    """Deploy the given DTB into a changes directory (non-FIT kernel case)."""
 
     dtb_target_dir = os.path.join(
         changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
@@ -93,7 +93,7 @@ def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
 
 
 def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
-    '''Deploy the given DTB into a changes directory (FIT kernel case)'''
+    """Deploy the given DTB into a changes directory (FIT kernel case)."""
 
     kernel_path = kernel_be.copy_kernel_to_changes_dir(changes_dir, storage_dir)
 
@@ -146,7 +146,7 @@ def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):
 
 
 def dt_apply(dts_path, storage_dir, include_dirs=None):
-    '''Perform the work of the 'dt apply' command.'''
+    """Perform the work of the 'dt apply' command."""
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
@@ -206,12 +206,12 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
 
 
 def do_dt_apply(args):
-    '''Perform the 'dt apply' command.'''
+    """Perform the 'dt apply' command."""
     dt_apply(args.dts_path, args.storage_directory, include_dirs=args.include_dirs)
 
 
 def init_parser(subparsers):
-    '''Initializes the 'dt' subcommands command line interface.'''
+    """Initializes the 'dt' subcommands command line interface."""
 
     parser = subparsers.add_parser(
         "dt",
