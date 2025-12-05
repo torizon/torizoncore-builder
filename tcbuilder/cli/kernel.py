@@ -9,14 +9,11 @@ import logging
 import tempfile
 import subprocess
 
-from tcbuilder.errors import PathNotExistError
-from tcbuilder.errors import FileContentMissing, InvalidDataError, FeatureNotImplementedError
-from tcbuilder.backend.common import (get_tar_compress_program_options,
-                                      images_unpack_executed,
-                                      unpacked_image_type,
-                                      get_branch_and_major_from_metadata,
-                                      find_kernel_in_sysroot,
-                                      is_file_type_fit)
+from tcbuilder.errors import \
+    (PathNotExistError, FileContentMissing, InvalidDataError, FeatureNotImplementedError)
+from tcbuilder.backend.common import \
+    (get_tar_compress_program_options, images_unpack_executed, unpacked_image_type,
+     get_branch_and_major_from_metadata, is_file_type_fit)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.cli import dto as dto_cli
 
@@ -58,7 +55,7 @@ def kernel_build_module(source_dir, storage_dir, autoload):
         raise InvalidDataError("Kernel customization is not supported for WIC/raw images. "
                                "Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Kernel customization is not supported for FIT format. "
                                          "Aborting.")
@@ -150,7 +147,7 @@ def kernel_set_custom_args(kernel_args, storage_dir):
         raise InvalidDataError("Kernel customization is not supported for WIC/raw images. "
                                "Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Kernel customization is not supported for FIT format. "
                                          "Aborting.")
@@ -200,7 +197,7 @@ def do_kernel_get_custom_args(args):
     if unpacked_image_type(args.storage_directory) == "raw":
         raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(args.storage_directory)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Command not supported for kernel in FIT format. "
                                          "Aborting.")
@@ -209,7 +206,7 @@ def do_kernel_get_custom_args(args):
     assert_custom_kargs_compat_image(args.storage_directory)
 
     # Check if the custom kernel args overlays is being applied.
-    applied_overlay_basenames = dto.get_applied_overlays_base_names(args.storage_directory)
+    applied_overlay_basenames = dto.get_applied_overlay_names(args.storage_directory)
     dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
     if dtob_basename not in applied_overlay_basenames:
         # No arguments set: nothing wrong with that.
@@ -243,7 +240,7 @@ def do_kernel_clear_custom_args(args):
         raise InvalidDataError("Kernel customization is not supported for WIC/raw images. "
                                "Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(args.storage_directory)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot(args.storage_directory)
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Kernel customization is not supported for FIT format. "
                                          "Aborting.")

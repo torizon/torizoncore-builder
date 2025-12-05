@@ -11,9 +11,10 @@ import logging
 import urllib.request
 
 from tcbuilder.backend import ostree
-from tcbuilder.backend.common import (get_tar_compress_program_options, progress,
-                                      set_output_ownership)
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.backend.common import \
+    (get_tar_compress_program_options, progress, set_output_ownership)
+from tcbuilder.errors import \
+    (TorizonCoreBuilderError, PathNotExistError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -23,10 +24,13 @@ IMAGE_MAJOR_TO_GCC_MAP = {
     7: "arm-gnu-toolchain-13.3.rel1"
 }
 
+OSTREE_KERNEL_FILENAME = "vmlinuz"
+OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
+KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
+
 
 def get_kernel_changes_dir(storage_dir):
     """Return directory containing kernel related changes"""
-
     return os.path.join(storage_dir, "kernel")
 
 
@@ -205,3 +209,85 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
     subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
     os.remove(tarball)
     log.info("Toolchain successfully unpacked.\n")
+
+
+def find_kernel_in_sysroot(storage_dir):
+    """
+    Find kernel binary path in the unpacked image sysroot. Raises an error if it cannot find it.
+
+    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
+    :returns: String with absolute path of the kernel binary inside sysroot.
+    """
+
+    sysroot_path = os.path.join(storage_dir, "sysroot")
+
+    # As the kernel path is composed of directories named after the deployment commit and the
+    # kernel version, get them via OSTree metadata.
+
+    sysroot_obj = ostree.load_sysroot(sysroot_path)
+
+    csum, _ = ostree.get_deployment_info_from_sysroot(sysroot_obj)
+    kernel_version = ostree.get_kernel_version(sysroot_obj.repo(), csum)
+
+    # Add deployment index part to checksum string, which is 0 for a new deployment
+    csum += ".0"
+
+    kernel_path = OSTREE_KERNEL_DEPLOY_PATH.format(csum=csum, kver=kernel_version)
+    kernel_path = os.path.join(sysroot_path, kernel_path, OSTREE_KERNEL_FILENAME)
+
+    if not os.path.isfile(kernel_path):
+        raise PathNotExistError("Kernel not found in unpacked rootfs. Aborting.")
+
+    return kernel_path
+
+
+def get_kernel_subdir(storage_dir):
+    """Get the versioned kernel directory.
+
+    Returns "usr/lib/modules/<kver>" where <kver> is determined
+    automatically. This is where the kernel binary is supposed to live.
+    """
+
+    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
+    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
+    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
+    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
+    return os.path.join("usr/lib/modules", kernel_version)
+
+
+def find_kernel_in_changes_dir(changes_dir, storage_dir, basename=None):
+    """Find path of kernel binary in the given changes directory."""
+
+    kernel_subdir = get_kernel_subdir(storage_dir)
+    kernel_src_dir = os.path.join(changes_dir, kernel_subdir)
+    kernel_src_path = os.path.join(kernel_src_dir, basename or OSTREE_KERNEL_FILENAME)
+    if os.path.exists(kernel_src_path):
+        log.debug("Kernel found at '%s'", kernel_src_path)
+    else:
+        log.debug("Kernel not found at '%s'", kernel_src_path)
+        return None
+
+    return kernel_src_path
+
+
+def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
+    """Copy kernel FIT image from sysroot to changes directory.
+
+    Find kernel in sysroot and copy it to the appropriate subdirectory in the
+    specified changes directory. The copy is done only if the kernel binary
+    does not yet exist in the destination.
+    """
+
+    kernel_subdir = get_kernel_subdir(storage_dir)
+    kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
+    kernel_tgt_path = os.path.join(kernel_tgt_dir, basename or OSTREE_KERNEL_FILENAME)
+    if not os.path.exists(kernel_tgt_path):
+        log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
+        os.makedirs(kernel_tgt_dir, exist_ok=True)
+        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
+        shutil.copy2(kernel_src_path, kernel_tgt_path)
+    else:
+        log.debug("Kernel already exists in '%s'", kernel_tgt_path)
+
+    return kernel_tgt_path

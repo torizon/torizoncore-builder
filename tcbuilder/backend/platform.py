@@ -686,7 +686,7 @@ def _apply_skopeo_canon_wkaround(tbdir, image_spec):
             raise TorizonCoreBuilderError(
                 f"Couldn't parse repositories metadata from '{tbdir}'")
 
-        log.debug("Transformed repositories data: {repos_data}")
+        log.debug(f"Transformed repositories data: {repos_data}")
 
         with open(repos_path, "w") as fhandle:
             json.dump(repos_data, fhandle, separators=(",", ":"))
@@ -916,7 +916,7 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
             if os.path.exists(image_fname):
                 # Sanity check: images in a Lockbox should be unique.
                 raise TorizonCoreBuilderError(
-                    "Container image file '{image_fname}' already exists")
+                    f"Container image file '{image_fname}' already exists")
 
             tar_generator = os.environ.get("LOCKBOX_TARBALL_GENERATOR", "skopeo")
             if tar_generator == "docker":

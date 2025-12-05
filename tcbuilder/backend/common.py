@@ -67,10 +67,6 @@ RAW_PROP_DEFAULTS = {
 #  https://devicetree-specification.readthedocs.io/en/stable/flattened-format.html
 FDT_HEADER_MAGIC = "d00dfeed"
 
-OSTREE_KERNEL_FILENAME = "vmlinuz"
-
-OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
-
 REMOTE_CMD_TIMEOUT = 90
 
 SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
@@ -904,47 +900,3 @@ def is_file_type_fit(file_path):
         raise TorizonCoreBuilderError(f"Error running fdtget: {exc.output.strip()}")
 
     return True
-
-
-def find_kernel_in_sysroot(storage_dir):
-    """
-    Find kernel binary path in the unpacked image sysroot. Raises an error if it cannot find it.
-
-    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
-    :returns: String with absolute path of the kernel binary inside sysroot.
-    """
-
-    sysroot_path = os.path.join(storage_dir, "sysroot")
-
-    # As the kernel path is composed of directories named after the deployment commit and the
-    # kernel version, get them via OSTree metadata.
-
-    sysroot_obj = ostree.load_sysroot(sysroot_path)
-
-    csum, _ = ostree.get_deployment_info_from_sysroot(sysroot_obj)
-    kernel_version = ostree.get_kernel_version(sysroot_obj.repo(), csum)
-
-    # Add deployment index part to checksum string, which is 0 for a new deployment
-    csum += ".0"
-
-    kernel_path = OSTREE_KERNEL_DEPLOY_PATH.format(csum=csum, kver=kernel_version)
-    kernel_path = os.path.join(sysroot_path, kernel_path, OSTREE_KERNEL_FILENAME)
-
-    if not os.path.isfile(kernel_path):
-        raise PathNotExistError("Kernel not found in unpacked rootfs. Aborting.")
-
-    return kernel_path
-
-
-def get_kernel_dir(storage_dir):
-    """Get the versioned kernel directory.
-
-    Returns "usr/lib/modules/<kver>" where <kver> is determined
-    automatically. This is where the kernel binary is supposed to live.
-    """
-
-    src_sysroot_dir = os.path.join(storage_dir, "sysroot")
-    src_sysroot = ostree.load_sysroot(src_sysroot_dir)
-    csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
-    kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
-    return os.path.join("usr/lib/modules", kernel_version)

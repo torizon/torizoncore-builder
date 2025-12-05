@@ -11,24 +11,23 @@ import tempfile
 import traceback
 
 from tcbuilder.backend import dt as dt_be
+from tcbuilder.backend import dto as dto_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, set_output_ownership, images_unpack_executed, update_dt_git_repo,
-     unpacked_image_type, find_kernel_in_sysroot, get_kernel_dir, is_file_type_fit,
-     OSTREE_KERNEL_FILENAME)
+     unpacked_image_type, is_file_type_fit)
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.errors import \
-    (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError, InvalidDataError)
+    (InvalidArgumentError, InvalidStateError, InvalidDataError, FeatureNotImplementedError,
+     TorizonCoreBuilderError)
 
 log = logging.getLogger("torizon." + __name__)
 
-KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
 MAX_DTB_FILE_SIZE = 1*1024*1024
-DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
 
 def do_dt_status(args):
-    '''Perform the 'dt status' command.'''
+    """Perform the 'dt status' command."""
 
     images_unpack_executed(args.storage_directory)
     if unpacked_image_type(args.storage_directory) == "raw":
@@ -44,10 +43,15 @@ def do_dt_status(args):
 
 
 def do_dt_checkout(args):
-    '''Perform the 'dt checkout' command.'''
+    """Perform the 'dt checkout' command."""
     storage_dir = os.path.abspath(args.storage_directory)
 
     images_unpack_executed(storage_dir)
+
+    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot(storage_dir)
+    if is_file_type_fit(unpacked_kernel_path):
+        raise FeatureNotImplementedError(
+            "Error: Command not supported for images with kernel in the FIT format.")
 
     # Retrieve the Toradex device-tree repository, if not already retrieved.
     try:
@@ -69,7 +73,7 @@ def do_dt_checkout(args):
 
 
 def _abort_if_overlay(dts_path):
-    '''Abort operation if given device-tree source is an overlay'''
+    """Abort operation if given device-tree source is an overlay."""
     with open(dts_path, "r", encoding="utf-8") as fhandle:
         file_string = fhandle.read()
     match = re.search(r'^\s*/plugin/\s*;', file_string, re.MULTILINE)
@@ -79,7 +83,7 @@ def _abort_if_overlay(dts_path):
 
 
 def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
-    '''Deploy the given DTB into a changes directory (non-FIT kernel case)'''
+    """Deploy the given DTB into a changes directory (non-FIT kernel case)."""
 
     dtb_target_dir = os.path.join(
         changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
@@ -88,44 +92,14 @@ def _deploy_dtb_nonfit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     shutil.move(dtb_src_path, dtb_tgt_path)
 
 
-def _get_dtb_prefix(storage_dir, defval=None):
-    uenv_path = dt_be.get_current_uenv_txt_path(storage_dir)
-    with open(uenv_path, "r", encoding="utf-8") as fhandle:
-        lines = fhandle.readlines()
-    res = None
-    for line in lines:
-        match = DTB_PREFIX_RE.search(line)
-        if match:
-            res = match.group(1)
-            break
-    if res is None and defval is None:
-        raise InvalidDataError(
-            "Cannot determine DTB prefix used inside FIT image from uEnv.txt")
-    if res is None:
-        res = defval
-    log.debug("Determined DTB prefix from uEnv.txt: '%s'", res)
-    return res
-
-
 def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
-    '''Deploy the given DTB into a changes directory (FIT kernel case)'''
+    """Deploy the given DTB into a changes directory (FIT kernel case)."""
 
-    # Copy kernel to changes directory when needed:
-    kernel_tgt_dir = os.path.join(changes_dir, get_kernel_dir(storage_dir))
-    kernel_tgt_path = os.path.join(kernel_tgt_dir, KERNEL_FIT_FILENAME)
-    if not os.path.exists(kernel_tgt_path):
-        log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
-        os.makedirs(kernel_tgt_dir, exist_ok=True)
-        kernel_src_path = find_kernel_in_sysroot(storage_dir)
-        log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
-        shutil.copy2(kernel_src_path, kernel_tgt_path)
-    else:
-        log.debug("Kernel already exists in '%s'", kernel_tgt_path)
-
-    dtb_prefix = _get_dtb_prefix(storage_dir)
+    kernel_path = kernel_be.copy_kernel_to_changes_dir(changes_dir, storage_dir)
 
     # Load kernel FIT into memory:
-    with open(kernel_tgt_path, "rb") as fhandle:
+    dtb_prefix = dt_be.get_kernelfit_dtb_prefix(storage_dir)
+    with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
 
     # Load DTB into memory:
@@ -140,7 +114,7 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
     fit.add_dtb(dtb_name, dtb_data)
 
     # Update kernel FIT image on disk.
-    with open(kernel_tgt_path, "wb") as fhandle:
+    with open(kernel_path, "wb") as fhandle:
         fit.write(fhandle)
 
 
@@ -167,16 +141,12 @@ def _deploy_updated_uenv_txt(*, fdtfile, changes_dir, storage_dir):
 
 def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):
     # Deploy an empty overlays config file, so any overlays from the base image are disabled.
-    log.info("warning: removing currently applied device tree overlays")
-    overlays_txt_dir = os.path.join(changes_dir, dt_be.get_dtb_kernel_subdir(storage_dir))
-    overlays_txt_path = os.path.join(overlays_txt_dir, "overlays.txt")
-    os.makedirs(overlays_txt_dir, exist_ok=True)
-    with open(overlays_txt_path, "w", encoding="utf-8") as fhandle:
-        fhandle.write("fdt_overlays=\n")
+    log.info("warning: removing currently applied device tree overlays.")
+    dto_be.set_applied_overlay_names([], changes_dir, storage_dir)
 
 
 def dt_apply(dts_path, storage_dir, include_dirs=None):
-    '''Perform the work of the 'dt apply' command.'''
+    """Perform the work of the 'dt apply' command."""
 
     images_unpack_executed(storage_dir)
     if unpacked_image_type(storage_dir) == "raw":
@@ -184,7 +154,7 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
             "Device tree customization is not supported for WIC/raw images. "
             "Aborting.")
 
-    unpacked_kernel_path = find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot(storage_dir)
     kernel_is_fit = is_file_type_fit(unpacked_kernel_path)
     log.debug(f"dt_apply: kernel_is_fit={kernel_is_fit}")
 
@@ -236,12 +206,12 @@ def dt_apply(dts_path, storage_dir, include_dirs=None):
 
 
 def do_dt_apply(args):
-    '''Perform the 'dt apply' command.'''
+    """Perform the 'dt apply' command."""
     dt_apply(args.dts_path, args.storage_directory, include_dirs=args.include_dirs)
 
 
 def init_parser(subparsers):
-    '''Initializes the 'dt' subcommands command line interface.'''
+    """Initializes the 'dt' subcommands command line interface."""
 
     parser = subparsers.add_parser(
         "dt",

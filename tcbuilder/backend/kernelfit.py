@@ -599,6 +599,36 @@ class KernelFit:
         _set_prop(self.fdt, "str",
                   conf_node_path, DEFAULT_DTB_PROP, conf_name)
 
+    def extract_dtb(self, file_name: str, *, overlay=False) -> bytearray:
+        """Extract the data of a DTB/DTBO entry.
+
+        :param file_name: Name of the DTB/DTBO file associated with the entry;
+            this name will be prefixed appropriately to determine the actual
+            entry names (configuration/image) to be searched.
+        :param overlay: True to indicate the entries relate to an overlay (DTBO)
+            rather than a plain device-tree.
+        :returns: Raw data as a bytearray.
+        """
+
+        # Check if the node corresponding to the file is present in the image.
+        dtb_list = self.get_dtb_list(overlay)
+        dtb_list_entry = None
+        for dle in dtb_list:
+            if file_name == dle["file_name"]:
+                dtb_list_entry = dle
+                break
+        if dtb_list_entry is None:
+            raise KernelFitException(
+                f"extract_dtb: Configuration node corresponding to '{file_name}' "
+                f"was not found in the FIT image.")
+
+        img_name = dtb_list_entry["image_name"]
+        img_data = _get_prop(
+            self.fdt,
+            self._get_std_node_path("image", img_name), DTB_IMAGE_DATA_PROP)
+        img_data = bytes(img_data)
+        return img_data
+
 
 # TODO: Consider creating unit tests.
 #
