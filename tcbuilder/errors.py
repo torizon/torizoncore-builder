@@ -110,3 +110,6 @@ class LicenceAcceptanceError(TorizonCoreBuilderError):
 
 class InvalidStorageDriverError(TorizonCoreBuilderError):
     pass
+
+class UnsupportedImageFeature(TorizonCoreBuilderError):
+    pass
