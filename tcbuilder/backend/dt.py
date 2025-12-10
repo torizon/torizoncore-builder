@@ -18,12 +18,15 @@ log = logging.getLogger("torizon." + __name__)
 
 DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
+BACKSLASH_SPC_RE = re.compile(r"\\\s*$")
+
 
 def get_dt_changes_dir(storage_dir):
     """Returns the directory that contains external device tree related changes."""
     return os.path.join(storage_dir, "dt")
 
 
+# TODO: Consider moving the various "uenv" functions to a separate module (other than common).
 def get_current_uenv_txt_path(storage_dir):
     """Get the path to the currently applied uEnv.txt, the bootloader environment file."""
 
@@ -55,6 +58,118 @@ def get_current_uenv_txt_path(storage_dir):
     log.debug(f"Found uEnv.txt in deployment: '{dpath}'")
 
     return dpath
+
+
+def set_uenv_txt_variable(var_name, var_value, *,
+                          changes_dir, storage_dir, append=False):
+    """Set/clear a variable in uEnv.txt storing the modified file in the changes directory.
+
+    :param var_name: Name of the variable.
+    :param var_value: Value of the variable; if None is passed, the variable
+        will be cleared (removed from the file).
+    :param changes_dir: Path to changes directory.
+    :param storage_dir: Path to storage directory.
+    :param append: If False (default), the new variable assignment is added at
+        the beginning of the uEnv.txt file; otherwise, it's added at its end.
+    :returns: True if the variable existed in uEnv.txt; False, otherwise."""
+
+    # Load original file:
+    uenv_src_path = get_current_uenv_txt_path(storage_dir)
+    with open(uenv_src_path, "r", encoding="utf-8") as fhandle:
+        lines = fhandle.readlines()
+
+    # Status indicates that the variable was set before.
+    status = False
+
+    # Drop lines assigning to the desired variable (lines may be continued by
+    # a backslash at the end):
+    ign_cont = False
+    new_lines = []
+    for line in lines:
+        if ign_cont:
+            if not BACKSLASH_SPC_RE.search(line):
+                ign_cont = False
+        elif line.startswith(f"{var_name}="):
+            status = True
+            if BACKSLASH_SPC_RE.search(line):
+                ign_cont = True
+        else:
+            new_lines.append(line)
+
+    if var_value is None:
+        # Variable is being deleted.
+        pass
+    elif append:
+        # Add assignment as the last line.
+        assgn_str = f"{var_name}={var_value}\n"
+        new_lines.append(assgn_str)
+    else:
+        # Add assignment as the first line.
+        assgn_str = f"{var_name}={var_value}\n"
+        new_lines.insert(0, assgn_str)
+
+    # Save modified version of the file:
+    uenv_target_dir = os.path.join(changes_dir, "usr", "lib", "ostree-boot")
+    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
+    os.makedirs(uenv_target_dir, exist_ok=True)
+    with open(uenv_target_path, "w", encoding="utf-8") as fhandle:
+        fhandle.writelines(new_lines)
+
+    return status
+
+
+def get_uenv_txt_variable(var_name, *, storage_dir, drop_cont=False):
+    """Get a variable from the current uEnv.txt.
+
+    By default, if the variable setting in uEnv.txt was split into multiple-lines
+    in the source file, the returned value will be a string with embedded new-line
+    characters including the backslash at end of each line indicating the line
+    continuation. This behavior can be changed by 'drop_cont'.
+
+    :param var_name: Name of the variable.
+    :param storage_dir: Path to the storage directory.
+    :param drop_cont: Drop the continuaton string at the end of the lines
+        effectively joining all lines together.
+
+    """
+
+    # Load original file:
+    uenv_src_path = get_current_uenv_txt_path(storage_dir)
+    with open(uenv_src_path, "r", encoding="utf-8") as fhandle:
+        lines = fhandle.readlines()
+
+    assgn_str = f"{var_name}="
+    var_value = None
+
+    # Find the assignment (handling the multi-line case); in case of multiple
+    # assignments get the value of the last one:
+    cont = False
+    for line in lines:
+        if cont:
+            var_value.append(line)
+            if not BACKSLASH_SPC_RE.search(line):
+                cont = False
+        elif line.startswith(assgn_str):
+            var_value = []
+            var_value.append(line[len(assgn_str):])
+            if BACKSLASH_SPC_RE.search(line):
+                cont = True
+
+    # Drop the continuation string from all intermediate lines:
+    if var_value and drop_cont:
+        for _idx, _val in enumerate(var_value[:-1]):
+            var_value[_idx] = _val[:_val.rindex("\\")]
+
+    # Drop the newline character of the last line:
+    if var_value:
+        if "\n" in var_value[-1]:
+            _val = var_value[-1]
+            var_value[-1] = _val[:_val.rindex("\n")]
+
+    if var_value is not None:
+        var_value = "".join(var_value)
+
+    return var_value
 
 
 def get_uboot_initial_env_path(storage_dir):
