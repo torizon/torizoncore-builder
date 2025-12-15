@@ -38,11 +38,11 @@ SET_BOOTARGS_TORIZON_RE = r'^\s*set_bootargs_torizon='
 
 
 def get_kernel_changes_dir(storage_dir):
-    """Return directory containing kernel related changes"""
+    """Return directory containing kernel related changes."""
     return os.path.join(storage_dir, "kernel")
 
 
-def get_kernel_version(linux_src):
+def _kernel_version_from_source(linux_src):
     """Return dictionary with kernel major, minor and revision from source."""
 
     kernel_release_file = os.path.join(linux_src, "include/config/kernel.release")
@@ -57,12 +57,9 @@ def get_kernel_version(linux_src):
     return None
 
 
-# pylint: disable=too-many-locals
-def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
-                 src_ostree_archive_dir, mod_path, kernel_changes_dir):
-    """Build kernel module from source"""
+def _kernel_arch_from_source(linux_src):
+    """Determine ARCH based on linux source."""
 
-    # Figure out ARCH based on linux source
     config = os.path.join(linux_src, ".config")
     with open(config, 'r') as file:
         config_lines = file.read()
@@ -74,27 +71,13 @@ def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
     else:
         assert False, "Architecture could not be determined from .config"
 
-    version_gcc = IMAGE_MAJOR_TO_GCC_MAP.get(image_major_version)
+    return arch
 
-    assert version_gcc, "Unable to determine the GCC toolchain version"
 
-    # Set CROSS_COMPILE and toolchain based on ARCH
-    toolchain_path = os.path.join(os.path.dirname(linux_src), "toolchain")
-    if arch == "arm":
-        c_c = "arm-none-linux-gnueabihf-"
-        toolchain = os.path.join(toolchain_path,
-                                 f"{version_gcc}-x86_64-arm-none-linux-gnueabihf/bin")
-    if arch == "arm64":
-        c_c = "aarch64-none-linux-gnu-"
-        toolchain = os.path.join(toolchain_path,
-                                 f"{version_gcc}-x86_64-aarch64-none-linux-gnu/bin")
+def _amend_makefile(linux_src):
+    """Amend the Linux kernel Makefile to allow building out-of-tree."""
 
-    # Download toolchain if needed
-    if not os.path.exists(toolchain):
-        download_toolchain(c_c, toolchain_path, version_gcc)
-
-    kversion = get_kernel_version(linux_src)
-
+    kversion = _kernel_version_from_source(linux_src)
     if kversion is None:
         raise TorizonCoreBuilderError(
             "Could not determine kernel version of unpacked image. Aborting.")
@@ -106,73 +89,101 @@ def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
             ["sed", "-i", _pattern, f"{linux_src}/Makefile"],
             stderr=subprocess.STDOUT)
 
-    env_path = {
+
+def _get_toolchain(image_major_version, linux_src):
+    arch = _kernel_arch_from_source(linux_src)
+    version_gcc = IMAGE_MAJOR_TO_GCC_MAP.get(image_major_version)
+    assert version_gcc, "Unable to determine the GCC toolchain version"
+
+    # Set CROSS_COMPILE and toolchain based on ARCH
+    toolchain_path = os.path.join(os.path.dirname(linux_src), "toolchain")
+    if arch == "arm":
+        c_c = "arm-none-linux-gnueabihf-"
+        toolchain = os.path.join(
+            toolchain_path, f"{version_gcc}-x86_64-arm-none-linux-gnueabihf/bin")
+    elif arch == "arm64":
+        c_c = "aarch64-none-linux-gnu-"
+        toolchain = os.path.join(
+            toolchain_path, f"{version_gcc}-x86_64-aarch64-none-linux-gnu/bin")
+    else:
+        assert False, "build_module: Unhandled architecture"
+
+    # Download toolchain if needed
+    if not os.path.exists(toolchain):
+        download_toolchain(c_c, toolchain_path, version_gcc)
+
+    return (toolchain, arch, c_c)
+
+
+def _prep_linux_src_for_modules_install(src_ostree_archive_dir, linux_src):
+    """Prepare linux source for modules_install."""
+
+    # TODO: Consider not relying on OSTree / get the version from the map file itself.
+    # Get kernel version for future operations
+    repo = ostree.open_ostree(src_ostree_archive_dir)
+    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+    shutil.copyfile(
+        os.path.join(linux_src, f"System.map-{kernel_version}"),
+        os.path.join(linux_src, "System.map"))
+    release_file = os.path.join(linux_src, "include/config/kernel.release")
+    with open(release_file, "w") as file:
+        file.write(kernel_version)
+
+
+def _copy_mod_dir_to_mod_path(src_mod_dir, mod_path):
+    subprocess.check_output(
+        ["cp", "-r", *glob.glob(f"{src_mod_dir}/*"), mod_path],
+        stderr=subprocess.STDOUT)
+    shutil.rmtree(os.path.join(mod_path, "dtb"))
+
+
+def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
+                 src_ostree_archive_dir, mod_path, kernel_changes_dir):
+    """Build kernel module from source."""
+
+    (toolchain, arch, c_c) = _get_toolchain(image_major_version, linux_src)
+    _amend_makefile(linux_src)
+
+    env_vars = {
         **os.environ.copy(),
         "PATH": f"{os.environ['PATH']}:{toolchain}",
+        "KERNEL_SRC": linux_src,
+        "KDIR": linux_src
     }
 
     # Run modules_prepare on kernel source
-    cmd = [
-        "make", "-C", linux_src,
-        f"ARCH={arch}",
-        f"CROSS_COMPILE={c_c}",
-        "modules_prepare",
-    ]
-    subprocess.check_output(cmd, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT, env=env_path)
+    subprocess.check_output(
+        ["make", "-C", linux_src, f"ARCH={arch}", f"CROSS_COMPILE={c_c}", "modules_prepare"],
+        env=env_vars, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
-    # Build kernel module source
+    # Build kernel module in the source directory
     try:
-        extra_env = {
-            **env_path,
-            "KERNEL_SRC": linux_src,
-            "KDIR": linux_src,
-        }
-        cmd = [
-            "make", "-C", src_dir,
-            f"CROSS_COMPILE={c_c}",
-            f"ARCH={arch}",
-        ]
-        subprocess.run(cmd, stderr=subprocess.STDOUT, check=True, env=extra_env)
+        subprocess.run(
+            ["make", "-C", src_dir, f"CROSS_COMPILE={c_c}", f"ARCH={arch}"],
+            env=env_vars, stderr=subprocess.STDOUT, check=True)
         print()
     except subprocess.CalledProcessError as exc:
         raise TorizonCoreBuilderError(f"Error building kernel module(s): {exc}") from exc
     finally:
         set_output_ownership(src_dir)
 
-    # Get kernel version for future operations
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-
-    # Prepare linux source for modules_install
-    map_file = os.path.join(linux_src, f"System.map-{kernel_version}")
-    dest = os.path.join(linux_src, "System.map")
-    shutil.copyfile(map_file, dest)
-    release_file = os.path.join(linux_src, "include/config/kernel.release")
-    with open(release_file, 'w') as file:
-        file.write(kernel_version)
+    # Amend some files to allow proper installation
+    _prep_linux_src_for_modules_install(src_ostree_archive_dir, linux_src)
 
     # Copy source module directory to changes directory
-    install_path = os.path.join(kernel_changes_dir, "usr")
-    subprocess.check_output(["cp", "-r", *glob.glob(f"{src_mod_dir}/*"), mod_path],
-                            stderr=subprocess.STDOUT)
-    shutil.rmtree(os.path.join(mod_path, "dtb"))
+    _copy_mod_dir_to_mod_path(src_mod_dir, mod_path)
 
     # Install modules with modules_install
-    cmd = [
-        "make", "-C", linux_src,
-        f"ARCH={arch}",
-        f"CROSS_COMPILE={c_c}",
-        f"M={src_dir}",
-        f"INSTALL_MOD_PATH={install_path}",
-        "INSTALL_MOD_DIR=updates",
-        "modules_install",
-    ]
-    subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env_path)
+    install_path = os.path.join(kernel_changes_dir, "usr")
+    subprocess.check_output(
+        ["make", "-C", linux_src,
+         f"ARCH={arch}", f"CROSS_COMPILE={c_c}",
+         f"M={src_dir}", f"INSTALL_MOD_PATH={install_path}",
+         "INSTALL_MOD_DIR=updates", "modules_install"],
+        env=env_vars, stderr=subprocess.STDOUT)
 
     # Cleanup kernel source
     shutil.rmtree(linux_src)
-
-# pylint: enable=too-many-locals
 
 
 def autoload_module(module, kernel_changes_dir):
