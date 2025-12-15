@@ -10,7 +10,7 @@ import shutil
 import logging
 import urllib.request
 
-from tcbuilder.backend import ostree
+from tcbuilder.backend import ostree, dt
 from tcbuilder.backend.common import \
     (get_tar_compress_program_options, progress, set_output_ownership)
 from tcbuilder.errors import \
@@ -27,6 +27,14 @@ IMAGE_MAJOR_TO_GCC_MAP = {
 OSTREE_KERNEL_FILENAME = "vmlinuz"
 OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
 KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
+
+# Name of the "function" in uEnv.txt responsible for handling boot arguments
+# passed by means of an overlay.
+SET_BOOTARGS_CUSTOM_RE = r'^\s*set_bootargs_custom='
+
+# Name of the "function" in uEnv.txt responsible for handling boot arguments
+# passed as variables in uEnv.txt.
+SET_BOOTARGS_TORIZON_RE = r'^\s*set_bootargs_torizon='
 
 
 def get_kernel_changes_dir(storage_dir):
@@ -235,7 +243,9 @@ def find_kernel_in_sysroot(storage_dir):
     kernel_path = OSTREE_KERNEL_DEPLOY_PATH.format(csum=csum, kver=kernel_version)
     kernel_path = os.path.join(sysroot_path, kernel_path, OSTREE_KERNEL_FILENAME)
 
-    if not os.path.isfile(kernel_path):
+    if os.path.isfile(kernel_path):
+        log.debug("Kernel found at '%s'", kernel_path)
+    else:
         raise PathNotExistError("Kernel not found in unpacked rootfs. Aborting.")
 
     return kernel_path
@@ -261,7 +271,7 @@ def find_kernel_in_changes_dir(changes_dir, storage_dir, basename=None):
     kernel_subdir = get_kernel_subdir(storage_dir)
     kernel_src_dir = os.path.join(changes_dir, kernel_subdir)
     kernel_src_path = os.path.join(kernel_src_dir, basename or OSTREE_KERNEL_FILENAME)
-    if os.path.exists(kernel_src_path):
+    if os.path.isfile(kernel_src_path):
         log.debug("Kernel found at '%s'", kernel_src_path)
     else:
         log.debug("Kernel not found at '%s'", kernel_src_path)
@@ -281,7 +291,7 @@ def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
     kernel_subdir = get_kernel_subdir(storage_dir)
     kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
     kernel_tgt_path = os.path.join(kernel_tgt_dir, basename or OSTREE_KERNEL_FILENAME)
-    if not os.path.exists(kernel_tgt_path):
+    if not os.path.isfile(kernel_tgt_path):
         log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
         os.makedirs(kernel_tgt_dir, exist_ok=True)
         kernel_src_path = find_kernel_in_sysroot(storage_dir)
@@ -291,3 +301,21 @@ def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
         log.debug("Kernel already exists in '%s'", kernel_tgt_path)
 
     return kernel_tgt_path
+
+
+def get_supported_bootargs_methods(storage_dir):
+    """Determine the set of bootargs passing methods supported by the current image."""
+
+    uenv_txt_path = dt.get_current_uenv_txt_path(storage_dir)
+    method_re = {
+        "overlay": re.compile(SET_BOOTARGS_CUSTOM_RE),
+        "uenv": re.compile(SET_BOOTARGS_TORIZON_RE)
+    }
+    found_methods = set()
+    with open(uenv_txt_path, "r") as fhandle:
+        for line in fhandle:
+            for meth, regex in method_re.items():
+                if regex.match(line):
+                    found_methods.add(meth)
+    log.debug("Supported bootargs passing methods: %s", str(found_methods))
+    return found_methods

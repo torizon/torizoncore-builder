@@ -119,24 +119,9 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir, storage_dir):
 
 
 def _deploy_updated_uenv_txt(*, fdtfile, changes_dir, storage_dir):
-    # Load original file:
-    uenv_src_path = dt_be.get_current_uenv_txt_path(storage_dir)
-    with open(uenv_src_path, "r", encoding="utf-8") as fhandle:
-        lines = fhandle.readlines()
-    # Drop lines assigning to the desired variable:
-    var_name = "fdtfile"
-    new_lines = []
-    for line in lines:
-        if not line.startswith(f"{var_name}="):
-            new_lines.append(line)
-    # Add assignment as the first line.
-    new_lines.insert(0, f"{var_name}={fdtfile}\n")
-    # Save modified version of the file:
-    uenv_target_dir = os.path.join(changes_dir, "usr", "lib", "ostree-boot")
-    uenv_target_path = os.path.join(uenv_target_dir, "uEnv.txt")
-    os.makedirs(uenv_target_dir, exist_ok=True)
-    with open(uenv_target_path, "w", encoding="utf-8") as fhandle:
-        fhandle.writelines(new_lines)
+    dt_be.set_uenv_txt_variable(
+        "fdtfile", fdtfile,
+        changes_dir=changes_dir, storage_dir=storage_dir)
 
 
 def _deploy_empty_overlays_txt(*, changes_dir, storage_dir):

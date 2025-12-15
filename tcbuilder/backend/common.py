@@ -754,6 +754,16 @@ def unpacked_image_type(storage_dir):
     return "raw"
 
 
+def fail_on_raw_image(storage_dir, message):
+    """Throw error if the unpacked image is of type WIC/raw.
+
+    :param storage_dir: Path to storage directory.
+    :param message: Message string for exception to be thrown.
+    """
+    if unpacked_image_type(storage_dir) == "raw":
+        raise InvalidDataError(message)
+
+
 def get_own_network():
     """ Determine Network mode of current tcb container
     Given the host `docker_client`. This function returns

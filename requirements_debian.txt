@@ -6,4 +6,4 @@ pyyaml==5.3.1
 requests-oauthlib==1.3.0
 debugpy==1.8.7
 fabric==3.2.2
-pylibfdt==1.7.2
+pylibfdt==1.7.2.post1
