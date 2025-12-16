@@ -60,40 +60,40 @@ is_uenv_kargs_passing_supported() {
     local README="README.md"
     local SRC_DIR="source_dir"
 
-    mkdir -p $SRC_DIR
-    cp $SAMPLES_DIR/kernel/$MOD_FILE.c $SRC_DIR
-    cp $SAMPLES_DIR/kernel/$MAKEFILE $SRC_DIR
-    cp $SAMPLES_DIR/kernel/$README $SRC_DIR
+    mkdir -p "${SRC_DIR}"
+    cp "${SAMPLES_DIR}/kernel/${MOD_FILE}.c" "${SRC_DIR}"
+    cp "${SAMPLES_DIR}/kernel/${MAKEFILE}" "${SRC_DIR}"
+    cp "${SAMPLES_DIR}/kernel/${README}" "${SRC_DIR}"
 
-    torizoncore-builder-shell "chown 10:20 $SRC_DIR/$README"
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder-shell "chown 10:20 ${SRC_DIR}/${README}"
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
-    run torizoncore-builder kernel build_module $SRC_DIR
+    run torizoncore-builder kernel build_module "${SRC_DIR}"
     assert_success
 
-    run ls -ld $SRC_DIR/$MOD_FILE.ko
+    run ls -ld "${SRC_DIR}/${MOD_FILE}.ko"
     assert_success
 
     # Check files ownership as work dir
-    check-file-ownership-as-workdir $SRC_DIR/$MOD_FILE.c
-    check-file-ownership-as-workdir $SRC_DIR/$MOD_FILE.o
-    check-file-ownership-as-workdir $SRC_DIR/$MOD_FILE.ko
-    check-file-ownership-as-workdir $SRC_DIR/$MAKEFILE
+    check-file-ownership-as-workdir "${SRC_DIR}/${MOD_FILE}.c"
+    check-file-ownership-as-workdir "${SRC_DIR}/${MOD_FILE}.o"
+    check-file-ownership-as-workdir "${SRC_DIR}/${MOD_FILE}.ko"
+    check-file-ownership-as-workdir "${SRC_DIR}/${MAKEFILE}"
 
     # Check file with ownership not as "root:root"
-    run ls -dln $SRC_DIR/$README
+    run ls -dln "${SRC_DIR}/${README}"
     assert_output --regexp '[ \t]+1[ \t]+10[ \t]+20[ \t]+0'
 
-    torizoncore-builder-shell "rm -rf $SRC_DIR"
+    torizoncore-builder-shell "rm -rf ${SRC_DIR}"
 }
 
 @test "kernel build_module: run without images unpack" {
     torizoncore-builder-clean-storage
 
     local SRC_DIR="source_dir"
-    mkdir -p $SRC_DIR
+    mkdir -p "${SRC_DIR}"
 
-    run torizoncore-builder kernel build_module $SRC_DIR
+    run torizoncore-builder kernel build_module "${SRC_DIR}"
     assert_failure
     assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
     assert_output --partial "Please use the 'images' command to unpack an image before running this command."
@@ -129,7 +129,7 @@ is_uenv_kargs_passing_supported() {
     assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
     assert_output --partial "Please use the 'images' command to unpack an image before running this command"
 
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
     run torizoncore-builder kernel set_custom_args ""
     assert_failure
@@ -137,15 +137,19 @@ is_uenv_kargs_passing_supported() {
 }
 
 @test "kernel {set,get,clear}_custom_args: check unsupported bootargs passing" {
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    local uenv_path
+    local ovl_kargs_supported
+    local uenv_kargs_supported
 
     # Find uEnv.txt in storage:
-    local uenv_path=$(find_uenv_txt_in_sysroot)
+    uenv_path=$(find_uenv_txt_in_sysroot)
     # Determine the supported bootargs passing methods:
-    local ovl_kargs_supported=$(is_ovl_kargs_passing_supported "${uenv_path}" \
-                                && echo "1" || echo "0")
-    local uenv_kargs_supported=$(is_uenv_kargs_passing_supported "${uenv_path}" \
-                                 && echo "1" || echo "0")
+    ovl_kargs_supported=$(is_ovl_kargs_passing_supported "${uenv_path}" \
+                          && echo "1" || echo "0")
+    uenv_kargs_supported=$(is_uenv_kargs_passing_supported "${uenv_path}" \
+                           && echo "1" || echo "0")
     # Show result (for debug):
     echo "ovl_kargs_supported=${ovl_kargs_supported}"
     echo "uenv_kargs_supported=${uenv_kargs_supported}"
@@ -211,15 +215,19 @@ is_uenv_kargs_passing_supported() {
 }
 
 @test "kernel {set,get,clear}_custom_args: check success cases" {
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    local uenv_path
+    local ovl_kargs_supported
+    local uenv_kargs_supported
 
     # Find uEnv.txt in storage:
-    local uenv_path=$(find_uenv_txt_in_sysroot)
+    uenv_path=$(find_uenv_txt_in_sysroot)
     # Determine the supported bootargs passing methods:
-    local ovl_kargs_supported=$(is_ovl_kargs_passing_supported "${uenv_path}" \
-                                && echo "1" || echo "0")
-    local uenv_kargs_supported=$(is_uenv_kargs_passing_supported "${uenv_path}" \
-                                 && echo "1" || echo "0")
+    ovl_kargs_supported=$(is_ovl_kargs_passing_supported "${uenv_path}" \
+                          && echo "1" || echo "0")
+    uenv_kargs_supported=$(is_uenv_kargs_passing_supported "${uenv_path}" \
+                           && echo "1" || echo "0")
     # Show result (for debug):
     echo "ovl_kargs_supported=${ovl_kargs_supported}"
     echo "uenv_kargs_supported=${uenv_kargs_supported}"
@@ -238,7 +246,8 @@ is_uenv_kargs_passing_supported() {
         assert_output --partial "Clearing bootargs (overlay method)"
 
         # Check uEnv.txt to see if the arguments were actually set.
-        local uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
+        local uenv_path_chgsdir
+        uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
         echo "Checking contents of '${uenv_path_chgsdir}'."
         run torizoncore-builder-shell "grep -e '^torizon_boot_args=arg1=val1 arg2=val2' ${uenv_path_chgsdir}"
         assert_success
@@ -302,7 +311,8 @@ is_uenv_kargs_passing_supported() {
         assert_output --partial "Clearing bootargs (uenv method)"
 
         # Check uEnv.txt to see if the arguments variable was removed.
-        local uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
+        local uenv_path_chgsdir
+        uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
         echo "Checking contents of '${uenv_path_chgsdir}'."
         run torizoncore-builder-shell "grep -e '^torizon_boot_args=' ${uenv_path_chgsdir}"
         assert_failure
