@@ -215,9 +215,21 @@ def autoload_module(module, kernel_changes_dir):
     os.makedirs(conf_dir, exist_ok=True)
     module_name = os.path.splitext(os.path.basename(os.path.normpath(module)))[0]
 
+    # Load the modules-load configuration file if one already exists and drop
+    # lines listing the module being added.
     conf_file = os.path.join(conf_dir, "tcb.conf")
-    with open(conf_file, 'a') as file:
-        file.write(f"{module_name} \n")
+    conf_lines = []
+    if os.path.isfile(conf_file):
+        with open(conf_file, "r", encoding="utf-8") as cnfh:
+            conf_lines_ = cnfh.readlines()
+            conf_lines = [
+                _line for _line in conf_lines_ if _line.strip() != module_name
+            ]
+
+    # Add the new module line at the end:
+    conf_lines.append(f"{module_name}\n")
+    with open(conf_file, "w", encoding="utf-8") as cnfh:
+        cnfh.writelines(conf_lines)
 
 
 def download_toolchain(toolchain, toolchain_path, version_gcc):
