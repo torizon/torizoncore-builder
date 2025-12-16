@@ -11,8 +11,7 @@ import subprocess
 
 import libfdt
 from tcbuilder.errors import \
-    (FileContentMissing, FeatureNotImplementedError, InvalidDataError,
-     PathNotExistError, UnsupportedImageFeature)
+    (FileContentMissing, InvalidDataError, PathNotExistError, UnsupportedImageFeature)
 from tcbuilder.backend.common import \
     (fail_on_raw_image, is_file_type_fit, get_branch_and_major_from_metadata,
      get_tar_compress_program_options, images_unpack_executed)
@@ -124,11 +123,6 @@ def kernel_build_module(source_dir, storage_dir, autoload):
 
     images_unpack_executed(storage_dir)
     fail_on_raw_image(storage_dir, MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
-
-    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
-    if is_file_type_fit(unpacked_kernel_path):
-        raise FeatureNotImplementedError("Kernel customization is not supported for FIT format. "
-                                         "Aborting.")
 
     # Check for valid Makefile
     if not os.path.isdir(source_dir):

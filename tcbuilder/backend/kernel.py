@@ -2,12 +2,11 @@
 Backend functions and functionality for all kernel commands
 """
 
-import glob
-import subprocess
+import logging
 import os
 import re
 import shutil
-import logging
+import subprocess
 import urllib.request
 
 from tcbuilder.backend import ostree, dt
@@ -35,6 +34,11 @@ SET_BOOTARGS_CUSTOM_RE = r'^\s*set_bootargs_custom='
 # Name of the "function" in uEnv.txt responsible for handling boot arguments
 # passed as variables in uEnv.txt.
 SET_BOOTARGS_TORIZON_RE = r'^\s*set_bootargs_torizon='
+
+# List of files/directories under usr/lib/modules/<kver>/ which should not be
+# copied from sysroot to the changes directory when preparing the latter for
+# building modules.
+MOD_DIR_COPY_EXCLUDE_SET = {"dtb"}
 
 
 def get_kernel_changes_dir(storage_dir):
@@ -131,10 +135,28 @@ def _prep_linux_src_for_modules_install(src_ostree_archive_dir, linux_src):
 
 
 def _copy_mod_dir_to_mod_path(src_mod_dir, mod_path):
+    """Copy modules directory to modules path.
+
+    The source directory is supposed to be in the sysroot and, the target, in a
+    "changes" directory. The entries listed in MOD_DIR_COPY_EXCLUDE_SET will be
+    excluded from the copy. Also, files already in the destination, will not be
+    replaced.
+    """
+
+    all_entries = os.listdir(src_mod_dir)
+    flt_entries = [
+        _entry for _entry in all_entries if _entry not in MOD_DIR_COPY_EXCLUDE_SET
+    ]
+    flt_entries_with_path = [
+        os.path.join(src_mod_dir, _entry) for _entry in flt_entries
+    ]
+
+    # Copy files to MOD_PATH; notice the "-n" flag that prevents the overwriting of
+    # files; this is important to keep any other files that might be present at the
+    # destination due to previous customizations.
     subprocess.check_output(
-        ["cp", "-r", *glob.glob(f"{src_mod_dir}/*"), mod_path],
+        ["cp", "-r", "-n", *flt_entries_with_path, mod_path],
         stderr=subprocess.STDOUT)
-    shutil.rmtree(os.path.join(mod_path, "dtb"))
 
 
 def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
