@@ -810,7 +810,8 @@ def do_build(args):
         sys.exit(3)
 
     except (TorizonCoreBuilderError, TeziError) as exc:
-        exc.msg = "Error: " + exc.msg
+        if exc.msg and not exc.msg.lower().startswith("error:"):
+            exc.msg = "Error: " + exc.msg
         raise exc
 
 
