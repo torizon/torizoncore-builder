@@ -190,9 +190,6 @@ def handle_customization_section(props, storage_dir=None):
 
     assert storage_dir is not None, "Parameter `storage_dir` must be passed"
 
-    if "secboot" in props:
-        handle_secboot_customization(props["secboot"], storage_dir=storage_dir)
-
     if "splash-screen" in props:
         log.info(l2_pref("Setting splash screen"))
         splash_cli.splash(props["splash-screen"], storage_dir=storage_dir)
@@ -202,6 +199,9 @@ def handle_customization_section(props, storage_dir=None):
 
     if "kernel" in props:
         handle_kernel_customization(props["kernel"], storage_dir=storage_dir)
+
+    if "secboot" in props:
+        handle_secboot_customization(props["secboot"], storage_dir=storage_dir)
 
     # Filesystem changes are actually handled as part of the output processing.
     fs_changes = props.get("filesystem")
