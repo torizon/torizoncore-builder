@@ -250,7 +250,7 @@ teardown_file() {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
 
     local OUTDIR='fully_customized_image'
-    run torizoncore-builder build \
+    run torizoncore-builder --log-level debug build \
         --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" --force
@@ -258,7 +258,16 @@ teardown_file() {
     assert_success
     assert_output --partial 'splash screen merged'
     assert_output --partial 'Overlay sample_overlay.dtbo successfully applied.'
-    assert_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+    local bootargs_methods="$(echo $output | sed -nE 's#^.*Supported bootargs passing methods: (.*)$#\1#p')"
+    case "$bootargs_methods" in
+    *uenv*)
+        # TCB selects the uEnv method to apply kargs if available, so this message shouldn't appear
+        refute_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+        ;;
+    *overlay*)
+        assert_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+        ;;
+    esac
     assert_output --partial \
         'Kernel custom arguments successfully configured with "key1=val1 key2=val2".'
     assert_output --partial 'Deploying commit ref: my-dev-branch'
@@ -286,10 +295,15 @@ teardown_file() {
     run torizoncore-builder-shell \
         "ostree --repo=$ARCHIVE cat $COMMIT $OVFILE_FULL"
     assert_output --partial 'sample_overlay.dtbo'
-
-    # Check customization/kernel/arguments prop (presence of overlay only):
-    assert_output --partial 'custom-kargs_overlay.dtbo'
-
+    case "$bootargs_methods" in
+    *uenv*)
+        refute_output --partial 'custom-kargs_overlay.dtbo'
+        ;;
+    *overlay*)
+        # Check customization/kernel/arguments prop (presence of overlay only):
+        assert_output --partial 'custom-kargs_overlay.dtbo'
+        ;;
+    esac
     # Check output/ostree/commit-{subject,body} props:
     run torizoncore-builder-shell "ostree --repo=$ARCHIVE log $COMMIT"
     assert_output --partial 'full-customization subject'
@@ -334,7 +348,7 @@ teardown_file() {
     requires-device
 
     local OUTDIR='fully_customized_image'
-    run torizoncore-builder build \
+    run torizoncore-builder --log-level debug build \
         --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" --force
@@ -342,7 +356,16 @@ teardown_file() {
     assert_success
     assert_output --partial 'splash screen merged'
     assert_output --partial 'Overlay sample_overlay.dtbo successfully applied.'
-    assert_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+    local bootargs_methods="$(echo $output | sed -nE 's#^.*Supported bootargs passing methods: (.*)$#\1#p')"
+    case "$bootargs_methods" in
+    *uenv*)
+        # TCB selects the uEnv method to apply kargs if available, so this message shouldn't appear
+        refute_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+        ;;
+    *overlay*)
+        assert_output --partial 'Overlay custom-kargs_overlay.dtbo successfully applied.'
+        ;;
+    esac
     assert_output --partial \
         'Kernel custom arguments successfully configured with "key1=val1 key2=val2".'
     assert_output --partial 'Deploying commit ref: my-dev-branch'
@@ -385,8 +408,15 @@ teardown_file() {
     assert_success
     assert_output --partial 'sample_overlay.dtbo'
 
-    # Check customization/kernel/arguments prop (presence of overlay only):
-    assert_output --partial 'custom-kargs_overlay.dtbo'
+    case "$bootargs_methods" in
+    *uenv*)
+        refute_output --partial 'custom-kargs_overlay.dtbo'
+        ;;
+    *overlay*)
+        # Check customization/kernel/arguments prop (presence of overlay only):
+        assert_output --partial 'custom-kargs_overlay.dtbo'
+        ;;
+    esac
 
     # Determine commit ID in local repo.
     run torizoncore-builder-shell \
