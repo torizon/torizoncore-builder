@@ -307,38 +307,51 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
         copy_signed_artifacts(commit_dir, output_dir)
 
 
-def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partition, rootfs_label,
-                              base_rootfs_partition_size_kb, other_partitions_size_kb,
-                              rootfs_size_kb, dst_sysroot_dir):
-    """Writes unpacked rootfs contents to an output raw image
+def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
+                            other_partitions_size_kb, rootfs_size_kb):
+    """Create a new raw disk image based on an existing one.
 
-    Writes the current unpacked rootfs to a raw image that is based on
-    an input image. If the unpacked rootfs has a larger size than the base
-    rootfs partition the output image is increased accordingly.
+    The result is a copy of the base disk image with all partitions except
+    the rootfs one, replaced by an empty partition at the end of the disk.
     """
-    out_size_kb = max(base_rootfs_partition_size_kb, rootfs_size_kb * IMAGE_OVERHEAD_FACTOR)
+    base_img_size_kb = os.path.getsize(base_raw_img)/1024
+    out_size_kb = max(base_img_size_kb,
+                      IMAGE_OVERHEAD_FACTOR*(rootfs_size_kb + other_partitions_size_kb))
     out_size_kb += EXTRA_ROOTFS_SIZE_KB
-    out_size_kb += other_partitions_size_kb
 
-    # Create new image file:
-    subprocess.check_output(["truncate", "-s", f"+{int(out_size_kb)}K", output_raw_img])
-    log.debug(f"Created empty output image: {output_raw_img}")
-    log.debug(f"Image overhead factor: {IMAGE_OVERHEAD_FACTOR}")
-    log.debug(f"Extra rootfs size added: {EXTRA_ROOTFS_SIZE_KB/1024} MiB")
+    # Copy of the base disk will be the starting point of the output disk
+    shutil.copy2(base_raw_img, output_raw_img)
+    log.debug(f"Created output image: {output_raw_img}")
 
-    log.info(f"Size of output image will be: {out_size_kb/1024/1024:.2f} GiB")
+    if out_size_kb > base_img_size_kb:
+        added_size_kb = out_size_kb - base_img_size_kb
+        log.debug(f"Image overhead factor: {IMAGE_OVERHEAD_FACTOR}")
+        log.debug(f"Extra rootfs size added: {EXTRA_ROOTFS_SIZE_KB/1024} MiB")
+        log.info(f"Adding {added_size_kb/1024:.2f} MiB to output image.")
+        log.info(f"Size of output image will be: {out_size_kb/1024/1024:.2f} GiB")
+        subprocess.check_output(["truncate", "-s", f"+{int(added_size_kb)}K", output_raw_img])
+    else:
+        log.info("Output image will have the same size as the base one.")
 
-    # With virt-resize, copy base image to output image, except base_rootfs_partition:
-    log.info("Copying other partitions from base to output image. Starting virt-resize...")
-    log.info("------------------------------------------------------------")
+    # Using virt-resize, copy all base image partitions to output image,
+    # except base_rootfs_partition:
+    log.info("Starting virt-resize...")
+    print("------------------------------------------------------------")
     resizecmd = ["virt-resize", "--format", "raw", "--delete"]
     resizecmd.extend([base_rootfs_partition, base_raw_img, output_raw_img])
     subprocess.run(resizecmd, check=True)
-    log.info("------------------------------------------------------------")
+    print("------------------------------------------------------------")
 
+
+def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
+    """Writes unpacked rootfs contents to a raw disk image
+
+    Creates a new rootfs ext4 partition with a given label on the last partition
+    of a raw disk and writes the contents of the provided rootfs directory.
+    """
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
-        gfs.add_drive_opts(output_raw_img, format="raw")
+        gfs.add_drive_opts(raw_disk_img, format="raw")
         run_with_loading_animation(
             func=gfs.launch,
             loading_msg="Initializing output image...")
@@ -348,7 +361,6 @@ def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partitio
 
         # Its partition number (/dev/sda1, /dev/sda2, etc.) is equal to the number of partitions
         # in the image, given that it is the last one.
-
         output_rootfs_partition = f"/dev/sda{len(gfs.list_partitions())}"
         log.info(f"Creating new '{rootfs_label}' rootfs partition at {output_rootfs_partition}.")
 
@@ -356,15 +368,15 @@ def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partitio
         gfs.set_label(output_rootfs_partition, rootfs_label)
         gfs.mount(output_rootfs_partition, "/")
 
-        dst_sysroot_dir_ls = os.listdir(dst_sysroot_dir)
-        if 'lost+found' in dst_sysroot_dir_ls:
-            dst_sysroot_dir_ls.remove('lost+found')
+        rootfs_dir_ls = os.listdir(rootfs_dir)
+        if 'lost+found' in rootfs_dir_ls:
+            rootfs_dir_ls.remove('lost+found')
 
         log.info("Copying unpacked rootfs contents to output image. This may take a few minutes...")
-        for content in dst_sysroot_dir_ls:
+        for content in rootfs_dir_ls:
             run_with_loading_animation(
                 func=gfs.copy_in,
-                args=(f"{dst_sysroot_dir}/{content}", "/"),
+                args=(f"{rootfs_dir}/{content}", "/"),
                 loading_msg=f"  Copying /{content}...")
 
         gfs.shutdown()
@@ -397,8 +409,6 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
         rootfs_partition = gfs.findfs_label(rootfs_label)
         log.info(f"  '{rootfs_label}' partition found: {rootfs_partition}")
 
-        base_rootfs_partition_size_kb = gfs.blockdev_getsize64(rootfs_partition) / 1024
-
         other_partitions_size_kb = 0
         partitions = gfs.list_partitions()
         partitions.remove(rootfs_partition)
@@ -417,16 +427,19 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
 
         raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}")
 
-    log.info(f"  rootfs partition size: {base_rootfs_partition_size_kb/1024/1024:.2f} GiB")
-    log.info(f"  Size of other partitions combined: {other_partitions_size_kb/1024/1024:.2f} GiB")
+    if other_partitions_size_kb > 0:
+        log.info("  Combined size of all partitions except rootfs: "
+                 f"{other_partitions_size_kb/1024/1024:.2f} GiB")
 
     rootfs_size_kb = subprocess.check_output(["du", "-s", dst_sysroot_dir], text=True)
     rootfs_size_kb = int(rootfs_size_kb.split('\t')[0])
     log.info(f"Unpacked rootfs size: {rootfs_size_kb/1024/1024:.2f} GiB")
 
-    write_rootfs_to_raw_image(base_raw_img, output_raw_img, rootfs_partition, rootfs_label,
-                              base_rootfs_partition_size_kb, other_partitions_size_kb,
-                              rootfs_size_kb, dst_sysroot_dir)
+    create_output_raw_image(base_raw_img, output_raw_img, rootfs_partition,
+                            other_partitions_size_kb, rootfs_size_kb)
+
+    write_rootfs_to_raw_image(output_raw_img, rootfs_label, dst_sysroot_dir)
+
     log.info(f"Image {os.path.basename(output_raw_img)} created successfully!")
 
 
