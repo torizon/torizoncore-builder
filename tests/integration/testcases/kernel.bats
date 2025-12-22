@@ -35,7 +35,7 @@ is_ovl_kargs_passing_supported() {
 
 is_uenv_kargs_passing_supported() {
     local uenv_path="${1?uEnv.txt path required}"
-    torizoncore-builder-shell "grep -q '^set_bootargs_torizon=' ${uenv_path}"
+    torizoncore-builder-shell "grep -q '^set_bootargs_custom2=' ${uenv_path}"
 }
 
 @test "kernel: run without parameters" {
@@ -214,7 +214,7 @@ is_uenv_kargs_passing_supported() {
     # Change uEnv.txt to pretend that the new bootargs passing method is not supported.
     if [ "${uenv_kargs_supported}" = "1" ]; then
         echo "Removing uenv-based bootargs setting method from uEnv.txt"
-        run torizoncore-builder-shell "sed -i -e '/^set_bootargs_torizon=/d' ${uenv_path}"
+        run torizoncore-builder-shell "sed -i -e '/^set_bootargs_custom2=/d' ${uenv_path}"
         assert_success
     fi
 
@@ -303,30 +303,64 @@ is_uenv_kargs_passing_supported() {
         assert_output --partial "Clearing bootargs (overlay method)"
 
         # Check uEnv.txt to see if the arguments were actually set.
-        local uenv_path_chgsdir
+        local uenv_path_chgsdir check_append
         uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
-        echo "Checking contents of '${uenv_path_chgsdir}'."
-        run torizoncore-builder-shell "grep -e '^torizon_boot_args=arg1=val1 arg2=val2' ${uenv_path_chgsdir}"
-        assert_success
+        check_append="1"
 
         if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+            echo "Run extra checks for FIT case."
             if echo "${output}" | \
                grep -q "Overlay with secboot required-bootargs found in the kernel"; then
                 # Check if the overlay keeping the required-bootargs was updated.
                 assert_output --regexp "req_bootargs_cur='.*'"
                 refute_output --partial "req_bootargs_cur='None'"
                 assert_output --partial "req_bootargs_org='None'"
-                assert_output --regexp "req_bootargs_new='.* arg1=val1 arg2=val2'"
+                assert_output --regexp "req_bootargs_new='arg1=val1 arg2=val2 .*'"
                 assert_output --partial "Storing updated required-bootargs into the overlay"
                 assert_output --partial "Storing updated overlay into the kernel FIT"
+                assert_output --partial "Passed string will be prepended to the original bootargs"
+                assert_output --regexp "Warning: .*the custom kernel arguments will be prepended"
+                check_append="0"
+            else
+                assert_output --partial "Passed string will be appended to the original bootargs"
             fi
         fi
+
+        if [ "${check_append}" = "1" ]; then
+            echo "Ensure new bootargs were appended to the existing ones."
+            if ! torizoncore-builder-shell \
+                 "grep -e '^torizon_bootargs_r=arg1=val1 arg2=val2' ${uenv_path_chgsdir}"; then
+                fail "New bootargs aren't present in 'torizon_bootargs_r'."
+            fi
+            if torizoncore-builder-shell \
+                   "grep -e '^torizon_bootargs_l=' ${uenv_path_chgsdir}"; then
+                fail "Variable 'torizon_bootargs_l' shouldn't be present in uEnv.txt."
+            fi
+        else
+            echo "Ensure new bootargs were prepended to the existing ones."
+            if ! torizoncore-builder-shell \
+                 "grep -e '^torizon_bootargs_l=arg1=val1 arg2=val2' ${uenv_path_chgsdir}"; then
+                fail "New bootargs aren't present in 'torizon_bootargs_l'."
+            fi
+            if torizoncore-builder-shell \
+                   "grep -e '^torizon_bootargs_r=' ${uenv_path_chgsdir}"; then
+                fail "Variable 'torizon_bootargs_r' shouldn't be present in uEnv.txt."
+            fi
+        fi
+
     elif [ "${ovl_kargs_supported}" = "1" ]; then
-        echo "Checking output of setting custom kernel arguments via overlay method."
-        assert_success
-        assert_output --partial 'Kernel custom arguments successfully configured with "arg1=val1 arg2=val2"'
-        assert_output --partial "Setting bootargs (overlay method)"
-        assert_output --partial "Overlay custom-kargs_overlay.dtbo successfully applied"
+        if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+            # Testing with deprecated secboot image (rare).
+            assert_failure
+            assert_output --regexp 'Error: the Torizon OS image you are customizing has a kernel in FIT format but it does not support the uEnv method for passing kernel arguments'
+            return
+        else
+            echo "Checking output of setting custom kernel arguments via overlay method."
+            assert_success
+            assert_output --partial 'Kernel custom arguments successfully configured with "arg1=val1 arg2=val2"'
+            assert_output --partial "Setting bootargs (overlay method)"
+            assert_output --partial "Overlay custom-kargs_overlay.dtbo successfully applied"
+        fi
     else
         # Images without support for custom bootargs should no longer be available;
         # but handle them anyway.
@@ -349,7 +383,7 @@ is_uenv_kargs_passing_supported() {
         if echo "${output}" | \
            grep -q "Overlay with secboot required-bootargs found in the kernel"; then
             # Check if the overlay keeping the required-bootargs was updated.
-            assert_output --regexp "req_bootargs_cur='.* arg1=val1 arg2=val2'"
+            assert_output --regexp "req_bootargs_cur='arg1=val1 arg2=val2 .*'"
             assert_output --regexp "req_bootargs_org='.*'"
             refute_output --regexp "req_bootargs_org='None'"
         fi
@@ -367,13 +401,6 @@ is_uenv_kargs_passing_supported() {
         assert_output --partial 'Custom kernel arguments successfully cleared'
         assert_output --partial "Clearing bootargs (uenv method)"
 
-        # Check uEnv.txt to see if the arguments variable was removed.
-        local uenv_path_chgsdir
-        uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
-        echo "Checking contents of '${uenv_path_chgsdir}'."
-        run torizoncore-builder-shell "grep -e '^torizon_boot_args=' ${uenv_path_chgsdir}"
-        assert_failure
-
         if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
             if echo "${output}" | \
                     grep -q "Overlay with secboot required-bootargs found in the kernel"; then
@@ -387,6 +414,18 @@ is_uenv_kargs_passing_supported() {
                 assert_output --partial "Storing updated overlay into the kernel FIT"
             fi
         fi
+
+        # Check uEnv.txt to see if the arguments variables are gone.
+        local uenv_path_chgsdir
+        uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
+        echo "Ensure bootargs variables are not present in '${uenv_path_chgsdir}'."
+        if torizoncore-builder-shell "grep -e '^torizon_bootargs_l=' ${uenv_path_chgsdir}"; then
+            fail "Variable 'torizon_bootargs_l' is present in uEnv.txt after clearing."
+        fi
+        if torizoncore-builder-shell "grep -e '^torizon_bootargs_r=' ${uenv_path_chgsdir}"; then
+            fail "Variable 'torizon_bootargs_r' is present in uEnv.txt after clearing."
+        fi
+
     elif [ "${ovl_kargs_supported}" = "1" ]; then
         echo "Checking output of clearing custom kernel arguments via overlay method."
         assert_success
