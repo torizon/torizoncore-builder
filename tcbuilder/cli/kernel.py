@@ -11,8 +11,7 @@ import subprocess
 
 import libfdt
 from tcbuilder.errors import \
-    (FileContentMissing, FeatureNotImplementedError, InvalidDataError,
-     PathNotExistError, UnsupportedImageFeature)
+    (FileContentMissing, InvalidDataError, PathNotExistError, UnsupportedImageFeature)
 from tcbuilder.backend.common import \
     (fail_on_raw_image, is_file_type_fit, get_branch_and_major_from_metadata,
      get_tar_compress_program_options, images_unpack_executed)
@@ -68,42 +67,44 @@ def _on_custom_kargs_not_supported():
         "custom kernel arguments; please upgrade to a newer OS image version.")
 
 
-# pylint: disable=too-many-locals
-def kernel_build_module(source_dir, storage_dir, autoload):
-    """"Main handler of the 'kernel build_module' subcommand"""
-
-    images_unpack_executed(storage_dir)
-    fail_on_raw_image(storage_dir, MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
-
-    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
-    if is_file_type_fit(unpacked_kernel_path):
-        raise FeatureNotImplementedError("Kernel customization is not supported for FIT format. "
-                                         "Aborting.")
-
-    # Check for valid Makefile
-    if not os.path.exists(source_dir):
-        raise PathNotExistError(f'Source directory "{source_dir}" does not exist')
+def _check_makefile(source_dir):
+    """Ensure the Makefile in the module source dir has the required variables."""
 
     makefile = os.path.join(source_dir, "Makefile")
     if not os.path.exists(makefile):
         raise PathNotExistError(f'Makefile "{makefile}" does not exist')
-    file = open(makefile, 'r')
-    lines = file.readlines()
-    kernel_check = None
-    for line in lines:
-        if kernel_check is None:
-            kernel_check = re.search("KERNEL_SRC", line)
-        if kernel_check is None:
-            kernel_check = re.search("KDIR", line)
+
+    log.debug("Checking presence of KERNEL_SRC/KDIR in '%s'.", makefile)
+    with open(makefile, "r", encoding="utf-8") as mkfile:
+        lines = mkfile.readlines()
+        kernel_check = None
+        for line in lines:
+            if kernel_check is None:
+                kernel_check = re.search("KERNEL_SRC", line)
+            if kernel_check is None:
+                kernel_check = re.search("KDIR", line)
+            if kernel_check is not None:
+                break
     if kernel_check is None:
         raise FileContentMissing(f'KERNEL_SRC not found in "{makefile}"')
 
-    # Find and unpack linux source
+
+def _extract_kernel_source(storage_dir):
+    """Find the kernel source tarball in the present image and unpack it.
+
+    The tarball will be unpacked into the storage directory whose path will be
+    returned by the function.
+    """
+
+    # Determine location of linux source tarball.
     linux_src = subprocess.check_output(
         ["find", os.path.join(storage_dir, "sysroot/ostree/deploy"),
          "-type", "f", "-name", "linux.tar.bz2", "-print", "-quit"], text=True)
     assert linux_src, "panic: missing Linux kernel source!"
     linux_src = linux_src.rstrip()
+
+    # Unpack the linux source tarball into the storage.
+    log.debug("Unpacking '%s' into storage '%s'", linux_src, storage_dir)
     tarcmd = [
         "tar",
         "-xf", linux_src,
@@ -111,11 +112,30 @@ def kernel_build_module(source_dir, storage_dir, autoload):
     ] + get_tar_compress_program_options(linux_src)
     subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
     extracted_src = os.path.join(storage_dir, "linux")
+    assert os.path.isdir(extracted_src), \
+        "panic: linux source tarball does not contain 'linux/' directory"
+
+    return extracted_src
+
+
+def kernel_build_module(source_dir, storage_dir, autoload):
+    """"Main handler of the 'kernel build_module' subcommand"""
+
+    images_unpack_executed(storage_dir)
+    fail_on_raw_image(storage_dir, MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+
+    # Check for valid Makefile
+    if not os.path.isdir(source_dir):
+        raise PathNotExistError(f'Source directory "{source_dir}" does not exist')
+    _check_makefile(source_dir)
+
+    # Find and unpack linux source
+    extracted_src = _extract_kernel_source(storage_dir)
 
     # Build and install Kernel module
-    kernel_changes_dir = kernel.get_kernel_changes_dir(storage_dir)
-    kernel_subdir = os.path.dirname(dt.get_dtb_kernel_subdir(storage_dir))
-    mod_path = os.path.join(kernel_changes_dir, kernel_subdir)
+    changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+    kernel_subdir = kernel.get_kernel_subdir(storage_dir)
+    mod_path = os.path.join(changes_dir, kernel_subdir)
     os.makedirs(mod_path, exist_ok=True)
     usr_dir = subprocess.check_output(
         ["find", os.path.join(storage_dir, "sysroot/ostree/deploy"),
@@ -123,13 +143,12 @@ def kernel_build_module(source_dir, storage_dir, autoload):
         text=True).rstrip()
     src_mod_dir = os.path.join(os.path.dirname(usr_dir), kernel_subdir)
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-
     _, image_major_version = get_branch_and_major_from_metadata(storage_dir)
 
     src_dir = os.path.abspath(source_dir)
     kernel.build_module(
         src_dir, extracted_src, src_mod_dir, image_major_version,
-        src_ostree_archive_dir, mod_path, kernel_changes_dir)
+        src_ostree_archive_dir, mod_path, changes_dir)
     log.info("Kernel module(s) successfully built and ready to deploy.")
 
     # Set built kernel modules to be autoloaded on boot
@@ -138,17 +157,14 @@ def kernel_build_module(source_dir, storage_dir, autoload):
             ["find", source_dir, "-name", "*.ko", "-print"],
             text=True).splitlines()
         for module in built_modules:
-            kernel.autoload_module(module, kernel_changes_dir)
+            kernel.autoload_module(module, changes_dir)
             log.info(f"{module} is set to be autoloaded on boot.")
 
     log.info("All kernel module(s) have been built and prepared.")
 
-# pylint: enable=too-many-locals
-
 
 def do_kernel_build_module(args):
     """"Run 'kernel build_module' subcommand"""
-
     kernel_build_module(source_dir=args.source_directory,
                         storage_dir=args.storage_directory,
                         autoload=args.autoload)
@@ -572,7 +588,7 @@ def init_parser(subparsers):
         "build_module",
         help="Build the kernel module at the provided source directory.",
         allow_abbrev=False)
-    subparser.add_argument(metavar="SRC_DIR", dest="source_directory", nargs='?',
+    subparser.add_argument(metavar="SRC_DIR", dest="source_directory",
                            help="Path to directory with kernel module source code.")
     subparser.add_argument("--autoload", dest="autoload", action="store_true",
                            help="Configure kernel module to be loaded on startup.")
