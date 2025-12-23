@@ -33,7 +33,7 @@ SET_BOOTARGS_CUSTOM_RE = r'^\s*set_bootargs_custom='
 
 # Name of the "function" in uEnv.txt responsible for handling boot arguments
 # passed as variables in uEnv.txt.
-SET_BOOTARGS_TORIZON_RE = r'^\s*set_bootargs_torizon='
+SET_BOOTARGS_CUSTOM2_RE = r'^\s*set_bootargs_custom2='
 
 # List of files/directories under usr/lib/modules/<kver>/ which should not be
 # copied from sysroot to the changes directory when preparing the latter for
@@ -354,7 +354,7 @@ def get_supported_bootargs_methods(storage_dir):
     uenv_txt_path = dt.get_current_uenv_txt_path(storage_dir)
     method_re = {
         "overlay": re.compile(SET_BOOTARGS_CUSTOM_RE),
-        "uenv": re.compile(SET_BOOTARGS_TORIZON_RE)
+        "uenv": re.compile(SET_BOOTARGS_CUSTOM2_RE)
     }
     found_methods = set()
     with open(uenv_txt_path, "r") as fhandle:

@@ -43,9 +43,12 @@ KERNEL_SET_CUSTOM_ARGS_DTS = """
 # XXX: Always keep in sync with uEnv.txt.in in recipe `u-boot-distro-boot`.
 KERNEL_SET_CUSTOM_ARGS_PROPERTY = 'bootargs_custom'
 
-# Name of the property defining the kernel args in uEnv.txt.
+# Name of the variables in uEnv.txt defining the kernel args; one variable
+# is added to the left (prepended) and the other to the right (appended) of
+# the original bootargs string.
 # XXX: Always keep in sync with uEnv.txt.in in recipe `u-boot-distro-boot`.
-UENV_CUSTOM_BOOTARGS_VAR = "torizon_boot_args"
+UENV_CUSTOM_BOOTARGS_L_VAR = "torizon_bootargs_l"
+UENV_CUSTOM_BOOTARGS_R_VAR = "torizon_bootargs_r"
 
 # Error messages:
 MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC = \
@@ -194,13 +197,26 @@ def _set_custom_kargs_ovl(kargs, storage_dir):
             storage_dir=storage_dir, allow_reapply=True, test_apply=False)
 
 
-def _set_custom_kargs_uenv(kargs, changes_dir, storage_dir):
+def _set_custom_kargs_uenv(kargs, changes_dir, storage_dir, *, prepend=False):
     """Set the custom bootargs using the (new) uenv method."""
 
     log.debug("Setting bootargs (uenv method).")
-    dt.set_uenv_txt_variable(
-        UENV_CUSTOM_BOOTARGS_VAR, kargs,
-        changes_dir=changes_dir, storage_dir=storage_dir)
+    if prepend:
+        log.debug("Passed string will be prepended to the original bootargs.")
+        dt.set_uenv_txt_variable(
+            UENV_CUSTOM_BOOTARGS_L_VAR, kargs,
+            changes_dir=changes_dir, storage_dir=storage_dir)
+        dt.set_uenv_txt_variable(
+            UENV_CUSTOM_BOOTARGS_R_VAR, None,
+            changes_dir=changes_dir, storage_dir=storage_dir)
+    else:
+        log.debug("Passed string will be appended to the original bootargs.")
+        dt.set_uenv_txt_variable(
+            UENV_CUSTOM_BOOTARGS_L_VAR, None,
+            changes_dir=changes_dir, storage_dir=storage_dir)
+        dt.set_uenv_txt_variable(
+            UENV_CUSTOM_BOOTARGS_R_VAR, kargs,
+            changes_dir=changes_dir, storage_dir=storage_dir)
 
 
 def _secboot_kargs_ovl_present(storage_dir):
@@ -264,7 +280,11 @@ def _get_secboot_required_bootargs_fdt(ovl):
 
 
 def _set_secboot_required_bootargs(kargs, changes_dir, storage_dir):
-    """Set/clear the required-bootargs data inside the kernel FIT image."""
+    """Set/clear the required-bootargs data inside the kernel FIT image.
+
+    The passed kernel bootargs will be prepended to the existing required-bootargs
+    in the secboot overlay.
+    """
 
     log.debug("Trying to %s secboot required-bootargs.",
               ["clear", "set"][kargs is None])
@@ -306,10 +326,10 @@ def _set_secboot_required_bootargs(kargs, changes_dir, storage_dir):
             ovl.resize(ovl.totalsize() + len(req_bootargs_cur) + 128)
             ovl.setprop_str(nodoff, SECBOOT_REQ_BOOTARGS_ORG_PROPNAME, req_bootargs_cur)
             # Define new value (string):
-            req_bootargs_new = req_bootargs_cur + " " + kargs
+            req_bootargs_new = kargs + " " + req_bootargs_cur
         else:
             # Define new value (string) based on the original bootargs:
-            req_bootargs_new = req_bootargs_org + " " + kargs
+            req_bootargs_new = kargs + " " + req_bootargs_org
 
     log.debug("req_bootargs_new='%s'", req_bootargs_new)
 
@@ -370,8 +390,21 @@ def kernel_set_custom_args(kernel_args, storage_dir):
     else:
         changes_dir = dt.get_dt_changes_dir(storage_dir)
 
+    # Determine if the *secboot* kargs overlay is present (not to be confused with
+    # the "custom kargs overlay" which is the old method for passing bootargs). We
+    # use the presence of the overlay to decide whether the passed bootargs should
+    # be prepended or appended to the original secboot bootargs string.
+    sb_kargs_ovl_pres = False
+    if kernel_is_fit:
+        sb_kargs_ovl_pres, _ = _secboot_kargs_ovl_present(storage_dir)
+
     if "uenv" in kargs_methods:
-        _set_custom_kargs_uenv(kargs, changes_dir, storage_dir)
+        if sb_kargs_ovl_pres:
+            log.info(
+                "Warning: because you are customizing a Secure Boot image, the custom "
+                "kernel arguments will be prepended rather than appended to the "
+                "original ones from the base image.")
+        _set_custom_kargs_uenv(kargs, changes_dir, storage_dir, prepend=sb_kargs_ovl_pres)
         _clr_custom_kargs_ovl(storage_dir)
     elif "overlay" in kargs_methods:
         _set_custom_kargs_ovl(kargs, storage_dir)
@@ -380,7 +413,7 @@ def kernel_set_custom_args(kernel_args, storage_dir):
 
     # Secure boot images also keep a "required-bootargs" string inside the kernel
     # which need to be updated; handle this case here.
-    if kernel_is_fit:
+    if kernel_is_fit and sb_kargs_ovl_pres:
         _set_secboot_required_bootargs(kargs, changes_dir, storage_dir)
 
     # Confirm application of arguments.
@@ -420,8 +453,18 @@ def _get_custom_kargs_uenv(storage_dir):
     """Get the custom bootargs using the (new) uenv method."""
 
     log.debug("Getting bootargs (uenv method).")
-    kargs = dt.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_VAR, storage_dir=storage_dir)
-    return kargs
+    kargs_l = dt.get_uenv_txt_variable(
+        UENV_CUSTOM_BOOTARGS_L_VAR, storage_dir=storage_dir)
+    kargs_r = dt.get_uenv_txt_variable(
+        UENV_CUSTOM_BOOTARGS_R_VAR, storage_dir=storage_dir)
+    if kargs_l and kargs_r:
+        raise InvalidDataError(
+            "Error: the Torizon OS image you are customizing has both "
+            "'%s' and '%s' set in uEnv.txt which is a case currently not "
+            "supported by TorizonCore Builder." %
+            (UENV_CUSTOM_BOOTARGS_L_VAR, UENV_CUSTOM_BOOTARGS_R_VAR))
+
+    return kargs_l or kargs_r
 
 
 def _get_secboot_required_bootargs(changes_dir, storage_dir):
@@ -470,7 +513,7 @@ def kernel_get_custom_args(storage_dir):
     # +----------+----------+------+
     #
     if kernel_is_fit and "uenv" not in kargs_methods:
-        log.info(
+        log.warning(
             "Notice: this image has a kernel in FIT format but it does not support "
             "the uEnv method for passing kernel arguments; this means you will not "
             "be able to set its custom kernel arguments. This can be solved by "
@@ -518,10 +561,13 @@ def _clr_custom_kargs_uenv(changes_dir, storage_dir):
     """Clear the custom bootargs set using the new method (variables in uEnv.txt)."""
 
     log.debug("Clearing bootargs (uenv method).")
-    status = dt.set_uenv_txt_variable(
-        UENV_CUSTOM_BOOTARGS_VAR, None,
+    status_l = dt.set_uenv_txt_variable(
+        UENV_CUSTOM_BOOTARGS_L_VAR, None,
         changes_dir=changes_dir, storage_dir=storage_dir)
-    return status
+    status_r = dt.set_uenv_txt_variable(
+        UENV_CUSTOM_BOOTARGS_R_VAR, None,
+        changes_dir=changes_dir, storage_dir=storage_dir)
+    return status_l or status_r
 
 
 def kernel_clear_custom_args(storage_dir):
