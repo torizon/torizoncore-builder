@@ -13,6 +13,9 @@ variables:
   ENABLE_XRAY:
     value: "false"
     description: "Whether to send test results to JIRA using XRay"
+  COMMON_TORIZON_ALLOW_FAILURE:
+    value: "false"
+    description: "Whether to allow the pipeline to continue upon failures in Common Torizon tests."
 
   DEBIAN_RELEASE: "bullseye-slim"
   # Pipeline Settings
@@ -372,10 +375,33 @@ test-host-tos7-64bit-signed-nightly:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
-test-torizoncore-common-intel:
+.test-base-common-torizon:
   variables:
     IS_WIC: 1
+    IMAGE_NAME: torizoncore-builder-amd64
   extends: .test-base
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom Torizon OS images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    # The following condition allows the pipeline to continue even if tests fail.
+    # In such cases, subsequent steps let the developer decide, at their discretion,
+    # whether to proceed with the release.
+    - if: '$COMMON_TORIZON_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - if: '$RELEASE_TYPE == "official"'
+      when: on_success
+      allow_failure: true
+    # In all other cases the pipeline continues only if there no failures.
+    - when: on_success
+      allow_failure: false
+
+test-common-torizon-intel:
+  extends: .test-base-common-torizon
   script:
     - TCB_SKIP_PULL=1 source ./setup.sh
     # TODO: Switch to Bash and use tcb-env-setup.sh script later
@@ -392,10 +418,8 @@ test-torizoncore-common-intel:
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_intel64_section\r\e[0K"
 
-test-torizoncore-common-rasp4:
-  variables:
-    IS_WIC: 1
-  extends: .test-base
+test-common-torizon-rasp4:
+  extends: .test-base-common-torizon
   script:
     # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
     - TCB_SKIP_PULL=1 source ./setup.sh
