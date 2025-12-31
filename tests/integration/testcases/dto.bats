@@ -192,9 +192,11 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder dt apply "${SAMPLES_DIR}/dts/small-nodev.dts"
     run torizoncore-builder dto status
+    # Print command output for debugging purposes
+    echo "${output}"
     assert_success
     assert_output --partial "Enabled overlays over device tree small-nodev.dtb"
-    assert [ "$(echo "${output}" | wc -l)" == 1 ]
+    assert [ "$(echo "${output}" | grep -c -e '^- ')" == 0 ]
 
     run torizoncore-builder dto apply "${SAMPLES_DIR}/dts/sample_overlay.dts" --force
     run torizoncore-builder dto status

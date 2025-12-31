@@ -171,7 +171,7 @@ teardown_file() {
 
     ## Bundle with a docker-compose.yml file
     local OUTFILE='bundled_image.wic'
-    run torizoncore-builder build \
+    run torizoncore-builder --log-level debug build \
         --file "$SAMPLES_DIR/config/wic-tcbuild-bundle-compose-customization.yaml" \
         --set INPUT_IMAGE="$DEFAULT_WIC_IMAGE" \
         --set OUTPUT_FILE="$OUTFILE" --force
