@@ -19,6 +19,8 @@ DTB_IMAGE_DATA_PROP = "data"
 DTBO_NODE_SUFFIX = ".dtbo"
 DTB_NODE_SUFFIX = ".dtb"
 DEFAULT_DTB_PROP = "default"
+RAMDISK_IMAGE_NAME_PROP = "ramdisk"
+RAMDISK_IMAGE_DATA_PROP = "data"
 
 SIGNATURE_PROPS_TO_DELETE = [
     "hashed-nodes",
@@ -599,6 +601,17 @@ class KernelFit:
         _set_prop(self.fdt, "str",
                   conf_node_path, DEFAULT_DTB_PROP, conf_name)
 
+    def get_default_dtb(self) -> Optional[str]:
+        """Get the default configuration field in the FIT."""
+
+        conf_node_path = self._get_std_node_path("conf")
+        default_dtb = _get_prop(self.fdt, conf_node_path, DEFAULT_DTB_PROP, defval="unset")
+
+        if str(default_dtb) == "unset":
+            log.debug("Default configuration node not set.")
+            return None
+        return default_dtb.as_str()
+
     def extract_dtb(self, file_name: str, *, overlay=False) -> bytearray:
         """Extract the data of a DTB/DTBO entry.
 
@@ -629,6 +642,88 @@ class KernelFit:
         img_data = bytes(img_data)
         return img_data
 
+    def update_ramdisk(self, ramdisk_name: str, data: Union[bytes, bytearray]) -> None:
+        """Update the data contents of a ramdisk node.
+
+        Args:
+            ramdisk_name (str): Name of the ramdisk node to be updated.
+            data (bytes): New data to be written in the node. Any previous data
+                          will be overwritten.
+        """
+
+        ramdisk_path = self._get_std_node_path("image", ramdisk_name)
+
+        if not _node_present(self.fdt, ramdisk_path):
+            raise KernelFitException(
+                f"update_ramdisk: ramdisk path '{ramdisk_path}' does not exist.")
+
+        log.debug("Updating ramdisk entry '%s'.", ramdisk_name)
+        _set_prop(self.fdt, "raw", ramdisk_path, RAMDISK_IMAGE_DATA_PROP, data)
+
+        # Remove relevant properties from hash nodes:
+        for index in range(8):
+            hash_node_name = f"hash-{index}"
+            hash_node_path = self._get_std_node_path("image", ramdisk_name, hash_node_name)
+            if _node_present(self.fdt, ramdisk_path, hash_node_name):
+                for prop_name in HASH_PROPS_TO_DELETE:
+                    _del_prop(self.fdt, hash_node_path, prop_name)
+
+    def extract_ramdisk(self, conf_name: str) -> tuple[str, bytearray]:
+        """Extract the data of a ramdisk entry in a given DTB configuration node.
+
+        Args:
+            conf_name (str): Name of the configuration node.
+
+        :returns: Tuple with the ramdisk node name, and its raw data as a bytearray.
+        """
+        # Check if the given conf node is a DTB one
+        conf_pref_suf = self._get_dtb_conf_pref_suf()
+        if not conf_name.endswith(conf_pref_suf[1]):
+            raise KernelFitException(
+                f"extract_ramdisk: conf_name {conf_name} does not end with "
+                f"'{conf_pref_suf[1]}'.")
+
+        # Check if the configuration path exists
+        config_path = self._get_std_node_path("conf", conf_name)
+        if not _node_present(self.fdt, config_path):
+            raise KernelFitException(
+                f"extract_ramdisk: Configuration path '{config_path}' does not exist.")
+
+        ramdisk_name = _get_prop(
+            self.fdt, config_path, RAMDISK_IMAGE_NAME_PROP)
+        ramdisk_name = ramdisk_name.as_str()
+
+        log.debug("Extracting ramdisk entry '%s'", ramdisk_name)
+        ramdisk_data = _get_prop(
+            self.fdt,
+            self._get_std_node_path("image", ramdisk_name), RAMDISK_IMAGE_DATA_PROP)
+        return ramdisk_name, bytearray(ramdisk_data)
+
+    def extract_default_ramdisk(self) -> tuple[str, bytearray]:
+        """Extract the data of the ramdisk entry of the default configuration node.
+
+        This method will first try to extract the ramdisk entry pointed by the default
+        configuration node if it is set. Otherwise it will extract the ramdisk pointed
+        by the first DTB config node found in get_dtb_list().
+
+        :returns: Tuple with the ramdisk node name, and its raw data as a bytearray.
+        """
+        default_config = self.get_default_dtb()
+
+        if default_config:
+            log.debug("Using default config node '%s' to get the ramdisk data.", default_config)
+            return self.extract_ramdisk(default_config)
+
+        # Default config not set, so use the first DTB config node on the DTB list
+        # We don't want the overlay configs, as those don't have a ramdisk entry
+        dtb_list = self.get_dtb_list()
+        if not dtb_list:
+            raise KernelFitException(
+                "extract_default_ramdisk: Could not find any DTB configuration "
+                "entries in the kernel FIT.")
+        config_node = dtb_list[0]["conf_name"]
+        log.debug("Using configuration node '%s' to get the ramdisk data.", config_node)
+        return self.extract_ramdisk(config_node)
 
 # TODO: Consider creating unit tests.
 #

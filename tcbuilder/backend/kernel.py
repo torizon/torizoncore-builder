@@ -11,7 +11,8 @@ import urllib.request
 
 from tcbuilder.backend import ostree, dt
 from tcbuilder.backend.common import \
-    (get_tar_compress_program_options, get_storage_dir, progress, set_output_ownership)
+    (get_tar_compress_program_options, get_storage_dir,
+     progress, set_output_ownership, OSTREE_ROOT_DEPLOY_PATH)
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, PathNotExistError)
 
@@ -23,8 +24,8 @@ IMAGE_MAJOR_TO_GCC_MAP = {
     7: "arm-gnu-toolchain-13.3.rel1"
 }
 
+OSTREE_KERNEL_SUBDIR_PATH = "usr/lib/modules/{kver}/"
 OSTREE_KERNEL_FILENAME = "vmlinuz"
-OSTREE_KERNEL_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}/usr/lib/modules/{kver}/"
 KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
 
 # Name of the "function" in uEnv.txt responsible for handling boot arguments
@@ -287,7 +288,10 @@ def find_kernel_in_sysroot():
     # Add deployment index part to checksum string, which is 0 for a new deployment
     csum += ".0"
 
-    kernel_path = OSTREE_KERNEL_DEPLOY_PATH.format(csum=csum, kver=kernel_version)
+    kernel_path = os.path.join(
+        OSTREE_ROOT_DEPLOY_PATH.format(csum=csum),
+        OSTREE_KERNEL_SUBDIR_PATH.format(kver=kernel_version)
+    )
     kernel_path = os.path.join(sysroot_path, kernel_path, OSTREE_KERNEL_FILENAME)
 
     if os.path.isfile(kernel_path):
@@ -310,7 +314,7 @@ def get_kernel_subdir():
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
     kernel_version = ostree.get_kernel_version(src_sysroot.repo(), csum)
-    return os.path.join("usr/lib/modules", kernel_version)
+    return OSTREE_KERNEL_SUBDIR_PATH.format(kver=kernel_version)
 
 
 def find_kernel_in_changes_dir(changes_dir, basename=None):
@@ -328,7 +332,7 @@ def find_kernel_in_changes_dir(changes_dir, basename=None):
     return kernel_src_path
 
 
-def copy_kernel_to_changes_dir(changes_dir, basename=None):
+def copy_kernel_to_changes_dir(changes_dir, *, basename=None):
     """Copy kernel FIT image from sysroot to changes directory.
 
     Find kernel in sysroot and copy it to the appropriate subdirectory in the

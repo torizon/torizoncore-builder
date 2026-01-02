@@ -71,6 +71,8 @@ REMOTE_CMD_TIMEOUT = 90
 
 SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
 
+OSTREE_ROOT_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}"
+
 
 def get_storage_dir():
     """Get the absolute path of the "storage" directory."""
