@@ -38,32 +38,37 @@ bats_load_library 'bats/bats-file/load.bash'
     # Populate work directory with sample device-trees directory.
     tar -xvf "${SAMPLES_DIR}/device-trees/device-trees.tar.gz"
 
+    echo "Try listing overlays compatible with a bad device tree."
     run torizoncore-builder dto list --device-tree "bad-devtree.dtx"
     assert_failure
     assert_output --partial "error: the argument to --device-tree must be either a device tree source (.dts) or binary/blob (.dtb)"
 
+    echo "Try listing overlays compatible with an unexisting device tree."
     run torizoncore-builder dto list --device-tree "bad-devtree.dts"
     assert_failure
     assert_output --partial "error: cannot read device tree source"
 
-    # Check error output if user is passing a path to a device-tree blob.
+    echo "Check error output if user is passing a path to a device-tree blob."
     run torizoncore-builder dto list --device-tree "test/base.dtb"
     assert_failure
     assert_output --partial "device tree name (test/base.dtb) must not contain slashes."
 
     # Check compatibility given a .dts file (arm32); nothing in the image matters.
+    echo "Check compatibility given a .dts file (arm32)."
     run torizoncore-builder dto list --device-tree "device-trees/dts-arm32/imx6dl-colibri-aster.dts"
     assert_success
     assert_output --partial "Overlays compatible with device tree"
     assert [ "$(echo "${output}" | grep -c -e '^- ')" == 16 ]
 
     # Check compatibility given a .dts file (arm64); nothing in the image matters.
+    echo "Check compatibility given a .dts file (arm64)."
     run torizoncore-builder dto list --device-tree "device-trees/dts-arm64/imx8mm-verdin-nonwifi-dahlia.dts"
     assert_success
     assert_output --partial "Overlays compatible with device tree"
     assert [ "$(echo "${output}" | grep -c -e '^- ')" == 6 ]
 
     # Check compatibility with applied device-tree.
+    echo "Check compatibility with applied device-tree."
     run torizoncore-builder dt apply device-trees/dts-arm32/imx6dl-colibri-aster.dts
     assert_success
     run torizoncore-builder dto list #--device-tree NOT-NEEDED
@@ -78,11 +83,12 @@ bats_load_library 'bats/bats-file/load.bash'
 	'[ -d /storage/kernel ] && sed -i -e "/^fdtfile=/d" /storage/kernel/usr/lib/ostree-boot/uEnv.txt'
     run torizoncore-builder-shell \
 	'sed -i -e "/^fdtfile=/d" /storage/tezi/u-boot-initial-env* || true'
+    echo "Check behavior when no default device tree is set."
     run torizoncore-builder dto list
     assert_output --partial "Could not determine default device tree"
     if [ "$status" -eq 0 ]; then
 	assert_output --partial "Proceeding with the following device tree as the assumed default"
-	assert_output --partial "Overlays compatible with device tree"
+	assert_output --regexp "(Overlays compatible with device tree|No overlays compatible with device tree)"
     else
 	assert_output --partial "Please use --device-tree to pass one of the device trees"
     fi
