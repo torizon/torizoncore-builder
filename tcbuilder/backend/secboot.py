@@ -13,8 +13,8 @@ from tcbuilder.backend import kernel
 from tcbuilder.backend.common import \
     (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
      check_if_file_exists, get_tezi_image_version, is_file_type_fit)
-from tcbuilder.backend.ubootenv import (get_env_filename, find_board)
-from tcbuilder.backend.platform import (FUSE_HARDWAREIDS)
+from tcbuilder.backend.ubootenv import get_env_filename, find_board
+from tcbuilder.backend.platform import SECBOOT_TECH_PER_MACHINE
 
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, InvalidArgumentError,
@@ -563,9 +563,7 @@ def check_unpacked_tezi_hab_signing_support(storage_dir):
     board = find_board(env)
     log.info(f"Detected image for {board}")
 
-    hwid = board + "-fuses"
-
-    if hwid not in FUSE_HARDWAREIDS or FUSE_HARDWAREIDS[hwid] != "hab":
+    if SECBOOT_TECH_PER_MACHINE.get(board) != "hab":
         raise InvalidStateError(
             f"Hardware type \"{board}\" is not compatible with HAB. Aborting.")
 

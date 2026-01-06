@@ -574,7 +574,7 @@ def do_platform_push(args):
             compatible_with=compatible_with,
             canonicalize=args.canonicalize, force=args.force, verbose=args.verbose)
     elif ((args.ref.endswith(".yml") or args.ref.endswith(".yaml")) and
-          (set(args.hardwareids).issubset(set(FUSE_HARDWAREIDS.keys())))):
+          (set(args.hardwareids).issubset(set(FUSE_HARDWAREIDS)))):
         for package in package_info:
             log.info(f"Package {package.get('name')} with version {package.get('version')}"
                      " added as compatible.")
@@ -990,7 +990,7 @@ def do_platform_push_bootloader(args):
             raise InvalidArgumentError(f"File \"{file}\" does not exist; aborting.")
 
     # Check if hardwareids contains exactly 1 supported '*-bootloader' ID
-    supported_ids = set(BOOTLOADER_HARDWAREIDS.keys())
+    supported_ids = set(BOOTLOADER_HARDWAREIDS)
     shared_ids = list(set(args.hardwareids) & supported_ids)
     if len(shared_ids) != 1:
         print_list = "\n".join(supported_ids)

@@ -758,7 +758,7 @@ test_canonicalize_only_success() {
     run torizoncore-builder platform push "${FUSE_DIR}/fuse-non-canon-8.yaml" \
         --hardwareid apalis-imx8-fuses --hardwareid apalis-imx6-fuses --credentials "${CREDS_PROD_ZIP}"
     assert_failure
-    assert_output --partial "both HAB and AHAB devices which is not possible"
+    assert_output --partial "different Secure Boot technologies which is not possible"
 
     # Test case: Provided yaml does not match fuse schema
     run torizoncore-builder platform push "${FUSE_DIR}/fuse-invalid-schema.yaml" \

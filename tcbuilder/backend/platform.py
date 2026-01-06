@@ -62,31 +62,42 @@ TUF_REPO_DIR = "/deploy/tuf-repo"
 # SHA256 Hash Regex
 HASH_REGEX = re.compile(r"^[0-9a-f]{64}$")
 
-FUSE_HARDWAREIDS = {
-    "verdin-imx8mp-fuses": "hab",
-    "verdin-imx8mm-fuses": "hab",
-    "apalis-imx8-fuses": "ahab",
-    "apalis-imx6-fuses": "hab",
-    "colibri-imx8x-fuses": "ahab",
-    "colibri-imx7-emmc-fuses": "hab",
-    "colibri-imx6-fuses": "hab",
-    "colibri-imx6ull-emmc-fuses": "hab"
+SECBOOT_TECH_PER_MACHINE = {
+    "verdin-imx8mp": "hab",
+    "verdin-imx8mm": "hab",
+    "apalis-imx8": "ahab",
+    "apalis-imx6": "hab",
+    "colibri-imx8x": "ahab",
+    "colibri-imx7-emmc": "hab",
+    "colibri-imx6": "hab",
+    "colibri-imx6ull-emmc": "hab",
 }
+
+FUSE_HWID_SUFFIX = "-fuses"
+FUSE_HARDWAREIDS = [
+    f"{_mach}{FUSE_HWID_SUFFIX}" for _mach in SECBOOT_TECH_PER_MACHINE
+]
 
 FUSE_SCHEMA_FILE = "fuse.schema.yaml"
 
-BOOTLOADER_HARDWAREIDS = {
-    "verdin-imx8mp-bootloader": "seek=0",
-    "verdin-imx8mm-bootloader": "seek=2",
-    "verdin-am62-bootloader": "seek=0",
-    "verdin-am62p-bootloader": "seek=0",
-    "apalis-imx8-bootloader": "seek=0",
-    "apalis-imx6-bootloader": "seek=2",
-    "colibri-imx8x-bootloader": "seek=0",
-    "colibri-imx6-bootloader": "seek=2",
-    "colibri-imx6ull-emmc-bootloader": "seek=2",
-    "colibri-imx7-emmc-bootloader": "seek=2"
+BOOTLOADER_DD_OPTIONS_PER_MACHINE = {
+    "verdin-imx8mp": "seek=0",
+    "verdin-imx8mm": "seek=2",
+    "verdin-am62": "seek=0",
+    "verdin-am62p": "seek=0",
+    "apalis-imx8": "seek=0",
+    "apalis-imx6": "seek=2",
+    "colibri-imx8x": "seek=0",
+    "colibri-imx6": "seek=2",
+    "colibri-imx6ull-emmc": "seek=2",
+    "colibri-imx7-emmc": "seek=2",
 }
+
+BOOTLOADER_HWID_SUFFIX = "-bootloader"
+BOOTLOADER_HARDWAREIDS = [
+    f"{_mach}{BOOTLOADER_HWID_SUFFIX}"
+    for _mach in BOOTLOADER_DD_OPTIONS_PER_MACHINE
+]
 
 UBOOT_JSON_SCHEMA_FILE = "uboot-schema.json"
 
@@ -1859,9 +1870,15 @@ def push_fuse(credentials, target, version, fuse_file, hardwareids,
 
     if description is not None:
         update_description(description, target, version, credentials)
-
 # pylint: enable=too-many-arguments
 # pylint: enable=too-many-locals
+
+
+def fuse_hwid_to_machine(hwid):
+    """Translate a fuse hwid to a machine name."""
+    if not hwid.endswith(FUSE_HWID_SUFFIX):
+        return None
+    return hwid[:-len(FUSE_HWID_SUFFIX)]
 
 
 def validate_fuse_file(fuse_file, hardwareids):
@@ -1873,19 +1890,30 @@ def validate_fuse_file(fuse_file, hardwareids):
     :returns: The yaml data that was validated
     """
 
-    # First check that hardwareids are not conflicting
-    hab_check = [FUSE_HARDWAREIDS[id] for id in hardwareids]
+    # Determine the Secure Boot technologies involved:
+    secboot_techs = set()
+    for hwid in hardwareids:
+        _mach = fuse_hwid_to_machine(hwid)
+        _tech = SECBOOT_TECH_PER_MACHINE.get(_mach)
+        if not _tech:
+            raise TorizonCoreBuilderError(
+                f"Cannot determine the fuse technology used by machine {_mach}.")
+        secboot_techs.add(_tech)
 
-    if "hab" in hab_check and "ahab" in hab_check:
+    log.debug("Secure Boot technologies associated with the passed hardware IDs: '%s'",
+              str(secboot_techs))
+
+    if len(secboot_techs) > 1:
         raise TorizonCoreBuilderError(
-            f"Provided hardware ids: {hardwareids} contains ids denoting "
-            "both HAB and AHAB devices which is not possible in one fuse type package.")
+            f"Provided hardware ids: {hardwareids} are associated with different"
+            " Secure Boot technologies which is not possible in one fuse type package.")
 
-    if "hab" in hab_check:
+    if "hab" in secboot_techs:
         fuse_num = 8
-
-    if "ahab" in hab_check:
+    elif "ahab" in secboot_techs:
         fuse_num = 16
+    else:
+        assert False, f"Unhandled Secure Boot technology '{secboot_techs}'."
 
     # Next check overall layout against schema
     parsed_file = parse_config_file(fuse_file, schema_path=FUSE_SCHEMA_FILE)
@@ -2032,6 +2060,27 @@ def uptane_sign_push(credentials, push_file, target, version,
     log.info(f"Successfully pushed {os.path.basename(push_file)} to OTA server.")
 
 
+def bootloader_hwid_to_machine(hwid):
+    """Translate a bootloader hwid to a machine name."""
+    if not hwid.endswith(BOOTLOADER_HWID_SUFFIX):
+        return None
+    return hwid[:-len(BOOTLOADER_HWID_SUFFIX)]
+
+
+def _get_dd_options(hardwareids):
+    """Get the dd options for the given (set of) hardware IDs."""
+    dd_options = None
+    for _hwid in hardwareids:
+        _mach = bootloader_hwid_to_machine(_hwid)
+        if _mach in BOOTLOADER_DD_OPTIONS_PER_MACHINE:
+            assert dd_options is None, \
+                "More than one valid hardware ID has been passed."
+            dd_options = BOOTLOADER_DD_OPTIONS_PER_MACHINE[_mach]
+            break
+    assert dd_options is not None, "Exactly one valid hardware ID should be passed."
+    return dd_options
+
+
 # pylint: disable=too-many-arguments
 def push_bootloader(credentials, target, version, boot_bin, json_file,
                     keep_vars, set_vars, reset, hardwareids, description,
@@ -2057,11 +2106,12 @@ def push_bootloader(credentials, target, version, boot_bin, json_file,
     :param verbose: Boolean switch on whether to print additional logs
     """
 
-    # Get main '*-bootloader' hardwareid
-    hwid = list(set(hardwareids) & set(BOOTLOADER_HARDWAREIDS.keys()))
-    custom_meta = create_bootloader_meta(json_file, keep_vars, set_vars, reset,
-                                         hwid[0])
+    assert hardwareids, "'hardwareids' must be not empty"
 
+    # Define the "dd" options to be used; the CLI layer should ensure exactly one
+    # known/valid hardware ID is passed but we double check this here.
+    dd_options = _get_dd_options(hardwareids)
+    custom_meta = create_bootloader_meta(json_file, keep_vars, set_vars, reset, dd_options)
     hardwareids_str = ' '.join(hardwareids)
 
     if target is None:
@@ -2077,12 +2127,11 @@ def push_bootloader(credentials, target, version, boot_bin, json_file,
 
     if description is not None:
         update_description(description, target, version, credentials)
-
 # pylint: enable=too-many-arguments
 
 
 # pylint: disable=too-many-locals
-def create_bootloader_meta(json_file, keep_vars, set_vars, reset, hwid):
+def create_bootloader_meta(json_file, keep_vars, set_vars, reset, dd_options):
     """
     Create the required custom metadata for a bootloader package
 
@@ -2091,26 +2140,23 @@ def create_bootloader_meta(json_file, keep_vars, set_vars, reset, hwid):
     :param keep_vars: List of U-boot variables to keep
     :param set_vars: Key-value list of U-Boot variables to set
     :param reset: Whether to reset U-Boot environment during update or not
-    :param hwid: Main '*-bootloader' hardwareid
+    :param dd_options: Value to pass into the "ddOptions" metadata field
     """
 
-    metadata_template = """\
-    {
-      "bootloader": {
-        "ddOptions": "options",
-        "dtVersion": "version",
-        "env": {
-          "type": "embedded",
-          "resetOnUpdate": true,
-          "embeddedOffset": 1234,
-          "embeddedSize": 5678,
-          "keepVars": null,
-          "setVars": null
+    metadata = {
+        "bootloader": {
+            "ddOptions": "options",
+            "dtVersion": "version",
+            "env": {
+                "type": "embedded",
+                "resetOnUpdate": True,
+                "embeddedOffset": 1234,
+                "embeddedSize": 5678,
+                "keepVars": None,
+                "setVars": None
+            }
         }
-      }
     }
-    """
-    metadata = json.loads(metadata_template)
 
     # Check if json_file is valid
     with open(json_file, 'r') as file:
@@ -2142,7 +2188,8 @@ def create_bootloader_meta(json_file, keep_vars, set_vars, reset, hwid):
         set_vars_dict = None
 
     # Populate final metadata
-    metadata['bootloader']['ddOptions'] = BOOTLOADER_HARDWAREIDS[hwid]
+    if dd_options:
+        metadata['bootloader']['ddOptions'] = dd_options
     metadata['bootloader']['dtVersion'] = data['ubootrelease']
     metadata['bootloader']['env']['resetOnUpdate'] = reset
     metadata['bootloader']['env']['embeddedOffset'] = data['envoffset']
@@ -2153,7 +2200,4 @@ def create_bootloader_meta(json_file, keep_vars, set_vars, reset, hwid):
     log.debug(f"Bootloader metadata:\n{json.dumps(metadata, indent=2)}")
 
     return metadata
-
 # pylint: enable=too-many-locals
-
-# EOF
