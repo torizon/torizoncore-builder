@@ -43,10 +43,20 @@ ATF_BIN = "bl31*.bin"
 
 UBOOT_SPL_DDR_BINARY = "u-boot-spl-ddr.bin"
 UBOOT_DTB_BINARY = "u-boot.dtb.out"
-BOOTLOADER_CONTAINER_NAME = {"verdin-imx8mp": "imx-boot"}
+BOOTLOADER_CONTAINER_NAME = {
+    "verdin-imx8mm": "imx-boot",
+    "verdin-imx8mp": "imx-boot",
+}
 
-KERNEL_SIGNING_SUPPORTED_MACHINES = {"verdin-imx8mp": "imx8m"}
-HAB_SIGNING_SUPPORTED_MACHINES = {"verdin-imx8mp": "imx8m"}
+KERNEL_SIGNING_SUPPORTED_MACHINES = {
+    "verdin-imx8mm": "imx8m",
+    "verdin-imx8mp": "imx8m",
+}
+
+HAB_SIGNING_SUPPORTED_MACHINES = {
+    "verdin-imx8mm": "imx8m",
+    "verdin-imx8mp": "imx8m",
+}
 
 SECURE_BOOT_FILES_DIR = "/builder/tcbuilder/secure_boot_files"
 COPY_SIG_NODE_SCRIPT = "copy_signature_node_to_fdts.sh"
