@@ -329,6 +329,12 @@ teardown_file() {
 # bats test_tags=requires-device
 @test "build: full customization checked on device" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
+
+    # Images with a signed bootloader will not boot after the customization
+    # if the kernel is not re-signed with the key expected by the bootloader.
+    # Since we can't change the bootloader installed on the device,
+    # don't run the test for signed images
+    requires-unsigned-image
     requires-device
 
     local OUTDIR='fully_customized_image'
