@@ -40,26 +40,23 @@ bats_load_library 'bats/bats-file/load.bash'
 }
 
 @test "splash: create splash" {
-    requires-non-fit-kernel
-
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
     run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
     assert_success
-    assert_output --partial "splash screen merged to initramfs"
+    assert_output --partial "Initramfs splash screen updated"
+    assert_output --partial "Sysroot splash screen updated"
 
-    run torizoncore-builder-shell "ls -l /storage/splash/usr/lib/modules/*/initramfs.img"
+    local STORAGE_DIR="/storage/splash"
+    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" != "1" ]; then
+        run torizoncore-builder-shell "ls -l ${STORAGE_DIR}/usr/lib/modules/*/initramfs.img"
+        assert_success
+    else
+        STORAGE_DIR="/storage/kernel"
+        run torizoncore-builder-shell "ls -l ${STORAGE_DIR}/usr/lib/modules/*/vmlinuz"
+        assert_success
+    fi
+
+    run torizoncore-builder-shell "ls -l ${STORAGE_DIR}/usr/share/plymouth/themes/spinner/watermark.png"
     assert_success
-
-    run torizoncore-builder-shell "ls -l /storage/splash/usr/share/plymouth/themes/spinner/watermark.png"
-    assert_success
-}
-
-@test "splash: throw error on kernel FIT format" {
-    requires-fit-kernel
-
-    torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
-    assert_failure
-    assert_output --partial "not supported for kernel in FIT format"
 }

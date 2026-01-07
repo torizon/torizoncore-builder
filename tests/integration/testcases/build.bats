@@ -245,8 +245,7 @@ teardown_file() {
     rm -rf "${CST_DIR}/linux64"
 }
 
-@test "build: full customization checked on host (non-FIT)" {
-    requires-non-fit-kernel
+@test "build: full customization checked on host" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
 
     local OUTDIR='fully_customized_image'
@@ -256,7 +255,7 @@ teardown_file() {
         --set OUTPUT_DIR="$OUTDIR" --force
 
     assert_success
-    assert_output --partial 'splash screen merged'
+    assert_output --partial 'splash screen updated'
     assert_output --partial 'Overlay sample_overlay.dtbo successfully applied.'
     local bootargs_methods="$(echo $output | sed -nE 's#^.*Supported bootargs passing methods: (.*)$#\1#p')"
     case "$bootargs_methods" in
@@ -327,21 +326,6 @@ teardown_file() {
     assert_output --partial "['$COMMIT']"
 }
 
-@test "build: full customization checked on host (FIT)" {
-    requires-fit-kernel
-    requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
-
-    local OUTDIR='fully_customized_image'
-    run torizoncore-builder build \
-        --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
-        --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
-        --set OUTPUT_DIR="$OUTDIR" --force
-
-    assert_failure
-    assert_output --partial \
-	'Error: Changing the splash screen is not supported for kernel in FIT format'
-}
-
 # bats test_tags=requires-device
 @test "build: full customization checked on device" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
@@ -354,7 +338,7 @@ teardown_file() {
         --set OUTPUT_DIR="$OUTDIR" --force
 
     assert_success
-    assert_output --partial 'splash screen merged'
+    assert_output --partial 'splash screen updated'
     assert_output --partial 'Overlay sample_overlay.dtbo successfully applied.'
     local bootargs_methods="$(echo $output | sed -nE 's#^.*Supported bootargs passing methods: (.*)$#\1#p')"
     case "$bootargs_methods" in

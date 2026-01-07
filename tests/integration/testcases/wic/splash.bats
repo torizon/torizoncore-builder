@@ -44,7 +44,8 @@ bats_load_library 'bats/bats-file/load.bash'
 
     run torizoncore-builder splash $SAMPLES_DIR/splash/fast-banana.png
     assert_success
-    assert_output --partial "splash screen merged to initramfs"
+    assert_output --partial "Initramfs splash screen updated"
+    assert_output --partial "Sysroot splash screen updated"
 
     run torizoncore-builder-shell "ls -l /storage/splash/usr/lib/modules/*/initramfs.img"
     assert_success

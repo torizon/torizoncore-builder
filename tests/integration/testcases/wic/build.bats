@@ -106,7 +106,7 @@ teardown_file() {
         --set OUTPUT_FILE="$OUTFILE" --force
 
     assert_success
-    assert_output --partial 'splash screen merged'
+    assert_output --partial 'splash screen updated'
     assert_output --partial 'Deploying commit ref: my-raw-image-branch'
     assert_output --partial "created successfully"
 
@@ -142,7 +142,7 @@ teardown_file() {
         --set OUTPUT_FILE="$OUTFILE" --force
 
     assert_success
-    assert_output --partial 'splash screen merged'
+    assert_output --partial 'splash screen updated'
     assert_output --partial 'Deploying commit ref: my-raw-image-branch'
     assert_output --partial "created successfully"
     assert_output --partial "Copying docker-compose.yml"
@@ -177,7 +177,7 @@ teardown_file() {
         --set OUTPUT_FILE="$OUTFILE" --force
 
     assert_success
-    assert_output --partial 'splash screen merged'
+    assert_output --partial 'splash screen updated'
     assert_output --partial 'Deploying commit ref: my-raw-image-branch'
     assert_output --partial "created successfully"
     assert_output --partial "Copying docker-compose.yml"
