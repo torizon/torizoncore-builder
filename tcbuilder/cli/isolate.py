@@ -44,7 +44,7 @@ def isolate_subcommand(args):
     :param args: Arguments provided to the "isolate" subcommand.
     """
 
-    storage_dir = os.path.abspath(args.storage_directory)
+    storage_dir = common.get_storage_dir()
     changes_dir = os.path.join(storage_dir, "changes")
 
     if args.changes_dir:

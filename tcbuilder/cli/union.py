@@ -13,7 +13,7 @@ import shutil
 
 from tcbuilder.backend import union as ub
 from tcbuilder.errors import PathNotExistError, InvalidArgumentError
-from tcbuilder.backend.common import images_unpack_executed
+from tcbuilder.backend.common import images_unpack_executed, get_storage_dir
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -189,12 +189,11 @@ def make_dirs_labels(changes_dirs, stor_pref, work_pref):
     return dirs_labels
 
 
-def union(changes_dirs, storage_dir, union_branch,
+def union(changes_dirs, union_branch, *,
           commit_subject=None, commit_body=None):
     """Perform the actual work of the union subcommand"""
 
-    storage_dir_ = os.path.abspath(storage_dir)
-
+    storage_dir_ = get_storage_dir()
     changes_dirs_ = []
 
     # Automatically add directories from storage. The order in which we
@@ -254,10 +253,10 @@ def do_union(args):
             "Error: "
             "the UNION_BRANCH positional argument is required.")
 
-    images_unpack_executed(args.storage_directory)
-
-    union(args.changes_dirs, args.storage_directory,
-          args.union_branch, args.subject, args.body)
+    images_unpack_executed()
+    union(
+        args.changes_dirs, args.union_branch,
+        commit_subject=args.subject, commit_body=args.body)
 
 
 def init_parser(subparsers):

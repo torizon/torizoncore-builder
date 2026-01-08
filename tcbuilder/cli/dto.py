@@ -25,7 +25,7 @@ log = logging.getLogger("torizon." + __name__)
 MAX_DTBO_FILE_SIZE = 1*1024*1024
 
 
-def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names, storage_dir):
+def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names):
     """Try to apply an overlay on top of a device-tree (non-FIT case).
 
     :param dtob_path: Path to new overlay file to apply.
@@ -34,7 +34,6 @@ def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names,
         be applied; if empty, the current DTB will be used.
     :param overlay_names: List of other overlays to be applied before applying
         the new one.
-    :param storage_dir: Path of storage directory.
     """
 
     if dtb_name and "/" in dtb_name:
@@ -47,12 +46,12 @@ def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names,
     if dtb_name:
         # User has provided the basename of a device tree blob of the base image.
         log.debug("Using the specified base DTB '%s' for applying overlay.", dtb_name)
-        (any_dtb_path, _) = dt.get_current_dtb_path(storage_dir)
+        (any_dtb_path, _) = dt.get_current_dtb_path()
         dtb_path = os.path.join(os.path.dirname(any_dtb_path), dtb_name)
     else:
         # Use the current device tree blob.
         log.debug("No base DTB specified; picking the currently applied one.")
-        (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(storage_dir)
+        (dtb_path, is_dtb_exact) = dt.get_current_dtb_path()
         if not is_dtb_exact:
             log.error("error: could not find the device tree to check the overlay against.")
             log.error("Please use --device-tree to pass one of the device trees below or use "
@@ -64,7 +63,7 @@ def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names,
             log.error(dtb_list)
             sys.exit(1)
 
-    cur_overlay_paths = dto.get_applied_overlay_paths(storage_dir, base_names=overlay_names)
+    cur_overlay_paths = dto.get_applied_overlay_paths(base_names=overlay_names)
     new_overlay_paths = cur_overlay_paths + [dtob_path]
 
     dtb_tmp_path = tempfile.mktemp(suffix=".dtb")
@@ -77,9 +76,7 @@ def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names,
     return True
 
 
-def _test_apply_overlay_fit(*,
-                            dtob_path, dtob_name, dtb_name,
-                            overlay_names, changes_dir, storage_dir):
+def _test_apply_overlay_fit(*, dtob_path, dtob_name, dtb_name, overlay_names, changes_dir):
     """Try to apply an overlay on top of a device-tree (FIT case).
 
     :param dtob_path: Path to new overlay file to apply.
@@ -88,14 +85,13 @@ def _test_apply_overlay_fit(*,
         be applied; if empty, the current DTB will be used.
     :param overlay_names: List of other overlays to be applied before applying
         the new one.
-    :param storage_dir: Path of storage directory.
     """
 
     # Select base DTB:
-    dtb_path = _resolve_dtb_fit(dtb_name, changes_dir, storage_dir)
+    dtb_path = _resolve_dtb_fit(dtb_name, changes_dir)
 
     # Determine DTBs to apply:
-    cur_overlay_paths = _resolve_dtob_fit(overlay_names, changes_dir, storage_dir)
+    cur_overlay_paths = _resolve_dtob_fit(overlay_names, changes_dir)
     new_overlay_paths = cur_overlay_paths + [dtob_path]
 
     dtb_tmp_path = tempfile.mktemp(suffix=".dtb")
@@ -108,23 +104,23 @@ def _test_apply_overlay_fit(*,
     return True
 
 
-def _deploy_dtob_nonfit(*, dtob_src_path, dtob_name, changes_dir, storage_dir):
+def _deploy_dtob_nonfit(*, dtob_src_path, dtob_name, changes_dir):
     """Deploy the given DTBO into a changes directory (non-FIT kernel case)."""
 
-    krnl_subdir = dt.get_dtb_kernel_subdir(storage_dir)
+    krnl_subdir = dt.get_dtb_kernel_subdir()
     dtob_tgt_dir = os.path.join(changes_dir, krnl_subdir, "overlays")
     os.makedirs(dtob_tgt_dir, exist_ok=True)
     dtob_tgt_path = os.path.join(dtob_tgt_dir, dtob_name)
     shutil.move(dtob_src_path, dtob_tgt_path)
 
 
-def _deploy_dtob_fit(*, dtob_src_path, dtob_name, changes_dir, storage_dir):
+def _deploy_dtob_fit(*, dtob_src_path, dtob_name, changes_dir):
     """Deploy the given DTBO into a changes directory (FIT kernel case)."""
 
-    kernel_path = kernel.copy_kernel_to_changes_dir(changes_dir, storage_dir)
+    kernel_path = kernel.copy_kernel_to_changes_dir(changes_dir)
 
     # Load kernel FIT into memory:
-    dtb_prefix = dt.get_kernelfit_dtb_prefix(storage_dir)
+    dtb_prefix = dt.get_kernelfit_dtb_prefix()
     with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
 
@@ -144,8 +140,8 @@ def _deploy_dtob_fit(*, dtob_src_path, dtob_name, changes_dir, storage_dir):
         fit.write(fhandle)
 
 
-def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
-              allow_reapply=False, test_apply=True):
+def dto_apply(dtos_path, dtb_path, include_dirs,
+              *, allow_reapply=False, test_apply=True):
     """Execute most of the work of 'dto apply' command.
 
     :param dtos_path: the full path to the source device-tree overlay file to be applied.
@@ -153,22 +149,21 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
         (required only if `test_apply` is True).
     :param include_dirs: list of directories where to search include files when building
         the overlay file.
-    :param storage_dir: path to root directory where most operations will be performed.
     :param allow_reapply: whether or not to allow an overlay to be applied another time.
     :param test_apply: whether or not to apply the overlay over the device tree to check
         for errors.
     """
 
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
                                "images. Aborting.")
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"dto_apply: kernel_is_fit={kernel_is_fit}")
 
-    cur_overlay_basenames = dto.get_applied_overlay_names(storage_dir)
+    cur_overlay_basenames = dto.get_applied_overlay_names()
     dtob_target_basename = os.path.splitext(os.path.basename(dtos_path))[0] + ".dtbo"
 
     # Detect a redundant overlay application.
@@ -190,10 +185,10 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
 
     if kernel_is_fit:
         # FIT case: all changes go to the kernel-changes directory.
-        changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+        changes_dir = kernel.get_kernel_changes_dir()
     else:
         # non-FIT case: changes go to the DT-changes directory.
-        changes_dir = dt.get_dt_changes_dir(storage_dir)
+        changes_dir = dt.get_dt_changes_dir()
 
     # Test apply the overlay against the device-tree and already applied overlays.
     if test_apply:
@@ -202,12 +197,11 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
             _apply_res = _test_apply_overlay_fit(
                 dtob_path=dtob_tmp_path, dtob_name=dtob_target_basename,
                 dtb_name=dtb_path, overlay_names=cur_overlay_basenames,
-                changes_dir=changes_dir, storage_dir=storage_dir)
+                changes_dir=changes_dir)
         else:
             _apply_res = _test_apply_overlay_nonfit(
                 dtob_path=dtob_tmp_path, dtob_name=dtob_target_basename,
-                dtb_name=dtb_path, overlay_names=cur_overlay_basenames,
-                storage_dir=storage_dir)
+                dtb_name=dtb_path, overlay_names=cur_overlay_basenames)
         if not _apply_res:
             log.error(f"error: overlay '{dtos_path}' is not applicable.")
             sys.exit(1)
@@ -216,15 +210,15 @@ def dto_apply(dtos_path, dtb_path, include_dirs, storage_dir,
     if kernel_is_fit:
         _deploy_dtob_fit(
             dtob_src_path=dtob_tmp_path, dtob_name=dtob_target_basename,
-            changes_dir=changes_dir, storage_dir=storage_dir)
+            changes_dir=changes_dir)
     else:
         _deploy_dtob_nonfit(
             dtob_src_path=dtob_tmp_path, dtob_name=dtob_target_basename,
-            changes_dir=changes_dir, storage_dir=storage_dir)
+            changes_dir=changes_dir)
 
     # Deploy the enablement of the device tree overlay blob.
     new_overlay_basenames = cur_overlay_basenames + [dtob_target_basename]
-    dto.set_applied_overlay_names(new_overlay_basenames, changes_dir, storage_dir)
+    dto.set_applied_overlay_names(new_overlay_basenames, changes_dir)
 
     # All set :-)
     log.info(f"Overlay {dtob_target_basename} successfully applied.")
@@ -242,12 +236,12 @@ def do_dto_apply(args):
         log.info("warning: --force was used, bypassing checking overlays against the device tree.")
 
     # TODO: Review --force behavior and the fixed `allow_reapply` parameter.
-    dto_apply(dtos_path=args.dtos_path,
-              dtb_path=args.device_tree,
-              include_dirs=args.include_dirs,
-              storage_dir=args.storage_directory,
-              allow_reapply=False,
-              test_apply=not args.force)
+    dto_apply(
+        dtos_path=args.dtos_path,
+        dtb_path=args.device_tree,
+        include_dirs=args.include_dirs,
+        allow_reapply=False,
+        test_apply=not args.force)
 
 
 def _dto_list_check_args(device_tree, overlays_subdir):
@@ -275,7 +269,7 @@ def _dto_list_check_args(device_tree, overlays_subdir):
         sys.exit(1)
 
 
-def _resolve_dtb_nonfit(dtb_name, storage_dir):
+def _resolve_dtb_nonfit(dtb_name):
     """Get the path of the named DTB (if passed) or of the default DTB."""
 
     if dtb_name and "/" in dtb_name:
@@ -284,7 +278,7 @@ def _resolve_dtb_nonfit(dtb_name, storage_dir):
         log.error("error: the device tree name (%s) must not contain slashes.", dtb_name)
         sys.exit(1)
 
-    (dtb_path, is_dtb_exact) = dt.get_current_dtb_path(storage_dir)
+    (dtb_path, is_dtb_exact) = dt.get_current_dtb_path()
     if not dtb_name and not is_dtb_exact:
         # No device-tree specified and the default one could not be determined.
         dtb_dir = os.path.dirname(dtb_path)
@@ -310,7 +304,7 @@ def _resolve_dtb_nonfit(dtb_name, storage_dir):
     return dtb_path
 
 
-def _resolve_dtb_fit(dtb_name, changes_dir, storage_dir):
+def _resolve_dtb_fit(dtb_name, changes_dir):
     """Get a path for the named DTB (if passed) or for the default DTB.
 
     This handles the FIT case where the DTB would reside inside the kernel
@@ -327,16 +321,16 @@ def _resolve_dtb_fit(dtb_name, changes_dir, storage_dir):
     list_dtbs = False
     if not dtb_name:
         # No device-tree specified: use default one from the image (if set).
-        dtb_name = dt.get_current_dtb_basename(storage_dir)
+        dtb_name = dt.get_current_dtb_basename()
         if not dtb_name:
             log.warning("Could not determine default device tree.")
             list_dtbs = True
 
     # Load kernel FIT into memory:
     kernel_path = \
-        (kernel.find_kernel_in_changes_dir(changes_dir, storage_dir) or
-         kernel.find_kernel_in_sysroot(storage_dir))
-    dtb_prefix = dt.get_kernelfit_dtb_prefix(storage_dir)
+        (kernel.find_kernel_in_changes_dir(changes_dir) or
+         kernel.find_kernel_in_sysroot())
+    dtb_prefix = dt.get_kernelfit_dtb_prefix()
     with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
 
@@ -368,7 +362,7 @@ def _resolve_dtb_fit(dtb_name, changes_dir, storage_dir):
     return dtb_path
 
 
-def _resolve_dtob_fit(dtob_names, changes_dir, storage_dir):
+def _resolve_dtob_fit(dtob_names, changes_dir):
     """Get a path for the specified device-tree overlays.
 
     This handles the FIT case where the overlays would reside inside the
@@ -379,9 +373,9 @@ def _resolve_dtob_fit(dtob_names, changes_dir, storage_dir):
     assert isinstance(dtob_names, list)
     # Load kernel FIT into memory:
     kernel_path = \
-        (kernel.find_kernel_in_changes_dir(changes_dir, storage_dir) or
-         kernel.find_kernel_in_sysroot(storage_dir))
-    dtb_prefix = dt.get_kernelfit_dtb_prefix(storage_dir)
+        (kernel.find_kernel_in_changes_dir(changes_dir) or
+         kernel.find_kernel_in_sysroot())
+    dtb_prefix = dt.get_kernelfit_dtb_prefix()
     with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
 
@@ -401,16 +395,16 @@ def _resolve_dtob_fit(dtob_names, changes_dir, storage_dir):
     return dtob_paths
 
 
-def dto_list(device_tree, overlays_subdir, storage_dir):
+def dto_list(device_tree, overlays_subdir):
     """Perform the 'dto list' command."""
 
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
     _dto_list_check_args(device_tree, overlays_subdir)
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"dto_list: kernel_is_fit={kernel_is_fit}")
 
@@ -453,10 +447,10 @@ def dto_list(device_tree, overlays_subdir, storage_dir):
         # The device tree is a binary blob (either inside the kernel or as a separate file).
         if kernel_is_fit:
             # FIT case: all changes go to the kernel-changes directory.
-            changes_dir = kernel.get_kernel_changes_dir(storage_dir)
-            dtb_path = _resolve_dtb_fit(device_tree, changes_dir, storage_dir)
+            changes_dir = kernel.get_kernel_changes_dir()
+            dtb_path = _resolve_dtb_fit(device_tree, changes_dir)
         else:
-            dtb_path = _resolve_dtb_nonfit(device_tree, storage_dir)
+            dtb_path = _resolve_dtb_nonfit(device_tree)
 
         # Use the resolved path as the new device-tree name.
         device_tree = dtb_path
@@ -495,33 +489,34 @@ def dto_list(device_tree, overlays_subdir, storage_dir):
 def do_dto_list(args):
     """Perform the 'dto list' command."""
     dto_list(device_tree=args.device_tree,
-             overlays_subdir="device-trees/overlays",
-             storage_dir=args.storage_directory)
+             overlays_subdir="device-trees/overlays")
 
 
-def dto_status(storage_dir):
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+def dto_status():
+    """Perform the 'dto status' command."""
+
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
     # Show the enabled device tree.
-    dtb_basename = dt.get_current_dtb_basename(storage_dir)
+    dtb_basename = dt.get_current_dtb_basename()
     if dtb_basename:
         log.info(f"Enabled overlays over device tree {dtb_basename}:")
     else:
         log.info("Enabled overlays over unknown device tree:")
 
     # Show the enabled overlays.
-    for overlay_basename in dto.get_applied_overlay_names(storage_dir):
+    for overlay_basename in dto.get_applied_overlay_names():
         log.info(f"- {overlay_basename}")
 
 
-def do_dto_status(args):
+def do_dto_status(_args):
     """Perform the 'dto status' command."""
-    dto_status(args.storage_directory)
+    dto_status()
 
 
-def _dto_remove_single_nonfit(dtob_basename, changes_dir, storage_dir):
+def _dto_remove_single_nonfit(dtob_basename, changes_dir):
     """Withdraw the application of an overlay (not-FIT case).
 
     Remove the specified overlay from the list of overlays being "applied"
@@ -529,21 +524,20 @@ def _dto_remove_single_nonfit(dtob_basename, changes_dir, storage_dir):
 
     :param dtob_basename: Basename of the overlay file.
     :param changes_dir: Path to the changes directory.
-    :param storage_dir: Path to the storage directory.
     """
 
     log.debug("Removing overlay '%s'.", dtob_basename)
     # Update overlays.txt:
-    dtob_basenames = dto.get_applied_overlay_names(storage_dir)
+    dtob_basenames = dto.get_applied_overlay_names()
     dtob_basenames.remove(dtob_basename)
-    dto.set_applied_overlay_names(dtob_basenames, changes_dir, storage_dir)
+    dto.set_applied_overlay_names(dtob_basenames, changes_dir)
     # Remove the overlay blob if it's not deployed.
-    dtob_path = dto.find_path_to_overlay(storage_dir, dtob_basename)
+    dtob_path = dto.find_path_to_overlay(dtob_basename)
     if dtob_path.startswith(changes_dir):
         os.remove(dtob_path)
 
 
-def _dto_remove_single_fit(dtob_basename, changes_dir, storage_dir, restore=True):
+def _dto_remove_single_fit(dtob_basename, changes_dir, restore=True):
     """Withdraw the application of an overlay (FIT case).
 
     Remove the specified overlay from the list of overlays being "applied"
@@ -555,20 +549,19 @@ def _dto_remove_single_fit(dtob_basename, changes_dir, storage_dir, restore=True
     :param dtob_basename: Basename of the overlay file (which will be mapped to
         node names inside the kernel FIT image).
     :param changes_dir: Path to the changes directory.
-    :param storage_dir: Path to the storage directory.
     :param restore: Whether or not to restore an overlay from the base image.
     """
 
     log.debug("Removing overlay '%s'.", dtob_basename)
     # Update overlays.txt:
-    dtob_basenames = dto.get_applied_overlay_names(storage_dir)
+    dtob_basenames = dto.get_applied_overlay_names()
     dtob_basenames.remove(dtob_basename)
-    dto.set_applied_overlay_names(dtob_basenames, changes_dir, storage_dir)
+    dto.set_applied_overlay_names(dtob_basenames, changes_dir)
 
     # If the kernel has not undergone any changes yet, for sure there are no user set
     # overlays in it; nothing needs to be done in that case.
-    kernel_path_sysroot = kernel.find_kernel_in_sysroot(storage_dir)
-    kernel_path_chgsdir = kernel.find_kernel_in_changes_dir(changes_dir, storage_dir)
+    kernel_path_sysroot = kernel.find_kernel_in_sysroot()
+    kernel_path_chgsdir = kernel.find_kernel_in_changes_dir(changes_dir)
     if not kernel_path_chgsdir:
         log.debug("Not removing overlay from kernel FIT (kernel has no custom changes).")
         return
@@ -578,7 +571,7 @@ def _dto_remove_single_fit(dtob_basename, changes_dir, storage_dir, restore=True
     # ---
 
     # Load kernel FIT into memory:
-    dtb_prefix = dt.get_kernelfit_dtb_prefix(storage_dir)
+    dtb_prefix = dt.get_kernelfit_dtb_prefix()
     with open(kernel_path_chgsdir, "rb") as fhandle:
         fitcustom = KernelFit(fhandle, dtb_prefix=dtb_prefix)
     # Delete the overlay:
@@ -605,15 +598,15 @@ def _dto_remove_single_fit(dtob_basename, changes_dir, storage_dir, restore=True
         fitcustom.write(fhandle)
 
 
-def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
+def dto_remove_single(dtob_basename, presence_required=True):
     """Remove a single overlay."""
 
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
                                "images. Aborting.")
 
-    dtob_basenames = dto.get_applied_overlay_names(storage_dir)
+    dtob_basenames = dto.get_applied_overlay_names()
     if not dtob_basename in dtob_basenames:
         if presence_required:
             log.error(f"error: overlay '{dtob_basename}' is already not applied.")
@@ -622,59 +615,59 @@ def dto_remove_single(dtob_basename, storage_dir, presence_required=True):
             log.debug(f"Overlay '{dtob_basename}' is already not applied.")
             return False
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"dto_remove_single: kernel_is_fit={kernel_is_fit}")
 
     if kernel_is_fit:
-        changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+        changes_dir = kernel.get_kernel_changes_dir()
         # TODO: Consider allowing users to set restore=False.
-        _dto_remove_single_fit(dtob_basename, changes_dir, storage_dir)
+        _dto_remove_single_fit(dtob_basename, changes_dir)
     else:
-        changes_dir = dt.get_dt_changes_dir(storage_dir)
-        _dto_remove_single_nonfit(dtob_basename, changes_dir, storage_dir)
+        changes_dir = dt.get_dt_changes_dir()
+        _dto_remove_single_nonfit(dtob_basename, changes_dir)
 
     return True
 
 
-def _dto_remove_all_nonfit(changes_dir, storage_dir):
+def _dto_remove_all_nonfit(changes_dir):
     # Deploy an empty overlays config file.
     log.debug("Removing all overlays.")
-    dto.set_applied_overlay_names([], changes_dir, storage_dir)
+    dto.set_applied_overlay_names([], changes_dir)
     # Wipe out all overlay blobs as external changes.
     dtob_target_dir = os.path.join(
-        changes_dir, dt.get_dtb_kernel_subdir(storage_dir), "overlays")
+        changes_dir, dt.get_dtb_kernel_subdir(), "overlays")
     shutil.rmtree(dtob_target_dir, ignore_errors=True)
 
 
-def _dto_remove_all_fit(changes_dir, storage_dir):
+def _dto_remove_all_fit(changes_dir):
     log.debug("Removing all overlays (FIT case).")
-    dtob_basenames = dto.get_applied_overlay_names(storage_dir)
+    dtob_basenames = dto.get_applied_overlay_names()
     for dtob_basename in dtob_basenames:
-        _dto_remove_single_fit(dtob_basename, changes_dir, storage_dir)
+        _dto_remove_single_fit(dtob_basename, changes_dir)
 
 
-def dto_remove_all(storage_dir):
+def dto_remove_all():
     """Remove all overlays currently applied."""
 
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
                                "images. Aborting.")
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"dto_remove_all: kernel_is_fit={kernel_is_fit}")
 
     if kernel_is_fit:
-        changes_dir = kernel.get_kernel_changes_dir(storage_dir)
-        _dto_remove_all_fit(changes_dir, storage_dir)
+        changes_dir = kernel.get_kernel_changes_dir()
+        _dto_remove_all_fit(changes_dir)
     else:
-        changes_dir = dt.get_dt_changes_dir(storage_dir)
-        _dto_remove_all_nonfit(changes_dir, storage_dir)
+        changes_dir = dt.get_dt_changes_dir()
+        _dto_remove_all_nonfit(changes_dir)
 
     # Sanity check.
-    assert not dto.get_applied_overlay_names(storage_dir), \
+    assert not dto.get_applied_overlay_names(), \
         "panic: all overlays removal failed; please contact the maintainers of this tool."
 
 
@@ -687,13 +680,13 @@ def do_dto_remove(args):
 
     if args.all:
         # The user wants to remove all overlays.
-        dto_remove_all(args.storage_directory)
+        dto_remove_all()
     else:
         # The user wants to remove a single overlay.
         if not args.dtob_basename:
             log.error("error: no overlay was specified in the command line.")
             sys.exit(1)
-        dto_remove_single(args.dtob_basename, args.storage_directory, presence_required=True)
+        dto_remove_single(args.dtob_basename, presence_required=True)
 
 
 def do_dto_deploy(args):
@@ -723,7 +716,6 @@ def do_dto_deploy(args):
     union_branch = "dto_deploy"
     union_cli.union(
         changes_dirs=None,
-        storage_dir=args.storage_directory,
         union_branch=union_branch,
         commit_subject="dto_deploy_subject",
         commit_body="dto_deploy_body")

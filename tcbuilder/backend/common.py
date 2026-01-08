@@ -71,6 +71,17 @@ REMOTE_CMD_TIMEOUT = 90
 
 SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
 
+
+def get_storage_dir():
+    """Get the absolute path of the "storage" directory."""
+    return os.path.abspath(os.environ.get("TCB_STORAGE_DIR", "/storage"))
+
+
+def set_storage_dir(storage_dir):
+    """Set the path to the "storage" directory."""
+    os.environ["TCB_STORAGE_DIR"] = storage_dir
+
+
 # Based on this solution: https://stackoverflow.com/a/50690347
 # Usage of Event object to stop thread was based on:
 # https://www.pythontutorial.net/python-concurrency/python-stop-thread/
@@ -385,11 +396,10 @@ def resolve_remote_host(remote_host, mdns_source=None):
         return ip_addr
 
 
-def get_branch_and_major_from_metadata(storage_dir):
-    """Get the kernel branch and image major version from the OSTree metadata
+def get_branch_and_major_from_metadata():
+    """Get the kernel branch and image major version from the OSTree metadata"""
 
-    :param storage_dir: The directory where the OSTree repository is located
-    """
+    storage_dir = get_storage_dir()
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, _kargs = ostree.get_deployment_info_from_sysroot(src_sysroot)
@@ -457,20 +467,19 @@ def update_dt_git_repo():
         raise GitRepoError(error)
 
 
-def checkout_dt_git_repo(storage_dir, git_repo=None, git_branch=None):
+def checkout_dt_git_repo(*, git_repo=None, git_branch=None):
     """Checkout the device-trees Git repository
 
     This function will clone a git_repo and checkout a chosen branch. If no
     git repo is given, the default device-trees repository will be used. If no branch
     is given, the branch name will be read from the OSTree metadata.
 
-    :param storage_dir: The directory where the OSTree repository is located
     :param git_repo: The git repository to clone from. If None, the default
     :param git_branch: The git branch to checkout.
     """
 
     if git_branch is None:
-        git_branch, image_major_version = get_branch_and_major_from_metadata(storage_dir)
+        git_branch, image_major_version = get_branch_and_major_from_metadata()
 
         if image_major_version >= 6:
             raise TorizonCoreBuilderError(
@@ -591,9 +600,10 @@ def get_host_workdir():
     return None, None
 
 
-def get_arch_from_ostree(storage_dir, ref="base"):
+def get_arch_from_ostree(ref="base"):
     """Determine architecture from OSTree metadata"""
 
+    storage_dir = get_storage_dir()
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
     if not os.path.isdir(src_ostree_archive_dir):
         raise InvalidStateError(
@@ -606,14 +616,14 @@ def get_arch_from_ostree(storage_dir, ref="base"):
     return srcmeta.get("oe.arch")
 
 
-def get_docker_platform(storage_dir):
+def get_docker_platform():
     """Determine platform for accessing a Docker registry
 
     The information is mapped from the architecture field in the OSTree
     metadata.
     """
 
-    oe_arch = get_arch_from_ostree(storage_dir)
+    oe_arch = get_arch_from_ostree()
     if oe_arch not in ARCH_TO_DOCKER_PLAT:
         raise InvalidDataError(
             f"Unknown architecture {oe_arch} in OSTree metadata")
@@ -712,16 +722,17 @@ def set_output_ownership(output_file, set_parents=False):
                                     workdir_uid, workdir_gid)
 
 
-def images_unpack_executed(storage_dir):
+def images_unpack_executed():
     """
-    Check both, if "storage_dir" exists and if a "torizoncore-builder images
-    unpack command" was executed previously.
+    Check both, if the storage directory exists and if a "torizoncore-builder
+    images unpack command" was executed previously.
 
-    :param storage_dir: Storage directory.
     :raises:
-        PathNotExistError: if "storage_dir" does not exist.
+        PathNotExistError: if the storage directory does not exist.
         ImageUnpackError: if "images unpack" was not executed previously.
     """
+
+    storage_dir = get_storage_dir()
     if not os.path.exists(storage_dir):
         raise PathNotExistError(
             f"Storage directory \"{storage_dir}\" does not exist.")
@@ -733,17 +744,18 @@ def images_unpack_executed(storage_dir):
             raise ImageUnpackError()
 
 
-def unpacked_image_type(storage_dir):
+def unpacked_image_type():
     """
     Check if unpacked image is of type 'tezi' or 'wic' by
-    looking if storage_dir has a directory named tezi.
+    looking if the storage has a directory named tezi.
     This function should always run after images_unpack_executed()
 
-    :param storage_dir: Storage directory.
     :raises:
-        PathNotExistError: if "storage_dir" does not exist.
+        PathNotExistError: if the storage directory does not exist.
     :return: "tezi" or "wic", depending on the image
     """
+
+    storage_dir = get_storage_dir()
     if not os.path.exists(storage_dir):
         raise PathNotExistError(
             f"Storage directory \"{storage_dir}\" does not exist.")
@@ -754,13 +766,12 @@ def unpacked_image_type(storage_dir):
     return "raw"
 
 
-def fail_on_raw_image(storage_dir, message):
+def fail_on_raw_image(message):
     """Throw error if the unpacked image is of type WIC/raw.
 
-    :param storage_dir: Path to storage directory.
     :param message: Message string for exception to be thrown.
     """
-    if unpacked_image_type(storage_dir) == "raw":
+    if unpacked_image_type() == "raw":
         raise InvalidDataError(message)
 
 

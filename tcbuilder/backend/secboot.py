@@ -11,8 +11,9 @@ import subprocess
 
 from tcbuilder.backend import kernel
 from tcbuilder.backend.common import \
-    (set_output_ownership, get_tar_compress_program_options, is_tcb_container_64bit,
-     check_if_file_exists, get_tezi_image_version, is_file_type_fit)
+    (check_if_file_exists, get_tar_compress_program_options, get_storage_dir,
+     get_tezi_image_version, is_file_type_fit, is_tcb_container_64bit,
+     set_output_ownership)
 from tcbuilder.backend.ubootenv import get_env_filename, find_board
 from tcbuilder.backend.platform import SECBOOT_TECH_PER_MACHINE
 
@@ -503,14 +504,13 @@ def run_hab_signing_script(signing_dir, uboot_config_path, binman_output_dir,
     os.chdir("/workdir")
 
 
-def check_basic_signing_prerequisites(storage_dir):
+def check_basic_signing_prerequisites():
     """
     Check if the unpacked Torizon OS image in Toradex Easy Installer format has the minimum
     requirements necessary for the signing feature
-
-    :param storage_dir: Path to storage directory, where the image was unpacked
     """
 
+    storage_dir = get_storage_dir()
     img_major, _, _ = get_tezi_image_version(os.path.join(storage_dir, "tezi"))
     if img_major is None:
         raise InvalidArgumentError("Unable to determine unpacked image version. Aborting.")
@@ -520,7 +520,7 @@ def check_basic_signing_prerequisites(storage_dir):
 
     log.debug("Checking if the unpacked image has the kernel in FIT format...")
 
-    unpacked_kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    unpacked_kernel_path = kernel.find_kernel_in_sysroot()
     if not is_file_type_fit(unpacked_kernel_path):
         raise InvalidArgumentError(
             "Unpacked image does not have the kernel in FIT format. Aborting.")
@@ -528,12 +528,10 @@ def check_basic_signing_prerequisites(storage_dir):
     log.info("Found kernel in FIT format.")
 
 
-def check_unpacked_tezi_kernel_signing_support(storage_dir):
-    """Check if TorizonCore Builder can sign the kernel of the unpacked TEZI image
+def check_unpacked_tezi_kernel_signing_support():
+    """Check if TorizonCore Builder can sign the kernel of the unpacked TEZI image."""
 
-    :param storage_dir: Path to storage directory, where the image was unpacked
-    """
-
+    storage_dir = get_storage_dir()
     tezi_dir = os.path.join(storage_dir, "tezi")
 
     initial_env_filename = get_env_filename(tezi_dir)
@@ -551,17 +549,18 @@ def check_unpacked_tezi_kernel_signing_support(storage_dir):
             "Aborting.\n"
             f"Currently supported machines: {', '.join(KERNEL_SIGNING_SUPPORTED_MACHINES)}")
 
-    check_basic_signing_prerequisites(storage_dir)
+    check_basic_signing_prerequisites()
 
 
-def check_unpacked_tezi_hab_signing_support(storage_dir):
+def check_unpacked_tezi_hab_signing_support():
     """
     Check if TorizonCore Builder can sign the HAB-compatible bootloader of the given
     Toradex Easy Installer image
 
-    :param storage_dir: Path to storage directory, where the image was unpacked
     :returns: The name of the machine compatible with the image
     """
+
+    storage_dir = get_storage_dir()
     tezi_dir = os.path.join(storage_dir, "tezi")
 
     initial_env_filename = get_env_filename(tezi_dir)
@@ -583,7 +582,7 @@ def check_unpacked_tezi_hab_signing_support(storage_dir):
             f"\"{board}\". Aborting.\n"
             f"Currently supported machines: {', '.join(HAB_SIGNING_SUPPORTED_MACHINES)}")
 
-    check_basic_signing_prerequisites(storage_dir)
+    check_basic_signing_prerequisites()
 
     return board
 
@@ -622,19 +621,17 @@ def check_cst_dir(abs_cst_dir, cst_args):
     cst_args["srk_fuse"] = check_if_file_exists(cst_args["srk_fuse"], cst_crts_dir)
 
 
-def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
-    """Sign kernel fitImage of unpacked Easy Installer image in storage_dir
+def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name):
+    """Sign kernel fitImage of unpacked Easy Installer image in storage
 
-    :param storage_dir: Path to storage directory, where the image was unpacked
-    :param kernel_changes_dir: Path to directory with all kernel changes to be commited
+    :param kernel_changes_dir: Path to directory with all kernel changes to be committed
     :param key_dir: Path to directory with the key to sign the kernel fitImage
     :param key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param key_name: Name of the provided key
     """
 
     check_if_file_exists(f"{key_name}.key", key_dir)
-
-    check_unpacked_tezi_kernel_signing_support(storage_dir)
+    check_unpacked_tezi_kernel_signing_support()
 
     # Ensure we have a clean secure boot work directory.
     if os.path.isdir(SECURE_BOOT_WORKDIR):
@@ -642,7 +639,7 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
     os.mkdir(SECURE_BOOT_WORKDIR)
 
     # Determine final destination of kernel binary.
-    kernel_subdir = kernel.get_kernel_subdir(storage_dir)
+    kernel_subdir = kernel.get_kernel_subdir()
     kernel_dst_dir = os.path.join(kernel_changes_dir, kernel_subdir)
     kernel_dst_path = os.path.join(kernel_dst_dir, KERNEL_FIT_FILENAME)
 
@@ -652,7 +649,7 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
         kernel_src_path = kernel_dst_path
         log.debug("Taking customized kernel from '%s' for signing.", kernel_src_path)
     else:
-        kernel_src_path = kernel.find_kernel_in_sysroot(storage_dir)
+        kernel_src_path = kernel.find_kernel_in_sysroot()
         log.debug("Taking original kernel from '%s' for signing.", kernel_src_path)
     shutil.copy2(kernel_src_path, kernel_workdir_path)
 
@@ -667,11 +664,9 @@ def sign_kernel(storage_dir, kernel_changes_dir, key_dir, key_algo, key_name):
     log.info("Kernel in unpacked Torizon OS image signed successfully!")
 
 
-def sign_bootloader_hab(storage_dir, kernel_key_dir,
-                        kernel_key_name, kernel_key_algo, cst_dir, cst_args):
+def sign_bootloader_hab(kernel_key_dir, kernel_key_name, kernel_key_algo, cst_dir, cst_args):
     """Sign bootloader container of a HAB-compatible image in input_dir
 
-    :param storage_dir: Path to storage directory, where the image was unpacked
     :param kernel_key_dir: Path to directory with the key to sign the kernel fitImage
     :param kernel_key_name: Name of the provided kernel key
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
@@ -683,7 +678,7 @@ def sign_bootloader_hab(storage_dir, kernel_key_dir,
         check_if_file_exists(f"{kernel_key_name}.key", kernel_key_dir)
         check_if_file_exists(f"{kernel_key_name}.crt", kernel_key_dir)
 
-    board = check_unpacked_tezi_hab_signing_support(storage_dir)
+    board = check_unpacked_tezi_hab_signing_support()
 
     # Using absolute path as the signing script will be executed relative from its own directory
     cst_dir = os.path.abspath(cst_dir)
@@ -701,6 +696,7 @@ def sign_bootloader_hab(storage_dir, kernel_key_dir,
 
     check_cst_dir(cst_dir, cst_args)
 
+    storage_dir = get_storage_dir()
     tezi_dir = os.path.join(storage_dir, "tezi")
 
     signing_binaries_file = check_if_file_exists(DEFAULT_TCB_SIGNING_FILES_TARNAME, tezi_dir)

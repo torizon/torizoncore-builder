@@ -8,12 +8,8 @@ import os
 from tcbuilder.backend import deploy as dbe
 from tcbuilder.backend import common
 from tcbuilder.backend import combine as cbe
-from tcbuilder.errors import (
-    InvalidArgumentError,
-    InvalidStateError,
-    PathNotExistError,
-    InvalidDataError,
-)
+from tcbuilder.errors import \
+    (InvalidArgumentError, InvalidStateError, PathNotExistError, InvalidDataError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -34,17 +30,15 @@ def progress_update(asyncprogress, _user_data=None):
     print("Pull: %s bytes transferred.\r", str(bytes_transferred))
 
 
-def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
-                      tezi_props=None):
+def deploy_tezi_image(*, ostree_ref, output_dir, deploy_sysroot_dir, tezi_props=None):
 
-    common.images_unpack_executed(storage_dir)
-    if common.unpacked_image_type(storage_dir) == "raw":
+    common.images_unpack_executed()
+    if common.unpacked_image_type() != "tezi":
         raise InvalidDataError("Current unpacked image is not a Toradex Easy Installer image. "
                                "Aborting.")
 
     output_dir_ = os.path.abspath(output_dir)
-
-    storage_dir_ = os.path.abspath(storage_dir)
+    storage_dir_ = common.get_storage_dir()
     tezi_dir = os.path.join(storage_dir_, "tezi")
 
     common.check_licence_acceptance(tezi_dir, tezi_props)
@@ -70,11 +64,11 @@ def deploy_tezi_image(ostree_ref, output_dir, storage_dir, deploy_sysroot_dir,
     common.set_output_ownership(output_dir_)
 
 
-def deploy_raw_image(ostree_ref, base_raw_img, output_raw_img, storage_dir,
-                     deploy_sysroot_dir, rootfs_label):
+def deploy_raw_image(*, ostree_ref, base_raw_img,
+                     output_raw_img, deploy_sysroot_dir, rootfs_label):
 
-    common.images_unpack_executed(storage_dir)
-    if common.unpacked_image_type(storage_dir) == "tezi":
+    common.images_unpack_executed()
+    if common.unpacked_image_type() != "raw":
         raise InvalidDataError("Current unpacked image is not a WIC/raw image. Aborting.")
 
     if output_raw_img is None:
@@ -90,8 +84,8 @@ def deploy_raw_image(ostree_ref, base_raw_img, output_raw_img, storage_dir,
             output_raw_img = os.path.join(output_raw_img, DEFAULT_OUTPUT_IMG_NAME)
 
     output_raw_img_ = os.path.abspath(output_raw_img)
-    storage_dir_ = os.path.abspath(storage_dir)
 
+    storage_dir_ = common.get_storage_dir()
     src_sysroot_dir = os.path.join(storage_dir_, "sysroot")
     src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
 
@@ -133,11 +127,11 @@ def do_deploy_tezi_image(args):
             log.warning(f"Warning: {raw_prop_to_argname[prop]} "
                         "is specific to raw images. Ignoring.")
 
-    deploy_tezi_image(ostree_ref=args.ref,
-                      output_dir=args.output_directory,
-                      storage_dir=args.storage_directory,
-                      deploy_sysroot_dir=args.deploy_sysroot_directory,
-                      tezi_props=tezi_props_args)
+    deploy_tezi_image(
+        ostree_ref=args.ref,
+        output_dir=args.output_directory,
+        deploy_sysroot_dir=args.deploy_sysroot_directory,
+        tezi_props=tezi_props_args)
 
 
 def do_deploy_raw_image(args):
@@ -167,21 +161,21 @@ def do_deploy_raw_image(args):
         if common_raw_props_args[prop] is None:
             common_raw_props_args[prop] = common.RAW_PROP_DEFAULTS[prop]
 
-    deploy_raw_image(ostree_ref=args.ref,
-                     base_raw_img=args.base_raw_image,
-                     output_raw_img=args.output_raw_image,
-                     storage_dir=args.storage_directory,
-                     deploy_sysroot_dir=args.deploy_sysroot_directory,
-                     rootfs_label=common_raw_props_args["raw_rootfs_label"])
+    deploy_raw_image(
+        ostree_ref=args.ref,
+        base_raw_img=args.base_raw_image,
+        output_raw_img=args.output_raw_image,
+        deploy_sysroot_dir=args.deploy_sysroot_directory,
+        rootfs_label=common_raw_props_args["raw_rootfs_label"])
 
 
-def deploy_ostree_remote(storage_dir, remote_host, remote_username,
-                         remote_password, remote_port, mdns_source, ref, reboot):
+def deploy_ostree_remote(*, remote_host, remote_port,
+                         remote_username, remote_password, mdns_source, ref, reboot):
 
-    storage_dir_ = os.path.abspath(storage_dir)
-    common.images_unpack_executed(storage_dir_)
+    common.images_unpack_executed()
 
-    src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
+    storage_dir = common.get_storage_dir()
+    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
 
     log.warning("WARNING: Beware that artifacts not managed by OSTree (e.g. bootloader, container "
                 "images, platform provisioning data, fuse values, U-Boot environment) will not be "
@@ -193,15 +187,14 @@ def deploy_ostree_remote(storage_dir, remote_host, remote_username,
 
 
 def do_deploy_ostree_remote(args):
-
-    deploy_ostree_remote(storage_dir=args.storage_directory,
-                         remote_host=args.remote_host,
-                         remote_username=args.remote_username,
-                         remote_password=args.remote_password,
-                         remote_port=args.remote_port,
-                         mdns_source=args.mdns_source,
-                         ref=args.ref,
-                         reboot=args.reboot)
+    deploy_ostree_remote(
+        remote_host=args.remote_host,
+        remote_port=args.remote_port,
+        remote_username=args.remote_username,
+        remote_password=args.remote_password,
+        mdns_source=args.mdns_source,
+        ref=args.ref,
+        reboot=args.reboot)
 
 
 def do_deploy(args):

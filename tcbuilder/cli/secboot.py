@@ -64,19 +64,16 @@ def do_sign_kernel(args):
 
     kernel_key_name, kernel_key_algo = validate_kernel_key_arg(args.kernel_key)
 
-    storage_dir = os.path.abspath(args.storage_directory)
-
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Secboot commands are not supported for WIC/raw images. "
                                "Aborting.")
 
-    kernel_changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+    kernel_changes_dir = kernel.get_kernel_changes_dir()
     if not os.path.isdir(kernel_changes_dir):
         os.mkdir(kernel_changes_dir)
 
     secboot.sign_kernel(
-        storage_dir=storage_dir,
         kernel_changes_dir=kernel_changes_dir,
         key_dir=args.kernel_key_dir,
         key_algo=kernel_key_algo,
@@ -107,10 +104,8 @@ def do_sign_bootloader_hab(args):
                 "--kernel-key was passed but --kernel-key-dir was not provided. Aborting.")
         kernel_key_name, kernel_key_algo = validate_kernel_key_arg(args.kernel_key)
 
-    storage_dir = os.path.abspath(args.storage_directory)
-
-    images_unpack_executed(storage_dir)
-    if unpacked_image_type(storage_dir) == "raw":
+    images_unpack_executed()
+    if unpacked_image_type() == "raw":
         raise InvalidDataError("Secboot commands are not supported for WIC/raw images. "
                                "Aborting.")
 
@@ -126,7 +121,6 @@ def do_sign_bootloader_hab(args):
     }
 
     secboot.sign_bootloader_hab(
-        storage_dir=storage_dir,
         kernel_key_dir=args.kernel_key_dir,
         kernel_key_name=kernel_key_name,
         kernel_key_algo=kernel_key_algo,

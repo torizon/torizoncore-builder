@@ -11,7 +11,7 @@ import urllib.request
 
 from tcbuilder.backend import ostree, dt
 from tcbuilder.backend.common import \
-    (get_tar_compress_program_options, progress, set_output_ownership)
+    (get_tar_compress_program_options, get_storage_dir, progress, set_output_ownership)
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, PathNotExistError)
 
@@ -41,8 +41,9 @@ SET_BOOTARGS_CUSTOM2_RE = r'^\s*set_bootargs_custom2='
 MOD_DIR_COPY_EXCLUDE_SET = {"dtb"}
 
 
-def get_kernel_changes_dir(storage_dir):
+def get_kernel_changes_dir():
     """Return directory containing kernel related changes."""
+    storage_dir = get_storage_dir()
     return os.path.join(storage_dir, "kernel")
 
 
@@ -264,14 +265,15 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
     log.info("Toolchain successfully unpacked.\n")
 
 
-def find_kernel_in_sysroot(storage_dir):
+def find_kernel_in_sysroot():
     """
-    Find kernel binary path in the unpacked image sysroot. Raises an error if it cannot find it.
+    Find kernel binary path in the unpacked image sysroot. Raises an error if
+    it cannot find it.
 
-    :param storage_dir: Path of the unpacked image. The rootfs dir is assumed to be named 'sysroot'
     :returns: String with absolute path of the kernel binary inside sysroot.
     """
 
+    storage_dir = get_storage_dir()
     sysroot_path = os.path.join(storage_dir, "sysroot")
 
     # As the kernel path is composed of directories named after the deployment commit and the
@@ -296,13 +298,14 @@ def find_kernel_in_sysroot(storage_dir):
     return kernel_path
 
 
-def get_kernel_subdir(storage_dir):
+def get_kernel_subdir():
     """Get the versioned kernel directory.
 
     Returns "usr/lib/modules/<kver>" where <kver> is determined
     automatically. This is where the kernel binary is supposed to live.
     """
 
+    storage_dir = get_storage_dir()
     src_sysroot_dir = os.path.join(storage_dir, "sysroot")
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
@@ -310,10 +313,10 @@ def get_kernel_subdir(storage_dir):
     return os.path.join("usr/lib/modules", kernel_version)
 
 
-def find_kernel_in_changes_dir(changes_dir, storage_dir, basename=None):
+def find_kernel_in_changes_dir(changes_dir, basename=None):
     """Find path of kernel binary in the given changes directory."""
 
-    kernel_subdir = get_kernel_subdir(storage_dir)
+    kernel_subdir = get_kernel_subdir()
     kernel_src_dir = os.path.join(changes_dir, kernel_subdir)
     kernel_src_path = os.path.join(kernel_src_dir, basename or OSTREE_KERNEL_FILENAME)
     if os.path.isfile(kernel_src_path):
@@ -325,7 +328,7 @@ def find_kernel_in_changes_dir(changes_dir, storage_dir, basename=None):
     return kernel_src_path
 
 
-def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
+def copy_kernel_to_changes_dir(changes_dir, basename=None):
     """Copy kernel FIT image from sysroot to changes directory.
 
     Find kernel in sysroot and copy it to the appropriate subdirectory in the
@@ -333,13 +336,13 @@ def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
     does not yet exist in the destination.
     """
 
-    kernel_subdir = get_kernel_subdir(storage_dir)
+    kernel_subdir = get_kernel_subdir()
     kernel_tgt_dir = os.path.join(changes_dir, kernel_subdir)
     kernel_tgt_path = os.path.join(kernel_tgt_dir, basename or OSTREE_KERNEL_FILENAME)
     if not os.path.isfile(kernel_tgt_path):
         log.debug("Kernel does not exist in '%s'", kernel_tgt_path)
         os.makedirs(kernel_tgt_dir, exist_ok=True)
-        kernel_src_path = find_kernel_in_sysroot(storage_dir)
+        kernel_src_path = find_kernel_in_sysroot()
         log.debug("Copying '%s' -> '%s'", kernel_src_path, kernel_tgt_path)
         shutil.copy2(kernel_src_path, kernel_tgt_path)
     else:
@@ -348,10 +351,10 @@ def copy_kernel_to_changes_dir(changes_dir, storage_dir, basename=None):
     return kernel_tgt_path
 
 
-def get_supported_bootargs_methods(storage_dir):
+def get_supported_bootargs_methods():
     """Determine the set of bootargs passing methods supported by the current image."""
 
-    uenv_txt_path = dt.get_current_uenv_txt_path(storage_dir)
+    uenv_txt_path = dt.get_current_uenv_txt_path()
     method_re = {
         "overlay": re.compile(SET_BOOTARGS_CUSTOM_RE),
         "uenv": re.compile(SET_BOOTARGS_CUSTOM2_RE)

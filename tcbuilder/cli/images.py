@@ -18,36 +18,36 @@ PROV_MODE_ONLINE = "online"
 PROV_MODES = (PROV_MODE_OFFLINE, PROV_MODE_ONLINE)
 
 
-def get_extra_dirs(storage_dir, main_dirs):
+def get_extra_dirs(main_dirs):
     """
-    Get all directories names inside "storage" that should be removed when
-    unpacking a new TEZI image but that are not included in the list of
-    "keep directories" and the list of "main directories". At this time,
-    only the "toolchain directory" should be kept between images unpack.
+    Get all directory names inside the "storage" that should be removed
+    when unpacking a new TEZI image. All directories in the "storage"
+    are returned with the exceptions of those listed in #main_dirs and
+    the "toolchain/" one.
 
-    :param storage_dir: Storage directory.
     :param main_dirs: List of main directories for the unpacking.
     :returns: A list of extra directories that should be removed.
     """
 
-    # Directories that should be kept between images "unpacks"
+    storage_dir = common.get_storage_dir()
     keep_dirs = [os.path.join(storage_dir, "toolchain")]
+    keep_dirs.extend(main_dirs)
 
     extra_dirs = []
-
     for dirname in os.listdir(storage_dir):
         abs_dirname = os.path.join(storage_dir, dirname)
-        if abs_dirname not in keep_dirs + main_dirs:
+        if not os.path.isdir(abs_dirname):
+            continue
+        if abs_dirname not in keep_dirs:
             extra_dirs.append(abs_dirname)
 
     return extra_dirs
 
 
-def prepare_storage(storage_directory, remove_storage):
+def prepare_storage(remove_storage):
     """ Prepare Storage directory for unpacking"""
 
-    storage_dir = os.path.abspath(storage_directory)
-
+    storage_dir = common.get_storage_dir()
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
 
@@ -56,7 +56,7 @@ def prepare_storage(storage_directory, remove_storage):
                  for dirname in ("tezi", "sysroot", "ostree-archive")]
 
     # Extra directories: will be cleared but not returned.
-    extra_dirs = get_extra_dirs(storage_dir, main_dirs)
+    extra_dirs = get_extra_dirs(main_dirs)
 
     all_dirs = main_dirs + extra_dirs
     need_clearing = False
@@ -82,7 +82,7 @@ def do_images_download(args):
     """Run 'images download' subcommand"""
 
     r_ip = common.resolve_remote_host(args.remote_host, args.mdns_source)
-    dir_list = prepare_storage(args.storage_directory, args.remove_storage)
+    dir_list = prepare_storage(args.remove_storage)
     images.download_tezi(r_ip, args.remote_username, args.remote_password,
                          args.remote_port,
                          dir_list[0], dir_list[1], dir_list[2])
@@ -134,23 +134,21 @@ def do_images_serve(args):
     images.serve(args.images_directory)
 
 
-def images_unpack(image_dir, storage_dir, raw_rootfs_label=None,
-                  remove_storage=False):
+def images_unpack(image_dir, *, raw_rootfs_label=None, remove_storage=False):
     """Main handler for the 'images unpack' subcommand"""
 
     image_dir = os.path.abspath(image_dir)
-    dir_list = prepare_storage(storage_dir, remove_storage)
+    dir_list = prepare_storage(remove_storage)
     images.import_local_image(image_dir, dir_list[0], dir_list[1],
                               dir_list[2], raw_rootfs_label)
 
 
 def do_images_unpack(args):
     """Wrapper for 'images unpack' subcommand"""
-
-    images_unpack(args.image_directory,
-                  args.storage_directory,
-                  args.raw_rootfs_label,
-                  args.remove_storage)
+    images_unpack(
+        args.image_directory,
+        raw_rootfs_label=args.raw_rootfs_label,
+        remove_storage=args.remove_storage)
 
 
 def init_parser(subparsers):
