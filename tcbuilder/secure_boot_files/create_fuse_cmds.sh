@@ -1,11 +1,15 @@
 #!/bin/bash
 
+[ "${XTRACE}" = "1" ] && set -x
+
 set -e
 
 # parameters
 SOC="$1"
 SRK_FUSE_FILE="$2"
 FUSE_CMDS_FILE="$3"
+FUSE_INFO_FILE="$(dirname "$FUSE_CMDS_FILE")/imx-config.fuse"
+TEMPLATES_DIR=${4:-"."}
 
 # warning to program SRK hash fuses
 WARNING1="\
@@ -24,62 +28,79 @@ WARNING2="\
 # this bit, the SOM will not boot anymore!"
 
 fuse_write_line() {
-    bank=$1
-    word=$2
-    hexval=$3
+    local bank=$1
+    local word=$2
+    local hexval=$3
     echo "fuse prog -y $bank $word $hexval"
 }
 
-create_fuse_cmds_mx6() {
-    echo "${WARNING1}"
+create_fuse_cmds() {
+    local template_file="$1"
 
-    # commands to program SRK_HASH fuses
-    bank=3
-    word=0
-    for hexval in $(hexdump -e '/4 "0x"' -e '/4 "%X""\n"' ${SRK_FUSE_FILE}); do
-        fuse_write_line $bank $word $hexval
-        word=$((word+1))
+    echo "Generating fusing files using template [$template_file]."
+
+    if [ ! -e "$template_file" ]; then
+        echo "Template file not found [$template_file]!"
+        return 1
+    fi
+
+    cp "$template_file" "$FUSE_INFO_FILE"
+    echo "${WARNING1}" > "$FUSE_CMDS_FILE"
+
+    echo "Writing fusing commands..."
+
+    for hexval in $(hexdump -e '/4 "0x"' -e '/4 "%X""\n"' "${SRK_FUSE_FILE}"); do
+        fuse_info=$(grep -m 1 "^H:F:.*:$" "$FUSE_INFO_FILE")
+        bank=$(echo "$fuse_info" | cut -d: -f3)
+        word=$(echo "$fuse_info" | cut -d: -f4)
+        sed -i "/^$fuse_info/ s/\$/$hexval/" "$FUSE_INFO_FILE"
+        fuse_write_line "$bank" "$word" "$hexval" >> "$FUSE_CMDS_FILE"
     done
 
-    # command to program SEC_CONFIG fuse and 'close' the device
-    echo -e "\n${WARNING2}"
-    fuse_write_line 0 6 0x00000002
+    if grep -q "^H:F:.*:$" "$FUSE_INFO_FILE"; then
+        rm -rf "$FUSE_INFO_FILE" "$FUSE_CMDS_FILE"
+        echo "Error: there are still unpopulated fuse values!"
+        return 1
+    fi
+
+    echo -e "\n${WARNING2}" >> "$FUSE_CMDS_FILE"
+
+    echo "Writing 'close' command..."
+
+    if grep -q "H:T:HAB" "$FUSE_INFO_FILE"; then
+        fuse_info=$(grep "^H:C:" "$FUSE_INFO_FILE")
+        bank=$(echo "$fuse_info" | cut -d: -f3)
+        word=$(echo "$fuse_info" | cut -d: -f4)
+        hexval=$(echo "$fuse_info" | cut -d: -f5)
+        fuse_write_line "$bank" "$word" "$hexval" >> "$FUSE_CMDS_FILE"
+    else
+        echo "ahab_close" >> "$FUSE_CMDS_FILE"
+    fi
+
+    echo "Fusing files successfully generated!"
 }
 
-create_fuse_cmds_mx7() {
-    echo "${WARNING1}"
-
-    # commands to program SRK_HASH fuses
-    bank=6
-    word=0
-    for hexval in $(hexdump -e '/4 "0x"' -e '/4 "%X""\n"' ${SRK_FUSE_FILE}); do
-        fuse_write_line $bank $word $hexval
-        word=$((word+1))
-        if [ "$word" = "4" ]; then
-            bank=$((bank+1))
-            word=0
-        fi
-    done
-
-    # command to program SEC_CONFIG fuse and 'close' the device
-    echo -e "\n${WARNING2}"
-    fuse_write_line 1 3 0x02000000
-}
-
-create_fuse_cmds_mx8m() {
-    # Fusing is exactly the same as with the i.MX7
-    create_fuse_cmds_mx7 "$@"
-}
+# Print command for Yocto logs
+echo "$0" "$@"
 
 case ${SOC} in
     "IMX6ULL"|"IMX6")
-        create_fuse_cmds_mx6 > ${FUSE_CMDS_FILE}
+        create_fuse_cmds "${TEMPLATES_DIR}/imx6-template.fuse"
         ;;
     "IMX7")
-        create_fuse_cmds_mx7 > ${FUSE_CMDS_FILE}
+        create_fuse_cmds "${TEMPLATES_DIR}/imx7-template.fuse"
         ;;
     "IMX8M")
-        create_fuse_cmds_mx8m > ${FUSE_CMDS_FILE}
+        create_fuse_cmds "${TEMPLATES_DIR}/imx8m-template.fuse"
+        ;;
+    "iMX8QX")
+        create_fuse_cmds "${TEMPLATES_DIR}/imx8qx-template.fuse"
+        ;;
+    "iMX8QM")
+        create_fuse_cmds "${TEMPLATES_DIR}/imx8qm-template.fuse"
+        ;;
+    "iMX95")
+        create_fuse_cmds "${TEMPLATES_DIR}/imx95-template.fuse"
         ;;
     *)
         echo "Invalid SOC!"

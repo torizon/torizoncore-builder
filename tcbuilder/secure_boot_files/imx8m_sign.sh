@@ -52,6 +52,7 @@ help() {
     echo
     echo " Optional environment variables:"
     echo
+    echo "    TDX_IMX_HAB_CST_ARGS      Additional parameters to be passed to the CST tool"
     echo "    UBOOT_SPL_DDR_BINARY      Name of binary containing SPL plus DDR FW"
     echo "                              default: u-boot-spl-ddr.bin"
     echo "    UBOOT_DTB_BINARY          Name of binary containing U-Boot DTB plus data filled in by BINMAN"
@@ -222,7 +223,7 @@ generate_spl_csf_and_update_container() {
     if ! env ${LIBFAKETIME_PATH+LD_PRELOAD="${LIBFAKETIME_PATH}"
                                 FAKETIME_FMT="%s"
                                 FAKETIME="@${FAKETIME}"} \
-             "${TDX_IMX_HAB_CST_BIN}" -i "${CSF_SPL}.csf" -o "${CSF_SPL}.bin" > "${CSF_SPL}.log" 2>&1
+             "${TDX_IMX_HAB_CST_BIN}" ${TDX_IMX_HAB_CST_ARGS} -i "${CSF_SPL}.csf" -o "${CSF_SPL}.bin" > "${CSF_SPL}.log" 2>&1
     then
         echo "CST execution log:" >&2
         cat "${CSF_SPL}.log" | sed 's@^@|@' >&2
@@ -295,7 +296,7 @@ generate_fit_csf_and_update_container() {
     if ! env ${LIBFAKETIME_PATH+LD_PRELOAD="${LIBFAKETIME_PATH}"
                                 FAKETIME_FMT="%s"
                                 FAKETIME="@${FAKETIME}"} \
-             "${TDX_IMX_HAB_CST_BIN}" -i "${CSF_FIT}.csf" -o "${CSF_FIT}.bin" > "${CSF_FIT}.log" 2>&1
+             "${TDX_IMX_HAB_CST_BIN}" ${TDX_IMX_HAB_CST_ARGS} -i "${CSF_FIT}.csf" -o "${CSF_FIT}.bin" > "${CSF_FIT}.log" 2>&1
     then
         echo "CST execution log:" >&2
         cat "${CSF_FIT}.log" | sed 's@^@|@' >&2
