@@ -5,7 +5,7 @@ import os
 import subprocess
 
 from tcbuilder.backend import dt, kernel
-from tcbuilder.backend.common import is_file_type_dtb
+from tcbuilder.backend.common import get_storage_dir, is_file_type_dtb
 
 from tcbuilder.errors import InvalidStateError
 
@@ -14,7 +14,7 @@ log = logging.getLogger("torizon." + __name__)
 OVERLAYS_TXT_FILE = "overlays.txt"
 
 
-def get_active_overlays_txt_path(storage_dir):
+def get_active_overlays_txt_path():
     """Query the path to the currently applied overlays.txt.
 
     The overlays.txt file is the overlays definition file for
@@ -23,10 +23,10 @@ def get_active_overlays_txt_path(storage_dir):
 
     # Look for the file in two changes directories; the former is used with
     # non-FIT whereas the latter with FIT images.
-    dtbsubdir = dt.get_dtb_kernel_subdir(storage_dir)
-    dchangesdir = dt.get_dt_changes_dir(storage_dir)
+    dtbsubdir = dt.get_dtb_kernel_subdir()
+    dchangesdir = dt.get_dt_changes_dir()
     dpath = os.path.join(dchangesdir, dtbsubdir, OVERLAYS_TXT_FILE)
-    kchangesdir = kernel.get_kernel_changes_dir(storage_dir)
+    kchangesdir = kernel.get_kernel_changes_dir()
     kpath = os.path.join(kchangesdir, dtbsubdir, OVERLAYS_TXT_FILE)
 
     if os.path.exists(dpath) and os.path.exists(kpath):
@@ -40,6 +40,7 @@ def get_active_overlays_txt_path(storage_dir):
             return _path
 
     # Check for the ostree-managed version of the file in the deployment.
+    storage_dir = get_storage_dir()
     dpath = subprocess.check_output(
         ["find", os.path.join(storage_dir, 'sysroot', 'ostree', 'deploy'),
          "-type", "f", "-wholename", f"*/usr/lib/modules/*/dtb/{OVERLAYS_TXT_FILE}",
@@ -52,50 +53,50 @@ def get_active_overlays_txt_path(storage_dir):
     return dpath
 
 
-def get_applied_overlay_names(storage_dir):
+def get_applied_overlay_names():
     """Query the base names of the currently applied overlay blobs."""
 
-    overlays_txt_path = get_active_overlays_txt_path(storage_dir)
+    overlays_txt_path = get_active_overlays_txt_path()
     if not overlays_txt_path:
         return []
     return dt.query_variable_in_config_file(
         "fdt_overlays", overlays_txt_path).split()
 
 
-def set_applied_overlay_names(overlay_names, changes_dir, storage_dir):
+def set_applied_overlay_names(overlay_names, changes_dir):
     """Deploy an overlays.txt with the specified overlay names.
 
     :param overlay_names: List of overlays base names to deploy into
         overlays.txt; example of a base name: "my-overlay.dtbo".
     :param changes_dir: Path of a changes directory where the overlays
         file will be created or modified.
-    :param storage_dir: Path of storage directory.
     """
 
     log.debug("Setting overlay list in '%s' to %s",
               OVERLAYS_TXT_FILE, str(overlay_names))
-    overlays_txt_dir = os.path.join(changes_dir, dt.get_dtb_kernel_subdir(storage_dir))
+    overlays_txt_dir = os.path.join(changes_dir, dt.get_dtb_kernel_subdir())
     overlays_txt_path = os.path.join(overlays_txt_dir, OVERLAYS_TXT_FILE)
     os.makedirs(overlays_txt_dir, exist_ok=True)
     with open(overlays_txt_path, "w", encoding="utf-8") as ovlf:
         ovlf.write("fdt_overlays=" + " ".join(overlay_names) + "\n")
 
 
-def find_path_to_overlay(storage_dir, basename):
+def find_path_to_overlay(basename):
     """Get the full path of the overlay blob file.
 
     Given the base name of an overlay blob file, return the full path to it
     (or die trying).
     """
 
-    path = os.path.join(dt.get_dt_changes_dir(storage_dir),
-                        dt.get_dtb_kernel_subdir(storage_dir),
+    path = os.path.join(dt.get_dt_changes_dir(),
+                        dt.get_dtb_kernel_subdir(),
                         "overlays", basename)
     if os.path.exists(path):
         # There is a recently applied (but not yet deployed) overlay blob with
         # this base name.
         return path
     # Resort to the overlay blobs of the base image.
+    storage_dir = get_storage_dir()
     path = subprocess.check_output(
         ["find",
          os.path.join(storage_dir, "sysroot/ostree/deploy"),
@@ -106,11 +107,11 @@ def find_path_to_overlay(storage_dir, basename):
     return path
 
 
-def get_applied_overlay_paths(storage_dir, base_names=None):
+def get_applied_overlay_paths(base_names=None):
     """Query the paths to the currently applied overlays."""
     if base_names is None:
-        base_names = get_applied_overlay_names(storage_dir)
-    return [find_path_to_overlay(storage_dir, basename) for basename in base_names]
+        base_names = get_applied_overlay_names()
+    return [find_path_to_overlay(basename) for basename in base_names]
 
 
 def modify_dtb_by_overlays(source_dtb_path, source_dtob_paths, target_dtb_path):

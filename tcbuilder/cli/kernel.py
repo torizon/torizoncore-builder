@@ -14,7 +14,7 @@ from tcbuilder.errors import \
     (FileContentMissing, InvalidDataError, PathNotExistError, UnsupportedImageFeature)
 from tcbuilder.backend.common import \
     (fail_on_raw_image, is_file_type_fit, get_branch_and_major_from_metadata,
-     get_tar_compress_program_options, images_unpack_executed)
+     get_storage_dir, get_tar_compress_program_options, images_unpack_executed)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.cli import dto as dto_cli
@@ -92,7 +92,7 @@ def _check_makefile(source_dir):
         raise FileContentMissing(f'KERNEL_SRC not found in "{makefile}"')
 
 
-def _extract_kernel_source(storage_dir):
+def _extract_kernel_source():
     """Find the kernel source tarball in the present image and unpack it.
 
     The tarball will be unpacked into the storage directory whose path will be
@@ -100,6 +100,7 @@ def _extract_kernel_source(storage_dir):
     """
 
     # Determine location of linux source tarball.
+    storage_dir = get_storage_dir()
     linux_src = subprocess.check_output(
         ["find", os.path.join(storage_dir, "sysroot/ostree/deploy"),
          "-type", "f", "-name", "linux.tar.bz2", "-print", "-quit"], text=True)
@@ -121,11 +122,11 @@ def _extract_kernel_source(storage_dir):
     return extracted_src
 
 
-def kernel_build_module(source_dir, storage_dir, autoload):
+def kernel_build_module(source_dir, autoload):
     """"Main handler of the 'kernel build_module' subcommand"""
 
-    images_unpack_executed(storage_dir)
-    fail_on_raw_image(storage_dir, MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+    images_unpack_executed()
+    fail_on_raw_image(MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
 
     # Check for valid Makefile
     if not os.path.isdir(source_dir):
@@ -133,11 +134,12 @@ def kernel_build_module(source_dir, storage_dir, autoload):
     _check_makefile(source_dir)
 
     # Find and unpack linux source
-    extracted_src = _extract_kernel_source(storage_dir)
+    extracted_src = _extract_kernel_source()
 
     # Build and install Kernel module
-    changes_dir = kernel.get_kernel_changes_dir(storage_dir)
-    kernel_subdir = kernel.get_kernel_subdir(storage_dir)
+    storage_dir = get_storage_dir()
+    changes_dir = kernel.get_kernel_changes_dir()
+    kernel_subdir = kernel.get_kernel_subdir()
     mod_path = os.path.join(changes_dir, kernel_subdir)
     os.makedirs(mod_path, exist_ok=True)
     usr_dir = subprocess.check_output(
@@ -146,7 +148,7 @@ def kernel_build_module(source_dir, storage_dir, autoload):
         text=True).rstrip()
     src_mod_dir = os.path.join(os.path.dirname(usr_dir), kernel_subdir)
     src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
-    _, image_major_version = get_branch_and_major_from_metadata(storage_dir)
+    _, image_major_version = get_branch_and_major_from_metadata()
 
     src_dir = os.path.abspath(source_dir)
     kernel.build_module(
@@ -168,12 +170,10 @@ def kernel_build_module(source_dir, storage_dir, autoload):
 
 def do_kernel_build_module(args):
     """"Run 'kernel build_module' subcommand"""
-    kernel_build_module(source_dir=args.source_directory,
-                        storage_dir=args.storage_directory,
-                        autoload=args.autoload)
+    kernel_build_module(source_dir=args.source_directory, autoload=args.autoload)
 
 
-def _set_custom_kargs_ovl(kargs, storage_dir):
+def _set_custom_kargs_ovl(kargs):
     """Set the custom bootargs using the (old) overlay method."""
 
     log.debug("Setting bootargs (overlay method).")
@@ -194,32 +194,28 @@ def _set_custom_kargs_ovl(kargs, storage_dir):
         # the file being compiled includes no other files.
         dto_cli.dto_apply(
             dtos_path=dtos_path, dtb_path=None, include_dirs=[],
-            storage_dir=storage_dir, allow_reapply=True, test_apply=False)
+            allow_reapply=True, test_apply=False)
 
 
-def _set_custom_kargs_uenv(kargs, changes_dir, storage_dir, *, prepend=False):
+def _set_custom_kargs_uenv(kargs, changes_dir, *, prepend=False):
     """Set the custom bootargs using the (new) uenv method."""
 
     log.debug("Setting bootargs (uenv method).")
     if prepend:
         log.debug("Passed string will be prepended to the original bootargs.")
         dt.set_uenv_txt_variable(
-            UENV_CUSTOM_BOOTARGS_L_VAR, kargs,
-            changes_dir=changes_dir, storage_dir=storage_dir)
+            UENV_CUSTOM_BOOTARGS_L_VAR, kargs, changes_dir=changes_dir)
         dt.set_uenv_txt_variable(
-            UENV_CUSTOM_BOOTARGS_R_VAR, None,
-            changes_dir=changes_dir, storage_dir=storage_dir)
+            UENV_CUSTOM_BOOTARGS_R_VAR, None, changes_dir=changes_dir)
     else:
         log.debug("Passed string will be appended to the original bootargs.")
         dt.set_uenv_txt_variable(
-            UENV_CUSTOM_BOOTARGS_L_VAR, None,
-            changes_dir=changes_dir, storage_dir=storage_dir)
+            UENV_CUSTOM_BOOTARGS_L_VAR, None, changes_dir=changes_dir)
         dt.set_uenv_txt_variable(
-            UENV_CUSTOM_BOOTARGS_R_VAR, kargs,
-            changes_dir=changes_dir, storage_dir=storage_dir)
+            UENV_CUSTOM_BOOTARGS_R_VAR, kargs, changes_dir=changes_dir)
 
 
-def _secboot_kargs_ovl_present(storage_dir):
+def _secboot_kargs_ovl_present():
     """Check if the base image kernel has a secboot kargs overlay.
 
     :returns: A pair where first element is a boolean indicating the presence of
@@ -227,8 +223,8 @@ def _secboot_kargs_ovl_present(storage_dir):
         kernel FIT image.
     """
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
-    dtb_prefix = dt.get_kernelfit_dtb_prefix(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
+    dtb_prefix = dt.get_kernelfit_dtb_prefix()
     with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(fhandle, dtb_prefix=dtb_prefix)
 
@@ -279,7 +275,7 @@ def _get_secboot_required_bootargs_fdt(ovl):
     return req_bootargs_cur, req_bootargs_org
 
 
-def _set_secboot_required_bootargs(kargs, changes_dir, storage_dir):
+def _set_secboot_required_bootargs(kargs, changes_dir):
     """Set/clear the required-bootargs data inside the kernel FIT image.
 
     The passed kernel bootargs will be prepended to the existing required-bootargs
@@ -288,15 +284,15 @@ def _set_secboot_required_bootargs(kargs, changes_dir, storage_dir):
 
     log.debug("Trying to %s secboot required-bootargs.",
               ["clear", "set"][kargs is None])
-    dtbo_pres, dtbo_fname = _secboot_kargs_ovl_present(storage_dir)
+    dtbo_pres, dtbo_fname = _secboot_kargs_ovl_present()
     if not dtbo_pres:
         return
 
     # Copy kernel to changes directory and load it.
-    kernel_path = kernel.copy_kernel_to_changes_dir(changes_dir, storage_dir)
+    kernel_path = kernel.copy_kernel_to_changes_dir(changes_dir)
     with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(
-            fhandle, dtb_prefix=dt.get_kernelfit_dtb_prefix(storage_dir))
+            fhandle, dtb_prefix=dt.get_kernelfit_dtb_prefix())
 
     # Extract/parse the overlay from the kernel.
     ovl = libfdt.Fdt(fit.extract_dtb(dtbo_fname, overlay=True))
@@ -353,18 +349,16 @@ def _set_secboot_required_bootargs(kargs, changes_dir, storage_dir):
         fit.write(fhandle)
 
 
-def kernel_set_custom_args(kernel_args, storage_dir):
+def kernel_set_custom_args(kernel_args):
     """Main handler of the 'kernel set_custom_args" subcommand
 
     :param kernel_args: List of strings with the kernel arguments.
-    :param storage_dir: Path of the storage directory to be used on the
-                        operations.
     """
 
-    images_unpack_executed(storage_dir)
-    fail_on_raw_image(storage_dir, MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+    images_unpack_executed()
+    fail_on_raw_image(MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"kernel_set_custom_args: kernel_is_fit={kernel_is_fit}")
 
@@ -375,7 +369,7 @@ def kernel_set_custom_args(kernel_args, storage_dir):
         log.error('Error: please pass a valid string for the custom kernel arguments.')
         sys.exit(1)
 
-    kargs_methods = kernel.get_supported_bootargs_methods(storage_dir)
+    kargs_methods = kernel.get_supported_bootargs_methods()
 
     # Check image requirements:
     if kernel_is_fit and "uenv" not in kargs_methods:
@@ -386,9 +380,9 @@ def kernel_set_custom_args(kernel_args, storage_dir):
 
     # Determine the target changes directory.
     if kernel_is_fit:
-        changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+        changes_dir = kernel.get_kernel_changes_dir()
     else:
-        changes_dir = dt.get_dt_changes_dir(storage_dir)
+        changes_dir = dt.get_dt_changes_dir()
 
     # Determine if the *secboot* kargs overlay is present (not to be confused with
     # the "custom kargs overlay" which is the old method for passing bootargs). We
@@ -396,7 +390,7 @@ def kernel_set_custom_args(kernel_args, storage_dir):
     # be prepended or appended to the original secboot bootargs string.
     sb_kargs_ovl_pres = False
     if kernel_is_fit:
-        sb_kargs_ovl_pres, _ = _secboot_kargs_ovl_present(storage_dir)
+        sb_kargs_ovl_pres, _ = _secboot_kargs_ovl_present()
 
     if "uenv" in kargs_methods:
         if sb_kargs_ovl_pres:
@@ -404,17 +398,17 @@ def kernel_set_custom_args(kernel_args, storage_dir):
                 "Warning: because you are customizing a Secure Boot image, the custom "
                 "kernel arguments will be prepended rather than appended to the "
                 "original ones from the base image.")
-        _set_custom_kargs_uenv(kargs, changes_dir, storage_dir, prepend=sb_kargs_ovl_pres)
-        _clr_custom_kargs_ovl(storage_dir)
+        _set_custom_kargs_uenv(kargs, changes_dir, prepend=sb_kargs_ovl_pres)
+        _clr_custom_kargs_ovl()
     elif "overlay" in kargs_methods:
-        _set_custom_kargs_ovl(kargs, storage_dir)
+        _set_custom_kargs_ovl(kargs)
     else:
         _on_custom_kargs_not_supported()
 
     # Secure boot images also keep a "required-bootargs" string inside the kernel
     # which need to be updated; handle this case here.
     if kernel_is_fit and sb_kargs_ovl_pres:
-        _set_secboot_required_bootargs(kargs, changes_dir, storage_dir)
+        _set_secboot_required_bootargs(kargs, changes_dir)
 
     # Confirm application of arguments.
     print(f'Kernel custom arguments successfully configured with "{kargs}".')
@@ -422,21 +416,19 @@ def kernel_set_custom_args(kernel_args, storage_dir):
 
 def do_kernel_set_custom_args(args):
     """Run 'kernel set_custom_args" subcommand"""
-    kernel_set_custom_args(
-        kernel_args=args.kernel_args,
-        storage_dir=args.storage_directory)
+    kernel_set_custom_args(kernel_args=args.kernel_args)
 
 
-def _get_custom_kargs_ovl(storage_dir):
+def _get_custom_kargs_ovl():
     # Check if the custom kernel args overlays is being applied.
-    overlay_basenames = dto.get_applied_overlay_names(storage_dir)
+    overlay_basenames = dto.get_applied_overlay_names()
     dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
     if dtob_basename not in overlay_basenames:
         # No arguments set: nothing wrong with that.
         return None
 
     # Determine full path of the overlay of interest only.
-    overlay_paths = dto.get_applied_overlay_paths(storage_dir, base_names=[dtob_basename])
+    overlay_paths = dto.get_applied_overlay_paths(base_names=[dtob_basename])
     dtob_path = overlay_paths[0]
     log.debug(f"Custom arguments overlay is applied: path='{dtob_path}'")
 
@@ -449,14 +441,12 @@ def _get_custom_kargs_ovl(storage_dir):
     return fdtget_output
 
 
-def _get_custom_kargs_uenv(storage_dir):
+def _get_custom_kargs_uenv():
     """Get the custom bootargs using the (new) uenv method."""
 
     log.debug("Getting bootargs (uenv method).")
-    kargs_l = dt.get_uenv_txt_variable(
-        UENV_CUSTOM_BOOTARGS_L_VAR, storage_dir=storage_dir)
-    kargs_r = dt.get_uenv_txt_variable(
-        UENV_CUSTOM_BOOTARGS_R_VAR, storage_dir=storage_dir)
+    kargs_l = dt.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_L_VAR)
+    kargs_r = dt.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_R_VAR)
     if kargs_l and kargs_r:
         raise InvalidDataError(
             "Error: the Torizon OS image you are customizing has both "
@@ -467,21 +457,21 @@ def _get_custom_kargs_uenv(storage_dir):
     return kargs_l or kargs_r
 
 
-def _get_secboot_required_bootargs(changes_dir, storage_dir):
+def _get_secboot_required_bootargs(changes_dir):
     """Get the (current, original) required-bootargs strings from the kernel FIT."""
 
     log.debug("Trying to get secboot required-bootargs.")
-    dtbo_pres, dtbo_fname = _secboot_kargs_ovl_present(storage_dir)
+    dtbo_pres, dtbo_fname = _secboot_kargs_ovl_present()
     if not dtbo_pres:
         return None, None
 
     # Load customized or original kernel.
     kernel_path = \
-        (kernel.find_kernel_in_changes_dir(changes_dir, storage_dir) or
-         kernel.find_kernel_in_sysroot(storage_dir))
+        (kernel.find_kernel_in_changes_dir(changes_dir) or
+         kernel.find_kernel_in_sysroot())
     with open(kernel_path, "rb") as fhandle:
         fit = KernelFit(
-            fhandle, dtb_prefix=dt.get_kernelfit_dtb_prefix(storage_dir))
+            fhandle, dtb_prefix=dt.get_kernelfit_dtb_prefix())
 
     # Extract/parse the overlay from the kernel.
     ovl = libfdt.Fdt(fit.extract_dtb(dtbo_fname, overlay=True))
@@ -489,17 +479,17 @@ def _get_secboot_required_bootargs(changes_dir, storage_dir):
     return _get_secboot_required_bootargs_fdt(ovl)
 
 
-def kernel_get_custom_args(storage_dir):
+def kernel_get_custom_args():
     """Run 'kernel get_custom_args" subcommand"""
 
-    images_unpack_executed(storage_dir)
-    fail_on_raw_image(storage_dir, MSG_COMMAND_NOT_SUPPORTED_FOR_WIC)
+    images_unpack_executed()
+    fail_on_raw_image(MSG_COMMAND_NOT_SUPPORTED_FOR_WIC)
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"kernel_get_custom_args: kernel_is_fit={kernel_is_fit}")
 
-    kargs_methods = kernel.get_supported_bootargs_methods(storage_dir)
+    kargs_methods = kernel.get_supported_bootargs_methods()
 
     # Supported cases are shown in the table below:
     #            +-----------------+
@@ -521,9 +511,9 @@ def kernel_get_custom_args(storage_dir):
 
     kargs = None
     if "uenv" in kargs_methods:
-        kargs = _get_custom_kargs_uenv(storage_dir)
+        kargs = _get_custom_kargs_uenv()
     elif "overlay" in kargs_methods:
-        kargs = _get_custom_kargs_ovl(storage_dir)
+        kargs = _get_custom_kargs_ovl()
     else:
         _on_custom_kargs_not_supported()
 
@@ -537,50 +527,48 @@ def kernel_get_custom_args(storage_dir):
         # Show a debug message with the final secure boot kernel arguments (which
         # include the custom arguments set by the user and the original "required"
         # arguments set when the image was built).
-        changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+        changes_dir = kernel.get_kernel_changes_dir()
         # At the moment, we don't handle the output of the below function because
         # we are only showing the required-bootargs string as debug messages.
-        _get_secboot_required_bootargs(changes_dir, storage_dir)
+        _get_secboot_required_bootargs(changes_dir)
 
 
-def do_kernel_get_custom_args(args):
+def do_kernel_get_custom_args(_args):
     """Run 'kernel get_custom_args" subcommand"""
-    kernel_get_custom_args(args.storage_directory)
+    kernel_get_custom_args()
 
 
-def _clr_custom_kargs_ovl(storage_dir):
+def _clr_custom_kargs_ovl():
     """Clear the custom bootargs set using the old method (overlay)."""
 
     log.debug("Clearing bootargs (overlay method).")
     dtob_basename = os.path.splitext(KERNEL_SET_CUSTOM_ARGS_DTS_NAME)[0] + ".dtbo"
-    res = dto_cli.dto_remove_single(dtob_basename, storage_dir, presence_required=False)
+    res = dto_cli.dto_remove_single(dtob_basename, presence_required=False)
     return res
 
 
-def _clr_custom_kargs_uenv(changes_dir, storage_dir):
+def _clr_custom_kargs_uenv(changes_dir):
     """Clear the custom bootargs set using the new method (variables in uEnv.txt)."""
 
     log.debug("Clearing bootargs (uenv method).")
     status_l = dt.set_uenv_txt_variable(
-        UENV_CUSTOM_BOOTARGS_L_VAR, None,
-        changes_dir=changes_dir, storage_dir=storage_dir)
+        UENV_CUSTOM_BOOTARGS_L_VAR, None, changes_dir=changes_dir)
     status_r = dt.set_uenv_txt_variable(
-        UENV_CUSTOM_BOOTARGS_R_VAR, None,
-        changes_dir=changes_dir, storage_dir=storage_dir)
+        UENV_CUSTOM_BOOTARGS_R_VAR, None, changes_dir=changes_dir)
     return status_l or status_r
 
 
-def kernel_clear_custom_args(storage_dir):
+def kernel_clear_custom_args():
     """Run 'kernel clear_custom_args" subcommand"""
 
-    images_unpack_executed(storage_dir)
-    fail_on_raw_image(storage_dir, MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+    images_unpack_executed()
+    fail_on_raw_image(MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
 
-    kernel_path = kernel.find_kernel_in_sysroot(storage_dir)
+    kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
     log.debug(f"kernel_clear_custom_args: kernel_is_fit={kernel_is_fit}")
 
-    kargs_methods = kernel.get_supported_bootargs_methods(storage_dir)
+    kargs_methods = kernel.get_supported_bootargs_methods()
 
     # Check image requirements:
     if kernel_is_fit and "uenv" not in kargs_methods:
@@ -591,22 +579,22 @@ def kernel_clear_custom_args(storage_dir):
 
     # Determine the target changes directory.
     if kernel_is_fit:
-        changes_dir = kernel.get_kernel_changes_dir(storage_dir)
+        changes_dir = kernel.get_kernel_changes_dir()
     else:
-        changes_dir = dt.get_dt_changes_dir(storage_dir)
+        changes_dir = dt.get_dt_changes_dir()
 
     status = False
     if "uenv" in kargs_methods:
-        status = _clr_custom_kargs_uenv(changes_dir, storage_dir)
+        status = _clr_custom_kargs_uenv(changes_dir)
     elif "overlay" in kargs_methods:
-        status = _clr_custom_kargs_ovl(storage_dir)
+        status = _clr_custom_kargs_ovl()
     else:
         _on_custom_kargs_not_supported()
 
     # Secure boot images also keep a "required-bootargs" string inside the kernel
     # which need to be updated; handle this case here.
     if kernel_is_fit:
-        _set_secboot_required_bootargs(None, changes_dir, storage_dir)
+        _set_secboot_required_bootargs(None, changes_dir)
 
     if status:
         print("Custom kernel arguments successfully cleared.")
@@ -615,9 +603,9 @@ def kernel_clear_custom_args(storage_dir):
         log.info("No custom kernel arguments configured.")
 
 
-def do_kernel_clear_custom_args(args):
+def do_kernel_clear_custom_args(_args):
     """Run 'kernel clear_custom_args" subcommand"""
-    kernel_clear_custom_args(args.storage_directory)
+    kernel_clear_custom_args()
 
 
 def init_parser(subparsers):

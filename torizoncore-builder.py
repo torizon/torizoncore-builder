@@ -24,8 +24,10 @@ import os
 import subprocess
 import traceback
 
-from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isolate,
-                           kernel, ostree, platform, push, secboot, splash, ubootenv, union)
+from tcbuilder.cli import \
+    (bundle, build, combine, deploy, dt, dto, images, isolate, kernel, ostree,
+     platform, push, secboot, splash, ubootenv, union)
+from tcbuilder.backend.common import set_storage_dir
 
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 # pylint: enable=wrong-import-position
@@ -223,8 +225,7 @@ if __name__ == "__main__":
                         "Builder soon. For the same functionality, please "
                         "use the -s flag from the tcb-env-setup.sh script.")
         assert_operational_directory(mainargs.storage_directory)
-    else:
-        mainargs.storage_directory = "/storage"
+        set_storage_dir(mainargs.storage_directory)
 
     try:
         check_deprecated_parameters(mainargs)

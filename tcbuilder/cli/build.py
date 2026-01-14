@@ -109,21 +109,16 @@ def handle_input_section(props, **kwargs):
             "No kind of input specified in configuration file")
 
 
-def handle_easy_installer_input(props, storage_dir=None, download_dir=None):
+def handle_easy_installer_input(props, download_dir=None):
     """Handle the input/easy-installer subsection of the configuration file
 
     :param props: Dictionary holding the data of the subsection.
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     :param download_dir: Directory where files should be downloaded to or
                          obtained from if they already exist (TODO).
     """
 
-    assert storage_dir is not None, "Parameter `storage_dir` must be passed"
-
     if "local" in props:
-        images_cli.images_unpack(
-            props["local"], storage_dir, remove_storage=True)
+        images_cli.images_unpack(props["local"], remove_storage=True)
 
     elif ("remote" in props) or ("toradex-feed" in props):
         if "toradex-feed" in props:
@@ -141,7 +136,7 @@ def handle_easy_installer_input(props, storage_dir=None, download_dir=None):
             bb.fetch_remote(remote_url, remote_fname, cksum, download_dir)
 
         try:
-            images_cli.images_unpack(local_file, storage_dir, remove_storage=True)
+            images_cli.images_unpack(local_file, remove_storage=True)
         finally:
             # Avoid leaving files in the temporary directory (if it was used).
             if is_temp:
@@ -151,20 +146,15 @@ def handle_easy_installer_input(props, storage_dir=None, download_dir=None):
         raise FileContentMissing(
             "No known input type specified in configuration file")
 
-def handle_raw_image_input(props, storage_dir=None):
+def handle_raw_image_input(props):
     """Handle the input/raw-image subsection of the configuration file
 
     :param props: Dictionary holding the data of the subsection.
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     """
-
-    assert storage_dir is not None, "Parameter `storage_dir` must be passed"
 
     if "local" in props:
         images_cli.images_unpack(
             props["local"],
-            storage_dir,
             raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
             remove_storage=True)
     else:
@@ -177,31 +167,27 @@ def handle_ostree_input(props, **kwargs):
         "Processing of ostree archive inputs is not implemented yet.")
 
 
-def handle_customization_section(props, storage_dir=None):
+def handle_customization_section(props):
     """Handle the customization section of the configuration file
 
     :param props: Dictionary holding the data of the section.
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     """
 
     if props:
         log.info(l1_pref("Handling customization section"))
 
-    assert storage_dir is not None, "Parameter `storage_dir` must be passed"
-
     if "splash-screen" in props:
         log.info(l2_pref("Setting splash screen"))
-        splash_cli.splash(props["splash-screen"], storage_dir=storage_dir)
+        splash_cli.splash(props["splash-screen"])
 
     if "device-tree" in props:
-        handle_dt_customization(props["device-tree"], storage_dir=storage_dir)
+        handle_dt_customization(props["device-tree"])
 
     if "kernel" in props:
-        handle_kernel_customization(props["kernel"], storage_dir=storage_dir)
+        handle_kernel_customization(props["kernel"])
 
     if "secboot" in props:
-        handle_secboot_customization(props["secboot"], storage_dir=storage_dir)
+        handle_secboot_customization(props["secboot"])
 
     # Filesystem changes are actually handled as part of the output processing.
     fs_changes = props.get("filesystem")
@@ -209,7 +195,7 @@ def handle_customization_section(props, storage_dir=None):
     return fs_changes
 
 
-def handle_dt_customization(props, storage_dir=None):
+def handle_dt_customization(props):
     """Handle the device-tree customization section."""
 
     if props:
@@ -218,12 +204,11 @@ def handle_dt_customization(props, storage_dir=None):
     if "custom" in props:
         log.info(l2_pref(f"Selecting custom device-tree '{props['custom']}'"))
         dt_cli.dt_apply(dts_path=props["custom"],
-                        storage_dir=storage_dir,
                         include_dirs=props.get("include-dirs", []))
 
     overlay_props = props.get("overlays", {})
     if overlay_props.get("clear", False):
-        dto_cli.dto_remove_all(storage_dir)
+        dto_cli.dto_remove_all()
 
         if "remove" in overlay_props:
             log.info("Individual overlay removal ignored because they've all been "
@@ -231,11 +216,11 @@ def handle_dt_customization(props, storage_dir=None):
 
     elif "remove" in overlay_props:
         for overl in overlay_props["remove"]:
-            dto_cli.dto_remove_single(overl, storage_dir, presence_required=False)
+            dto_cli.dto_remove_single(overl, presence_required=False)
 
     if "add" in overlay_props:
         # We enable the overlay apply test only if it is possible to do it.
-        test_apply = bool(dt_be.get_current_dtb_basename(storage_dir))
+        test_apply = bool(dt_be.get_current_dtb_basename())
         if not test_apply:
             log.info("Not testing overlay because base image does not have a "
                      "device-tree set!")
@@ -245,12 +230,11 @@ def handle_dt_customization(props, storage_dir=None):
                 dtos_path=overl,
                 dtb_path=None,
                 include_dirs=props.get("include-dirs", []),
-                storage_dir=storage_dir,
                 allow_reapply=False,
                 test_apply=test_apply)
 
 
-def handle_kernel_customization(props, storage_dir=None):
+def handle_kernel_customization(props):
     """Handle the kernel customization section."""
 
     if "modules" in props:
@@ -259,21 +243,18 @@ def handle_kernel_customization(props, storage_dir=None):
             log.info(l2_pref(f"Building module located at '{mod_source}'"))
             kernel_cli.kernel_build_module(
                 source_dir=mod_source,
-                storage_dir=storage_dir,
                 autoload=mod_props.get("autoload", False))
 
     if "arguments" in props:
         log.info(l2_pref("Setting kernel arguments"))
-        kernel_cli.kernel_set_custom_args(
-            kernel_args=props["arguments"],
-            storage_dir=storage_dir)
+        kernel_cli.kernel_set_custom_args(kernel_args=props["arguments"])
 
 
-def handle_secboot_customization(props, storage_dir=None):
+def handle_secboot_customization(props):
     """Handle the secure boot customization section."""
 
-    common.images_unpack_executed(storage_dir)
-    if common.unpacked_image_type(storage_dir) == "raw":
+    common.images_unpack_executed()
+    if common.unpacked_image_type() == "raw":
         raise InvalidDataError("TorizonCore Builder does not support signing components for "
                                "WIC/raw images. Aborting.")
 
@@ -297,12 +278,11 @@ def handle_secboot_customization(props, storage_dir=None):
             log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
                      f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
 
-        kernel_changes_dir = kernel_be.get_kernel_changes_dir(storage_dir)
+        kernel_changes_dir = kernel_be.get_kernel_changes_dir()
         if not os.path.isdir(kernel_changes_dir):
             os.mkdir(kernel_changes_dir)
 
         secboot_be.sign_kernel(
-            storage_dir=storage_dir,
             kernel_changes_dir=kernel_changes_dir,
             key_dir=key_dir,
             key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
@@ -360,7 +340,6 @@ def handle_secboot_customization(props, storage_dir=None):
         }
 
         secboot_be.sign_bootloader_hab(
-            storage_dir=storage_dir,
             kernel_key_dir=kernel_key_dir,
             kernel_key_name=kernel_key.get("name"),
             kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
@@ -382,12 +361,10 @@ def handle_secboot_customization(props, storage_dir=None):
         log.info("Bootloader in Torizon OS image signed successfully!")
 
 
-def handle_output_section(props, storage_dir, changes_dirs=None, default_base_raw_image=None):
+def handle_output_section(props, changes_dirs=None, default_base_raw_image=None):
     """Handle the output section of the configuration file
 
     :param props: Dictionary holding the data of the section.
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     :param changes_dirs: Directories containing filesystem changes to apply.
     :param default_base_raw_image: Default base raw image. Should always be the
                                    input raw image. If dealing with tezi images,
@@ -402,7 +379,6 @@ def handle_output_section(props, storage_dir, changes_dirs=None, default_base_ra
 
     # Parameters to pass to union()
     union_params = {
-        "storage_dir": storage_dir,
         "changes_dirs": changes_dirs
     }
 
@@ -423,20 +399,18 @@ def handle_output_section(props, storage_dir, changes_dirs=None, default_base_ra
     # Handle the "output.ostree.local" property (TODO).
     # Handle the "output.ostree.remote" property (TODO).
 
-    if common.unpacked_image_type(storage_dir) == "tezi":
+    if common.unpacked_image_type() == "tezi":
         tezi_props = props.get("easy-installer", {})
-        handle_easy_installer_output(tezi_props, storage_dir, union_params)
+        handle_easy_installer_output(tezi_props, union_params)
     else:
         raw_props = props.get("raw-image", {})
-        handle_raw_image_output(raw_props, storage_dir, union_params, default_base_raw_image)
+        handle_raw_image_output(raw_props, union_params, default_base_raw_image)
 
 
-def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_image):
+def handle_raw_image_output(props, union_params, default_base_raw_image):
     """Handle the output/raw-image section of the configuration file
 
     :param props: Dictionary holding the data of the section.
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     :param union_params: Parameters related to union(). This is a required arg.
     :param default_base_raw_image: Path of default base raw image. Should always
                                    be the input image.
@@ -461,7 +435,6 @@ def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_i
         "ostree_ref": union_params["union_branch"],
         "base_raw_img": base_raw_img,
         "output_raw_img": output_raw_img,
-        "storage_dir": storage_dir,
         "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
         "rootfs_label": base_rootfs_label,
     }
@@ -469,18 +442,16 @@ def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_i
     deploy_cli.deploy_raw_image(**deploy_raw_image_params)
 
     handle_raw_image_bundle_output(
-        output_raw_img, output_raw_img, storage_dir, props.get("bundle", {}), props)
+        output_raw_img, output_raw_img, props.get("bundle", {}), props)
     common.set_output_ownership(output_raw_img)
 
     # TODO: implement provisioning for raw images
 
 
-def handle_easy_installer_output(props, storage_dir, union_params):
+def handle_easy_installer_output(props, union_params):
     """Handle the output/easy-installer section of the configuration file
 
     :param props: Dictionary holding the data of the section.
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     :param union_params: Parameters related to union(). This is a required arg.
     """
 
@@ -496,25 +467,21 @@ def handle_easy_installer_output(props, storage_dir, union_params):
     deploy_tezi_image_params = {
         "ostree_ref": union_params["union_branch"],
         "output_dir": output_dir,
-        "storage_dir": storage_dir,
         "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
         "tezi_props": translate_tezi_props(props),
     }
 
     deploy_cli.deploy_tezi_image(**deploy_tezi_image_params)
 
-    handle_bundle_output(
-        output_dir, storage_dir, props.get("bundle", {}), props)
+    handle_bundle_output(output_dir, props.get("bundle", {}), props)
 
     if "provisioning" in props:
         handle_provisioning(output_dir, props.get("provisioning"))
 
 
-def handle_bundle_common(storage_dir, bundle_props, compress_tar=True):
+def handle_bundle_common(bundle_props, compress_tar=True):
     """Handle the common steps of the bundle and combine for output generation.
 
-    :param storage_dir: Absolute path of storage directory. This is a required
-                        keyword argument.
     :param bundle_props: Dictionary holding the data of the bundle section.
     :param compress_tar: Optional argument that specifies if the docker bundle
                          tarfile should be compressed or not. Only applies if
@@ -539,7 +506,7 @@ def handle_bundle_common(storage_dir, bundle_props, compress_tar=True):
             platform = bundle_props["platform"]
         else:
             # Detect platform based on OSTree data.
-            platform = common.get_docker_platform(storage_dir)
+            platform = common.get_docker_platform()
 
         bundle_dir = datetime.now().strftime("bundle_%Y%m%d%H%M%S_%f.tmp")
         log.info(f"Bundling images to directory {bundle_dir}")
@@ -587,15 +554,12 @@ def handle_bundle_common(storage_dir, bundle_props, compress_tar=True):
     return None, False
 
 
-def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
+def handle_bundle_output(image_dir, bundle_props, tezi_props):
     """Handle the bundle and combine steps of the output generation."""
 
     bundle_dir = None
     try:
-        bundle_dir, is_tmp_dir = handle_bundle_common(
-            storage_dir,
-            bundle_props
-        )
+        bundle_dir, is_tmp_dir = handle_bundle_common(bundle_props)
 
         if bundle_dir is None:
             return
@@ -616,17 +580,12 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             shutil.rmtree(bundle_dir)
 
 
-def handle_raw_image_bundle_output(image_dir, raw_image_path, storage_dir, bundle_props, raw_props):
+def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_props):
     """Handle the bundle and combine steps of the output generation."""
 
     bundle_dir = None
     try:
-        bundle_dir, is_tmp_dir = handle_bundle_common(
-            storage_dir,
-            bundle_props,
-            compress_tar=False
-        )
-
+        bundle_dir, is_tmp_dir = handle_bundle_common(bundle_props, compress_tar=False)
         if bundle_dir is None:
             return
 
@@ -682,8 +641,7 @@ def handle_provisioning(output_dir, prov_props):
     images_be.provision(**prov_params)
 
 
-def build(config_fname, storage_dir,
-          substs=None, enable_subst=True, force=False):
+def build(config_fname, *, substs=None, enable_subst=True, force=False):
     """Main handler for the normal operating mode of the build subcommand"""
 
     log.info(f"Building image as per configuration file '{config_fname}'...")
@@ -744,12 +702,10 @@ def build(config_fname, storage_dir,
                     " it or give a different filename for the output.")
 
     # Input section (required):
-    handle_input_section(config["input"], storage_dir=storage_dir)
+    handle_input_section(config["input"])
 
     # Customization section (currently optional).
-    fs_changes = handle_customization_section(
-        config.get("customization", {}), storage_dir=storage_dir)
-
+    fs_changes = handle_customization_section(config.get("customization", {}))
 
     default_base_raw_image = (
         config["input"]["raw-image"]["local"] if "raw-image" in config["input"] else None)
@@ -757,7 +713,7 @@ def build(config_fname, storage_dir,
     try:
         handle_output_section(
             config["output"],
-            storage_dir=storage_dir, changes_dirs=fs_changes,
+            changes_dirs=fs_changes,
             default_base_raw_image=default_base_raw_image)
 
     except Exception as exc:
@@ -784,7 +740,7 @@ def do_build(args):
             create_template(args.config_fname, force=args.force)
         else:
             # Normal build mode.
-            build(args.config_fname, args.storage_directory,
+            build(args.config_fname,
                   substs=bb.parse_assignments(args.assignments),
                   enable_subst=args.enable_substitutions,
                   force=args.force)

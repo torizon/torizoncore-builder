@@ -554,7 +554,7 @@ def do_platform_push(args):
     if not os.path.isfile(args.credentials):
         raise InvalidArgumentError(f"File \"{args.credentials}\" does not exist; aborting.")
 
-    storage_dir = os.path.abspath(args.storage_directory)
+    storage_dir = common.get_storage_dir()
     credentials = os.path.abspath(args.credentials)
 
     package_info, compatible_with = _check_compatible_with_param(args.compatible_with, credentials)

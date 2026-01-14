@@ -12,7 +12,7 @@ import re
 
 from tcbuilder.errors import (InvalidDataError, InvalidStateError)
 from tcbuilder.backend.kernel import get_kernel_changes_dir
-from tcbuilder.backend.common import is_file_type_dtb
+from tcbuilder.backend.common import get_storage_dir, is_file_type_dtb
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -21,20 +21,22 @@ DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 BACKSLASH_SPC_RE = re.compile(r"\\\s*$")
 
 
-def get_dt_changes_dir(storage_dir):
+def get_dt_changes_dir():
     """Returns the directory that contains external device tree related changes."""
+    storage_dir = get_storage_dir()
     return os.path.join(storage_dir, "dt")
 
 
 # TODO: Consider moving the various "uenv" functions to a separate module (other than common).
-def get_current_uenv_txt_path(storage_dir):
+def get_current_uenv_txt_path():
     """Get the path to the currently applied uEnv.txt, the bootloader environment file."""
 
     # Look for the file in two changes directories; the former is used with
     # non-FIT whereas the latter with FIT images.
-    dchangesdir = get_dt_changes_dir(storage_dir)
+    storage_dir = get_storage_dir()
+    dchangesdir = get_dt_changes_dir()
     dpath = os.path.join(dchangesdir, "usr", "lib", "ostree-boot", "uEnv.txt")
-    kchangesdir = get_kernel_changes_dir(storage_dir)
+    kchangesdir = get_kernel_changes_dir()
     kpath = os.path.join(kchangesdir, "usr", "lib", "ostree-boot", "uEnv.txt")
 
     if os.path.exists(dpath) and os.path.exists(kpath):
@@ -60,21 +62,19 @@ def get_current_uenv_txt_path(storage_dir):
     return dpath
 
 
-def set_uenv_txt_variable(var_name, var_value, *,
-                          changes_dir, storage_dir, append=False):
+def set_uenv_txt_variable(var_name, var_value, *, changes_dir, append=False):
     """Set/clear a variable in uEnv.txt storing the modified file in the changes directory.
 
     :param var_name: Name of the variable.
     :param var_value: Value of the variable; if None is passed, the variable
         will be cleared (removed from the file).
     :param changes_dir: Path to changes directory.
-    :param storage_dir: Path to storage directory.
     :param append: If False (default), the new variable assignment is added at
         the beginning of the uEnv.txt file; otherwise, it's added at its end.
     :returns: True if the variable existed in uEnv.txt; False, otherwise."""
 
     # Load original file:
-    uenv_src_path = get_current_uenv_txt_path(storage_dir)
+    uenv_src_path = get_current_uenv_txt_path()
     with open(uenv_src_path, "r", encoding="utf-8") as fhandle:
         lines = fhandle.readlines()
 
@@ -118,7 +118,7 @@ def set_uenv_txt_variable(var_name, var_value, *,
     return status
 
 
-def get_uenv_txt_variable(var_name, *, storage_dir, drop_cont=False):
+def get_uenv_txt_variable(var_name, *, drop_cont=False):
     """Get a variable from the current uEnv.txt.
 
     By default, if the variable setting in uEnv.txt was split into multiple-lines
@@ -127,14 +127,12 @@ def get_uenv_txt_variable(var_name, *, storage_dir, drop_cont=False):
     continuation. This behavior can be changed by 'drop_cont'.
 
     :param var_name: Name of the variable.
-    :param storage_dir: Path to the storage directory.
     :param drop_cont: Drop the continuaton string at the end of the lines
         effectively joining all lines together.
-
     """
 
     # Load original file:
-    uenv_src_path = get_current_uenv_txt_path(storage_dir)
+    uenv_src_path = get_current_uenv_txt_path()
     with open(uenv_src_path, "r", encoding="utf-8") as fhandle:
         lines = fhandle.readlines()
 
@@ -172,8 +170,10 @@ def get_uenv_txt_variable(var_name, *, storage_dir, drop_cont=False):
     return var_value
 
 
-def get_uboot_initial_env_path(storage_dir):
+def get_uboot_initial_env_path():
     """Get the path to u-boot-initial-env-sd, the initial bootloader environment set by Tezi."""
+
+    storage_dir = get_storage_dir()
     image_json_path = os.path.join(storage_dir, "tezi", "image.json")
     assert os.path.exists(image_json_path), "panic: missing image.json in Tezi directory!"
     with open(image_json_path, "r", encoding="utf-8") as jsonf:
@@ -204,17 +204,17 @@ def query_variable_in_config_file(name, path):
     return proc.stdout.strip()
 
 
-def get_current_dtb_basename(storage_dir):
+def get_current_dtb_basename():
     """Query the base name of the currently applied device tree blob."""
 
     # Find the value of fdtfile in uEnv.txt
-    dtb_basename = query_variable_in_config_file("fdtfile", get_current_uenv_txt_path(storage_dir))
+    dtb_basename = query_variable_in_config_file("fdtfile", get_current_uenv_txt_path())
     if dtb_basename:
         return dtb_basename
 
     # fdtfile is not defined in uEnv.txt.
     # Find the value of fdtfile in u-boot-initial-env-sd instead.
-    dtb_basename = query_variable_in_config_file("fdtfile", get_uboot_initial_env_path(storage_dir))
+    dtb_basename = query_variable_in_config_file("fdtfile", get_uboot_initial_env_path())
     if dtb_basename:
         return dtb_basename
 
@@ -222,9 +222,10 @@ def get_current_dtb_basename(storage_dir):
     return None
 
 
-def get_dtb_kernel_subdir(storage_dir):
+def get_dtb_kernel_subdir():
     """Returns "usr/lib/modules/<kernel_version/dtb"."""
 
+    storage_dir = get_storage_dir()
     answer = subprocess.check_output(
         ("set -o pipefail && "
          f"find {storage_dir}/sysroot/ostree/deploy -type d -name dtb -print -quit |"
@@ -234,7 +235,7 @@ def get_dtb_kernel_subdir(storage_dir):
     return answer
 
 
-def get_current_dtb_path(storage_dir):
+def get_current_dtb_path():
     """Query the path to the currently applied device tree blob.
 
     This works with non-FIT kernel images only. With FIT, the DTBs do not have a path
@@ -248,12 +249,13 @@ def get_current_dtb_path(storage_dir):
           tree blob of the base image was chosen instead.
     """
 
-    dtb_basename = get_current_dtb_basename(storage_dir)
+    storage_dir = get_storage_dir()
+    dtb_basename = get_current_dtb_basename()
     if dtb_basename:
         # Found a real definition of the device tree in boot loader configuration.
         # Find the path to this device tree, or die trying.
-        answer = os.path.join(get_dt_changes_dir(storage_dir),
-                              get_dtb_kernel_subdir(storage_dir), dtb_basename)
+        answer = os.path.join(get_dt_changes_dir(),
+                              get_dtb_kernel_subdir(), dtb_basename)
         if os.path.exists(answer):
             # This is a recently applied device tree.
             return (answer, True)
@@ -326,7 +328,7 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
     return True
 
 
-def get_kernelfit_dtb_prefix(storage_dir, defval=None):
+def get_kernelfit_dtb_prefix(defval=None):
     """Get the configuration name prefix used with kernel FIT images.
 
     The configuration name prefix is a string added to the name of a DTB when
@@ -340,7 +342,7 @@ def get_kernelfit_dtb_prefix(storage_dir, defval=None):
     invocation.
     """
 
-    uenv_path = get_current_uenv_txt_path(storage_dir)
+    uenv_path = get_current_uenv_txt_path()
     with open(uenv_path, "r", encoding="utf-8") as fhandle:
         lines = fhandle.readlines()
     res = None

@@ -8,27 +8,25 @@ import shutil
 import logging
 
 from tcbuilder.errors import \
-    (PathNotExistError, InvalidArgumentError, FeatureNotImplementedError)
+    (InvalidArgumentError, FeatureNotImplementedError, PathNotExistError)
 from tcbuilder.backend import splash as splash_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend.common import \
-    (images_unpack_executed, is_file_type_fit)
+    (get_storage_dir, images_unpack_executed, is_file_type_fit)
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
 
-def splash(splash_image, storage_dir):
+def splash(splash_image):
     """Prepare everything to call the "splash" backend service.
 
     :param splash_image: Path to the image splash filename.
-    :param storage_dir: Storage volume directory.
     :raises:
         PathNotExistError: If could not find the splash image file.
     """
 
-    storage_dir = os.path.abspath(storage_dir)
-
-    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot(storage_dir)
+    storage_dir = get_storage_dir()
+    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot()
     if is_file_type_fit(unpacked_kernel_path):
         raise FeatureNotImplementedError("Changing the splash screen is not supported for kernel "
                                          "in FIT format. Aborting.")
@@ -70,9 +68,8 @@ def do_splash(args):
             "the switch --work-dir has been removed; "
             "the initramfs file should be created in storage.")
 
-    images_unpack_executed(args.storage_directory)
-
-    splash(args.splash_image, args.storage_directory)
+    images_unpack_executed()
+    splash(args.splash_image)
 
 
 def init_parser(subparsers):
