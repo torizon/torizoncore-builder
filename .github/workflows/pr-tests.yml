@@ -340,7 +340,9 @@ jobs:
     # Only run if not manually cancelled, test-setup succeeds,
     # and after amd64-build-test-torizoncore5 and amd64-build-test-torizoncore6,
     # no matter their results.
+    # TODO: Update the input image and re-enable.
     if: |
+      false &&
       (success() || failure()) &&
       contains(needs.test-setup.result, 'success')
     needs: [test-setup, amd64-build-test-torizoncore5, amd64-build-test-torizoncore6]
