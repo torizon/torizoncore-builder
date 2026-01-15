@@ -21,9 +21,21 @@ RUN if [ "$APT_PROXY" != "" ]; then \
 # AVAHI.
 RUN apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            libarchive13 libassuan0 libfuse2 libglib2.0-0  libgpg-error0 \
-            libgpgme11 liblzma5 libmount1 libselinux1 libsoup2.4-1 \
-            libsystemd0 zlib1g  build-essential libssl-dev && \
+            build-essential \
+            libarchive13 \
+            libassuan0 \
+            libfuse2 \
+            libglib2.0-0 \
+            libgpg-error0 \
+            libgpgme11 \
+            liblzma5 \
+            libmount1 \
+            libselinux1 \
+            libsoup2.4-1 \
+            libssl-dev \
+            libsystemd0 \
+            zlib1g \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 # Build SOTA tools (garage-push/garage-sign)
@@ -33,7 +45,10 @@ FROM common-base AS sota-builder
 RUN sed -i '/^deb /{p;s/ /-src /}' /etc/apt/sources.list
 
 RUN apt-get -q -y update && \
-    apt-get -q -y --no-install-recommends install git ca-certificates && \
+    apt-get -q -y --no-install-recommends install \
+            ca-certificates \
+            git \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -41,10 +56,24 @@ WORKDIR /root
 # Dependencies according to README.adoc + glibc and file
 RUN apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            asn1c build-essential cmake curl libarchive-dev \
-            libboost-dev libboost-log-dev libboost-program-options-dev \
-            libcurl4-openssl-dev libpthread-stubs0-dev libsodium-dev libsqlite3-dev \
-            python3 python3-requests libglib2.0-dev file libostree-dev && \
+            asn1c \
+            build-essential \
+            cmake \
+            curl \
+            file \
+            libarchive-dev \
+            libboost-dev \
+            libboost-log-dev \
+            libboost-program-options-dev \
+            libcurl4-openssl-dev \
+            libglib2.0-dev \
+            libostree-dev \
+            libpthread-stubs0-dev \
+            libsodium-dev \
+            libsqlite3-dev \
+            python3 \
+            python3-requests \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -79,7 +108,11 @@ RUN cd aktualizr && \
 FROM common-base AS skopeo-builder
 
 RUN apt-get -q -y update && \
-    apt-get -q -y --no-install-recommends install git ca-certificates wget && \
+    apt-get -q -y --no-install-recommends install \
+            ca-certificates \
+            git \
+            wget \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -96,7 +129,11 @@ ENV GOPATH=/root/go
 RUN echo "Installing skopeo build dependencies..." && \
     apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            libgpgme-dev libassuan-dev libbtrfs-dev pkg-config && \
+            libassuan-dev \
+            libbtrfs-dev \
+            libgpgme-dev \
+            pkg-config \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 RUN echo "Fetching skopeo source code..." && \
@@ -116,17 +153,46 @@ FROM common-base AS tcbuilder-base
 
 RUN apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            python3 python3-pip python3-setuptools python3-wheel python3-gi \
-            file curl gzip xz-utils lz4 lzop zstd cpio jq acl libmpc-dev \
-            device-tree-compiler cpp bzip2 flex bison kmod libgmp3-dev bc && \
-    apt-get -q -y --no-install-recommends install \
-            python3-paramiko python3-dnspython python3-ifaddr \
-            python3-git avahi-daemon && \
-    apt-get -q -y --no-install-recommends install \
-            libguestfs-tools python3-guestfs linux-image-generic && \
-    apt-get -q -y --no-install-recommends install \
-            imx-code-signing-tool uuid-dev libgnutls28-dev \
-            swig libpython3.9-dev xxd libfaketime && \
+            acl \
+            avahi-daemon \
+            bc \
+            bison \
+            bzip2 \
+            cpio \
+            cpp \
+            curl \
+            device-tree-compiler \
+            file \
+            flex \
+            gzip \
+            imx-code-signing-tool \
+            jq \
+            kmod \
+            libfaketime \
+            libgmp3-dev \
+            libgnutls28-dev \
+            libguestfs-tools \
+            libmpc-dev \
+            libpython3.9-dev \
+            linux-image-generic \
+            lz4 \
+            lzop \
+            python3 \
+            python3-dnspython \
+            python3-gi \
+            python3-git \
+            python3-guestfs \
+            python3-ifaddr \
+            python3-paramiko \
+            python3-pip \
+            python3-setuptools \
+            python3-wheel \
+            swig \
+            uuid-dev \
+            xxd \
+            xz-utils \
+            zstd \
+    && \
     rm -rf /var/lib/apt/lists/*
 
     # imx-code-signing-tool: NXP code signing tool needed to sign the bootloader container
@@ -139,22 +205,30 @@ RUN apt-get -q -y update && \
 COPY avahi-conf/ /etc/avahi/
 
 RUN apt-get -q -y update && \
-    apt-get -q -y --no-install-recommends install ostree gir1.2-ostree-1.0 wget && \
+    apt-get -q -y --no-install-recommends install \
+            gir1.2-ostree-1.0 \
+            ostree \
+            wget \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 # Refrain dash from taking over the /bin/sh symlink.
 # This allows Python 'subprocess' shell enabled commands to employ bashisms such as pipefail.
 RUN apt-get -q -y update && \
-    apt-get -q -y --no-install-recommends install bash && \
+    apt-get -q -y --no-install-recommends install \
+            bash \
+    && \
     rm -rf /var/lib/apt/lists/* && \
     echo 'dash dash/sh boolean false' | debconf-set-selections && \
     DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true dpkg-reconfigure dash; \
     test "$(realpath /bin/sh)" = '/bin/bash'
 
 # Install java dependencies for uptane
-RUN apt-get -q -y update && \
-    mkdir -p /usr/share/man/man1/ && \
-    apt-get -q -y --no-install-recommends install openjdk-11-jre-headless && \
+RUN mkdir -p /usr/share/man/man1/ && \
+    apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install \
+            openjdk-11-jre-headless \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 # Install aktualizr from our sota-builder generated tarball
@@ -162,7 +236,9 @@ RUN --mount=type=bind,from=sota-builder,source=/root/aktualizr/build,target=/bui
     tar xvf /build/aktualizr/aktualizr.tar.bz2 -C / && ldconfig -v && \
     apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            libboost-log1.74.0 libboost-program-options1.74.0 && \
+            libboost-log1.74.0 \
+            libboost-program-options1.74.0 \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 # Install the skopeo tool from our skopeo-builder generated tarball
@@ -170,7 +246,11 @@ RUN --mount=type=bind,from=skopeo-builder,source=/root,target=/build/skopeo \
     tar xvf /build/skopeo/skopeo.tar.bz2 -C / && ldconfig -v && \
     apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            libgpgme11 libassuan0 libbtrfs0 pkg-config && \
+            libassuan0 \
+            libbtrfs0 \
+            libgpgme11 \
+            pkg-config \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 # Debian has old version of docker and docker-compose, which does not support some of
@@ -188,7 +268,13 @@ RUN pip3 install --no-cache-dir -r /tmp/requirements_dev.txt && \
     rm -rf /tmp/requirements_dev.txt
 
 RUN apt-get -q -y update && \
-    apt-get -q -y --no-install-recommends install git strace procps vim ssh && \
+    apt-get -q -y --no-install-recommends install \
+            git \
+            procps \
+            ssh \
+            strace \
+            vim \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=vscode
@@ -201,7 +287,9 @@ RUN groupadd --gid $USER_GID $USERNAME && \
     #
     # [Optional] Add sudo support. Omit if you don't need to install software after connecting.
     apt-get update && \
-    apt-get install -y --no-install-recommends sudo && \
+    apt-get install -y --no-install-recommends \
+            sudo \
+    && \
     echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME && \
     chmod 0440 /etc/sudoers.d/$USERNAME
 
