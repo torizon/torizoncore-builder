@@ -237,7 +237,7 @@ def autoload_module(module, kernel_changes_dir):
 def download_toolchain(toolchain, toolchain_path, version_gcc):
     """Download toolchain from online if it doesn't already exist"""
 
-    url_prefix = "http://sources.toradex.com/tcb/toolchains/"
+    url_prefix = "https://sources.toradex.com/tcb/toolchains/"
     if toolchain == "arm-none-linux-gnueabihf-":
         tarball = f"{version_gcc}-x86_64-arm-none-linux-gnueabihf.tar.xz"
     if toolchain == "aarch64-none-linux-gnu-":
