@@ -5,6 +5,7 @@
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,18 @@ from tcbuilder.backend.common import get_own_network, validate_compose_file
 from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
+
+# Code responsible for amending and running the Docker daemon inside DinD; this is
+# expected to be run by the shell inside the DinD container.
+DIND_AMENDED_ENTRYPOINT = """
+if ! grep -q -e "-addext keyUsage=critical" /usr/local/bin/dockerd-entrypoint.sh; then
+  echo "Amending certificate generation...";
+  sed -e "/-subj.*CN=docker:dind CA.*-x509.*-days.*\\"\\$certValidDays\\" *$/ {s/$/ -addext keyUsage=critical,digitalSignature,keyCertSign/}" \
+      -e "/subjectAltName = \\$(_tls_san)/ {h; s/subjectAltName.*/extendedKeyUsage = serverAuth/; x; H; x}" \
+      -i /usr/local/bin/dockerd-entrypoint.sh;
+fi;
+exec /usr/local/bin/dockerd-entrypoint.sh \
+"""
 
 
 def get_compression_command(output_file):
@@ -136,8 +149,13 @@ class DindManager(DockerManager):
     # - "20.10.24-dind": (closest to the) version used by Torizon OS 6.x.y
     # - "23.0.6-dind":   version supporting zstd compression of layers
     # - "25.0.3-dind":   version used by Torizon OS 7.x.y
+    # - "28.5.1-dind":   to be used in the future (this already does the proper
+    #                    certificate generation)
     #
     DIND_IMAGE_VERSION_DEFAULT = "25.0.3-dind"
+
+    # Whether or not to amend the certificate generation inside DinD (see above).
+    DIND_CERT_WORKAROUND_DEFAULT = "1"
 
     DIND_VOLUME_NAME = "dind-volume"
     DIND_CONTAINER_NAME = "tcb-fetch-dind"
@@ -288,22 +306,35 @@ class DindManager(DockerManager):
         if dind_env is not None:
             environ.update(dind_env)
 
+        run_kwargs = {
+            "privileged": True,
+            "environment": environ,
+            "mounts": mounts,
+            "ports": ports,
+            "network": network_name,
+            "name": self.DIND_CONTAINER_NAME,
+            "auto_remove": False,
+            "detach": True,
+            "command": dind_cmd
+        }
+
+        _crt_workaround = \
+            os.environ.get("DIND_CERT_WORKAROUND", self.DIND_CERT_WORKAROUND_DEFAULT)
+        if _crt_workaround == "1":
+            log.debug("Using workaround for bad certificate generation by DinD.")
+            run_kwargs["entrypoint"] = ""
+            run_kwargs["command"] = [
+                "sh", "-c", DIND_AMENDED_ENTRYPOINT + " " + shlex.join(dind_cmd)
+            ]
+            log.debug("COMMAND: %s", str(run_kwargs["command"]))
+
         log.debug(f"Environment variables for DinD: {environ}")
         log.debug(f"Running DinD container: ports={ports}, network={network_name}")
         dind_image = "{}:{}".format(
             os.environ.get("DIND_IMAGE_NAME", self.DIND_IMAGE_NAME_DEFAULT),
             os.environ.get("DIND_IMAGE_VERSION", self.DIND_IMAGE_VERSION_DEFAULT))
-        self.dind_container = self.host_client.containers.run(
-            dind_image,
-            privileged=True,
-            environment=environ,
-            mounts=mounts,
-            ports=ports,
-            network=network_name,
-            name=self.DIND_CONTAINER_NAME,
-            auto_remove=False,
-            detach=True,
-            command=dind_cmd)
+
+        self.dind_container = self.host_client.containers.run(dind_image, **run_kwargs)
 
         if network_name != "host":
             # Find IP of the DIND container (make sure attributes are current...)
