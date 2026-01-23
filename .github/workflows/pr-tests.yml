@@ -12,7 +12,7 @@ env:
   TORIZONCORE_BUILDER_MINOR: "14"
   TORIZONCORE_BUILDER_PATCH: "0"
   RELEASE_TYPE: "github-pr-test"
-  DEBIAN_RELEASE: "bullseye-slim"
+  DEBIAN_RELEASE: "trixie-slim"
   # Use overlayfs driver for better performance
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: 1
