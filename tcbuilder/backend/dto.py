@@ -45,7 +45,7 @@ def get_active_overlays_txt_path():
         ["find", os.path.join(storage_dir, 'sysroot', 'ostree', 'deploy'),
          "-type", "f", "-wholename", f"*/usr/lib/modules/*/dtb/{OVERLAYS_TXT_FILE}",
          "-print", "-quit"],
-        shell=False, text=True).strip()
+        text=True).strip()
     assert dpath and os.path.exists(dpath), \
         f"panic: missing {OVERLAYS_TXT_FILE} in base image!"
     log.debug(f"Found {OVERLAYS_TXT_FILE} in deployment: '{dpath}'")

@@ -437,7 +437,8 @@ def dto_list(device_tree, overlays_subdir):
                 "sed -r -e 's/.*\\<compatible *= *//' "
                 "-e 's/[[:blank:]]*//g' -e 's/\";.*/\"\\n/' -e 's/\",\"/\"\\n\"/g'"
                 f">{shlex.quote(compat_regexps_tmp_path)}",
-                shell=True, text=True, stderr=subprocess.STDOUT)
+                shell=True, executable="/bin/bash",
+                text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
             log.error(exc.output.strip())
             log.error("error: cannot extract compatibility labels from device "
@@ -461,7 +462,8 @@ def dto_list(device_tree, overlays_subdir):
             subprocess.check_output(
                 f"set -o pipefail && fdtget {shlex.quote(dtb_path)} / compatible | tr ' ' '\n' "
                 f"| sed -e 's/$/\"/' >{shlex.quote(compat_regexps_tmp_path)}",
-                shell=True, text=True, stderr=subprocess.STDOUT)
+                shell=True, executable="/bin/bash",
+                text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
             log.error(exc.output.strip())
             if "FDT_ERR_BADMAGIC" in exc.output:
@@ -478,7 +480,8 @@ def dto_list(device_tree, overlays_subdir):
         compat_list = subprocess.check_output(
             f"set -o pipefail && grep -rlHEf {shlex.quote(compat_regexps_tmp_path)} "
             f"{shlex.quote(overlays_subdir)} "
-            "| sort -u | sed -e 's/^/- /'", shell=True, text=True).strip()
+            "| sort -u | sed -e 's/^/- /'",
+            shell=True, executable="/bin/bash", text=True).strip()
         log.info(f"Overlays compatible with device tree {os.path.basename(device_tree)}:")
         log.info(f"{compat_list}")
     except subprocess.CalledProcessError as _exc:

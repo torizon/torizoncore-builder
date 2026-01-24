@@ -55,7 +55,7 @@ def get_current_uenv_txt_path():
         ["find", f"{storage_dir}/sysroot/ostree/deploy",
          "-wholename", "*/usr/lib/ostree-boot/uEnv.txt",
          "-print", "-quit"],
-        shell=False, text=True).strip()
+        text=True).strip()
     assert dpath and os.path.exists(dpath), "panic: missing uEnv.txt in base image!"
     log.debug(f"Found uEnv.txt in deployment: '{dpath}'")
 
@@ -230,7 +230,7 @@ def get_dtb_kernel_subdir():
         ("set -o pipefail && "
          f"find {storage_dir}/sysroot/ostree/deploy -type d -name dtb -print -quit |"
          " sed -r -e 's|.*/(usr/lib/modules/)|\\1|'"),
-        shell=True, text=True).strip()
+        shell=True, executable="/bin/bash", text=True).strip()
     assert answer, "panic: missing kernel device tree directory!"
     return answer
 
@@ -291,8 +291,8 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
     try:
         # Check if dtc is present in the environment
         dtc_version = subprocess.check_output(
-            "dtc --version",
-            shell=True, text=True, stderr=subprocess.STDOUT)
+            ["dtc", "--version"],
+            text=True, stderr=subprocess.STDOUT)
         dtc_version = dtc_version.rstrip().split(': ')[1]
         log.info(f"Compiling Device Tree with {dtc_version}...")
 
@@ -301,7 +301,8 @@ def build_dts(source_dts_path, include_dirs, target_dtb_path):
              f"cpp -nostdinc -undef -x assembler-with-cpp {opt_includes} "
              f"{shlex.quote(source_dts_path)} "
              f"| dtc -I dts -O dtb -@ -o {shlex.quote(target_dtb_path)}"),
-            shell=True, text=True, stderr=subprocess.STDOUT)
+            shell=True, executable="/bin/bash",
+            text=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
         log.error(exc.output.strip())
         return False

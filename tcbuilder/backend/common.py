@@ -530,7 +530,8 @@ def get_file_sha256sum(path):
     # Run external program - output is like this:
     # c81be3dc13de2bd6e13da015e7822a4719aca3cc7434f24b564e40ff8c632a36 <fname>
     text = subprocess.check_output(
-        ["sha256sum", path], shell=False, text=True, stderr=subprocess.STDOUT)
+        ["sha256sum", path],
+        text=True, stderr=subprocess.STDOUT)
     parts = re.split(r"\s+", text)
     # Sanity checks:
     assert (len(parts) >= 2) and (len(parts[0]) == 64)

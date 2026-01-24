@@ -165,7 +165,7 @@ class ImageConfig:
             _output = subprocess.check_output(
                 "set -o pipefail; "
                 f"cat {shlex.quote(full_fname)} | {get_unpack_command(filename)} | wc -c",
-                shell=True)
+                shell=True, executable="/bin/bash")
             size = int(_output)
         else:
             stat = os.stat(full_fname)

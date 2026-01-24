@@ -183,15 +183,12 @@ RUN echo "Fetching U-Boot tools repository..." && \
 # Build the base image for TorizonCore Builder.
 FROM common-base AS tcbuilder-base
 
-# Install Bash and make it the default shell.
-# TODO: No longer assume Bash is default inside TorizonCore Builder (drop the symlink below).
-# hadolint ignore=DL4005
+# Install Bash to allow the use of Bashisms in scripts invoked by TorizonCore Builder.
 RUN apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
             bash \
     && \
-    rm -rf /var/lib/apt/lists/* && \
-    ln -sf /bin/bash /bin/sh
+    rm -rf /var/lib/apt/lists/*
 
 # Install runtime dependencies of TorizonCore Builder.
 #
