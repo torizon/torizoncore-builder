@@ -196,12 +196,12 @@ def check_combine_files(bundle_dir):
         target_name_file = os.path.join(bundle_dir, TARGET_NAME_FILENAME)
 
         if not os.path.exists(target_name_file):
-            with open(target_name_file, 'w') as target_name_fd:
+            with open(target_name_file, "w", encoding="utf-8") as target_name_fd:
                 target_name_fd.write("docker-compose.yml")
             set_output_ownership(bundle_dir)
 
         for filename in files_to_add:
-            filename = filename.split(":")[0]
+            filename = filename.split(":", maxsplit=1)[0]
             filename_path = os.path.join(bundle_dir, filename)
             if not os.path.exists(filename_path):
                 log.error(f"Error: {filename} not found in bundle directory.")
@@ -315,7 +315,7 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
 
                 if list_len >= 3:
                     untar = src_dest_untar[2]
-                    untar = (untar.lower() == 'true')
+                    untar = untar.lower() == 'true'
 
                 src, dest = src_dest_untar[0:2]
 
@@ -345,8 +345,10 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
             if gfs:
                 gfs.close()
             if f"unable to resolve 'LABEL={rootfs_label}'" in str(gfserr):
+                # pylint: disable-next=raise-missing-from
                 raise TorizonCoreBuilderError(
                     f"Filesystem with label '{rootfs_label}' not found in image. Aborting.")
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
     else:
         raise TorizonCoreBuilderError("Some required bundle files were not found. Aborting.")

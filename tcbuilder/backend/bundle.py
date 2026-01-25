@@ -71,7 +71,6 @@ def get_compression_command(output_file):
     return (output_file_tar, command)
 
 
-# pylint: disable=no-self-use
 class DockerManager:
     """Docker bundling helper class
 
@@ -91,6 +90,7 @@ class DockerManager:
     def stop(self):
         """Stop manager (dummy implementation)"""
 
+    # pylint: disable-next=no-self-use
     def get_tar_command(self, output_file):
         """Create the tar command to archive the Docker images"""
         return [
@@ -100,6 +100,7 @@ class DockerManager:
             "overlay2/", "image/"
         ]
 
+    # pylint: disable-next=no-self-use
     def get_client(self):
         """Create an instance of the Docker client"""
         return docker.from_env()
@@ -123,13 +124,12 @@ class DockerManager:
         else:
             log.debug(f"Not compressing {output_file_tar}")
 
+    # pylint: disable-next=no-self-use
     def add_cacerts(self, cacerts):
         assert cacerts is None, "`cacerts` should be used with DindManager"
 
-# pylint: enable=no-self-use
 
-
-# pylint: disable=too-many-instance-attributes
+# pylint: disable-next=too-many-instance-attributes
 class DindManager(DockerManager):
     """Docker bundling class using a Docker-in-Docker instance
 
@@ -162,7 +162,7 @@ class DindManager(DockerManager):
     TAR_CONTAINER_NAME = "tcb-build-tar"
 
     def __init__(self, output_dir, host_workdir):
-        super(DindManager, self).__init__(output_dir)
+        super().__init__(output_dir)
 
         # Create certificate directory based on date/time.
         cert_dir_rel = datetime.now().strftime("certs_%Y%m%d%H%M%S_%f.tmp")
@@ -231,7 +231,7 @@ class DindManager(DockerManager):
                 f"{self.cert_dir} is a shared location between this script and "
                 "the Docker host.")
 
-    # pylint: disable=too-many-locals
+    # pylint: disable-next=too-many-locals
     def start(self, network_name="fetch-dind-network",
               default_platform=None, dind_params=None, dind_env=None):
         """Start manager
@@ -256,7 +256,7 @@ class DindManager(DockerManager):
                 docker_host = os.environ["DOCKER_HOST"]
                 results = re.findall(r"tcp?:\/\/(.*):(\d*)\/?.*", docker_host)
                 if not results or len(results) < 1:
-                    raise Exception("Regex does not match: {}".format(docker_host))
+                    raise InvalidArgumentError(f"Regex does not match: {docker_host}")
                 host_ip = results[0][0]
                 self.docker_host = f"tcp://{host_ip}:{port}"
             else:
@@ -342,7 +342,6 @@ class DindManager(DockerManager):
             dind_ip = self.dind_container.attrs \
                 ["NetworkSettings"]["Networks"][network_name]["IPAddress"]
             self.docker_host = "tcp://{}:22376".format(dind_ip)
-    # pylint: enable=too-many-locals
 
     def _stop_container(self):
         log.info("Stopping DIND container")
@@ -515,8 +514,6 @@ class DindManager(DockerManager):
                 f'cp {cert} '
                 f'/etc/docker/certs.d/{registry}/{file}.crt')
 
-# pylint: enable=too-many-instance-attributes
-
 
 def show_pull_progress_xterm(pull_stream):
     """Show the container pulling progress similarly to `docker pull`
@@ -617,9 +614,9 @@ def recursive_yaml_value_check(obj, config_path):
     return obj
 
 
-# pylint: disable=too-many-arguments,too-many-locals
+# pylint: disable-next=too-many-locals
 def download_containers_by_compose_file(
-        output_dir, compose_file, host_workdir, output_filename,
+        output_dir, compose_file, host_workdir, output_filename, *,
         keep_double_dollar_sign=False, platform=None, dind_params=None, dind_env=None,
         use_host_docker=False, show_progress=True):
     """
@@ -648,9 +645,7 @@ def download_containers_by_compose_file(
                           only relevant when there is a TTY attached to stdout
                           and the terminal is compatible with an xterm.
     """
-    # Open Docker Compose file
-    if not os.path.isabs(compose_file):
-        compose_path = os.path.abspath(compose_file)
+    compose_path = os.path.abspath(compose_file)
 
     if not os.path.exists(compose_path):
         raise InvalidArgumentError(f"Error: File does not exist: {compose_file}. Aborting.")
@@ -719,7 +714,8 @@ def download_containers_by_compose_file(
             svc_spec['image'] = image.attrs['RepoDigests'][0]
 
         log.info("Saving Docker Compose file")
-        with open(os.path.join(manager.output_dir, "docker-compose.yml"), "w") as file:
+        with open(os.path.join(manager.output_dir, "docker-compose.yml"),
+                  "w", encoding="utf-8") as file:
             file.write(yaml.safe_dump(compose_file_data))
 
         log.info("Exporting storage")
@@ -731,5 +727,3 @@ def download_containers_by_compose_file(
 
     finally:
         manager.stop()
-
-# pylint: enable=too-many-arguments,too-many-locals

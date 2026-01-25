@@ -160,8 +160,8 @@ def am_i_under_docker():
     """Tells whether the OS is inside the Matrix."""
     # Detect if the init process has Docker control groups; see
     # https://stackoverflow.com/questions/20010199/how-to-determine-if-a-process-runs-inside-lxc-docker
-    with open('/proc/1/cgroup', 'rt') as fd_cgroup:
-        return 'docker' in fd_cgroup.read()
+    with open("/proc/1/cgroup", "r", encoding="utf-8") as fd_cgroup:
+        return "docker" in fd_cgroup.read()
 
 
 def assert_operational_directory(path):

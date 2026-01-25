@@ -13,7 +13,7 @@ strings_re = re.compile(r'"([^"]*)"')
 
 class CompatibleOverlayParser:
     def __init__(self, sourcefile):
-        with io.open(sourcefile, "r") as srcf:
+        with io.open(sourcefile, "r", encoding="utf-8") as srcf:
             self.file_content = srcf.read()
         self.counter = 0
         self.description = ""

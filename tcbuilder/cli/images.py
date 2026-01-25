@@ -83,9 +83,11 @@ def do_images_download(args):
 
     r_ip = common.resolve_remote_host(args.remote_host, args.mdns_source)
     dir_list = prepare_storage(args.remove_storage)
-    images.download_tezi(r_ip, args.remote_username, args.remote_password,
-                         args.remote_port,
-                         dir_list[0], dir_list[1], dir_list[2])
+    images.download_tezi(
+        r_ip, args.remote_username, args.remote_password, args.remote_port,
+        tezi_dir=dir_list[0],
+        src_sysroot_dir=dir_list[1],
+        src_ostree_archive_dir=dir_list[2])
 
 
 def do_images_provision(args):

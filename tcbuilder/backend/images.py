@@ -83,6 +83,8 @@ def serve(images_directory):
             executions of the TorizonCore Builder 'serve' command.
             """
             if self.path.endswith('.json'):
+                # TODO: Review this implementation (use "with").
+                # pylint: disable-next=unspecified-encoding,consider-using-with
                 fd_json = open(os.path.join(images_directory, self.path[1:])).read()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -93,8 +95,10 @@ def serve(images_directory):
             else:
                 super().do_GET()
 
+    avahi = None
     try:
         # The Avahi deamon should respond for zeroconf TEZI services
+        # pylint: disable-next=consider-using-with
         avahi = subprocess.Popen(["avahi-daemon"],
                                  stdin=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL,
@@ -110,8 +114,9 @@ def serve(images_directory):
     except KeyboardInterrupt:
         pass
     finally:
-        avahi.terminate()
-        avahi.wait()
+        if avahi is not None:
+            avahi.terminate()
+            avahi.wait()
 
 
 def get_device_info(r_host, r_username, r_password, r_port):
@@ -157,8 +162,8 @@ def get_device_info(r_host, r_username, r_password, r_port):
     return version, hostname, container
 
 
-# pylint: disable=too-many-locals
-def download_tezi(r_host, r_username, r_password, r_port,
+# pylint: disable-next=too-many-locals
+def download_tezi(r_host, r_username, r_password, r_port, *,
                   tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
     """
     Download appropriate Tezi Image based on target device.
@@ -177,6 +182,7 @@ def download_tezi(r_host, r_username, r_password, r_port,
         prod = "torizoncore-oe-prod-frankfurt"
         devel = ""
 
+    # pylint: disable-next=consider-using-dict-items
     for key in VERSION_TO_YOCTO_MAP:
         if key in version:
             if key in ("dunfell", "kirkstone"):
@@ -199,6 +205,9 @@ def download_tezi(r_host, r_username, r_password, r_port,
     elif len(date[0]) == 8:
         build_type = "nightly"
         date = date[0]
+    else:
+        assert False, \
+            f"Cannot determine build type for version {version}."
 
     build_number = re.findall(r'.*build.(.*?)\ ', version)[0]
 
@@ -231,12 +240,12 @@ def download_tezi(r_host, r_username, r_password, r_port,
         urllib.request.urlretrieve(url, download_file_cwd)
         log.info("Download Complete!\n")
     except:
-        raise TorizonCoreBuilderError("The requested image could not be found "
-                                      "in the Toradex Artifactory.")
+        # pylint: disable-next=raise-missing-from
+        raise TorizonCoreBuilderError(
+            "The requested image could not be found in the Toradex Artifactory.")
     set_output_ownership(download_file_cwd)
     import_local_image(download_file, tezi_dir,
                        src_sysroot_dir, src_ostree_archive_dir)
-# pylint: enable=too-many-locals
 
 
 def unpack_local_image(image_dir, sysroot_dir):
@@ -295,9 +304,11 @@ def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
         if gfs:
             gfs.close()
         if f"unable to resolve 'LABEL={raw_rootfs_label}'" in str(gfserr):
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(
                 f"Filesystem with label '{raw_rootfs_label}' not found in image. Aborting.")
 
+        # pylint: disable-next=raise-missing-from
         raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}")
 
 
@@ -310,7 +321,7 @@ def _make_tezi_extract_dir(tezi_dir):
     return extract_dir
 
 
-# pylint: disable=too-many-locals
+# pylint: disable-next=too-many-locals
 def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                        raw_rootfs_label=None):
     """Import local raw/WIC or Toradex Easy Installer image
@@ -343,7 +354,7 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
                     subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
                 elif image_dir_or_file.endswith(".zip"):
                     log.info("Unzipping Toradex Easy Installer image.")
-                    with ZipFile(image_dir_or_file, 'r') as file:
+                    with ZipFile(image_dir_or_file, "r") as file:
                         file.extractall(tempdir)
                 else:
                     raise TorizonCoreBuilderError(
@@ -367,6 +378,7 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
         common_raw_props_args = {
             "raw_rootfs_label" : raw_rootfs_label
         }
+        # pylint: disable-next=consider-using-dict-items
         for prop in common_raw_props_args:
             if common_raw_props_args[prop] is not None:
                 log.warning(f"Warning: {RAW_PROP_TO_ARGNAME[prop]} "
@@ -392,10 +404,10 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
     else:
         log.info("Unpacked OSTree from WIC/raw image:")
 
-    log.info(f"  Commit checksum: {csum}".format(csum))
-    log.info(f"  TorizonCore Version: {metadata['version']}")
+    log.info("  Commit checksum: %s", csum)
+    log.info("  TorizonCore Version: %s", metadata["version"])
 
-    image_major = int(metadata['oe.tdx-major'])
+    image_major = int(metadata["oe.tdx-major"])
 
     if image_major <= LAST_DEPRECATED_IMAGE_MAJOR:
         if image_major == LAST_DEPRECATED_IMAGE_MAJOR:
@@ -407,7 +419,6 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
                         "for this use case. Proceed at your own risk.")
         else:
             log.warning("Warning: Unsupported image version detected. Proceed at your own risk.")
-# pylint: enable=too-many-locals
 
 
 def prov_check_provdata_presence(input_dir):
@@ -491,7 +502,8 @@ def prov_add_provdata_tarball(output_dir):
     config.save()
 
 
-def provision(input_dir, output_dir, shared_data, online_data, hibernated=False, force=False):
+def provision(input_dir, output_dir, shared_data, online_data, *,
+              hibernated=False, force=False):
     """Generate TEZI image with added provisioning data
 
     :param input_dir: Path of directory containing input image.

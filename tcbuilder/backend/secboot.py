@@ -82,8 +82,9 @@ def update_fit_configs_keyname(fit_path, key_name):
         subprocess.check_output(["bash", update_keyname_script, fit_filename, key_name],
                                 text=True, env=(os.environ | script_extra_env),
                                 stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError:
-        raise TorizonCoreBuilderError(f"Error when running {update_keyname_script}")
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(
+            f"Error when running {update_keyname_script}") from exc
 
 
 def copy_sig_node_to_config_of_list(input_binaries_dir, board):
@@ -110,8 +111,9 @@ def copy_sig_node_to_config_of_list(input_binaries_dir, board):
         subprocess.check_output(["bash", copy_sig_script, UBOOT_DTB],
                                 text=True, env=(os.environ | copy_sig_extra_env),
                                 stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError:
-        raise TorizonCoreBuilderError(f"Error when running {copy_sig_script}")
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(
+            f"Error when running {copy_sig_script}") from exc
 
 
 def remove_dtb_node(dtb_file, node_path):
@@ -149,6 +151,7 @@ def remove_dtb_node(dtb_file, node_path):
     raise InvalidDataError(f"Error when trying to read {node_path} in {dtb_file}. Aborting.")
 
 
+# pylint: disable-next=too-many-positional-arguments
 def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
                           kernel_key_name, kernel_key_algo, board):
     """
@@ -209,7 +212,7 @@ def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
             os.remove("unused.itb")
 
     except subprocess.CalledProcessError as exc:
-        raise TorizonCoreBuilderError(exc.output.strip())
+        raise TorizonCoreBuilderError(exc.output.strip()) from exc
 
     log.debug("---------- OUTPUT FROM MKIMAGE ----------")
     log.debug(mkimage_output)
@@ -256,7 +259,7 @@ def sign_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
                                                  stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as exc:
-        raise TorizonCoreBuilderError(exc.output.strip())
+        raise TorizonCoreBuilderError(exc.output.strip()) from exc
 
     log.debug("---------- OUTPUT FROM MKIMAGE ----------")
     log.debug(mkimage_output)
@@ -319,7 +322,7 @@ def assemble_flash_bin_with_binman(input_binaries_dir, dt_of_list, binman_output
             log.debug(binman_cmd)
 
     except subprocess.CalledProcessError as exc:
-        raise TorizonCoreBuilderError(exc.output.strip())
+        raise TorizonCoreBuilderError(exc.output.strip()) from exc
 
     if os.path.isfile(os.path.join(binman_output_dir, FLASH_BIN)):
         log.info(f"{FLASH_BIN} created successfully.")
@@ -331,6 +334,7 @@ def assemble_flash_bin_with_binman(input_binaries_dir, dt_of_list, binman_output
 
 # Based on function with the same name in imx-hab.bbclass in meta-toradex-security:
 # https://github.com/toradex/meta-toradex-security/blob/83493978ad6e5b4ffde529e929afec7f31a83364/classes/imx-hab.bbclass
+# pylint: disable-next=too-many-positional-arguments
 def make_srk_cert_name(crypto, key_size, key_exp, dig_algo, srk_index, srk_no_ca):
     """Generate certificate name related to a Super Root Key
 
@@ -363,6 +367,7 @@ def make_srk_cert_name(crypto, key_size, key_exp, dig_algo, srk_index, srk_no_ca
 
 # Based on function with the same name in imx-hab.bbclass in meta-toradex-security:
 # https://github.com/toradex/meta-toradex-security/blob/83493978ad6e5b4ffde529e929afec7f31a83364/classes/imx-hab.bbclass
+# pylint: disable-next=too-many-positional-arguments
 def make_sub_cert_name(prefix, crypto, key_size, key_exp, dig_algo, srk_index, srk_no_ca):
     """Generate certificate name related to a subordinate key
 
@@ -440,6 +445,7 @@ def get_cst_bin(cst_dir):
     return cst_path
 
 
+# pylint: disable-next=too-many-positional-arguments
 def run_hab_signing_script(signing_dir, uboot_config_path, binman_output_dir,
                            board, cst_dir, cst_args):
     """Run the signing script for HAB-compatible modules
@@ -491,7 +497,7 @@ def run_hab_signing_script(signing_dir, uboot_config_path, binman_output_dir,
         log.info(sign_output)
 
     except subprocess.CalledProcessError as exc:
-        raise TorizonCoreBuilderError(exc.output.strip())
+        raise TorizonCoreBuilderError(exc.output.strip()) from exc
 
     log.info("Bootloader container signed successfully.")
 
@@ -537,7 +543,7 @@ def check_unpacked_tezi_kernel_signing_support():
     initial_env_filename = get_env_filename(tezi_dir)
     initial_env = os.path.join(tezi_dir, initial_env_filename)
 
-    with open(initial_env, 'r') as file:
+    with open(initial_env, "r", encoding="utf-8") as file:
         env = file.read()
 
     board = find_board(env)
@@ -566,7 +572,7 @@ def check_unpacked_tezi_hab_signing_support():
     initial_env_filename = get_env_filename(tezi_dir)
     initial_env = os.path.join(tezi_dir, initial_env_filename)
 
-    with open(initial_env, 'r') as file:
+    with open(initial_env, "r", encoding="utf-8") as file:
         env = file.read()
 
     board = find_board(env)
@@ -719,7 +725,7 @@ def sign_bootloader_hab(kernel_key_dir, kernel_key_name, kernel_key_algo, cst_di
         subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
 
     uboot_config_path = check_if_file_exists(UBOOT_CONFIG_FILE, SECURE_BOOT_WORKDIR)
-    with open(uboot_config_path, 'r') as uboot_config_file:
+    with open(uboot_config_path, "r", encoding="utf-8") as uboot_config_file:
         dt_of_list = re.search(r'CONFIG_OF_LIST="(.*)"', uboot_config_file.read())
 
     if dt_of_list is not None:

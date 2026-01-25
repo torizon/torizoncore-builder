@@ -47,8 +47,8 @@ def parse_env_assignments(assignments):
     return mapping
 
 
-# pylint: disable=too-many-arguments
-def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
+def bundle(bundle_dir, compose_file, *,
+           force=False, keep_double_dollar_sign=False,
            platform=None, dind_params=None, dind_env=None):
     """Main handler of the bundle command (CLI layer)
 
@@ -89,7 +89,6 @@ def bundle(bundle_dir, compose_file, force=False, keep_double_dollar_sign=False,
         dind_env=dind_env)
 
     log.info(f"Successfully created Docker Container bundle in \"{bundle_dir}\"!")
-# pylint: enable=too-many-arguments
 
 
 def do_bundle(args):

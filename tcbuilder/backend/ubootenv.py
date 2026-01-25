@@ -21,7 +21,7 @@ FUSE_VARIABLES = [
     "fuse_prog_list=", "fuse_status=", "fuse_prog_close="
 ]
 
-# pylint: disable=too-many-locals
+# pylint: disable-next=too-many-locals
 def env_fuses(input_dir, output_dir, fuse_file, force=False):
     """Write fuse related u-boot variables to initial env file
 
@@ -43,7 +43,7 @@ def env_fuses(input_dir, output_dir, fuse_file, force=False):
     initial_env_filename = get_env_filename(input_dir)
     initial_env = os.path.join(input_dir, initial_env_filename)
 
-    with open(initial_env, 'r') as file:
+    with open(initial_env, "r", encoding="utf-8") as file:
         env = file.read()
 
     # Check to see if initial u-boot env already contains fuse variables
@@ -84,9 +84,9 @@ def env_fuses(input_dir, output_dir, fuse_file, force=False):
         if not inplace:
             log.debug("Removing output directory due to error.")
             shutil.rmtree(output_dir)
+        # pylint: disable-next=raise-missing-from
         raise TorizonCoreBuilderError(
             f"Failed to update {output_env} file.")
-# pylint: enable=too-many-locals
 
 
 def get_env_filename(tezi_dir):
@@ -100,7 +100,7 @@ def get_env_filename(tezi_dir):
     if not os.path.exists(image_json_path):
         raise PathNotExistError(f"File {image_json_path} does not exist.")
 
-    with open(image_json_path, 'r') as file:
+    with open(image_json_path, "r", encoding="utf-8") as file:
         jsondata = json.load(file)
 
     env_file = jsondata.get("u_boot_env")
@@ -171,5 +171,5 @@ def write_uboot_vars(env_file, var_list):
     :params var_list: List of U-boot variables and values to write to file
     """
 
-    with open(env_file, 'a') as file:
+    with open(env_file, "a", encoding="utf-8") as file:
         file.writelines(var + '\n' for var in var_list)

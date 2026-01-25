@@ -88,7 +88,7 @@ def init_parser(subparsers):
     subparser.add_argument(
         dest="splash_image",
         metavar="SPLASH_IMAGE",
-        help=("Path and name of splash screen image (REQUIRED)."))
+        help="Path and name of splash screen image (REQUIRED).")
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(

@@ -101,6 +101,12 @@ BOOTLOADER_HARDWAREIDS = [
 
 UBOOT_JSON_SCHEMA_FILE = "uboot-schema.json"
 
+DEFAULT_CONNECT_TIMEOUT = int(os.environ.get("DEFAULT_CONNECT_TIMEOUT", "60"))
+COMMIT_CHECK_TIMEOUT = int(os.environ.get("COMMIT_CHECK_TIMEOUT", "60"))
+FETCH_READ_TIMEOUT = int(os.environ.get("FETCH_READ_TIMEOUT", "60"))
+UPDATE_DESC_TIMEOUT = int(os.environ.get("UPDATE_DESC_TIMEOUT", "60"))
+UPLOAD_DELTA_TIMEOUT = int(os.environ.get("UPLOAD_DELTA_TIMEOUT", "240"))
+
 
 def load_metadata(fname, ftype=None, maxlen=DEFAULT_METADATA_MAXLEN):
     """Load metadata file and determine some of its attributes (size, sha256).
@@ -166,9 +172,12 @@ def check_commit_present(ostree_url, commit_sha256, access_token=None):
         assert url.lower().startswith("https://")
         res = requests.head(
             url, allow_redirects=True,
-            headers={"Authorization": f"Bearer {access_token}"})
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=(DEFAULT_CONNECT_TIMEOUT, COMMIT_CHECK_TIMEOUT))
     else:
-        res = requests.head(url, allow_redirects=True)
+        res = requests.head(
+            url, allow_redirects=True,
+            timeout=(DEFAULT_CONNECT_TIMEOUT, COMMIT_CHECK_TIMEOUT))
 
     if res.status_code == requests.codes["ok"]:
         return True
@@ -234,7 +243,7 @@ def do_fetch_ostree_target(target, sha256, ostree_url, images_dir, access_token=
         check=True)
 
 
-def fetch_ostree_target(target, sha256, ostree_url, images_dir,
+def fetch_ostree_target(target, sha256, ostree_url, images_dir, *,
                         access_token=None, name=None, version=None):
     """Fetch commit from the specified OSTree repo falling back to a public one
 
@@ -280,7 +289,7 @@ def fetch_ostree_target(target, sha256, ostree_url, images_dir,
         target, sha256, server_url, images_dir, access_token=server_token)
 
 
-def fetch_validate(url, fname, dest_dir,
+def fetch_validate(url, fname, dest_dir, *,
                    sha256=None, length=None, access_token=None, parse=None):
     """Fetch and possibly validate a given resource (file)
 
@@ -312,9 +321,11 @@ def fetch_validate(url, fname, dest_dir,
     if access_token:
         assert url.lower().startswith("https://")
         res = requests.get(
-            url, headers={"Authorization": f"Bearer {access_token}"})
+            url, headers={"Authorization": f"Bearer {access_token}"},
+            timeout=(DEFAULT_CONNECT_TIMEOUT, FETCH_READ_TIMEOUT))
     else:
-        res = requests.get(url)
+        res = requests.get(
+            url, timeout=(DEFAULT_CONNECT_TIMEOUT, FETCH_READ_TIMEOUT))
 
     if res.status_code != requests.codes["ok"]:
         raise FetchError(
@@ -356,8 +367,7 @@ def fetch_validate(url, fname, dest_dir,
     return ret
 
 
-# pylint: disable=too-many-arguments
-def fetch_file_target(target, repo_url, images_dir,
+def fetch_file_target(target, repo_url, images_dir, *,
                       sha256=None, length=None, access_token=None, parse=None,
                       name=None, version=None, custom_uri=None):
     """Fetch a generic file target from the TUF repo
@@ -391,7 +401,6 @@ def fetch_file_target(target, repo_url, images_dir,
     return fetch_validate(
         url, target, images_dir,
         sha256=sha256, length=length, access_token=access_token, parse=parse)
-# pylint: enable=too-many-arguments
 
 
 def get_referenced_images(compose):
@@ -506,8 +515,9 @@ def get_compatible_images(manifests, platform, sort=True):
     return list(mwg[1] for mwg in manifests_with_grade)
 
 
-# pylint: disable=too-many-locals
-def select_images(image_platform_pairs, manifests_per_image, req_platforms=None, verbose=True):
+# pylint: disable-next=too-many-locals
+def select_images(image_platform_pairs, manifests_per_image, *,
+                  req_platforms=None, verbose=True):
     """Determine all single-platform/platform-independent image references."""
 
     images_selection = []
@@ -591,10 +601,9 @@ def select_images(image_platform_pairs, manifests_per_image, req_platforms=None,
     log.debug(f"images_selection: {images_selection}")
 
     return images_selection
-# pylint: enable=too-many-locals
 
 
-def select_unique_images(image_platform_pairs, manifests_per_image,
+def select_unique_images(image_platform_pairs, manifests_per_image, *,
                          req_platforms=None, verbose=True):
     """Determine all single-platform/platform-independent image references."""
 
@@ -630,7 +639,7 @@ def _apply_skopeo_canon_wkaround(tbdir, image_spec):
     # ---
     manifest_path = os.path.join(tbdir, "manifest.json")
     if os.path.exists(manifest_path):
-        with open(manifest_path, "r") as fhandle:
+        with open(manifest_path, "r", encoding="utf-8") as fhandle:
             manifest_data = json.load(fhandle)
 
         log.debug(f"Original manifest data: {manifest_data}")
@@ -655,12 +664,13 @@ def _apply_skopeo_canon_wkaround(tbdir, image_spec):
             manifest_data[0]["RepoTags"] = [image_spec]
 
         except (KeyError, IndexError, ValueError, AssertionError) as _error:
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(
                 f"Couldn't parse manifest metadata from '{tbdir}'")
 
         log.debug(f"Transformed manifest data: {manifest_data}")
 
-        with open(manifest_path, "w") as fhandle:
+        with open(manifest_path, "w", encoding="utf-8") as fhandle:
             json.dump(manifest_data, fhandle, separators=(",", ":"))
 
     # ---
@@ -668,7 +678,7 @@ def _apply_skopeo_canon_wkaround(tbdir, image_spec):
     # ---
     repos_path = os.path.join(tbdir, "repositories")
     if os.path.exists(repos_path):
-        with open(repos_path, "r") as fhandle:
+        with open(repos_path, "r", encoding="utf-8") as fhandle:
             repos_data = json.load(fhandle)
 
         log.debug(f"Original repositories data: {repos_data}")
@@ -694,12 +704,13 @@ def _apply_skopeo_canon_wkaround(tbdir, image_spec):
             del repos_data[_repo]
 
         except (KeyError, IndexError, ValueError, AssertionError) as _error:
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(
                 f"Couldn't parse repositories metadata from '{tbdir}'")
 
         log.debug(f"Transformed repositories data: {repos_data}")
 
-        with open(repos_path, "w") as fhandle:
+        with open(repos_path, "w", encoding="utf-8") as fhandle:
             json.dump(repos_data, fhandle, separators=(",", ":"))
 
 
@@ -748,7 +759,7 @@ def _apply_aktualizr_blkread_wkaround(tbdir):
     if (totsize % procbs < 8192) or (procbs - (totsize % procbs) < 8192):
         log.debug(f"Adding dummy file to '{tbdir}'.")
         dummy_content = "\n" * (4 * 8192)
-        with open(os.path.join(tbdir, "xdummy_"), "w") as dummy_file:
+        with open(os.path.join(tbdir, "xdummy_"), "w", encoding="utf-8") as dummy_file:
             dummy_file.write(dummy_content)
     else:
         log.debug(f"No need to add dummy file to '{tbdir}'.")
@@ -763,7 +774,7 @@ def amend_image_tarball(image_fname, image_spec, skopeo_generated=True):
 
     # Apply the workaround for a bug in the Docker image validation which happens if the image is
     # slightly bigger than a multiple of the block reading size (256KB).
-    blkread_wkaround = (os.environ.get("APPLY_AKTUALIZR_BLKREAD_WKAROUND", "1") == "1")
+    blkread_wkaround = os.environ.get("APPLY_AKTUALIZR_BLKREAD_WKAROUND", "1") == "1"
 
     if not (canon_wkaround or blkread_wkaround):
         log.debug("No fixes required to the generated Lockbox tarball")
@@ -847,8 +858,8 @@ def save_image_tarball_skopeo(dind_env, image_spec, image_fname):
             f"Error: failed to generate image tarball via skopeo for '{image_fname}'.")
 
 
-# pylint: disable=too-many-locals,too-many-statements
-def build_docker_tarballs(unique_images, target_dir, host_workdir,
+# pylint: disable-next=too-many-locals,too-many-statements
+def build_docker_tarballs(unique_images, target_dir, host_workdir, *,
                           verbose=True, dind_params=None, dind_env=None):
     """Build the docker tarballs of a lockbox image
 
@@ -965,11 +976,10 @@ def build_docker_tarballs(unique_images, target_dir, host_workdir,
             log.info(f" * image:  {tarball['image_spec']}")
 
     return tarballs
-# pylint: enable=too-many-locals,too-many-statements
 
 
-# pylint: disable=too-many-arguments,too-many-locals
-def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
+# pylint: disable-next=too-many-arguments,too-many-locals
+def fetch_compose_target(target, repo_url, images_dir, metadata_dir, *,
                          sha256=None, length=None, req_platforms=None,
                          access_token=None, name=None, version=None,
                          dind_params=None, dind_env=None, custom_uri=None):
@@ -1023,13 +1033,12 @@ def fetch_compose_target(target, repo_url, images_dir, metadata_dir,
     docker_dir = os.path.join(images_dir, sha256 + ".images")
     os.mkdir(docker_dir)
     build_docker_tarballs(
-        images_selection, docker_dir, host_workdir=get_host_workdir(),
+        images_selection, docker_dir,
+        host_workdir=get_host_workdir(),
         dind_params=dind_params, dind_env=dind_env)
-# pylint: enable=too-many-arguments,too-many-locals
 
 
-# pylint: disable=too-many-arguments
-def fetch_binary_target(target, repo_url, images_dir,
+def fetch_binary_target(target, repo_url, images_dir, *,
                         sha256=None, length=None,
                         access_token=None, name=None, version=None,
                         custom_uri=None):
@@ -1042,7 +1051,6 @@ def fetch_binary_target(target, repo_url, images_dir,
     fetch_file_target(target, repo_url, images_dir,
                       sha256=sha256, length=length, access_token=access_token,
                       name=name, version=version, custom_uri=custom_uri)
-# pylint: enable=too-many-arguments
 
 
 def fetch_imgrepo_metadata(repo_url, dest_dir, access_token=None, verbose=True):
@@ -1157,6 +1165,7 @@ def fetch_director_metadata(lockbox_name, director_url, dest_dir, access_token=N
 
         except FetchError as exc:
             log.warning(str(exc))
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(
                 f"Error: Could not fetch Lockbox named '{lockbox_name}' from server")
 
@@ -1189,6 +1198,7 @@ def fetch_director_metadata(lockbox_name, director_url, dest_dir, access_token=N
 
     except FetchError as exc:
         log.warning(str(exc))
+        # pylint: disable-next=raise-missing-from
         raise TorizonCoreBuilderError(
             f"Error: Could not fetch toplevel {ROOT_META_FILE} from server")
 
@@ -1209,6 +1219,7 @@ def fetch_director_metadata(lockbox_name, director_url, dest_dir, access_token=N
 
         except FetchError as exc:
             log.warning(str(exc))
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(
                 f"Error: Could not fetch metadata file '{fname}' from server")
 
@@ -1345,9 +1356,10 @@ def run_uptane_command(command, verbose):
             f'"{command[0]}" with arguments "{command[1:]}"')
 
 
-# pylint: disable=too-many-locals
-def push_ref(ostree_dir, credentials, ref, package_version=None,
-             package_name=None, hardwareids=None, description=None, verbose=False):
+# pylint: disable-next=too-many-locals
+def push_ref(ostree_dir, credentials, ref, *,
+             package_name=None, package_version=None,
+             hardwareids=None, description=None, verbose=False):
     """Push OSTree reference to OTA server.
 
     Push given reference of a given archive OSTree repository to the OTA server
@@ -1436,7 +1448,6 @@ def push_ref(ostree_dir, credentials, ref, package_version=None,
 
     if description is not None:
         update_description(description, package_name, package_version, credentials)
-# pylint: enable=too-many-arguments
 
 
 def validate_package_selection_criteria(criteria):
@@ -1506,8 +1517,7 @@ def translate_compatible_packages(credentials, criteria):
     return package_info, compatible_with
 
 
-# pylint: disable=too-many-arguments
-def push_compose(credentials, target, version, compose_file,
+def push_compose(credentials, target, version, compose_file, *,
                  canonicalize=None, force=False, description=None,
                  compatible_with=None, verbose=False):
     """Push docker-compose file to OTA server."""
@@ -1567,10 +1577,8 @@ def push_compose(credentials, target, version, compose_file,
     if description is not None:
         update_description(description, target, version, credentials)
 
-# pylint: disable=too-many-arguments
-# pylint: enable=too-many-locals
 
-def push_generic(credentials, target, version, generic_file,
+def push_generic(credentials, target, version, generic_file, *,
                  custom_meta, hardwareids, description=None,
                  compatible_with=None, verbose=False):
     """Push Generic package file to OTA server."""
@@ -1601,18 +1609,18 @@ def push_generic(credentials, target, version, generic_file,
     if description is not None:
         update_description(description, target, version, credentials)
 
-# pylint: disable=too-many-arguments
-# pylint: enable=too-many-locals
 
 def update_description(description, target, version, credentials):
     """Update Package Description"""
     server_creds = sotaops.ServerCredentials(credentials)
     token = sotaops.get_access_token(server_creds)
 
-    put = requests.put(f"{server_creds.repo_url}/api/v1/user_repo/comments/{target}-{version}",
-                       data=json.dumps({"comment": f"{description}"}),
-                       headers={"Authorization": f"Bearer {token}",
-                                "Content-Type": "application/json"})
+    put = requests.put(
+        f"{server_creds.repo_url}/api/v1/user_repo/comments/{target}-{version}",
+        data=json.dumps({"comment": f"{description}"}),
+        headers={"Authorization": f"Bearer {token}",
+                 "Content-Type": "application/json"},
+        timeout=(DEFAULT_CONNECT_TIMEOUT, UPDATE_DESC_TIMEOUT))
 
     if put.status_code == requests.codes["ok"]:
         log.info(f"Description for {target} updated.")
@@ -1661,9 +1669,10 @@ def upload_static_delta_superblock(delta_dir, ostree_url, delta_id, headers):
     :param headers: http headers.
     """
     with open(f"{delta_dir}/superblock", "rb") as file_contents:
-        post = requests.post(f"{ostree_url}/deltas/{delta_id}/superblock",
-                             data=file_contents,
-                             headers=headers)
+        post = requests.post(
+            f"{ostree_url}/deltas/{delta_id}/superblock",
+            data=file_contents, headers=headers,
+            timeout=(DEFAULT_CONNECT_TIMEOUT, UPLOAD_DELTA_TIMEOUT))
         if post.status_code == requests.codes["ok"]:
             log.info("Static delta superblock uploaded.")
         else:
@@ -1820,9 +1829,9 @@ def get_shared_provdata(dest_file, repo_url, director_url, access_token=None):
         set_output_ownership(dest_file)
         log.info(f"Shared data archive '{dest_file}' successfully generated.")
 
-# pylint: disable=too-many-arguments
-# pylint: disable=too-many-locals
-def push_fuse(credentials, target, version, fuse_file, hardwareids,
+
+# pylint: disable-next=too-many-locals
+def push_fuse(credentials, target, version, fuse_file, hardwareids, *,
               compatible_with=None, force=False, description=None, verbose=False):
     """Push fuse package file to OTA server."""
 
@@ -1870,8 +1879,6 @@ def push_fuse(credentials, target, version, fuse_file, hardwareids,
 
     if description is not None:
         update_description(description, target, version, credentials)
-# pylint: enable=too-many-arguments
-# pylint: enable=too-many-locals
 
 
 def fuse_hwid_to_machine(hwid):
@@ -2010,7 +2017,7 @@ def restore_hex(yaml_file_data):
             yaml_file_data['fuses'][fuse_val] = hex_num
 
 
-def uptane_sign_push(credentials, push_file, target, version,
+def uptane_sign_push(*, credentials, push_file, target, version,
                      hardwareids_str, custom_metadata, verbose):
     """
     Use Uptane sign to push a file-based package to the OTA server
@@ -2081,8 +2088,8 @@ def _get_dd_options(hardwareids):
     return dd_options
 
 
-# pylint: disable=too-many-arguments
-def push_bootloader(credentials, target, version, boot_bin, json_file,
+# pylint: disable-next=too-many-arguments
+def push_bootloader(*, credentials, target, version, boot_bin, json_file,
                     keep_vars, set_vars, reset, hardwareids, description,
                     verbose):
     """
@@ -2127,10 +2134,9 @@ def push_bootloader(credentials, target, version, boot_bin, json_file,
 
     if description is not None:
         update_description(description, target, version, credentials)
-# pylint: enable=too-many-arguments
 
 
-# pylint: disable=too-many-locals
+# pylint: disable-next=too-many-locals
 def create_bootloader_meta(json_file, keep_vars, set_vars, reset, dd_options):
     """
     Create the required custom metadata for a bootloader package
@@ -2159,14 +2165,15 @@ def create_bootloader_meta(json_file, keep_vars, set_vars, reset, dd_options):
     }
 
     # Check if json_file is valid
-    with open(json_file, 'r') as file:
+    with open(json_file, "r", encoding="utf-8") as file:
         try:
             data = json.load(file)
         except:
+            # pylint: disable-next=raise-missing-from
             raise ParseError(f"File \"{json_file}\" is not valid Json; aborting.")
 
     schema_path = os.path.join(os.path.dirname(__file__), UBOOT_JSON_SCHEMA_FILE)
-    with open(schema_path) as schema_file:
+    with open(schema_path, "r", encoding="utf-8") as schema_file:
         schema = json.load(schema_file)
 
     validate = jsonschema.Draft7Validator(schema)
@@ -2200,4 +2207,3 @@ def create_bootloader_meta(json_file, keep_vars, set_vars, reset, dd_options):
     log.debug(f"Bootloader metadata:\n{json.dumps(metadata, indent=2)}")
 
     return metadata
-# pylint: enable=too-many-locals

@@ -86,7 +86,7 @@ def get_metadata_from_ref(repo, ref):
     return get_metadata_from_checksum(repo, csum)
 
 
-def pull_remote(repo, name, remote, refs, token, progress=None):
+def pull_remote(repo, *, name, remote, refs, token, progress=None):
     """
     Function to pull OStree from remote.
 
@@ -277,7 +277,7 @@ def check_existance(repo, commit, path):
     return sub_path.query_exists()
 
 
-# pylint: disable=invalid-name
+# pylint: disable-next=invalid-name
 def ls(repo, path, commit):
     """ return a list of files and directories in a ostree repo under path
 
@@ -311,7 +311,6 @@ def ls(repo, path, commit):
         }, file_list))
 
     raise PathNotExistError(f"path {path} does not exist")
-# pylint: enable=invalid-name
 
 
 def get_kernel_version(repo, commit):
@@ -382,8 +381,9 @@ class TCBuilderHTTPRequestHandler(SimpleHTTPRequestHandler):
         self.log = logging.getLogger("torizon." + __name__)
         super().__init__(*args, **kwargs)
 
-    #pylint: disable=redefined-builtin,logging-not-lazy
+    # pylint: disable-next=redefined-builtin
     def log_message(self, format, *args):
+        # pylint: disable-next=logging-not-lazy
         self.log.debug(format % args)
 
 

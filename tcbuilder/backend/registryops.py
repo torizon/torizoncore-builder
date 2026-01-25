@@ -35,6 +35,9 @@ WWW_AUTH_ATTRIB_SEP_RE = re.compile("( *, *| *$)")
 REGISTRY_REGEX = re.compile((r"^((?!.*://).*|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
                              r"(:[0-9]*)?$"))
 
+REGISTRY_CONNECT_TIMEOUT = int(os.environ.get("REGISTRY_CONNECT_TIMEOUT", "60"))
+REGISTRY_READ_TIMEOUT = int(os.environ.get("REGISTRY_READ_TIMEOUT", "120"))
+
 
 def parse_www_auth_header(header):
     """Basic parsing of the WWW-Authenticate HTTP header
@@ -87,12 +90,13 @@ def parse_www_auth_header(header):
             assert False
 
     except AssertionError:
-        raise AssertionError(f"Failed to parse www-authenticate header at {current}")
+        # pylint: disable-next=raise-missing-from
+        raise AssertionError(f"Failed to parse www-authenticate header at {current}.")
 
     return scheme, attribs
 
 
-# pylint: disable=too-few-public-methods
+# pylint: disable-next=too-few-public-methods
 class DockerManifestProps:
     MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
     MANIFEST_LIST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.list.v2+json"
@@ -104,6 +108,7 @@ class DockerManifestProps:
     ALL_SCHEMA_VERSIONS = [2]
 
 
+# pylint: disable-next=too-few-public-methods
 class OCIManifestProps:
     MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json"
     MANIFEST_LIST_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json"
@@ -113,7 +118,6 @@ class OCIManifestProps:
     }
     ALL_MEDIA_TYPES = [MANIFEST_MEDIA_TYPE, MANIFEST_LIST_MEDIA_TYPE]
     ALL_SCHEMA_VERSIONS = [2]
-# pylint: enable=too-few-public-methods
 
 
 def make_request_headers(man_props):
@@ -419,7 +423,9 @@ class RegistryOperations:
             log.debug("Using Basic Authentication credentials to access authorization end-point")
             auth_login = HTTPBasicAuth(*self.login)
 
-        res = requests.get(auth_url, params=auth_parms, auth=auth_login)
+        res = requests.get(
+            auth_url, params=auth_parms, auth=auth_login,
+            timeout=(REGISTRY_CONNECT_TIMEOUT, REGISTRY_READ_TIMEOUT))
         res_json = res.json()
         for scope in scopes:
             if "token" in res_json:
@@ -459,7 +465,9 @@ class RegistryOperations:
 
         res = None
         try:
-            res = requests.get(url, headers=headers, verify=cacert, auth=auth)
+            res = requests.get(
+                url, headers=headers, verify=cacert, auth=auth,
+                timeout=(REGISTRY_CONNECT_TIMEOUT, REGISTRY_READ_TIMEOUT))
         except RequestException as exc:
             log.debug(f"GET '{url}' raised exception: {exc}")
 
@@ -507,8 +515,8 @@ class RegistryOperations:
         return res
 
     # pylint: disable=too-many-locals
-    def get_manifest(self, image_name, headers=None, man_props=None, ret_digest=False,
-                     val_digest=True):
+    def get_manifest(self, image_name, *,
+                     headers=None, man_props=None, ret_digest=False, val_digest=True):
         """Get the manifest of the specified image
 
         :param image_name: Name of the image such as ubuntu:latest or fedora/httpd:latest;
@@ -593,8 +601,8 @@ class RegistryOperations:
 
         return res
 
-    def get_all_manifests(self, image_name, headers=None, man_props=None,
-                          platforms=None, val_digest=True):
+    def get_all_manifests(self, image_name, *,
+                          headers=None, man_props=None, platforms=None, val_digest=True):
         """Iterate over all manifests of the given image
 
         :param image_name: Name of the image such as ubuntu:latest or fedora/httpd:latest;
@@ -663,9 +671,8 @@ class RegistryOperations:
                     digest=child["digest"], platform=child_platform,
                     size=child["size"])
                 yield child_info, child_res
-    # pylint: enable=too-many-locals
 
-    def save_all_manifests(self, image_name, dest_dir,
+    def save_all_manifests(self, image_name, dest_dir, *,
                            headers=None, platforms=None, val_digest=True):
         """Save the manifests of the image specified (in JSON format)
 

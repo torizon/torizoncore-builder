@@ -163,7 +163,7 @@ def get_rootfs_tarball(tezi_image_dir):
 
     image_json_filepath = os.path.join(tezi_image_dir, "image.json")
 
-    with open(image_json_filepath, "r") as jsonfile:
+    with open(image_json_filepath, "r", encoding="utf-8") as jsonfile:
         jsondata = json.load(jsonfile)
 
     # Find root file system content
@@ -429,7 +429,7 @@ def get_tezi_image_version(input_dir):
     """
     image_json_path = os.path.join(input_dir, "image.json")
 
-    with open(image_json_path, "r") as image_json_file:
+    with open(image_json_path, "r", encoding="utf-8") as image_json_file:
         image_json_str = image_json_file.read()
 
     try:
@@ -466,7 +466,7 @@ def update_dt_git_repo():
                  if sha == repo_obj.head.object.hexsha
                  else "'device-trees' successfully updated")
     except git.GitError as error:
-        raise GitRepoError(error)
+        raise GitRepoError(error) from error
 
 
 def checkout_dt_git_repo(*, git_repo=None, git_branch=None):
@@ -588,8 +588,9 @@ def get_host_workdir():
 
     try:
         container = docker_client.containers.get(container_id)
-    except NotFound as _ex:
-        raise OperationFailureError("Can't retrieve container information from docker.")
+    except NotFound as exc:
+        raise OperationFailureError(
+            "Can't retrieve container information from docker.") from exc
 
     mounts = container.attrs["Mounts"]
     for mount in mounts:
@@ -653,10 +654,10 @@ def check_valid_tezi_image(image_directory):
     tarfile = ""
     try:
         tarfile = get_rootfs_tarball(image_dir)
-    except (FileNotFoundError, FileContentMissing):
+    except (FileNotFoundError, FileContentMissing) as exc:
         raise InvalidDataError(
-            "Error: "
-            f"directory {image_directory} does not contain a valid TEZI image")
+            f"Error: directory {image_directory}"
+            " does not contain a valid TEZI image") from exc
 
     if not os.path.exists(tarfile):
         raise InvalidDataError(
@@ -787,8 +788,9 @@ def get_own_network():
     tcb_id = get_own_container_id(host_client)
     try:
         tcb = host_client.containers.get(tcb_id)
-    except NotFound as _ex:
-        raise OperationFailureError("Can't retrieve container information from docker.")
+    except NotFound as exc:
+        raise OperationFailureError(
+            "Can't retrieve container information from docker.") from exc
 
     network = tcb.attrs["HostConfig"]["NetworkMode"]
     if network == "default":
@@ -921,6 +923,7 @@ def is_file_type_fit(file_path):
                                    "nodes. Aborting.")
 
     except subprocess.CalledProcessError as exc:
-        raise TorizonCoreBuilderError(f"Error running fdtget: {exc.output.strip()}")
+        raise TorizonCoreBuilderError(
+            f"Error running fdtget: {exc.output.strip()}") from exc
 
     return True

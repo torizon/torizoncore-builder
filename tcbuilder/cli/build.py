@@ -60,7 +60,7 @@ def create_template(config_fname, force=False):
 
     # Dump the file directly to stdout (avoid creating root owned files):
     if config_fname == '-':
-        with open(src_file, 'r') as file:
+        with open(src_file, "r", encoding="utf-8") as file:
             for line in file:
                 print(line, end='')
         return
@@ -547,9 +547,8 @@ def handle_bundle_common(bundle_props, compress_tar=True):
             return bundle_dir, True
 
         except:
-            raise TorizonCoreBuilderError(
-                "Error trying to bundle Docker containers"
-            )
+            # pylint: disable-next=raise-missing-from
+            raise TorizonCoreBuilderError("Error trying to bundle Docker containers")
 
     return None, False
 
@@ -558,6 +557,7 @@ def handle_bundle_output(image_dir, bundle_props, tezi_props):
     """Handle the bundle and combine steps of the output generation."""
 
     bundle_dir = None
+    is_tmp_dir = None
     try:
         bundle_dir, is_tmp_dir = handle_bundle_common(bundle_props)
 
@@ -584,6 +584,7 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
     """Handle the bundle and combine steps of the output generation."""
 
     bundle_dir = None
+    is_tmp_dir = None
     try:
         bundle_dir, is_tmp_dir = handle_bundle_common(bundle_props, compress_tar=False)
         if bundle_dir is None:

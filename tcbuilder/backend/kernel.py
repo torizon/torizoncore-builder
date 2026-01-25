@@ -52,7 +52,7 @@ def _kernel_version_from_source(linux_src):
     """Return dictionary with kernel major, minor and revision from source."""
 
     kernel_release_file = os.path.join(linux_src, "include/config/kernel.release")
-    with open(kernel_release_file, 'r') as file:
+    with open(kernel_release_file, "r", encoding="utf-8") as file:
         kernel_release_line = file.read()
 
     kernel_version = re.match(r"(\d+)\.(\d+)\.(\d+)", kernel_release_line)
@@ -67,7 +67,7 @@ def _kernel_arch_from_source(linux_src):
     """Determine ARCH based on linux source."""
 
     config = os.path.join(linux_src, ".config")
-    with open(config, 'r') as file:
+    with open(config, "r", encoding="utf-8") as file:
         config_lines = file.read()
 
     if re.search("CONFIG_ARM=y", config_lines, re.MULTILINE):
@@ -132,7 +132,7 @@ def _prep_linux_src_for_modules_install(src_ostree_archive_dir, linux_src):
         os.path.join(linux_src, f"System.map-{kernel_version}"),
         os.path.join(linux_src, "System.map"))
     release_file = os.path.join(linux_src, "include/config/kernel.release")
-    with open(release_file, "w") as file:
+    with open(release_file, "w", encoding="utf-8") as file:
         file.write(kernel_version)
 
 
@@ -161,7 +161,8 @@ def _copy_mod_dir_to_mod_path(src_mod_dir, mod_path):
         stderr=subprocess.STDOUT)
 
 
-def build_module(src_dir, linux_src, src_mod_dir, image_major_version,
+def build_module(*,
+                 src_dir, linux_src, src_mod_dir, image_major_version,
                  src_ostree_archive_dir, mod_path, kernel_changes_dir):
     """Build kernel module from source."""
 
@@ -240,8 +241,10 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
     url_prefix = "https://sources.toradex.com/tcb/toolchains/"
     if toolchain == "arm-none-linux-gnueabihf-":
         tarball = f"{version_gcc}-x86_64-arm-none-linux-gnueabihf.tar.xz"
-    if toolchain == "aarch64-none-linux-gnu-":
+    elif toolchain == "aarch64-none-linux-gnu-":
         tarball = f"{version_gcc}-x86_64-aarch64-none-linux-gnu.tar.xz"
+    else:
+        assert False, f"download_toolchain: unhandled toolchain {toolchain}"
     url = url_prefix + tarball
 
     log.info("A toolchain is required to build the module.\n"
@@ -251,8 +254,9 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
     try:
         urllib.request.urlretrieve(url, filename=tarball, reporthook=progress)
         log.info("\nDownload Complete!\n")
-    except:
-        raise TorizonCoreBuilderError("The requested toolchain could not be downloaded")
+    except Exception as exc:
+        raise TorizonCoreBuilderError(
+            "The requested toolchain could not be downloaded") from exc
 
     log.info("Unpacking downloaded toolchain into storage")
     os.makedirs(toolchain_path, exist_ok=True)
@@ -364,7 +368,7 @@ def get_supported_bootargs_methods():
         "uenv": re.compile(SET_BOOTARGS_CUSTOM2_RE)
     }
     found_methods = set()
-    with open(uenv_txt_path, "r") as fhandle:
+    with open(uenv_txt_path, "r", encoding="utf-8") as fhandle:
         for line in fhandle:
             for meth, regex in method_re.items():
                 if regex.match(line):

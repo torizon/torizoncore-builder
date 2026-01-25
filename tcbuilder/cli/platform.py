@@ -127,10 +127,10 @@ def load_offupd_metadata(lockbox_name, source_dir):
     return offupd_targets_info, offupd_snapshot_info
 
 
-# pylint: disable=too-many-locals,too-many-arguments
+# pylint: disable-next=too-many-locals
 def fetch_offupdt_targets(
         offupdt_targets_info, imgrepo_targets_info,
-        images_dir, docker_metadata_dir,
+        images_dir, docker_metadata_dir, *,
         ostree_url=None, repo_url=None, access_token=None,
         docker_platforms=None, dind_params=None, dind_env=None):
     """Fetch all targets referenced by the offline-update targets metadata
@@ -209,12 +209,11 @@ def fetch_offupdt_targets(
         else:
             assert False, \
                 f"Do not know how to handle target of type {tgtformat}"
-# pylint: enable=too-many-locals,too-many-arguments
 
 
-# pylint: disable=too-many-arguments,too-many-locals
+# pylint: disable-next=too-many-locals
 def platform_lockbox(
-        lockbox_name, creds_file, output_dir,
+        lockbox_name, creds_file, output_dir, *,
         docker_platforms=None, force=False,
         validate=True, fetch_targets=True,
         dind_params=None, dind_env=None):
@@ -309,7 +308,6 @@ def platform_lockbox(
             log.info(f"Removing output directory '{output_dir}' due to errors")
             shutil.rmtree(output_dir)
         raise exc
-# pylint: enable=too-many-arguments,too-many-locals
 
 
 def do_platform_lockbox(args):
@@ -417,6 +415,7 @@ def do_platform_provdata(args):
                 director_url=server_creds.director_url,
                 access_token=sota_token)
 
+        provstr = None
         if client_name:
             if client_name == _default_client_name:
                 provstr = _get_online_provdata_local(server_creds)
@@ -503,10 +502,11 @@ def _check_custom_meta_param(custom_meta):
                     "Error: The custom metadata string must represent "
                     "a JSON object at its top-level.")
     except (binascii.Error, json.decoder.JSONDecodeError):
+        # pylint: disable-next=raise-missing-from
         raise InvalidArgumentError("Error: Failure parsing the custom metadata "
                                    "(which must be a valid JSON string).")
 
-# pylint: disable=too-many-branches,too-many-statements
+# pylint: disable-next=too-many-branches,too-many-statements
 def do_platform_push(args):
     """Wrapper for 'platform push' subcommand"""
 
@@ -569,8 +569,8 @@ def do_platform_push(args):
             credentials=credentials,
             target=args.package_name,
             version=args.package_version or datetime.today().strftime("%Y-%m-%d"),
-            description=args.description,
             compose_file=args.ref,
+            description=args.description,
             compatible_with=compatible_with,
             canonicalize=args.canonicalize, force=args.force, verbose=args.verbose)
     elif ((args.ref.endswith(".yml") or args.ref.endswith(".yaml")) and
@@ -617,7 +617,8 @@ def do_platform_push(args):
                      " added as compatible.")
 
         platform.push_generic(
-            credentials=credentials, target=args.package_name,
+            credentials=credentials,
+            target=args.package_name,
             version=args.package_version or datetime.today().strftime("%Y-%m-%d-%H%M%S"),
             generic_file=args.ref,
             custom_meta=args.custom_meta,
@@ -639,15 +640,15 @@ def do_platform_push(args):
             raise PathNotExistError(f"{storage_dir} does not exist")
 
         platform.push_ref(
+            ostree_dir=src_ostree_archive_dir,
             credentials=credentials,
+            ref=args.ref,
             package_name=args.package_name,
             package_version=args.package_version,
             description=args.description,
-            ostree_dir=src_ostree_archive_dir,
-            ref=args.ref,
             hardwareids=args.hardwareids,
             verbose=args.verbose)
-# pylint: enable=too-many-branches,too-many-statements
+
 
 def add_common_push_arguments(subparser):
     """

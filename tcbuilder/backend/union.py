@@ -61,8 +61,8 @@ def process_whiteouts(mtree, path="/"):
         process_whiteouts(submt, os.path.join(path, dirname))
 
 
-# pylint: disable=too-many-locals
-def commit_changes(repo, ref, changes_dirs, branch_name,
+# pylint: disable-next=too-many-locals
+def commit_changes(repo, ref, changes_dirs, branch_name, *,
                    subject, body, pre_apply_callback=None):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
     if not repo.prepare_transaction():
@@ -156,17 +156,15 @@ def commit_changes(repo, ref, changes_dirs, branch_name,
 
     return commit
 
-# pylint: enable=too-many-locals
 
-
-def union_changes(changes_dir, ostree_archive_dir, union_branch,
+def union_changes(changes_dir, ostree_archive_dir, union_branch, *,
                   subject, body, pre_apply_callback=None):
     repo = ostree.open_ostree(ostree_archive_dir)
 
     # Create new commit with the changes overlayed in a single transaction
     final_commit = commit_changes(
         repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch,
-        subject, body, pre_apply_callback=pre_apply_callback)
+        subject=subject, body=body, pre_apply_callback=pre_apply_callback)
 
     track_signed_bootloader(final_commit)
 

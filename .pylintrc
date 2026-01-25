@@ -1,5 +1,6 @@
 [MASTER]
 init-hook="from pylint.config import find_default_config_files; import os, sys; sys.path.append(os.path.dirname(next(find_default_config_files()).as_posix()))"
+load-plugins=pylint.extensions.no_self_use
 
 [BASIC]
 good-names=torizoncore-builder,ex
@@ -8,7 +9,12 @@ good-names=torizoncore-builder,ex
 ignored-modules=py
 
 [MESSAGES CONTROL]
-disable=logging-fstring-interpolation,unsubscriptable-object,cyclic-import,duplicate-code
+disable=
+    consider-using-f-string,
+    cyclic-import,
+    duplicate-code,
+    logging-fstring-interpolation,
+    unsubscriptable-object
 
 [DESIGN]
 max-positional-arguments=5

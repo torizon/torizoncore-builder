@@ -110,7 +110,7 @@ def remove_links_from_tcattr(base_dir):
     tcattr_file_tmp = os.path.join(base_dir, '.tcattr.tmp')
     field_separator = '%TCB%'
 
-    with open(tcattr_file, 'r') as fd_tcattr:
+    with open(tcattr_file, "r", encoding="utf-8") as fd_tcattr:
         for line in fd_tcattr:
             if line.startswith('\n'):
                 tcattr.append(field_separator)
@@ -118,7 +118,7 @@ def remove_links_from_tcattr(base_dir):
                 tcattr.append(line)
     tcattr = ''.join(tcattr)
 
-    with open(tcattr_file_tmp, 'w') as fd_tcattr_tmp:
+    with open(tcattr_file_tmp, "w", encoding="utf-8") as fd_tcattr_tmp:
         for file_attr in tcattr.split(field_separator):
             filename = file_attr.split('\n')[0].replace('# file: ', '')
             if not os.path.islink(os.path.join(base_dir, filename)):
@@ -148,7 +148,8 @@ def set_acl_attributes(change_dir):
         if '.tcattr' not in filenames:
             continue
         remove_links_from_tcattr(base_dir)
-        with open(os.path.join(base_dir, '.tcattr')) as fd_tcattr:
+        with open(os.path.join(base_dir, '.tcattr'),
+                  "r", encoding="utf-8") as fd_tcattr:
             files_to_apply_tcattr_acl = [
                 (base_dir, line.strip().replace('# file: ', ''))
                 for line in fd_tcattr
@@ -222,8 +223,8 @@ def union(changes_dirs, union_branch, *,
 
     log.debug(f"union: subject='{commit_subject}' body='{commit_body}'")
     commit = ub.union_changes(
-        changes_dirs_, src_ostree_archive_dir,
-        union_branch, commit_subject, commit_body,
+        changes_dirs_, src_ostree_archive_dir, union_branch,
+        subject=commit_subject, body=commit_body,
         pre_apply_callback=apply_callback)
 
     log.info(f"Commit {commit} has been generated for changes and is ready"

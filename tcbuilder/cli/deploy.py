@@ -122,6 +122,7 @@ def do_deploy_tezi_image(args):
     raw_prop_to_argname["output_raw_image"] = "--output-raw"
 
     # Check for raw-specific args being set:
+    # pylint: disable-next=consider-using-dict-items
     for prop in raw_props_args:
         if raw_props_args[prop] is not None:
             log.warning(f"Warning: {raw_prop_to_argname[prop]} "
@@ -151,12 +152,14 @@ def do_deploy_raw_image(args):
     }
 
     # Check for tezi-specific args being set:
+    # pylint: disable-next=consider-using-dict-items
     for prop in tezi_props_args:
         if tezi_props_args[prop] is not None:
             log.warning(f"Warning: {common.TEZI_PROP_TO_ARGNAME[prop]} "
                         "is specific to Easy Installer images. Ignoring.")
 
     # Set default common raw args if they're not already set:
+    # pylint: disable-next=consider-using-dict-items
     for prop in common_raw_props_args:
         if common_raw_props_args[prop] is None:
             common_raw_props_args[prop] = common.RAW_PROP_DEFAULTS[prop]

@@ -123,7 +123,7 @@ def create_tcattr_file(diff_dir, tcattr_list):
     # Remove etc/ at the beginning of the file path
     tcattr_str = re.sub(r'^# file: etc/', '# file: ', tcattr_str, flags=re.MULTILINE)
 
-    with open(f"{diff_dir}/usr/etc/.tcattr", "w") as fd_tcattr:
+    with open(f"{diff_dir}/usr/etc/.tcattr", "w", encoding="utf-8") as fd_tcattr:
         fd_tcattr.write(tcattr_str)
 
 
@@ -135,8 +135,9 @@ def list_to_string_with_quote(args_list):
     return r' '.join([shlex.quote(file) for file in args_list])
 
 
-# pylint: disable=too-many-locals
-def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_port, r_mdns):
+# pylint: disable-next=too-many-locals
+def isolate_user_changes(diff_dir, *,
+                         r_name_ip, r_username, r_password, r_port, r_mdns):
 
     resolved_remote_host = resolve_remote_host(r_name_ip, r_mdns)
     conn = fabric.Connection(host=resolved_remote_host,
@@ -231,4 +232,3 @@ def isolate_user_changes(diff_dir, r_name_ip, r_username, r_password, r_port, r_
     os.remove(os.path.join(diff_dir, TAR_NAME))
 
     return CHANGES_CAPTURED
-# pylint: enable=too-many-locals

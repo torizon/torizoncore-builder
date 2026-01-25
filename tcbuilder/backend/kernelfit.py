@@ -323,7 +323,7 @@ class KernelFit:
             suf = ".dtb"
         return (pref, suf)
 
-    # pylint: disable=no-self-use
+    # pylint: disable-next=no-self-use
     def _get_std_node_path(self, ntype, *args):
         if ntype == "conf":
             node_path = "/".join([CONFIG_NODE_PATH, *args])
@@ -332,7 +332,6 @@ class KernelFit:
         else:
             assert False, f"_get_std_node_path: bad parameter: ntype='{ntype}'"
         return node_path
-    # pylint: enable=no-self-use
 
     def _del_node(self, ntype: str, node_name: str) -> None:
         node_path = self._get_std_node_path(ntype, node_name)

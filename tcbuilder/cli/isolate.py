@@ -52,12 +52,11 @@ def isolate_subcommand(args):
 
     create_changes_directory(changes_dir, force_removal=args.force)
 
-    ret = isolate.isolate_user_changes(changes_dir,
-                                       args.remote_host,
-                                       args.remote_username,
-                                       args.remote_password,
-                                       args.remote_port,
-                                       args.mdns_source)
+    ret = isolate.isolate_user_changes(
+        changes_dir,
+        r_name_ip=args.remote_host, r_port=args.remote_port,
+        r_username=args.remote_username, r_password=args.remote_password,
+        r_mdns=args.mdns_source)
     if ret == isolate.NO_CHANGES:
         log.info("There are no changes in /etc to be isolated.")
     else:

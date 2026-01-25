@@ -12,7 +12,7 @@ from requests_oauthlib import OAuth2Session
 log = logging.getLogger("torizon." + __name__)
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable-next=too-many-instance-attributes
 class ServerCredentials:
     """Class representing the information required for accessing the OTA server.
 
@@ -148,7 +148,6 @@ class ServerCredentials:
         for field, value in zip(fields, values):
             parts.append(f"{field}: {value}")
         return "ServerCredentials: {" + ", ".join(parts) + "}"
-# pylint: enable=too-many-instance-attributes
 
 
 def get_access_token(server_creds):

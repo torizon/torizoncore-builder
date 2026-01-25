@@ -88,12 +88,14 @@ def do_combine(args):
                 "Error: For raw images the output can't be a directory. Aborting.")
 
         # Check for tezi-specific args being set:
+        # pylint: disable-next=consider-using-dict-items
         for prop in tezi_props_args:
             if tezi_props_args[prop] is not None:
                 log.warning(f"Warning: {TEZI_PROP_TO_ARGNAME[prop]} "
                             "is specific to Easy Installer images. Ignoring.")
 
         # Set default raw-specific args if they're not already set:
+        # pylint: disable-next=consider-using-dict-items
         for prop in raw_props_args:
             if raw_props_args[prop] is None:
                 raw_props_args[prop] = RAW_PROP_DEFAULTS[prop]
@@ -110,6 +112,7 @@ def do_combine(args):
                 "existing file. Aborting.")
 
         # Check for raw-specific args being set:
+        # pylint: disable-next=consider-using-dict-items
         for prop in raw_props_args:
             if raw_props_args[prop] is not None:
                 log.warning(f"Warning: {RAW_PROP_TO_ARGNAME[prop]} "
@@ -156,7 +159,7 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--force", dest="force",
         default=False, action="store_true",
-        help=("Force program output, overwriting any existing file/directory."))
+        help="Force program output, overwriting any existing file/directory.")
 
     # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(

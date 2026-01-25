@@ -128,8 +128,9 @@ def deploy_rootfs(sysroot, src_sysroot_dir, ref, refspec, kargs):
         os.symlink("../loader/grub.cfg", os.path.join(bootdir, "grub2/grub.cfg"))
     elif bootloader_found == "U-Boot":
         log.info("Bootloader found in unpacked image: U-Boot")
-        file = open(os.path.join(bootdir, "loader/uEnv.txt"), "w")
-        file.close()
+        with open(os.path.join(bootdir, "loader/uEnv.txt"),
+                  "w", encoding="utf-8") as _file:
+            pass
     else:
         raise TorizonCoreBuilderError(
             "Aborting: Couldn't determine bootloader in unpacked image or "
@@ -172,7 +173,8 @@ def update_uncompressed_image_size(image_filename):
 
 
 def create_installed_versions(path, ref, branch):
-    with open(os.path.join(path, "installed_versions"), "w") as versionfile:
+    with open(os.path.join(path, "installed_versions"),
+              "w", encoding="utf-8") as versionfile:
         versioninfo = {}
         versioninfo[ref] = branch + "-" + ref
         json.dump(versioninfo, versionfile)
@@ -191,6 +193,9 @@ def pack_rootfs_for_tezi(dst_sysroot_dir, output_dir):
     elif image_filename.endswith(".zst"):
         uncompressed_file = image_filename.replace(".zst", "")
         compress_cmd = ["zstd", "--rm", uncompressed_file]
+    else:
+        assert False, \
+            f"pack_rootfs_for_tezi: unhandled filename extension ({image_filename})."
 
     # pylint: disable=line-too-long
     # This is a OSTree bare repository. Care must been taken to preserve all
@@ -229,11 +234,15 @@ def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
         copy_list.append({"src": os.path.join(src_path, "boot.scr"), "dst": dst_path})
 
     for copy_file in copy_list:
-        # shutil.copytree does not preserve ownership
-        if subprocess.Popen(['cp', '-a', '-t', copy_file['dst'], copy_file['src']]).wait():
-            raise TorizonCoreBuilderError("Cannot deploy home directories.")
+        try:
+            # shutil.copytree does not preserve ownership
+            subprocess.check_output(
+                ["cp", "-a", "-t", copy_file["dst"], copy_file["src"]])
+        except subprocess.CalledProcessError as exc:
+            raise TorizonCoreBuilderError(
+                "Cannot deploy home directories.") from exc
 
-# pylint: disable=too-many-locals
+# pylint: disable-next=too-many-locals
 def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
                         dst_sysroot_dir, ref):
     """Deploys a local OSTree ref in a given directory"""
@@ -283,9 +292,9 @@ def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
     copy_files_from_old_sysroot(src_sysroot, sysroot)
 
     return csumdeploy
-# pylint: enable=too-many-locals
 
 
+# pylint: disable-next=too-many-positional-arguments
 def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                       output_dir, dst_sysroot_dir, ref=None):
     """Deploys a Toradex Easy Installer image with given OSTree reference
@@ -384,9 +393,11 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
     except RuntimeError as gfserr:
         if gfs:
             gfs.close()
+        # pylint: disable-next=raise-missing-from
         raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
 
 
+# pylint: disable-next=too-many-positional-arguments
 def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
                      output_raw_img, dst_sysroot_dir, rootfs_label, ref=None):
     """Deploys a WIC image with given OSTree reference
@@ -423,16 +434,17 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
             gfs.close()
         if f"unable to resolve 'LABEL={rootfs_label}'" in str(gfserr):
             raise TorizonCoreBuilderError(
-                f"Filesystem with label '{rootfs_label}' not found in image. Aborting.")
+                f"Filesystem with label '{rootfs_label}'"
+                " not found in image. Aborting.") from gfserr
 
-        raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}")
+        raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}") from gfserr
 
     if other_partitions_size_kb > 0:
         log.info("  Combined size of all partitions except rootfs: "
                  f"{other_partitions_size_kb/1024/1024:.2f} GiB")
 
     rootfs_size_kb = subprocess.check_output(["du", "-s", dst_sysroot_dir], text=True)
-    rootfs_size_kb = int(rootfs_size_kb.split('\t')[0])
+    rootfs_size_kb = int(rootfs_size_kb.split('\t', maxsplit=1)[0])
     log.info(f"Unpacked rootfs size: {rootfs_size_kb/1024/1024:.2f} GiB")
 
     create_output_raw_image(base_raw_img, output_raw_img, rootfs_partition,
@@ -495,7 +507,7 @@ def is_ostree_compatible(srcmeta, ssh_conn):
     return compatibility
 
 
-# pylint: disable=too-many-locals
+# pylint: disable-next=too-many-locals,too-many-positional-arguments
 def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_port,
                          remote_mdns, src_ostree_archive_dir, ref, reboot=False):
     """Implementation to deploy OSTree on remote device"""
@@ -606,7 +618,6 @@ def deploy_ostree_remote(remote_host, remote_username, remote_password, remote_p
             log.info("Please reboot the device to boot into the new deployment.")
 
     ostree.serve_ostree_stop(http_server_thread)
-# pylint: enable=too-many-locals
 
 
 def copy_signed_artifacts(src_commit_dir, tezi_dir):
@@ -624,7 +635,7 @@ def copy_signed_artifacts(src_commit_dir, tezi_dir):
 
     fuse_cmd_txt = os.path.join(tezi_dir, FUSE_CMD_TXT_NAME)
     if os.path.isfile(fuse_cmd_txt):
-        with open(fuse_cmd_txt, 'r') as fuse_file:
+        with open(fuse_cmd_txt, "r", encoding="utf-8") as fuse_file:
             print()
             print("# Fusing instructions to be executed in U-Boot:")
             print()

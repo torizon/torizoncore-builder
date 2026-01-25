@@ -212,8 +212,8 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
             os.unlink(out_fname)
             raise InvalidDataError(
                 "Cannot determine appropriate file name after download!")
-    except:
-        raise OperationFailureError(f"Could not fetch URL '{url}'")
+    except Exception as exc:
+        raise OperationFailureError(f"Could not fetch URL '{url}'") from exc
 
     log.info(f"Downloaded file name: '{out_fname}'")
 
@@ -245,7 +245,7 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None)
             f"Build configuration file '{config_path}' does not exist.")
 
     # Load the YAML configuration file (user-supplied):
-    with open(config_path) as file:
+    with open(config_path, "r", encoding="utf-8") as file:
         try:
             config = yaml.safe_load(file)
 
@@ -255,6 +255,7 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None)
             if hasattr(ex, "problem_mark"):
                 mark = getattr(ex, "problem_mark")
                 error_exc.set_source(line=mark.line, column=mark.column)
+            # pylint: disable-next=raise-missing-from
             raise error_exc
 
     # Make variable substitutions.
@@ -263,7 +264,7 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None)
 
     # Load the YAML schema file (supplied with the tool):
     schemapath = os.path.join(os.path.dirname(__file__), schema_path)
-    with open(schemapath) as file:
+    with open(schemapath, "r", encoding="utf-8") as file:
         schema = yaml.safe_load(file)
 
     # Do the actual validation of configuration against the schema.

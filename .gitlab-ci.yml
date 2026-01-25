@@ -127,8 +127,7 @@ lint-python:
                   --disable=missing-function-docstring
                   --disable=fixme
                   $(find tcbuilder/ -type f -name "*.py") *.py || exit_code=$?
-    - exit 0
-## TODO: - exit ${exit_code}
+    - exit ${exit_code}
 
 # Docker image builds
 #

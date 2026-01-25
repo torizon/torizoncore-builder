@@ -21,8 +21,6 @@ from tcbuilder.cli import dto as dto_cli
 
 log = logging.getLogger("torizon." + __name__)
 
-# pylint: disable=fixme
-
 # Name of the custom args overlay file (this should match the name used by the
 # boot script uEnv.txt.
 # XXX: Always keep in sync with uEnv.txt.in in recipe `u-boot-distro-boot`.
@@ -152,8 +150,14 @@ def kernel_build_module(source_dir, autoload):
 
     src_dir = os.path.abspath(source_dir)
     kernel.build_module(
-        src_dir, extracted_src, src_mod_dir, image_major_version,
-        src_ostree_archive_dir, mod_path, changes_dir)
+        src_dir=src_dir,
+        linux_src=extracted_src,
+        src_mod_dir=src_mod_dir,
+        image_major_version=image_major_version,
+        src_ostree_archive_dir=src_ostree_archive_dir,
+        mod_path=mod_path,
+        kernel_changes_dir=changes_dir)
+
     log.info("Kernel module(s) successfully built and ready to deploy.")
 
     # Set built kernel modules to be autoloaded on boot
@@ -184,7 +188,7 @@ def _set_custom_kargs_ovl(kargs):
     # Generate the DTS file with desired contents inside a temporary directory.
     with tempfile.TemporaryDirectory() as tmpdirname:
         dtos_path = os.path.join(tmpdirname, KERNEL_SET_CUSTOM_ARGS_DTS_NAME)
-        with open(dtos_path, 'w') as file:
+        with open(dtos_path, "w", encoding="utf-8") as file:
             file.write(dts_contents)
 
         # The present command is simply a wrapper around `dto apply` - since we are
@@ -265,7 +269,7 @@ def _get_secboot_required_bootargs_fdt(ovl):
         nodoff = ovl.path_offset(SECBOOT_NODE_PATH)
         req_bootargs_org = ovl.getprop(nodoff, SECBOOT_REQ_BOOTARGS_ORG_PROPNAME)
         req_bootargs_org = req_bootargs_org.as_str()
-    except libfdt.FdtException as exc:
+    except libfdt.FdtException as _exc:
         req_bootargs_org = None
         log.debug(
             f"Property {SECBOOT_NODE_PATH}/{SECBOOT_REQ_BOOTARGS_ORG_PROPNAME}"
