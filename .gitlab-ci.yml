@@ -104,6 +104,8 @@ lint-python:
     - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - when: on_success
+  before_script:
+    - docker info
   script:
     # Refresh a cached image with pylint and all employed libraries.
     - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
@@ -136,6 +138,7 @@ lint-python:
   variables:
     IMAGE_TAG: ${DEBIAN_RELEASE}
   before_script:
+    - docker info
     - export DATE=$(date +%Y%m%d)
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
     - docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
@@ -200,6 +203,7 @@ build-arm64:
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
   before_script:
+    - docker info
     # setup environment for the tests
     - apk update && apk add git sshpass zstd wget bash tar openssl zip curl jq
     - cd tests/integration/
@@ -536,6 +540,7 @@ aggregate-reports:
 
 .build-multiarch-base:
   before_script:
+    - docker info
     - *do_docker_experimental
     - rm -rf ~/.docker/manifests/*
   script:
@@ -580,6 +585,7 @@ build-multiarch:
 #
 .deploy-dh-base:
   before_script:
+    - docker info
     - *do_docker_experimental
   script:
     - ${D} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
@@ -598,6 +604,7 @@ build-multiarch:
 
 .deploy-dh-multiarch-base:
   before_script:
+    - docker info
     - *do_docker_experimental
     - rm -rf ~/.docker/manifests/*
   script:
@@ -619,6 +626,7 @@ build-multiarch:
 #
 .deploy-int-base:
   before_script:
+    - docker info
     - *do_docker_experimental
   script:
     - ${D} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
@@ -636,6 +644,7 @@ build-multiarch:
 
 .deploy-int-multiarch-base:
   before_script:
+    - docker info
     - *do_docker_experimental
     - rm -rf ~/.docker/manifests/*
   script:
@@ -864,6 +873,7 @@ deploy-int-multiarch:
 #
 .tag-base:
   before_script:
+    - docker info
     - if [ -z "${GIT_TOKEN}" ]; then echo "Missing variable GIT_TOKEN."; exit 1; fi
   script:
     - apk update && apk add git
@@ -946,6 +956,8 @@ tag-int:
 
 .on-custom-test-error:
   stage: post
+  before_script:
+    - docker info
   script:
     - apk update && apk add curl jq
     - >
