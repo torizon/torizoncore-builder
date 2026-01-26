@@ -82,7 +82,9 @@ lint-dockerfiles:
     - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - when: on_success
-  image: hadolint/hadolint:latest-debian
+  image:
+    name: hadolint/hadolint:latest-debian
+    pull_policy: always
   script:
     # Some rules cannot be applied in our specific cases.
     # However, since we don't want to completely ignore these rules,
@@ -480,7 +482,9 @@ test-torizoncore:
 
 aggregate-reports:
   stage: report
-  image: homebrew/brew
+  image:
+    name: homebrew/brew
+    pull_policy: always
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
