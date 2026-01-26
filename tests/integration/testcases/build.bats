@@ -558,7 +558,6 @@ teardown_file() {
     local OUTDIR='customized_image'
     local FILE="$SAMPLES_DIR/config/tcbuild-with-compose.yaml"
 
-
     if [ "${ci_dockerhub_login}" = "1" ]; then
         cat "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" | \
               sed -Ee 's/## username:/username:/' \

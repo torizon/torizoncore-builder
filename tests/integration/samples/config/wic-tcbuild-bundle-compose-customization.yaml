@@ -15,4 +15,6 @@ output:
   raw-image:
     local: "${OUTPUT_FILE:?Please specify output file}"
     bundle:
+      ## username: "${USERNAME:?Please specify a user name}"
+      ## password: "${PASSWORD:?Please specify a password}"
       compose-file: samples/compose/hello/docker-compose.yml

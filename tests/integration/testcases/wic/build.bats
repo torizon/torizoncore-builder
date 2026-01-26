@@ -98,7 +98,6 @@ teardown_file() {
 }
 
 @test "build: basic customization checked on host" {
-
     local OUTFILE='basic_image.wic'
     run torizoncore-builder build \
         --file "$SAMPLES_DIR/config/wic-tcbuild-basic-customization.yaml" \
@@ -169,12 +168,26 @@ teardown_file() {
     assert_success
     assert_output --partial "['$COMMIT']"
 
-    ## Bundle with a docker-compose.yml file
+    local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
+
+    # Bundle with a docker-compose.yml file
     local OUTFILE='bundled_image.wic'
+    local BLDFILE="$SAMPLES_DIR/config/wic-tcbuild-bundle-compose-customization.yaml"
+
+    if [ "${ci_dockerhub_login}" = "1" ]; then
+        cat "${BLDFILE}" | \
+              sed -Ee 's/## username:/username:/' \
+                  -Ee 's/## password:/password:/' > "${BLDFILE%%.yaml}-login.yaml"
+        BLDFILE="${BLDFILE%.yaml}-login.yaml"
+    fi
+
     run torizoncore-builder --log-level debug build \
-        --file "$SAMPLES_DIR/config/wic-tcbuild-bundle-compose-customization.yaml" \
+        --file "${BLDFILE}" \
         --set INPUT_IMAGE="$DEFAULT_WIC_IMAGE" \
-        --set OUTPUT_FILE="$OUTFILE" --force
+        --set OUTPUT_FILE="$OUTFILE" --force \
+        ${ci_dockerhub_login:+
+	  --set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
+	  --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_success
     assert_output --partial 'splash screen updated'
