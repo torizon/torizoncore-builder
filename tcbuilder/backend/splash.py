@@ -5,62 +5,35 @@ Backend for the splash command
 import logging
 import os
 import shutil
-import subprocess
-import shlex
 
-from gi.repository import Gio
-
-from tcbuilder.backend import ostree
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.backend.common import get_storage_dir
 
 log = logging.getLogger("torizon." + __name__)
 
+PLYMOUTH_THEME_PATH = "usr/share/plymouth/themes/spinner/"
+PLYMOUTH_SPLASH_FILENAME = "watermark.png"
 
-def create_splash_initramfs(work_dir, image, src_ostree_archive_dir):
-    """Create a initramfs with a splash screen and append it to the current initramfs"""
+def get_splash_changes_dir():
+    """Returns the directory that contains external splash screen related changes."""
 
-    splash_initramfs = "initramfs.splash"
-    splash_initramfs_dir = "usr/share/plymouth/themes/spinner/"
-    rel_splash_initramfs_dir = os.path.join(work_dir, splash_initramfs_dir)  # relative to work_dir
+    storage_dir = get_storage_dir()
+    return os.path.join(storage_dir, "splash")
 
-    if os.path.exists(rel_splash_initramfs_dir):
-        shutil.rmtree(rel_splash_initramfs_dir)
 
-    os.makedirs(rel_splash_initramfs_dir)
-    shutil.copy(image, os.path.join(rel_splash_initramfs_dir, "watermark.png"))
+def add_plymouth_theme_file(root_dir, src_file, dst_filename=None):
+    """Add file in the Plymouth spinner theme directory tree relative to root_dir"""
 
-    # Currently there is no official library for python 3+ to create
-    # cpio archive. So bash commands are to be used
+    plymouth_theme_abspath = os.path.join(root_dir, PLYMOUTH_THEME_PATH)
+    os.makedirs(plymouth_theme_abspath, exist_ok=True)
 
-    # create splash image only initramfs
-    create_initramfs_cmd = "echo {0} | cpio -H newc -D {1} -o | gzip > {2}".format(
-        shlex.quote(os.path.join(splash_initramfs_dir, "watermark.png")),
-        shlex.quote(work_dir), shlex.quote(os.path.join(work_dir, splash_initramfs)))
-    subprocess.check_output(create_initramfs_cmd, shell=True, stderr=subprocess.STDOUT)
+    if dst_filename:
+        plymouth_theme_abspath = os.path.join(plymouth_theme_abspath, dst_filename)
 
-    # get path of initramfs of current deployment inside sysroot
-    repo = ostree.open_ostree(src_ostree_archive_dir)
-    kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
+    log.debug(f"Splash: copying {src_file} -> {plymouth_theme_abspath}")
+    shutil.copy2(src_file, plymouth_theme_abspath)
 
-    # implement cat `ostree cat ref /usr/lib/modules/${kver}/initramfs.img`
-    # /storage/splash/initrmafs.splash > /storage/splash/usr/lib/modules/${kver}/initramfs.img
-    ret, root, _commit = repo.read_commit(ostree.OSTREE_BASE_REF)
-    if not ret:
-        raise TorizonCoreBuilderError(f"Error couldn't reat commit: {ostree.OSTREE_BASE_REF}")
 
-    sub_path = root.resolve_relative_path(os.path.join("usr/lib/modules",
-                                                       kernel_version, "initramfs.img"))
+def add_plymouth_splash_image(root_dir, splash_img):
+    """Add splash image in the Plymouth theme directory tree relative to root_dir"""
 
-    # create directory for storing finalized initramfs
-    os.makedirs(os.path.join(work_dir, "usr/lib/modules", kernel_version))
-
-    initramfs = Gio.File.new_for_path(
-        os.path.join(work_dir, "usr/lib/modules", kernel_version, "initramfs.img")
-        ).create(Gio.FileCreateFlags.NONE, None)
-
-    initramfs.splice(sub_path.read(None), Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, None)
-    initramfs.splice(Gio.File.new_for_path(os.path.join(work_dir, splash_initramfs)).read(None),
-                     Gio.OutputStreamSpliceFlags.CLOSE_SOURCE |
-                     Gio.OutputStreamSpliceFlags.CLOSE_TARGET, None)
-
-    os.remove(os.path.join(work_dir, splash_initramfs))
+    add_plymouth_theme_file(root_dir, splash_img, PLYMOUTH_SPLASH_FILENAME)

@@ -252,6 +252,13 @@ requires-signed-image() {
 }
 export -f requires-signed-image
 
+requires-unsigned-image() {
+    if [ -n "${DEFAULT_SIGNED_TEZI_IMAGE}" ]; then
+        skip "Unsupported test for signed images"
+    fi
+}
+export -f requires-unsigned-image
+
 requires-supported-kernel-signing-machine() {
     if [ "${IS_KERNEL_SIGNING_SUPPORTED}" != "1" ]; then
         skip "machine not supported"

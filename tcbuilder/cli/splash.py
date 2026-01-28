@@ -4,15 +4,16 @@ CLI for the splash command
 
 import argparse
 import os
-import shutil
 import logging
 
 from tcbuilder.errors import \
-    (InvalidArgumentError, FeatureNotImplementedError, PathNotExistError)
+    (InvalidArgumentError, PathNotExistError)
 from tcbuilder.backend import splash as splash_be
-from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend.kernel import \
+    (find_kernel_in_sysroot, get_kernel_changes_dir)
+from tcbuilder.backend.initramfs import UnpackedInitramfs
 from tcbuilder.backend.common import \
-    (get_storage_dir, images_unpack_executed, is_file_type_fit)
+    (images_unpack_executed, is_file_type_fit)
 
 log = logging.getLogger("torizon." + __name__)  # use name hierarchy for "main" to be the parent
 
@@ -25,25 +26,28 @@ def splash(splash_image):
         PathNotExistError: If could not find the splash image file.
     """
 
-    storage_dir = get_storage_dir()
-    unpacked_kernel_path = kernel_be.find_kernel_in_sysroot()
-    if is_file_type_fit(unpacked_kernel_path):
-        raise FeatureNotImplementedError("Changing the splash screen is not supported for kernel "
-                                         "in FIT format. Aborting.")
-
-    work_dir = os.path.join(storage_dir, "splash")
-    if os.path.exists(work_dir):
-        shutil.rmtree(work_dir)
-    os.mkdir(work_dir)
-
-    splash_image = os.path.abspath(splash_image)
-    if not os.path.exists(splash_image):
+    splash_abspath = os.path.abspath(splash_image)
+    if not os.path.isfile(splash_abspath):
         raise PathNotExistError(f"Unable to find splash image {splash_image}")
 
-    src_ostree_archive_dir = os.path.join(storage_dir, "ostree-archive")
+    with UnpackedInitramfs(source="auto") as rdm:
+        splash_be.add_plymouth_splash_image(rdm.get_path(), splash_abspath)
 
-    splash_be.create_splash_initramfs(work_dir, splash_image, src_ostree_archive_dir)
-    log.info("splash screen merged to initramfs")
+    log.info("Initramfs splash screen updated")
+
+    unpacked_kernel_path = find_kernel_in_sysroot()
+    kernel_is_fit = is_file_type_fit(unpacked_kernel_path)
+    log.debug(f"splash: kernel_is_fit={kernel_is_fit}")
+
+    if kernel_is_fit:
+        # FIT case: all changes go to the kernel-changes directory.
+        changes_dir = get_kernel_changes_dir()
+    else:
+        # non-FIT case: changes go to the splash-changes directory.
+        changes_dir = splash_be.get_splash_changes_dir()
+
+    splash_be.add_plymouth_splash_image(changes_dir, splash_abspath)
+    log.info("Sysroot splash screen updated")
 
 
 def do_splash(args):
