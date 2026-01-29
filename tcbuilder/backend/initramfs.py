@@ -290,6 +290,7 @@ class UnpackedInitramfs:
             # cpio --directory=unpacked_initramfs_dir --extract --make-directories
             subprocess.check_output(cpio_cmd, input=gzip_out, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(exc.output.strip())
 
         log.debug(f"__enter__(): Initramfs contents available in {self.unpacked_initramfs_dir}")
@@ -334,6 +335,7 @@ class UnpackedInitramfs:
                 log.debug(f"New initramfs file will be {len(gzip_out)/1024:.2f} kiB in size")
                 stage_initramfs_contents(gzip_out)
         except subprocess.CalledProcessError as exc:
+            # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(exc.output.strip())
         finally:
             log.debug(f"__exit__(): Removing directory {self.unpacked_initramfs_dir}")
