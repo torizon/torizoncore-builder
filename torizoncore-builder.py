@@ -26,7 +26,7 @@ import traceback
 
 from tcbuilder.cli import \
     (bundle, build, combine, deploy, dt, dto, images, isolate, kernel, ostree,
-     platform, push, secboot, splash, ubootenv, union)
+     platform, push, secboot, splash, splashconfig, ubootenv, union)
 from tcbuilder.backend.common import set_storage_dir
 
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
@@ -151,6 +151,7 @@ platform.init_parser(subparsers)
 push.init_parser(subparsers)
 secboot.init_parser(subparsers)
 splash.init_parser(subparsers)
+splashconfig.init_parser(subparsers)
 ubootenv.init_parser(subparsers)
 union.init_parser(subparsers)
 
