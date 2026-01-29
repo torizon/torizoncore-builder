@@ -30,6 +30,7 @@ $TESTCASES_DIR/ostree.bats \
 $TESTCASES_DIR/platform.bats \
 $TESTCASES_DIR/push.bats \
 $TESTCASES_DIR/splash.bats \
+$TESTCASES_DIR/splashconfig.bats \
 $TESTCASES_DIR/ubootenv.bats \
 "
 
@@ -40,6 +41,7 @@ $TESTCASES_DIR/wic/images-unpack.bats \
 $TESTCASES_DIR/wic/union.bats \
 $TESTCASES_DIR/wic/deploy.bats \
 $TESTCASES_DIR/wic/splash.bats \
+$TESTCASES_DIR/wic/splashconfig.bats \
 $TESTCASES_DIR/wic/combine.bats \
 $TESTCASES_DIR/wic/build.bats \
 "
