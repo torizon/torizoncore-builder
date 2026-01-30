@@ -424,6 +424,9 @@ test-common-torizon-intel:
 
 test-common-torizon-rasp4:
   extends: .test-base-common-torizon
+  rules:
+    # TODO: This job is disabled for now; review this once Raspberry Pi 4 is officially supported.
+    - when: never
   script:
     # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
     - TCB_SKIP_PULL=1 source ./setup.sh
