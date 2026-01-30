@@ -1,11 +1,6 @@
 include:
   - "/tests/integration/aval/aval-tests.yml"
 
-# TODO: GitLab's documentation recommends specifying a version:
-#       See https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-docker-in-docker
-#       Also in the services attribute.
-image: docker:latest
-
 variables:
   RELEASE_TYPE:
     value: "official"
@@ -18,6 +13,8 @@ variables:
     description: "Whether to allow the pipeline to continue upon failures in Common Torizon tests."
 
   DEBIAN_RELEASE: "bullseye-slim"
+  # This Docker version should be bumped to latest Docker version at the end of the release process
+  DOCKER_VERSION: "28.5.2"
   # Pipeline Settings
   GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_CONCURRENT_ID/$CI_PROJECT_PATH
   GET_SOURCES_ATTEMPTS: 3
@@ -63,8 +60,10 @@ default:
   tags:
     - saas-linux-small-amd64
 
+image: docker:$DOCKER_VERSION
+
 services:
-  - name: docker:dind
+  - name: docker:$DOCKER_VERSION-dind
 
 stages:
   - pre-build
