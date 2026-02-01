@@ -72,7 +72,7 @@ def create_config(output_file, config, force):
     # Dump to stdout
     if not output_file:
         print()
-        with open(config, 'r') as file:
+        with open(config, "r", encoding="utf-8") as file:
             for line in file:
                 print(line, end='')
     else:
@@ -137,23 +137,23 @@ def init_parser(subparsers):
     # splash-config set
     subparser = subparsers.add_parser(
         "set",
-        help=("Sets a new Plymouth configuration file as the new configuration."),
+        help="Sets a new Plymouth configuration file as the new configuration.",
         allow_abbrev=False)
     subparser.add_argument(
         dest="splash_config",
         metavar="SPLASH_CONFIG",
-        help=("File path to the new configuration file."))
+        help="File path to the new configuration file.")
     subparser.set_defaults(func=do_splash_config_set)
 
     # splash-config dump
     subparser = subparsers.add_parser(
         "dump",
-        help=("Prints the current Plymouth configuration."),
+        help="Prints the current Plymouth configuration.",
         allow_abbrev=False)
     subparser.add_argument(
         "--file",
         dest="output_file",
-        help=("Writes current Plymouth configuration to the provided file name."),
+        help="Writes current Plymouth configuration to the provided file name.",
         required=False,
         default=None)
     subparser.add_argument(
