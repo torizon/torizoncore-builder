@@ -18,7 +18,7 @@ from tcbuilder.backend.registryops import RegistryOperations
 
 log = logging.getLogger("torizon." + __name__)
 
-# Environment assigment regex pre-compiled.
+# Environment assignment regex pre-compiled.
 ENV_ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
 
 

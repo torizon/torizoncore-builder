@@ -169,7 +169,7 @@ def assert_operational_directory(path):
     """Assert that a given directory looks ok to be used as a data storage
        between executions of torizoncore-builder.
 
-    :param path: Diretory path to be used as data storage.
+    :param path: Directory path to be used as data storage.
     """
 
     if not os.path.isabs(path):

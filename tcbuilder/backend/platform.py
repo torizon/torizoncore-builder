@@ -1373,7 +1373,7 @@ def push_ref(ostree_dir, credentials, ref, *,
     package_name = package_name or ref
     package_version = package_version or subject
 
-    # Try to find harware id to use from OSTree metadata
+    # Try to find hardware id to use from OSTree metadata
     module = None
     if "oe.sota-hardware-id" in metadata:
         module = metadata["oe.sota-hardware-id"]
@@ -1754,7 +1754,7 @@ def is_canonicalized(compose_file, ret_parsed=False):
     :param compose_file: The Docker Compose file to be checked.
     :param ret_parsed: Add the parsed object to the return.
     :returns:
-        Wether or not the input is canonicalized.
+        Whether or not the input is canonicalized.
         If the 'ret_parsed' argument is set to True, the parsed version
         of the docker compose file will be added to the return.
     """
@@ -2024,7 +2024,7 @@ def uptane_sign_push(*, credentials, push_file, target, version,
 
     :param credentials: The credentials file corresponding to the OTA
                         server that will be pushed to.
-    :param push_file: The file-based pacakge payload
+    :param push_file: The file-based package payload
     :param target: The name of the package
     :param version: The version of the package
     :param hardwareids_str: A string of hardware-ids
@@ -2106,7 +2106,7 @@ def push_bootloader(*, credentials, target, version, boot_bin, json_file,
                       this package
     :param set_vars: Key-value list of U-boot variables to set during an update
                      with this package
-    :param reset: Boolean switch on whether the U-Boot enviornment should be
+    :param reset: Boolean switch on whether the U-Boot environment should be
                   reset during an update with this package
     :param hardwareids: List of hardwareids to associate this package with
     :param description: Package description

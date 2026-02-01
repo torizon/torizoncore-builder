@@ -63,10 +63,10 @@ def do_splash_config_set(args):
 def create_config(output_file, config, force):
     """Prints or writes the current active Plymouth Configuration file.
 
-    :param output_file: Filename for where to write the conent. If 'None'
+    :param output_file: Filename for where to write the content. If 'None'
                         then prints the content to console instead.
     :param config: Path to currently active config file.
-    :param force: Whether to overwrite output_file if it arleady exists.
+    :param force: Whether to overwrite output_file if it already exists.
     """
 
     # Dump to stdout

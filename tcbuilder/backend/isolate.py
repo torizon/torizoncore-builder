@@ -97,7 +97,7 @@ def get_tcattr_file_content(files_dir_to_tar, ssh_conn, tmp_dir_name):
         raise OperationFailureError(facl_command_error, result.stdout.strip())
 
     tcattr = result.stdout.strip("\r").split("\r\n")
-    # remove upto password keyword
+    # remove up to password keyword
     indx = tcattr.index("[sudo] password: ")
     tcattr = tcattr[(indx + 1):]
 
@@ -156,7 +156,7 @@ def isolate_user_changes(diff_dir, *,
                                     result.stdout.strip())
 
     output = result.stdout.split("\r\n")
-    # remove upto password keyword
+    # remove up to password keyword
     indx = output.index("[sudo] password: ")
     output = output[(indx + 1):]
 

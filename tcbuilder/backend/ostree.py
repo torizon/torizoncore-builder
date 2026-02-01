@@ -49,7 +49,7 @@ def load_sysroot(sysroot_dir):
     return sysroot
 
 def get_deployment_info_from_sysroot(sysroot):
-    # Get commit csum and kernel arguments from the currenty sysroot
+    # Get commit csum and kernel arguments from the current sysroot
 
     # There is a single deployment in our OSTree sysroots
     deployment = sysroot.get_deployments()[0]
@@ -179,7 +179,7 @@ def get_reference_dict(repopath, base_csum=None):
     Get all the references in a ostree repo, excluding the OSTree generated ref.
 
     :param repopath: Absolute path of local repository to pull from.
-    :param base_csum: Checksum that will be assinged to the 'base' ref.
+    :param base_csum: Checksum that will be assigned to the 'base' ref.
     :returns:
         A dict with the reference as key and the checksum as value.
         e.g: {'base': <checksum>}
@@ -352,7 +352,7 @@ def copy_file(repo, commit, input_file, output_file):
             repo(OSTree.Repo) - repo object
             commit(str) - the ostree commit hash or name
             input_file - the input file path in the OSTree
-            output_file - the output file paht where we want to copy to
+            output_file - the output file path where we want to copy to
         raises:
             TorizonCoreBuilderError - if commit does not exist
     """

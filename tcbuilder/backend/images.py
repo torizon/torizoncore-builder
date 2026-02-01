@@ -97,7 +97,7 @@ def serve(images_directory):
 
     avahi = None
     try:
-        # The Avahi deamon should respond for zeroconf TEZI services
+        # The Avahi daemon should respond for zeroconf TEZI services
         # pylint: disable-next=consider-using-with
         avahi = subprocess.Popen(["avahi-daemon"],
                                  stdin=subprocess.DEVNULL,
