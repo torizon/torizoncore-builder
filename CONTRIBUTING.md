@@ -9,7 +9,7 @@ Here you can also find a general overview on how the code is organized.
 - Make a fork of this repository;
 - Create a new development branch in it;
 - Make your changes in the new branch and commit them;
-- Open a pull request to the default branch (currently `bullseye`).
+- Open a pull request to the default branch (currently `trixie`).
 
 When a PR is opened, updated or reopened, our test pipeline is automatically executed on it if there are no merge conflicts.
 
