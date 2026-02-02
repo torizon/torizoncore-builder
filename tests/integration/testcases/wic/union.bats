@@ -7,7 +7,7 @@ load '../lib/union.bash'
 @test "union: run without parameters" {
     run torizoncore-builder union
     assert_failure
-    assert_output --partial "UNION_BRANCH positional argument is required"
+    assert_output --partial "the following arguments are required: UNION_BRANCH"
 }
 
 @test "union: check help output" {

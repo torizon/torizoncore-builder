@@ -5,14 +5,13 @@ hash) with local changes (e.g. copied from an adjusted module using the isolate
 sub-command).
 """
 
-import argparse
 import logging
 import os
 import subprocess
 import shutil
 
 from tcbuilder.backend import union as ub
-from tcbuilder.errors import PathNotExistError, InvalidArgumentError
+from tcbuilder.errors import PathNotExistError
 from tcbuilder.backend.common import images_unpack_executed, get_storage_dir
 
 log = logging.getLogger("torizon." + __name__)
@@ -234,27 +233,8 @@ def union(changes_dirs, union_branch, *,
 def do_union(args):
     """Run "union" subcommand"""
 
-    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
-    if args.changes_dirs_compat:
-        raise InvalidArgumentError(
-            "Error: "
-            "the switch --extra-changes-directory has been removed; "
-            "please use switch --changes-directory instead.")
-
-    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
-    if args.union_branch_compat:
-        raise InvalidArgumentError(
-            "Error: "
-            "the switch --union-branch has been removed; "
-            "please provide the branch name without passing the switch.")
-
-    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
-    if not args.union_branch:
-        raise InvalidArgumentError(
-            "Error: "
-            "the UNION_BRANCH positional argument is required.")
-
     images_unpack_executed()
+
     union(
         args.changes_dirs, args.union_branch,
         commit_subject=args.subject, commit_body=args.body)
@@ -266,8 +246,6 @@ def init_parser(subparsers):
         "union",
         help=("Create a commit out of isolated changes for unpacked "
               "Toradex Easy Installer Image"),
-        epilog=("NOTE: the switch --extra-changes-directory has been "
-                "removed; please use --changes-directory instead."),
         allow_abbrev=False)
 
     subparser.add_argument(
@@ -283,22 +261,10 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--body", dest="body", help="OSTree commit body message")
 
-    # The nargs='?' argument below can be removed together with the
-    # --extra-changes-directory and --union-branch switches that currently
-    # exist just to allow for better messages (DEPRECATED since 2021-05-17).
     subparser.add_argument(
         dest="union_branch",
         metavar="UNION_BRANCH",
-        nargs='?',
         help=("Name of branch containing the changes committed to the "
               "unpacked repository (REQUIRED)."))
-
-    # Temporary solution to provide better messages (DEPRECATED since 2021-05-17).
-    subparser.add_argument(
-        "--extra-changes-directory",
-        dest="changes_dirs_compat", action='append', help=argparse.SUPPRESS)
-    subparser.add_argument(
-        "--union-branch",
-        dest="union_branch_compat", help=argparse.SUPPRESS)
 
     subparser.set_defaults(func=do_union)
