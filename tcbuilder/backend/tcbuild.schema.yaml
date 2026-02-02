@@ -167,6 +167,10 @@ properties:
         type: string
         description: "local file path of a PNG file used to generate the splash screen image"
         tdxMeta: "file;png"
+      splash-config:
+        type: string
+        description: "local file path of a configuration file for the splash screen"
+        tdxMeta: "file"
       filesystem:
         type: array
         description: "directory trees to be applied on top of the ones in the input image"

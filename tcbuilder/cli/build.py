@@ -31,6 +31,7 @@ from tcbuilder.cli import dto as dto_cli
 from tcbuilder.cli import kernel as kernel_cli
 from tcbuilder.cli import images as images_cli
 from tcbuilder.cli import splash as splash_cli
+from tcbuilder.cli import splashconfig as splashconfig_cli
 from tcbuilder.cli import union as union_cli
 from tcbuilder.cli import secboot as secboot_cli
 
@@ -177,8 +178,12 @@ def handle_customization_section(props):
         log.info(l1_pref("Handling customization section"))
 
     if "splash-screen" in props:
-        log.info(l2_pref("Setting splash screen"))
+        log.info(l2_pref("Setting splash screen image"))
         splash_cli.splash(props["splash-screen"])
+
+    if "splash-config" in props:
+        log.info(l2_pref("Setting splash screen configuration"))
+        splashconfig_cli.splash_config_set(props["splash-config"])
 
     if "device-tree" in props:
         handle_dt_customization(props["device-tree"])

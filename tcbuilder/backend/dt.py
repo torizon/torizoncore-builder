@@ -49,7 +49,7 @@ def get_current_uenv_txt_path():
             return _path
 
     # Check for the ostree-managed version of the file in the deployment; this
-    # finds the commited version of the file rather the modified copy produced
+    # finds the committed version of the file rather the modified copy produced
     # by libostree in the boot directory when a deployment is created.
     dpath = subprocess.check_output(
         ["find", f"{storage_dir}/sysroot/ostree/deploy",

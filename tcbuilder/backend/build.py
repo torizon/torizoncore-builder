@@ -47,7 +47,7 @@ MAJOR_TO_YOCTO_MAP = {
 DEFAULT_LEGACY_IMAGE_VARIANT = "torizon-core-docker"
 DEFAULT_IMAGE_VARIANT = "torizon-docker"
 
-# Assigment regex pre-compiled.
+# Assignment regex pre-compiled.
 ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
 
 # Possible file name extensions for which parse_remote() will consider the

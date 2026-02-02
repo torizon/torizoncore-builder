@@ -146,7 +146,7 @@ def extract_initramfs_from_fit(fit):
 
 
 def stage_kernel_fit(fit):
-    """Create kernel FIT file from given object and save it to be commited."""
+    """Create kernel FIT file from given object and save it to be committed."""
 
     changes_dir = kernel_be.get_kernel_changes_dir()
     os.makedirs(changes_dir, exist_ok=True)
@@ -170,7 +170,7 @@ def stage_kernel_fit(fit):
 
 
 def stage_initramfs_contents(data):
-    """Create initramfs file from given data and save it to be commited."""
+    """Create initramfs file from given data and save it to be committed."""
 
     changes_dir = splash_be.get_splash_changes_dir()
     os.makedirs(changes_dir, exist_ok=True)
@@ -328,10 +328,10 @@ class UnpackedInitramfs:
                 # Remove old initramfs file extracted from FIT
                 log.debug(f"__exit__(): Removing {self.src_initramfs_file}")
                 os.remove(self.src_initramfs_file)
-                # Stage updated kernel FIT to be commited
+                # Stage updated kernel FIT to be committed
                 stage_kernel_fit(self.fit_obj)
             else:
-                # Stage updated initramfs to be commited
+                # Stage updated initramfs to be committed
                 log.debug(f"New initramfs file will be {len(gzip_out)/1024:.2f} kiB in size")
                 stage_initramfs_contents(gzip_out)
         except subprocess.CalledProcessError as exc:

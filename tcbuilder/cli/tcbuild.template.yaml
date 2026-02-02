@@ -40,8 +40,10 @@ input:
 # >> The customization section defines the modifications to be applied to get
 # >> the desired output image.
 # customization:
-  # >> Splash screen:
+  # >> Splash screen image:
   # splash-screen: custom-splash-screen.png
+  # >> Splash screen configuration:
+  # splash-config: spinner.plymouth
   # >> Directories overlayed to the base OSTree
   # filesystem:
      # - changes/

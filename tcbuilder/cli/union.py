@@ -137,7 +137,7 @@ def set_acl_attributes(change_dir):
     manually by the user.
     Having both lists in hand, set the attributes.
 
-    :param change_dir: Directory with changes to be incoporated into an
+    :param change_dir: Directory with changes to be incorporated into an
                        OSTree commit.
     """
 
