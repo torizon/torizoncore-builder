@@ -244,27 +244,23 @@ def init_parser(subparsers):
     """Initialize argument parser"""
     subparser = subparsers.add_parser(
         "union",
-        help=("Create a commit out of isolated changes for unpacked "
-              "Toradex Easy Installer Image"),
+        help="Create a commit out of isolated changes for unpacked Toradex Easy Installer Image.",
         allow_abbrev=False)
 
     subparser.add_argument(
         "--changes-directory", dest="changes_dirs", action='append',
-        help=("Path to the directory containing user changes (can be "
-              "specified multiple times). If you have changes in the "
-              "storage, the changes passed in this parameter will be "
+        help=("Path to the directory containing user changes (can be specified multiple times). "
+              "If you have changes in the storage, the changes passed in this parameter will be "
               "applied on top of them."))
     subparser.add_argument(
         "--subject", dest="subject",
-        help=("OSTree commit subject. "
-              "Defaults to TorizonCore Builder [timestamp]"))
+        help="OSTree commit subject. Defaults to 'TorizonCore Builder [timestamp]'.")
     subparser.add_argument(
         "--body", dest="body", help="OSTree commit body message")
 
     subparser.add_argument(
         dest="union_branch",
         metavar="UNION_BRANCH",
-        help=("Name of branch containing the changes committed to the "
-              "unpacked repository (REQUIRED)."))
+        help="Name of branch containing the changes committed to the unpacked repository.")
 
     subparser.set_defaults(func=do_union)
