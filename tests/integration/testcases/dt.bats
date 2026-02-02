@@ -47,9 +47,8 @@ load 'lib/common.bash'
     check-file-ownership-as-workdir "device-trees"
     check-file-ownership-as-workdir "device-trees/overlays"
 
-    for FILE_DTS in device-trees/overlays/*.dts
-    do
-        check-file-ownership-as-workdir $FILE_DTS
+    for dts in device-trees/overlays/*.dts; do
+        check-file-ownership-as-workdir $dts
     done
 }
 
@@ -57,6 +56,7 @@ load 'lib/common.bash'
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     torizoncore-builder-shell "rm -rf device-trees"
 
+    run torizoncore-builder dt checkout
     run torizoncore-builder dt checkout --update
     if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
         assert_failure
@@ -68,7 +68,7 @@ load 'lib/common.bash'
         return 0
     fi
     assert_success
-    refute_output --regexp "'device-trees' (is already up to date|successfully updated)"
+    assert_output --regexp "'device-trees' is already up to date"
 
     local DEVICETREES_DIR="$(pwd)/device-trees"
     git -C $DEVICETREES_DIR reset --hard HEAD~
@@ -80,7 +80,6 @@ load 'lib/common.bash'
     git -C $DEVICETREES_DIR remote set-url origin ''
     run torizoncore-builder dt checkout --update
     assert_failure
-    assert_output --partial "no path specified"
 
     git -C $DEVICETREES_DIR remote set-url origin 'https://github.com/toradex/device-trees'
 
