@@ -192,15 +192,7 @@ build-arm64:
     # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
     - if: $BUILD_MACHINE
       when: never
-    # The following condition allows the pipeline to continue for official releases even if tests
-    # fail. In such cases, subsequent steps let the developer decide, at their discretion, whether
-    # to proceed with the release.
-    - if: '$RELEASE_TYPE == "official"'
-      when: on_success
-      allow_failure: true
-    # In all other cases the pipeline continues only if there no failures.
     - when: on_success
-      allow_failure: false
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
   before_script:
@@ -398,9 +390,6 @@ test-host-tos7-64bit-signed-nightly:
     - if: '$COMMON_TORIZON_ALLOW_FAILURE =~ /^true$/i'
       when: on_success
       allow_failure: true
-    - if: '$RELEASE_TYPE == "official"'
-      when: on_success
-      allow_failure: true
     # In all other cases the pipeline continues only if there no failures.
     - when: on_success
       allow_failure: false
@@ -483,27 +472,11 @@ test-torizoncore:
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE="$TCB_HOST_TESTS" ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
 
-aggregate-reports:
+.aggregate-reports:
   stage: report
   image:
     name: homebrew/brew
     pull_policy: always
-  rules:
-    # Following condition is needed to avoid the execution of merge-request pipelines.
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: never
-    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
-    - if: $BUILD_MACHINE
-      when: never
-    # On early-access releases (and Xray enabled): always runs this job so we take a picture of the
-    # current situation and store it into Xray.
-    - if: '$RELEASE_TYPE == "early-access" && $ENABLE_XRAY =~ /^true$/i'
-      when: always
-    # On official releases (and Xray enabled): run this job manually (give opportunity for us
-    # fixing/repeating previous jobs even before posting the report).
-    - if: '$RELEASE_TYPE == "official" && $ENABLE_XRAY =~ /^true$/i'
-      when: manual
-    - when: never
   script:
     - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
     - brew install xray-junit-uploader
@@ -538,6 +511,37 @@ aggregate-reports:
     WSL_AVAL_COLIBRI_IMX8DX_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-749"
     GIT_CLEAN_FLAGS: none
 
+aggregate-reports-auto:
+  extends: .aggregate-reports
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    # On early-access releases (and Xray enabled): always runs this job so we take a picture of the
+    # current situation and store it into Xray.
+    - if: '$RELEASE_TYPE == "early-access" && $ENABLE_XRAY =~ /^true$/i'
+      when: always
+    - when: never
+
+aggregate-reports-manual:
+  extends: .aggregate-reports
+  needs: []
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    # On official releases (and Xray enabled): run this job manually (give opportunity for us
+    # fixing/repeating previous jobs even before posting the report).
+    - if: '$RELEASE_TYPE == "official" && $ENABLE_XRAY =~ /^true$/i'
+      when: manual
+    - when: never
+
 # Enable experimental features in Docker client (experimental feature are needed for manifest)
 .do_docker_experimental: &do_docker_experimental
     - mkdir -p $HOME/.docker
@@ -559,8 +563,15 @@ aggregate-reports:
 
 # TODO: Note that this multiarch image is not actually used for anything at the moment.
 #       Maybe the goal is to allow debugging before pushing a (different) multi-arch image to DockerHub?
-build-multiarch:
+.build-multiarch:
   extends: .build-multiarch-base
+  variables:
+    IMAGE_NAME: torizoncore-builder
+    IMAGE_NAME_AMD64: torizoncore-builder-amd64
+  stage: build-multiarch
+
+build-multiarch-auto:
+  extends: .build-multiarch
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -570,11 +581,21 @@ build-multiarch:
       when: never
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
+    - when: never
+
+build-multiarch-manual:
+  extends: .build-multiarch
+  needs: [build-amd64]
+  rules:
+    # Following condition is needed to avoid the execution of merge-request pipelines.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: manual
     - when: manual
-  variables:
-    IMAGE_NAME: torizoncore-builder
-    IMAGE_NAME_AMD64: torizoncore-builder-amd64
-  stage: build-multiarch
 
 # ---
 # Reusable deployment jobs
@@ -672,9 +693,10 @@ build-multiarch:
 # Official deployment to Docker Hub (used when RELEASE_TYPE is "official")
 # ---
 
-deploy-official-amd64:
+deploy-official-amd64-manual:
   extends: .deploy-dh-base
   stage: deploy
+  needs: [build-multiarch-manual]
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -683,9 +705,8 @@ deploy-official-amd64:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "official"'
-      when: manual
+      when: on_success
     - when: never
-  allow_failure: false
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
     - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
@@ -696,9 +717,10 @@ deploy-official-amd64:
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
 
-deploy-official-arm64:
+deploy-official-arm64-manual:
   extends: .deploy-dh-base
   stage: deploy
+  needs: [build-multiarch-manual]
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -707,9 +729,8 @@ deploy-official-arm64:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "official"'
-      when: manual
+      when: on_success
     - when: never
-  allow_failure: true
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
     - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
@@ -720,9 +741,10 @@ deploy-official-arm64:
   variables:
     IMAGE_NAME: torizoncore-builder-arm64
 
-deploy-official-multiarch:
+deploy-official-multiarch-manual:
   extends: .deploy-dh-multiarch-base
   stage: deploy-multiarch
+  needs: [deploy-official-amd64-manual, deploy-official-arm64-manual]
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -731,7 +753,7 @@ deploy-official-multiarch:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "official"'
-      when: manual
+      when: on_success
     - when: never
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
@@ -748,9 +770,18 @@ deploy-official-multiarch:
 # Early-access deployment to Docker Hub (used when RELEASE_TYPE is "early-access")
 # ---
 
-deploy-ea-amd64:
+.deploy-ea-amd64:
   extends: .deploy-dh-base
   stage: deploy
+  before_script:
+    - export DOCKER_TAGS_CHECK=""
+    - export DOCKER_TAGS="early-access"
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
+
+deploy-ea-amd64-auto:
+  extends: .deploy-ea-amd64
+  needs: [build-multiarch-auto]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -760,12 +791,19 @@ deploy-ea-amd64:
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
     - when: never
-  allow_failure: false
-  before_script:
-    - export DOCKER_TAGS_CHECK=""
-    - export DOCKER_TAGS="early-access"
-  variables:
-    IMAGE_NAME: torizoncore-builder-amd64
+
+deploy-ea-amd64-manual:
+  extends: .deploy-ea-amd64
+  needs: [build-multiarch-manual]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: never
 
 # NOTE: arm64 is not being built for early-access ATM.
 #deploy-ea-arm64:
@@ -780,16 +818,25 @@ deploy-ea-amd64:
 #    - if: '$RELEASE_TYPE == "early-access"'
 #      when: on_success
 #    - when: never
-#  allow_failure: true
 #  before_script:
 #    - export DOCKER_TAGS_CHECK=""
 #    - export DOCKER_TAGS="early-access"
 #  variables:
 #    IMAGE_NAME: torizoncore-builder-arm64
 
-deploy-ea-multiarch:
+.deploy-ea-multiarch:
   extends: .deploy-dh-multiarch-base
   stage: deploy-multiarch
+  before_script:
+    - export DOCKER_TAGS_CHECK=""
+    - export DOCKER_TAGS="early-access"
+  variables:
+    IMAGE_NAME: torizoncore-builder
+    IMAGE_NAME_AMD64: torizoncore-builder-amd64
+
+deploy-ea-multiarch-auto:
+  extends: .deploy-ea-multiarch
+  needs: [deploy-ea-amd64-auto]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -799,20 +846,28 @@ deploy-ea-multiarch:
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
     - when: never
-  before_script:
-    - export DOCKER_TAGS_CHECK=""
-    - export DOCKER_TAGS="early-access"
-  variables:
-    IMAGE_NAME: torizoncore-builder
-    IMAGE_NAME_AMD64: torizoncore-builder-amd64
+
+deploy-ea-multiarch-manual:
+  extends: .deploy-ea-multiarch
+  needs: [deploy-ea-amd64-manual]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: never
 
 # ---
 # Internal use deployment (used when RELEASE_TYPE is "internal")
 # ---
 
-deploy-int-amd64:
+deploy-int-amd64-manual:
   extends: .deploy-int-base
   stage: deploy
+  needs: [build-multiarch-manual]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -820,7 +875,7 @@ deploy-int-amd64:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "internal"'
-      when: manual
+      when: on_success
     - when: never
   before_script:
     - export DOCKER_TAGS_CHECK=""
@@ -830,9 +885,10 @@ deploy-int-amd64:
     IMAGE_NAME_DEST: torizoncore-builder-internal-amd64
 
 # NOTE: arm64 is not being built for internal ATM.
-#deploy-int-arm64:
+# deploy-int-arm64-manual:
 #  extends: .deploy-int-base
 #  stage: deploy
+#  needs: [build-multiarch-manual]
 #  rules:
 #    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 #      when: never
@@ -840,7 +896,7 @@ deploy-int-amd64:
 #    - if: $BUILD_MACHINE
 #      when: never
 #    - if: '$RELEASE_TYPE == "internal"'
-#      when: manual
+#      when: on_success
 #    - when: never
 #  before_script:
 #    - export DOCKER_TAGS_CHECK=""
@@ -849,9 +905,10 @@ deploy-int-amd64:
 #    IMAGE_NAME: torizoncore-builder-arm64
 #    IMAGE_NAME_DEST: torizoncore-builder-internal-arm64
 
-deploy-int-multiarch:
+deploy-int-multiarch-manual:
   extends: .deploy-int-multiarch-base
   stage: deploy-multiarch
+  needs: [deploy-int-amd64-manual]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -859,7 +916,7 @@ deploy-int-multiarch:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "internal"'
-      when: manual
+      when: on_success
     - when: never
   before_script:
     - export DOCKER_TAGS_CHECK=""
@@ -900,9 +957,10 @@ deploy-int-multiarch:
           git push -f -o ci.skip origin "refs/tags/${tag}";
         done
 
-tag-official:
+tag-official-manual:
   extends: .tag-base
   stage: tag
+  needs: [deploy-official-multiarch-manual]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -910,7 +968,7 @@ tag-official:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "official"'
-      when: manual
+      when: on_success
     - when: never
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
@@ -920,9 +978,20 @@ tag-official:
     - export GIT_TAGS_CHECK="${MAJOR}.${MINOR}.${PATCH}"
     - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-${DATE}"
 
-tag-ea:
+.tag-ea:
   extends: .tag-base
   stage: tag
+  before_script:
+    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
+    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
+    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
+    - export DATE=$(date +%Y%m%d)
+    - export GIT_TAGS_CHECK=""
+    - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-ea-${DATE}"
+
+tag-ea-auto:
+  extends: .tag-ea
+  needs: [deploy-ea-multiarch-auto]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -932,17 +1001,24 @@ tag-ea:
     - if: '$RELEASE_TYPE == "early-access"'
       when: on_success
     - when: never
-  before_script:
-    - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
-    - export MINOR="${TORIZONCORE_BUILDER_MINOR}"
-    - export PATCH="${TORIZONCORE_BUILDER_PATCH}"
-    - export DATE=$(date +%Y%m%d)
-    - export GIT_TAGS_CHECK=""
-    - export GIT_TAGS="${MAJOR}.${MINOR}.${PATCH}-ea-${DATE}"
 
-tag-int:
+tag-ea-manual:
+  extends: .tag-ea
+  needs: [deploy-ea-multiarch-manual]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Following condition prevents execution with custom TorizonCore images (triggered by Jenkins).
+    - if: $BUILD_MACHINE
+      when: never
+    - if: '$RELEASE_TYPE == "early-access"'
+      when: on_success
+    - when: never
+
+tag-int-manual:
   extends: .tag-base
   stage: tag
+  needs: [deploy-int-multiarch-manual]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
@@ -950,7 +1026,7 @@ tag-int:
     - if: $BUILD_MACHINE
       when: never
     - if: '$RELEASE_TYPE == "internal"'
-      when: manual
+      when: on_success
     - when: never
   before_script:
     - export MAJOR="${TORIZONCORE_BUILDER_MAJOR}"
