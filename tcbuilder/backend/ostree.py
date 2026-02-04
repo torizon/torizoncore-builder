@@ -33,6 +33,7 @@ OSTREE_WHITEOUT_PREFIX = ".wh."
 OSTREE_OPAQUE_WHITEOUT_NAME = ".wh..wh..opq"
 
 def open_ostree(ostree_dir):
+    log.debug("Opening OSTree repo at '%s'.", ostree_dir)
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
     if not repo.open(None):
         raise TorizonCoreBuilderError("Opening the archive OSTree repository failed.")
@@ -47,6 +48,57 @@ def load_sysroot(sysroot_dir):
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(sysroot_dir))
     sysroot.load()
     return sysroot
+
+
+def copy_repo_config(src_repo: OSTree.Repo,
+                     dst_repo: OSTree.Repo, *, keep_core: bool) -> None:
+    """Copy the configuration from one OSTree Repo into another.
+
+    The destination Repo will have its new configuration written to disk and the
+    object instance will be automatically updated with the new configuration.
+
+    :param src_repo: Source repository.
+    :param dst_repo: Target repository.
+    :param keep_core: Whether or not to keep the properties in the "core" group
+        on the destination repository config; this is generally recommended
+        because the group contains a property indicating the mode of the repo
+        which shouldn't be changed.
+    """
+    log.debug("Copying configuration between OSTree repositories: '%s' -> '%s'.",
+              src_repo.get_path().get_path(),
+              dst_repo.get_path().get_path())
+
+    org_conf = dst_repo.get_config()
+    new_conf = src_repo.copy_config()
+
+    if keep_core:
+        core_group = "core"
+        assert new_conf.has_group(core_group), \
+            f"Source OSTree repository has no group '{core_group}'."
+        assert org_conf.has_group(core_group), \
+            f"Destination OSTree repository has no group '{core_group}'."
+
+        keys_, _ = org_conf.get_keys(core_group)
+        for key_ in keys_:
+            org_value = org_conf.get_value(core_group, key_)
+            new_conf.set_value(core_group, key_, org_value)
+
+    dst_repo.write_config(new_conf)
+
+
+def dump_repo_config(repo: OSTree.Repo) -> None:
+    """Dump the OSTree repository configuration into the logs."""
+
+    log.debug("Configuration for repository at '%s':", repo.get_path().get_path())
+
+    conf = repo.get_config()
+    grps, _ = conf.get_groups()
+    for grp_ in grps:
+        keys_, _ = conf.get_keys(grp_)
+        for key_ in keys_:
+            val_ = conf.get_value(grp_, key_)
+            log.debug("%s.%s=%s", grp_, key_, val_)
+
 
 def get_deployment_info_from_sysroot(sysroot):
     # Get commit csum and kernel arguments from the current sysroot

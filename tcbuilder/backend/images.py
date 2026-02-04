@@ -400,6 +400,11 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
     repo = ostree.create_ostree(src_ostree_archive_dir)
     src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
 
+    # Copy the original OSTree repo configuration (essential for composefs).
+    src_repo = ostree.open_ostree(src_ostree_dir)
+    ostree.copy_repo_config(src_repo, repo, keep_core=True)
+    ostree.dump_repo_config(repo)
+
     target_refs = ostree.get_reference_dict(src_ostree_dir, base_csum=csum)
     ostree.pull_local_refs(repo, src_ostree_dir, refs=target_refs, remote="torizon")
     metadata, _, _ = ostree.get_metadata_from_checksum(src_sysroot.repo(), csum)
