@@ -604,7 +604,7 @@ def track_tezi_signed_files(tezi_dir, commit_hash, machine):
             log.warning("Warning: secboot commands are not supported for this machine.")
             return
 
-        log.info(f"Found {DEFAULT_TCB_SIGNING_FILES_TARNAME}. Linking it to {commit_hash}.")
+        log.info(f"Found {DEFAULT_TCB_SIGNING_FILES_TARNAME}.")
         commit_dir = os.path.join(SECBOOT_ARTIFACTS_DIR, commit_hash)
         os.makedirs(commit_dir, exist_ok=True)
         shutil.copy2(tcb_signing_files_tar, commit_dir)
