@@ -11,8 +11,11 @@ import subprocess
 import shutil
 
 from tcbuilder.backend import union as ub
-from tcbuilder.errors import PathNotExistError
-from tcbuilder.backend.common import images_unpack_executed, get_storage_dir
+from tcbuilder.backend.common import \
+    (images_unpack_executed, image_has_cfs_support, get_storage_dir)
+from tcbuilder.backend.ostree import OSTreeKey
+from tcbuilder.cli.common import parse_ostree_key
+from tcbuilder.errors import InvalidArgumentError, PathNotExistError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -189,18 +192,68 @@ def make_dirs_labels(changes_dirs, stor_pref, work_pref):
     return dirs_labels
 
 
+def _check_parse_ostree_key_args(ostree_key_dir, ostree_key, *,
+                                 check_seck=True, check_pubk=True):
+    """Parse and validate arguments to --ostree-key/--ostree-key-dir."""
+
+    if ostree_key_dir and not ostree_key:
+        raise InvalidArgumentError(
+            "Error: ostree-key-dir was passed but ostree-key was not provided. Aborting.")
+
+    if image_has_cfs_support():
+        if ostree_key is None:
+            # Abort the operation to avoid producing non-bootable images.
+            raise InvalidArgumentError(
+                "Error: The image has support for the root filesystem protection, but the "
+                "ostree-key parameter has not been passed; the parameter is required for "
+                "signing the commit.")
+    else:
+        if ostree_key is not None:
+            raise InvalidArgumentError(
+                "Error: The ostree-key parameter has been passed for an image that has no "
+                "support for the root filesystem protection. Aborting.")
+
+    if ostree_key is None:
+        return None
+
+    if ostree_key_dir is not None and not os.path.isdir(ostree_key_dir):
+        raise PathNotExistError(
+            f"Error: OSTree keys directory '{ostree_key_dir}' does not exist. Aborting.")
+
+    ostree_key_dir = ostree_key_dir or "."
+    ostree_key_obj = parse_ostree_key(ostree_key, ostree_key_dir=ostree_key_dir)
+
+    if check_seck:
+        seck_file = ostree_key_obj.get_sec_key_path()
+        if not os.path.isfile(seck_file):
+            raise PathNotExistError(
+                f"Error: Cannot read secret key file '{seck_file}'.")
+
+    if check_pubk:
+        pubk_file = ostree_key_obj.get_pub_key_path()
+        if not os.path.isfile(pubk_file):
+            raise PathNotExistError(
+                f"Error: Cannot read public key file '{pubk_file}'.")
+
+    return ostree_key_obj
+
+
 def union(changes_dirs, union_branch, *,
-          commit_subject=None, commit_body=None):
+          commit_subject=None, commit_body=None,
+          ostree_key_dir=None, ostree_key=None):
     """Perform the actual work of the union subcommand"""
 
-    storage_dir_ = get_storage_dir()
-    changes_dirs_ = []
+    images_unpack_executed()
+
+    ostree_key_obj = _check_parse_ostree_key_args(ostree_key_dir, ostree_key)
 
     # Automatically add directories from storage. The order in which we
     # apply these directories to an ostree commit must be exactly like it is
     # set up in here so the "initramfs.img" file produced by the "splash"
     # command will not be overwritten by the "initramfs.img" produced by
     # the "kernel" command.
+    storage_dir_ = get_storage_dir()
+    changes_dirs_ = []
     for subdir in ["changes", "kernel", "splash", "dt"]:
         changed_dir = os.path.join(storage_dir_, subdir)
         if os.path.isdir(changed_dir):
@@ -213,17 +266,18 @@ def union(changes_dirs, union_branch, *,
         os.mkdir(temp_dir_extra)
         check_and_append_dirs(changes_dirs_, changes_dirs, temp_dir_extra)
 
-    src_ostree_archive_dir = os.path.join(storage_dir_, "ostree-archive")
     dirs_labels = make_dirs_labels(changes_dirs_, storage_dir_, temp_dir_extra)
 
     # Callback to show the label when backend is about to apply it:
     def apply_callback(fulldir):
         log.info(f"Applying changes from {dirs_labels[fulldir]}.")
 
-    log.debug(f"union: subject='{commit_subject}' body='{commit_body}'")
     commit = ub.union_changes(
-        changes_dirs_, src_ostree_archive_dir, union_branch,
-        subject=commit_subject, body=commit_body,
+        changes_dir=changes_dirs_,
+        union_branch=union_branch,
+        subject=commit_subject,
+        body=commit_body,
+        ostree_key=ostree_key_obj,
         pre_apply_callback=apply_callback)
 
     log.info(f"Commit {commit} has been generated for changes and is ready"
@@ -233,11 +287,13 @@ def union(changes_dirs, union_branch, *,
 def do_union(args):
     """Run "union" subcommand"""
 
-    images_unpack_executed()
-
     union(
-        args.changes_dirs, args.union_branch,
-        commit_subject=args.subject, commit_body=args.body)
+        args.changes_dirs,
+        args.union_branch,
+        commit_subject=args.subject,
+        commit_body=args.body,
+        ostree_key_dir=args.ostree_key_dir,
+        ostree_key=args.ostree_key)
 
 
 def init_parser(subparsers):
@@ -257,6 +313,24 @@ def init_parser(subparsers):
         help="OSTree commit subject. Defaults to 'TorizonCore Builder [timestamp]'.")
     subparser.add_argument(
         "--body", dest="body", help="OSTree commit body message")
+
+    subparser.add_argument(
+        "--ostree-key",
+        dest="ostree_key",
+        metavar="OSTREE_KEY",
+        help=("OSTree signing key information in the form 'name=<NAME>;algo=<ALGO>' where <NAME> "
+              "is the key name and <ALGO> corresponds to the signing algorithm (e.g. "
+              "'name=prod;algo=ed25519'). If <ALGO> is not provided, it defaults to "
+              f"'{OSTreeKey.OSTREE_KEY_DEFAULT_ALGO}'. "
+              "This switch must be specified if (and only if) the image being customized has "
+              "support for the root filesystem protection."))
+    subparser.add_argument(
+        "--ostree-key-dir",
+        dest="ostree_key_dir",
+        metavar="OSTREE_KEY_DIR",
+        help=("OSTree key directory path. This directory must contain a private key file named "
+              "<NAME>.sec, where <NAME> must be specified through the --ostree-key switch. "
+              "(default: working directory)"))
 
     subparser.add_argument(
         dest="union_branch",

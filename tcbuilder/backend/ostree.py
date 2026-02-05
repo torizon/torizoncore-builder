@@ -32,17 +32,41 @@ DEFAULT_SERVER_PORT = 8080
 OSTREE_WHITEOUT_PREFIX = ".wh."
 OSTREE_OPAQUE_WHITEOUT_NAME = ".wh..wh..opq"
 
+
+class OSTreeKey:
+    """Store for information about OSTree signing keys."""
+
+    OSTREE_KEY_DEFAULT_ALGO = "ed25519"
+
+    def __init__(self, *, key_dir, key_name, key_algo=None):
+        self.key_dir = key_dir or "."
+        self.key_name = key_name
+        self.key_algo = key_algo
+
+    def get_sec_key_path(self):
+        return os.path.join(self.key_dir, f"{self.key_name}.sec")
+
+    def get_pub_key_path(self):
+        return os.path.join(self.key_dir, f"{self.key_name}.pub")
+
+    def get_key_algo(self):
+        return self.key_algo or __class__.OSTREE_KEY_DEFAULT_ALGO
+
+
 def open_ostree(ostree_dir):
     log.debug("Opening OSTree repo at '%s'.", ostree_dir)
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
     if not repo.open(None):
-        raise TorizonCoreBuilderError("Opening the archive OSTree repository failed.")
+        raise TorizonCoreBuilderError(
+            f"Opening OSTree repository '{ostree_dir}' failed.")
     return repo
+
 
 def create_ostree(ostree_dir, mode: OSTree.RepoMode = OSTree.RepoMode.ARCHIVE_Z2):
     repo = OSTree.Repo.new(Gio.File.new_for_path(ostree_dir))
     repo.create(mode, None)
     return repo
+
 
 def load_sysroot(sysroot_dir):
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(sysroot_dir))
