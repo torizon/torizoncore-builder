@@ -23,6 +23,9 @@ setup_file() {
 
     export IS_KERNEL_SIGNING_SUPPORTED
     export IS_HAB_SIGNING_SUPPORTED
+
+    start-registries || true
+    check-registries
 }
 
 teardown_file() {
@@ -566,13 +569,14 @@ teardown_file() {
         FILE="$SAMPLES_DIR/config/tcbuild-with-compose-login.yaml"
     fi
 
-    run torizoncore-builder build \
+    run torizoncore-builder --log-level debug build \
         --file "$FILE" --force \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" \
         --set COMPOSE_FILE="$COMPOSE" \
-        ${ci_dockerhub_login:+--set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
-                 --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+
+          --set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
+          --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_success
     assert_output --partial 'Connecting to Docker Daemon'
@@ -598,14 +602,6 @@ teardown_file() {
     local CA_CERTIFICATE="${SR_WITH_AUTH_CERTS}/cacert.crt"
 
     rm -fr "$OUTDIR"
-    # At the time of writing, this is the only testcase in this module that requires the registries
-    # to be running; because of that we start the registry here. Later if we have more testcases
-    # requiring the registries we may consider moving the call to start-registries to a setup_file()
-    # function.
-    start-registries || true
-    run check-registries
-    assert_success
-
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr-only.yml" "${COMPOSE}"
 
     sed -i -E -e "s/# @NAME1@/test/" \
