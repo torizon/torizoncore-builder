@@ -336,7 +336,7 @@ def handle_secboot_customization(props):
         cst_args = {
             "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),
             "key_size": cst_dict.get("key-size", secboot_cli.CST_DEFAULT_KEY_SIZE),
-            "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEAFULT_KEY_EXP),
+            "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEFAULT_KEY_EXP),
             "dig_algo": cst_dict.get("dig-algo", secboot_cli.CST_DIG_ALGO_TYPES[0]),
             "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
             "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),

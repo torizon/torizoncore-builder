@@ -12,14 +12,16 @@ from tcbuilder.errors import InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
+# Constants related to HAB signing:
 CST_CRYPTO_TYPES = ("rsa", "ecdsa")
 CST_DIG_ALGO_TYPES = ["sha256"]
 CST_DEFAULT_KEY_SIZE = "2048"
-CST_DEAFULT_KEY_EXP = "65537"
+CST_DEFAULT_KEY_EXP = "65537"
 CST_SRK_INDEXES = ("1", "2", "3", "4")
 CST_SRK_DEFAULT_TABLE = "SRK_1_2_3_4_table.bin"
 CST_SRK_DEFAULT_FUSE = "SRK_1_2_3_4_fuse.bin"
 
+# Constants related to kernel signing:
 KERNEL_KEY_DEFAULT_ALGO = "sha256,rsa2048"
 
 
@@ -41,10 +43,13 @@ def _parse_kernel_key_arg(kernel_key):
         else:
             argkey, argvalue = argpair
 
-        if argkey.strip() == 'name':
+        argkey = argkey.strip()
+        if argkey == 'name':
             kernel_key_name = argvalue.strip()
-        elif argkey.strip() == 'algo':
+        elif argkey == 'algo':
             kernel_key_algo = argvalue.strip()
+        else:
+            log.warning("Unknown key '%s' in kernel-key parameter was ignored.", argkey)
 
     if not kernel_key_name:
         raise InvalidArgumentError("Could not find value of 'name' in --kernel-key. Aborting.")
@@ -65,7 +70,7 @@ def sign_kernel(kernel_key, kernel_key_dir):
 
     if not os.path.isdir(kernel_key_dir):
         raise InvalidArgumentError(
-            f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+            f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
 
     kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
@@ -103,20 +108,17 @@ def sign_bootloader_hab(
         raise InvalidArgumentError(
             f"Directory \"{cst_dir}\" does not exist: aborting.")
 
-    if kernel_key_dir:
-        if not os.path.isdir(kernel_key_dir):
-            raise InvalidArgumentError(
-                f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
-        if not kernel_key:
-            raise InvalidArgumentError(
-                "--kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
+    if kernel_key_dir and not kernel_key:
+        raise InvalidArgumentError(
+            "Error: --kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
 
     kernel_key_name = None
     kernel_key_algo = None
-    if kernel_key:
-        if not kernel_key_dir:
+    if kernel_key is not None:
+        if kernel_key_dir is not None and not os.path.isdir(kernel_key_dir):
             raise InvalidArgumentError(
-                "--kernel-key was passed but --kernel-key-dir was not provided. Aborting.")
+                f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
+        kernel_key_dir = kernel_key_dir or "."
         kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
     cst_args = {
@@ -140,14 +142,13 @@ def sign_bootloader_hab(
 
     if kernel_key_dir:
         log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
-                 "the bootloader to verify the kernel signature.")
+                 "the bootloader to verify the kernel signature.\n")
     else:
         log.warning("The bootloader DTBs were NOT updated with a new public key.")
         log.warning("If the kernel fitImage will be signed with a new key, please re-run the "
                     "command with --kernel-key-dir and --kernel-key so the new kernel signature "
                     "can be properly verified by the bootloader.")
-        log.warning("Otherwise, this message can be ignored.")
-    print()
+        log.warning("Otherwise, this message can be ignored.\n")
 
     log.info("Bootloader in Torizon OS image signed successfully!")
 
@@ -183,57 +184,49 @@ def init_parser(subparsers):
     # secboot sign-kernel
     subparser = subparsers.add_parser(
         "sign-kernel",
-        help=("Sign the kernel fitImage of an unpacked Torizon OS image."),
-        description=("Currently supported machines: "
-                     f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
+        help="Sign the kernel fitImage of an unpacked Torizon OS image.",
+        description="Sign the kernel fitImage of an unpacked Torizon OS image.",
+        epilog=("Currently supported machines: "
+                f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
+
+    subparser.add_argument(
+        "--kernel-key", dest="kernel_key",
+        help=("Kernel key information in the form 'name=<NAME>;algo=<ALGO>', where <NAME> is "
+              "the key name and <ALGO> is a comma-separated pair of the hashing and crypto "
+              "algorithms to be used for the signing process (e.g. 'name=prod;algo=sha256,"
+              "rsa2048'). If <ALGO> is not provided, it defaults to "
+              f"'{KERNEL_KEY_DEFAULT_ALGO}'."),
+        required=True)
 
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",
         default=".",
         metavar="KERNEL_KEY_DIR",
-        help="Kernel fitImage key directory path. This directory must contain a private key in "
-             "PEM format having the .key extension. (default: working directory)")
-
-    subparser.add_argument(
-        "--kernel-key", dest="kernel_key",
-        help="Key information in the form 'name=<NAME>;algo=<ALGO>', where <NAME> is the "
-             "key name and <ALGO> is a comma-separated pair of the hashing and crypto algorithms "
-             "to be used for the signing process (e.g. 'name=prod;algo=sha256,rsa2048'). "
-             f"If <ALGO> is not provided, it defaults to '{KERNEL_KEY_DEFAULT_ALGO}'.",
-        required=True)
+        help=("Kernel key directory path. This directory must contain a PRIVATE key file named "
+              "<NAME>.key in PEM format, where <NAME> is specified through the --kernel-key "
+              "switch. (default: working directory)"))
 
     subparser.set_defaults(func=do_sign_kernel)
 
     # secboot sign-bootloader-hab
     subparser = subparsers.add_parser(
         "sign-bootloader-hab",
-        help=("Sign bootloader components (SPL, DDR Firmware, U-Boot fitImage) for i.MX-based "
-              "modules compatible with HAB using the Code Signing Tool (CST) from NXP. The CST "
-              "directory is specified with the --cst-dir argument. Keys and certificates "
-              "(in .pem format), SRK table and e-fuse hash binaries have to be generated "
-              "beforehand by following the NXP documentation."),
-        description=("Currently supported machines: "
-                     f"{', '.join(secboot.HAB_SIGNING_SUPPORTED_MACHINES)}"))
+        help="Sign bootloader components for images targeting devices based on NXP HAB.",
+        description=(
+            "Sign bootloader components (SPL, DDR Firmware, U-Boot fitImage) for i.MX-based "
+            "modules compatible with HAB. The signing is performed using the Code Signing Tool "
+            "(CST) from NXP. The CST directory is specified with the --cst-dir argument. Keys "
+            "and certificates (in PEM format, with the .pem extension), SRK table and E-fuse "
+            "hash binaries have to be generated beforehand by following the NXP documentation."
+        ),
+        epilog=("Currently supported machines: "
+                f"{', '.join(secboot.HAB_SIGNING_SUPPORTED_MACHINES)}"))
 
     subparser.add_argument(
-        dest="cst_dir",
+        "--cst-dir", dest="cst_dir",
         metavar="CST_DIR",
-        help="CST directory path.")
-
-    subparser.add_argument(
-        "--kernel-key-dir", dest="kernel_key_dir",
-        help="Kernel fitImage key directory path. If specified the U-Boot DTB and Control DTBs "
-             "will be updated with the public key before signing the bootloader. This directory "
-             "must contain a private key (.key extension) and a certificate (.crt extension) with "
-             "the public key, both in PEM format and with the same name.")
-
-    subparser.add_argument(
-        "--kernel-key", dest="kernel_key",
-        help="Kernel key information in the form 'name=<NAME>;algo=<ALGO>' if updating the U-Boot "
-             "DTBs, where <NAME> is the key name and <ALGO> is a comma-separated pair of the "
-             "hashing and crypto algorithms used to sign the kernel "
-             "(e.g. 'name=prod;algo=sha256,rsa2048'). If <ALGO> is not provided, "
-             f"it defaults to '{KERNEL_KEY_DEFAULT_ALGO}'.")
+        help="CST directory path.",
+        required=True)
 
     subparser.add_argument(
         "--cst-crypto", dest="cst_crypto", choices=CST_CRYPTO_TYPES,
@@ -251,9 +244,9 @@ def init_parser(subparsers):
 
     subparser.add_argument(
         "--cst-key-exp", dest="cst_key_exp",
-        default=CST_DEAFULT_KEY_EXP,
+        default=CST_DEFAULT_KEY_EXP,
         help=("Key exponent for RSA keys (only). "
-              f"(default: {CST_DEAFULT_KEY_EXP})"))
+              f"(default: {CST_DEFAULT_KEY_EXP})"))
 
     subparser.add_argument(
         "--cst-dig-algo", dest="cst_dig_algo", choices=CST_DIG_ALGO_TYPES,
@@ -284,5 +277,22 @@ def init_parser(subparsers):
         "--cst-srk-no-ca", dest="cst_srk_no_ca",
         default=False, action="store_true",
         help="Enable this if the CA flag was *not* set when generating the SRK certificates.")
+
+    subparser.add_argument(
+        "--kernel-key", dest="kernel_key",
+        help=("If specified, this switch causes the U-Boot DTB and its Control DTBs to be "
+              "updated with the specified (PUBLIC) key before signing the bootloader. The "
+              "string passed to the switch should have the form 'name=<NAME>;algo=<ALGO>' "
+              "where <NAME> is the key name and <ALGO> is a comma-separated pair of the "
+              "hashing and crypto algorithms used to sign the kernel (e.g. "
+              "'name=prod;algo=sha256,rsa2048'). If <ALGO> is not provided, it defaults to "
+              f"'{KERNEL_KEY_DEFAULT_ALGO}'. "))
+
+    subparser.add_argument(
+        "--kernel-key-dir", dest="kernel_key_dir",
+        help=("Kernel key directory path. This directory must contain a certificate key file named "
+              "<NAME>.crt holding the PUBLIC key, and a PRIVATE key file named <NAME>.key (both "
+              "in PEM format), where <NAME> is specified through the --kernel-key switch. "
+              "(default: working directory)"))
 
     subparser.set_defaults(func=do_sign_bootloader_hab)

@@ -905,9 +905,9 @@ def check_if_file_exists(filename, directory):
     list_len = len(file_list)
 
     if list_len <= 0:
-        raise FileContentMissing(f"Could not find {filename} in {directory}. Aborting.")
+        raise FileContentMissing(f"Could not find '{filename}' in '{directory}'. Aborting.")
     if list_len >= 2:
-        log.debug(f"Found more than one match for {filename} in {directory}. "
+        log.debug(f"Found more than one match for '{filename}' in '{directory}'. "
                   f"Choosing {file_list[0]}.")
 
     return file_list[0]

@@ -210,7 +210,7 @@ setup_file() {
     run torizoncore-builder secboot sign-bootloader-hab
     assert_failure
     assert_output --partial \
-        "the following arguments are required: CST_DIR"
+        "the following arguments are required: --cst-dir"
 }
 
 @test "secboot sign-bootloader-hab: attempt to sign kernel FIT without images unpack" {
@@ -218,7 +218,8 @@ setup_file() {
 
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-dig-algo sha256 --cst-srk-index 1 \
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
@@ -229,14 +230,14 @@ setup_file() {
 }
 
 @test "secboot sign-bootloader-hab: invalid parameters" {
-
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
     # Unpack an unsigned image just so the initial 'images unpack' check is passed
     torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
     # non-existent kernel key directory
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-dig-algo sha256 --cst-srk-index 1 \
         --kernel-key-dir "foo" \
@@ -244,8 +245,18 @@ setup_file() {
     assert_failure
     assert_output --partial 'does not exist'
 
+    # non-existent kernel key file in working directory
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-crypto rsa \
+        --cst-dig-algo sha256 --cst-srk-index 1 \
+        --kernel-key "name=bad${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --regexp 'Could not find.*\.key.*Aborting'
+
     # non-existent key with provided name
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-dig-algo sha256 --cst-srk-index 1 \
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
@@ -254,33 +265,29 @@ setup_file() {
     assert_output --partial 'Could not find'
 
     # Provide --kernel-key-dir but not --kernel-key
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-dig-algo sha256 --cst-srk-index 1 \
         --kernel-key-dir "${KERNEL_KEY_DIR}"
     assert_failure
     assert_output --partial '--kernel-key-dir was passed but --kernel-key was not'
 
-    # Provide --kernel-key but not --kernel-key-dir
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
-        --cst-crypto rsa \
-        --cst-dig-algo sha256 --cst-srk-index 1 \
-        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial '--kernel-key was passed but --kernel-key-dir was not'
-
     # invalid type of cryptographic keys
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-crypto invalid_key_type
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" --cst-crypto invalid_key_type
     assert_failure
     assert_output --partial 'argument --cst-crypto: invalid choice:'
 
     # invalid CST digest algorithm
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-dig-algo invalid_dig_algo
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" --cst-dig-algo invalid_dig_algo
     assert_failure
     assert_output --partial 'argument --cst-dig-algo: invalid choice:'
 
     # invalid SRK table index
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" --cst-srk-index 0
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" --cst-srk-index 0
     assert_failure
     assert_output --partial 'argument --cst-srk-index: invalid choice:'
 }
@@ -293,7 +300,8 @@ setup_file() {
 
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
 
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-key-size 2048 --cst-key-exp 65537 \
         --cst-dig-algo sha256 --cst-srk-index 1
@@ -316,7 +324,8 @@ setup_file() {
     # Unpack the image to internal storage
     torizoncore-builder images --remove-storage unpack "${INPUT_IMAGE_DIR}"
 
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-key-size 2048 --cst-key-exp 65537 \
         --cst-dig-algo sha256 --cst-srk-index 1
@@ -335,10 +344,12 @@ setup_file() {
     cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
     cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
 
+    # TODO: Consider dropping DEFAULT_SIGNED_TEZI_IMAGE and using DEFAULT_TEZI_IMAGE.
     torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
 
     # non-existent CST directory
-    run torizoncore-builder secboot sign-bootloader-hab "cst_foo" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "cst_foo" \
         --cst-crypto rsa \
         --cst-key-size 2048 --cst-key-exp 65537 \
         --cst-dig-algo sha256 --cst-srk-index 1
@@ -346,7 +357,8 @@ setup_file() {
     assert_output --partial 'does not exist'
 
     # non-existent SRK table binary
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-key-size 2048 --cst-key-exp 65537 \
         --cst-dig-algo sha256 --cst-srk-index 1 \
@@ -355,7 +367,8 @@ setup_file() {
     assert_output --partial 'Could not find'
 
     # non-existent SRK fuse binary
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-key-size 2048 --cst-key-exp 65537 \
         --cst-dig-algo sha256 --cst-srk-index 1 \
@@ -364,7 +377,8 @@ setup_file() {
     assert_output --partial 'Could not find'
 
     # run without providing a kernel FIT public key
-    run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-key-size 2048 --cst-key-exp 65537 \
         --cst-dig-algo sha256 --cst-srk-index 1
@@ -377,7 +391,8 @@ setup_file() {
 
     # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}; do
-        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab \
+            --cst-dir "${CST_DIR}" \
             --kernel-key-dir "${KERNEL_KEY_DIR}" \
             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
             --cst-crypto rsa --cst-key-size 2048 \
@@ -410,7 +425,8 @@ setup_file() {
 
     # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}; do
-        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab \
+            --cst-dir "${CST_DIR}" \
             --kernel-key-dir "${KERNEL_KEY_DIR}" \
             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
             --cst-crypto rsa --cst-key-size 1024 \
@@ -443,7 +459,8 @@ setup_file() {
 
     # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}; do
-        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab \
+            --cst-dir "${CST_DIR}" \
             --kernel-key-dir "${KERNEL_KEY_DIR}" \
             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
             --cst-crypto ecdsa --cst-key-size secp384r1 \
@@ -475,7 +492,8 @@ setup_file() {
 
     # run for all four SRK indexes, adding kernel public key to U-Boot DTB before signing
     for i in {1..4}; do
-        run torizoncore-builder secboot sign-bootloader-hab "${CST_DIR}" \
+        run torizoncore-builder secboot sign-bootloader-hab \
+            --cst-dir "${CST_DIR}" \
             --kernel-key-dir "${KERNEL_KEY_DIR}" \
             --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
             --cst-crypto ecdsa --cst-key-size secp521r1 \
