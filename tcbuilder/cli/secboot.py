@@ -7,8 +7,8 @@ import os
 
 from tcbuilder.backend import secboot
 from tcbuilder.backend import kernel
-from tcbuilder.backend.common import images_unpack_executed, unpacked_image_type
-from tcbuilder.errors import InvalidArgumentError, InvalidDataError
+from tcbuilder.backend.common import fail_on_raw_image, images_unpack_executed
+from tcbuilder.errors import InvalidArgumentError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -22,8 +22,9 @@ CST_SRK_DEFAULT_FUSE = "SRK_1_2_3_4_fuse.bin"
 
 KERNEL_KEY_DEFAULT_ALGO = "sha256,rsa2048"
 
-def validate_kernel_key_arg(kernel_key):
-    """Parse and validate --kernel-key arg"""
+
+def _parse_kernel_key_arg(kernel_key):
+    """Parse and validate --kernel-key arg."""
 
     kernel_key_name = ""
     kernel_key_algo = ""
@@ -31,8 +32,9 @@ def validate_kernel_key_arg(kernel_key):
         argpair = element.split('=')
 
         if len(argpair) > 2:
-            raise InvalidArgumentError("--kernel-key is not correctly formatted. Did you separate "
-                                       "each field with a semicolon (;) ?")
+            raise InvalidArgumentError(
+                "--kernel-key is not correctly formatted. Did you separate "
+                "each field with a semicolon (;) ?")
         if len(argpair) == 1:
             argkey = argpair[0]
             argvalue = ""
@@ -55,19 +57,17 @@ def validate_kernel_key_arg(kernel_key):
     return kernel_key_name, kernel_key_algo
 
 
-def do_sign_kernel(args):
-    """Run 'secboot sign-kernel' subcommand"""
-
-    if not os.path.isdir(args.kernel_key_dir):
-        raise InvalidArgumentError(
-            f"Directory \"{args.kernel_key_dir}\" does not exist: aborting.")
-
-    kernel_key_name, kernel_key_algo = validate_kernel_key_arg(args.kernel_key)
+def sign_kernel(kernel_key, kernel_key_dir):
+    """Execute the work of the "sign-kernel" command."""
 
     images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Secboot commands are not supported for WIC/raw images. "
-                               "Aborting.")
+    fail_on_raw_image("Secboot commands are not supported for WIC/raw images. Aborting.")
+
+    if not os.path.isdir(kernel_key_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+
+    kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
     kernel_changes_dir = kernel.get_kernel_changes_dir()
     if not os.path.isdir(kernel_changes_dir):
@@ -75,61 +75,71 @@ def do_sign_kernel(args):
 
     secboot.sign_kernel(
         kernel_changes_dir=kernel_changes_dir,
-        key_dir=args.kernel_key_dir,
+        key_dir=kernel_key_dir,
         key_algo=kernel_key_algo,
-        key_name=kernel_key_name
-    )
+        key_name=kernel_key_name)
 
 
-def do_sign_bootloader_hab(args):
-    """Run 'secboot sign-bootloader-hab' subcommand"""
+def do_sign_kernel(args):
+    """Get the arguments of the sign-kernel command from the CLI parser."""
 
-    if not os.path.isdir(args.cst_dir):
+    sign_kernel(
+        kernel_key=args.kernel_key,
+        kernel_key_dir=args.kernel_key_dir)
+
+
+# pylint: disable-next=too-many-arguments
+def sign_bootloader_hab(
+        *,
+        cst_dir, cst_crypto, cst_key_size, cst_key_exp, cst_dig_algo,
+        cst_srk_index, cst_srk_table, cst_srk_fuse, cst_srk_no_ca,
+        kernel_key, kernel_key_dir=None):
+    """Execute the work of the "sign-bootloader-hab" command."""
+
+    images_unpack_executed()
+    fail_on_raw_image("Secboot commands are not supported for WIC/raw images. Aborting.")
+
+    if not os.path.isdir(cst_dir):
         raise InvalidArgumentError(
-            f"Directory \"{args.cst_dir}\" does not exist: aborting.")
+            f"Directory \"{cst_dir}\" does not exist: aborting.")
 
-    if args.kernel_key_dir:
-        if not os.path.isdir(args.kernel_key_dir):
+    if kernel_key_dir:
+        if not os.path.isdir(kernel_key_dir):
             raise InvalidArgumentError(
-                f"Directory \"{args.kernel_key_dir}\" does not exist: aborting.")
-        if not args.kernel_key:
+                f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+        if not kernel_key:
             raise InvalidArgumentError(
                 "--kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
 
     kernel_key_name = None
     kernel_key_algo = None
-    if args.kernel_key:
-        if not args.kernel_key_dir:
+    if kernel_key:
+        if not kernel_key_dir:
             raise InvalidArgumentError(
                 "--kernel-key was passed but --kernel-key-dir was not provided. Aborting.")
-        kernel_key_name, kernel_key_algo = validate_kernel_key_arg(args.kernel_key)
-
-    images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Secboot commands are not supported for WIC/raw images. "
-                               "Aborting.")
+        kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
     cst_args = {
-        "crypto": args.cst_crypto,
-        "key_size": args.cst_key_size,
-        "key_exp": args.cst_key_exp,
-        "dig_algo": args.cst_dig_algo,
-        "srk_index": args.cst_srk_index,
-        "srk_table": args.cst_srk_table,
-        "srk_fuse": args.cst_srk_fuse,
-        "srk_no_ca": args.cst_srk_no_ca
+        "crypto": cst_crypto,
+        "key_size": cst_key_size,
+        "key_exp": cst_key_exp,
+        "dig_algo": cst_dig_algo,
+        "srk_index": cst_srk_index,
+        "srk_table": cst_srk_table,
+        "srk_fuse": cst_srk_fuse,
+        "srk_no_ca": cst_srk_no_ca
     }
 
     secboot.sign_bootloader_hab(
-        kernel_key_dir=args.kernel_key_dir,
+        kernel_key_dir=kernel_key_dir,
         kernel_key_name=kernel_key_name,
         kernel_key_algo=kernel_key_algo,
-        cst_dir=args.cst_dir,
+        cst_dir=cst_dir,
         cst_args=cst_args
     )
 
-    if args.kernel_key_dir:
-        log.info(f"Public key '{kernel_key_name}' in {args.kernel_key_dir} will be used by "
+    if kernel_key_dir:
+        log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
                  "the bootloader to verify the kernel signature.")
     else:
         log.warning("The bootloader DTBs were NOT updated with a new public key.")
@@ -142,8 +152,25 @@ def do_sign_bootloader_hab(args):
     log.info("Bootloader in Torizon OS image signed successfully!")
 
 
+def do_sign_bootloader_hab(args):
+    """Get the arguments of the sign-bootloader-hab command from the CLI parser."""
+
+    sign_bootloader_hab(
+        cst_dir=args.cst_dir,
+        cst_crypto=args.cst_crypto,
+        cst_key_size=args.cst_key_size,
+        cst_key_exp=args.cst_key_exp,
+        cst_dig_algo=args.cst_dig_algo,
+        cst_srk_index=args.cst_srk_index,
+        cst_srk_table=args.cst_srk_table,
+        cst_srk_fuse=args.cst_srk_fuse,
+        cst_srk_no_ca=args.cst_srk_no_ca,
+        kernel_key=args.kernel_key,
+        kernel_key_dir=args.kernel_key_dir)
+
+
 def init_parser(subparsers):
-    """Initialize argument parser"""
+    """Initialize argument parser."""
 
     parser = subparsers.add_parser(
         "secboot",
