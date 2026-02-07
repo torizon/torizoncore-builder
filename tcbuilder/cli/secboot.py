@@ -161,10 +161,11 @@ def init_parser(subparsers):
                      f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
 
     subparser.add_argument(
-        dest="kernel_key_dir",
+        "--kernel-key-dir", dest="kernel_key_dir",
+        default=".",
         metavar="KERNEL_KEY_DIR",
         help="Kernel fitImage key directory path. This directory must contain a private key in "
-             "PEM format having the .key extension.")
+             "PEM format having the .key extension. (default: working directory)")
 
     subparser.add_argument(
         "--kernel-key", dest="kernel_key",
