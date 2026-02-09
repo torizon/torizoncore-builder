@@ -154,8 +154,8 @@ setup_file() {
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_success
-    assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
-    assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
+    assert_output --partial "Updating fitImage configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel fitImage with .* algorithm: ${KERNEL_KEY_ALGO}"
     assert_output --partial 'Kernel fitImage signed successfully'
     assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
 
@@ -171,8 +171,8 @@ setup_file() {
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}"
     assert_success
-    assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
-    assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
+    assert_output --partial "Updating fitImage configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel fitImage with .* algorithm: ${KERNEL_KEY_ALGO}"
     assert_output --partial 'Kernel fitImage signed successfully'
     assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
 

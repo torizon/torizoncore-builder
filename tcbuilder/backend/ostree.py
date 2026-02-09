@@ -39,9 +39,15 @@ class OSTreeKey:
     OSTREE_KEY_DEFAULT_ALGO = "ed25519"
 
     def __init__(self, *, key_dir, key_name, key_algo=None):
+        assert key_name, "OSTreeKey: Key name must be passed."
+
         self.key_dir = key_dir or "."
         self.key_name = key_name
         self.key_algo = key_algo
+
+    def __str__(self):
+        return "OSTreeKey(dir='{path}', name='{name}', algo='{algo}')".format(
+            path=self.key_dir, name=self.key_name, algo=(self.key_algo or "<NOT SET>"))
 
     def get_sec_key_path(self):
         return os.path.join(self.key_dir, f"{self.key_name}.sec")

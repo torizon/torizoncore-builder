@@ -14,6 +14,7 @@ from tcbuilder.backend.common import \
     (check_if_file_exists, get_tar_compress_program_options, get_storage_dir,
      get_tezi_image_version, is_file_type_fit, is_tcb_container_64bit,
      set_output_ownership)
+from tcbuilder.backend.initramfs import UnpackedInitramfs
 from tcbuilder.backend.ubootenv import get_env_filename, find_board
 from tcbuilder.backend.platform import SECBOOT_TECH_PER_MACHINE
 
@@ -64,6 +65,10 @@ COPY_SIG_NODE_SCRIPT = "copy_signature_node_to_fdts.sh"
 UPDATE_FIT_CONFIGS_KEYNAME_SCRIPT = "update_fit_configs_keyname.sh"
 
 FUSE_CMD_TXT_NAME = "fuse-cmds.txt"
+
+# Path to the OSTree root binding inside the initramfs (ramdisk).
+OSTREE_ROOT_BINDING_KEY_PATH = "etc/ostree/initramfs-root-binding.key"
+
 
 def update_fit_configs_keyname(fit_path, key_name):
     """Update the 'key-name-hint' property of all config nodes in /configurations with a new value
@@ -231,7 +236,49 @@ def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
                                 "of the kernel fitImage. Aborting.")
 
 
-def sign_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
+def overwrite_file_contents(src_file, dst_file):
+    """Overwrite the contents of dst_file file with that of src_file."""
+    with open(src_file, "rb") as fsrc:
+        with open(dst_file, "r+b") as fdst:
+            fdst.truncate(0)
+            shutil.copyfileobj(fsrc, fdst)
+            fdst.flush()
+
+
+def update_ostree_key_in_initramfs(fit_path, ostree_key):
+    """Update the initramfs inside the kernel FIT image with passed OSTree key.
+
+    :param fit_path: Path to kernel FIT image.
+    :param ostree_key: `OSTreeKey` object containing keys information from where the
+        path to the public key will be taken.
+    """
+
+    pubk_file = ostree_key.get_pub_key_path()
+    log.debug("Updating kernel FIT image at '%s' with specified key file '%s'.",
+              fit_path, pubk_file)
+
+    # Change the kernel FIT image in place (notice src_file == dst_file).
+    with UnpackedInitramfs(source="fixed",
+                           src_file=fit_path, dst_file=fit_path) as irfs_obj:
+        irfs_path = irfs_obj.get_path()
+
+        binding_key_file = os.path.join(irfs_path, OSTREE_ROOT_BINDING_KEY_PATH)
+        if not os.path.isfile(binding_key_file):
+            raise InvalidDataError(
+                "The root binding key file could not be found inside the initramfs (ramdisk); "
+                "this indicates a problem with the image being customized. Please make sure "
+                "the image was built with the root filesystem protection enabled. If this "
+                "image was obtained from Toradex, please get in touch with Toradex support.")
+
+        # Overwrite the file in the initramfs; to keep permissions/attributes we only replace
+        # its contents.
+        log.debug("Overwriting binding key '%s' in initramfs.", OSTREE_ROOT_BINDING_KEY_PATH)
+        overwrite_file_contents(pubk_file, binding_key_file)
+
+    log.info("Public OSTree binding key successfully updated in initramfs.")
+
+
+def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
     """Sign the kernel fitImage with mkimage.
 
     :param kernel_fitimage_path: Path to the fitImage
@@ -244,8 +291,9 @@ def sign_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
         mkimage_version = subprocess.check_output(
             [f"{UBOOT_TOOLS_DIR}/mkimage", "--version"],
             text=True, stderr=subprocess.STDOUT)
-        log.info(f"Using {kernel_key_algo} for the signing process.")
-        log.info(f"Signing kernel fitImage with {mkimage_version}")
+        mkimage_version = mkimage_version.strip()
+        log.info("Signing kernel fitImage with tool %s; algorithm: %s.",
+                 mkimage_version, kernel_key_algo)
 
         mkimage_env = {"SOURCE_DATE_EPOCH": "0"}
         mkimage_cmd = [f"{UBOOT_TOOLS_DIR}/mkimage", "-D", MKIMAGE_DTC_OPT, "-F",
@@ -253,10 +301,9 @@ def sign_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
 
         mkimage_print = (" ".join([f"{key}={val}" for key, val in mkimage_env.items()]) + " " +
                          shlex.join(mkimage_cmd))
-        log.info(mkimage_print)
-        print()
-        mkimage_output = subprocess.check_output(mkimage_cmd, text=True, env=mkimage_env,
-                                                 stderr=subprocess.STDOUT)
+        log.info("Execute: %s", mkimage_print)
+        mkimage_output = subprocess.check_output(
+            mkimage_cmd, text=True, env=mkimage_env, stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as exc:
         raise TorizonCoreBuilderError(exc.output.strip()) from exc
@@ -268,13 +315,11 @@ def sign_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
     sig_match = re.search(r"Signature written to '(.*)'", mkimage_output, re.IGNORECASE)
 
     if sig_match:
-        log.info(f"Signature written to '{sig_match.group(1)}'")
-        print()
+        log.info(f"Signature written to '{sig_match.group(1)}'.")
         log.info(f"Kernel fitImage signed successfully with key in {kernel_key_dir}.")
-        print()
     else:
-        raise InvalidStateError("Could not confirm if mkimage correctly signed "
-                                "the kernel fitImage. Aborting.")
+        raise InvalidStateError(
+            "Could not confirm if mkimage correctly signed the kernel fitImage. Aborting.")
 
 
 def assemble_flash_bin_with_binman(input_binaries_dir, dt_of_list, binman_output_dir):
@@ -627,13 +672,14 @@ def check_cst_dir(abs_cst_dir, cst_args):
     cst_args["srk_fuse"] = check_if_file_exists(cst_args["srk_fuse"], cst_crts_dir)
 
 
-def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name):
+def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=None):
     """Sign kernel fitImage of unpacked Easy Installer image in storage
 
     :param kernel_changes_dir: Path to directory with all kernel changes to be committed
     :param key_dir: Path to directory with the key to sign the kernel fitImage
     :param key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param key_name: Name of the provided key
+    :param ostree_key: `OSTreeKey` object or None if no signing key update is required
     """
 
     check_if_file_exists(f"{key_name}.key", key_dir)
@@ -661,7 +707,14 @@ def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name):
 
     # Update key names and re-sign the kernel in the work directory.
     update_fit_configs_keyname(kernel_workdir_path, key_name)
-    sign_with_mkimage(kernel_workdir_path, key_dir, key_algo)
+
+    # Update initramfs with public ostree key (used for rootfs validation).
+    if ostree_key is not None:
+        update_ostree_key_in_initramfs(kernel_workdir_path, ostree_key)
+    else:
+        log.debug("Skipping initramfs update: OSTree keys not specified.")
+
+    sign_kernel_with_mkimage(kernel_workdir_path, key_dir, key_algo)
 
     # Store finalized kernel into the "changes" directory.
     os.makedirs(kernel_dst_dir, exist_ok=True)

@@ -7,8 +7,11 @@ import os
 
 from tcbuilder.backend import secboot
 from tcbuilder.backend import kernel
-from tcbuilder.backend.common import fail_on_raw_image, images_unpack_executed
-from tcbuilder.errors import InvalidArgumentError
+from tcbuilder.backend.common import \
+    (fail_on_raw_image, image_has_cfs_support, images_unpack_executed)
+from tcbuilder.backend.ostree import OSTreeKey
+from tcbuilder.cli.common import parse_ostree_key
+from tcbuilder.errors import InvalidArgumentError, PathNotExistError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -62,7 +65,47 @@ def _parse_kernel_key_arg(kernel_key):
     return kernel_key_name, kernel_key_algo
 
 
-def sign_kernel(kernel_key, kernel_key_dir):
+def _check_parse_ostree_key_args(ostree_key_dir, ostree_key, *, check_pubk=True):
+    """Parse and validate arguments to --ostree-key/--ostree-key-dir.
+
+    :param ostree_key_dir: OSTree keys directory; if None, the working directory is
+        taken as default.
+    :param ostree_key: Key specification string; if None, it means no signing keys
+        update is being requested.
+    :returns: `OSTreeKey` object or None if signing was not requested.
+    """
+
+    if ostree_key_dir and not ostree_key:
+        raise InvalidArgumentError(
+            "Error: ostree-key-dir was passed but ostree-key was not provided. Aborting.")
+
+    if not image_has_cfs_support():
+        if ostree_key is not None:
+            raise InvalidArgumentError(
+                "Error: The ostree-key parameter has been passed for an image that has no "
+                "support for the root filesystem protection. Aborting.")
+
+    if ostree_key is None:
+        return None
+
+    if ostree_key_dir is not None and not os.path.isdir(ostree_key_dir):
+        raise PathNotExistError(
+            f"Error: OSTree keys directory '{ostree_key_dir}' does not exist. Aborting.")
+
+    ostree_key_dir = ostree_key_dir or "."
+    ostree_key_obj = parse_ostree_key(ostree_key, ostree_key_dir=ostree_key_dir)
+
+    if check_pubk:
+        pubk_file = ostree_key_obj.get_pub_key_path()
+        if not os.path.isfile(pubk_file):
+            raise PathNotExistError(
+                f"Error: Cannot read public key file '{pubk_file}'.")
+
+    return ostree_key_obj
+
+
+def sign_kernel(kernel_key, *, kernel_key_dir,
+                ostree_key_dir=None, ostree_key=None):
     """Execute the work of the "sign-kernel" command."""
 
     images_unpack_executed()
@@ -74,6 +117,8 @@ def sign_kernel(kernel_key, kernel_key_dir):
 
     kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
+    ostree_key_obj = _check_parse_ostree_key_args(ostree_key_dir, ostree_key)
+
     kernel_changes_dir = kernel.get_kernel_changes_dir()
     if not os.path.isdir(kernel_changes_dir):
         os.mkdir(kernel_changes_dir)
@@ -82,7 +127,8 @@ def sign_kernel(kernel_key, kernel_key_dir):
         kernel_changes_dir=kernel_changes_dir,
         key_dir=kernel_key_dir,
         key_algo=kernel_key_algo,
-        key_name=kernel_key_name)
+        key_name=kernel_key_name,
+        ostree_key=ostree_key_obj)
 
 
 def do_sign_kernel(args):
@@ -90,7 +136,9 @@ def do_sign_kernel(args):
 
     sign_kernel(
         kernel_key=args.kernel_key,
-        kernel_key_dir=args.kernel_key_dir)
+        kernel_key_dir=args.kernel_key_dir,
+        ostree_key=args.ostree_key,
+        ostree_key_dir=args.ostree_key_dir)
 
 
 # pylint: disable-next=too-many-arguments
@@ -205,6 +253,25 @@ def init_parser(subparsers):
         help=("Kernel key directory path. This directory must contain a PRIVATE key file named "
               "<NAME>.key in PEM format, where <NAME> is specified through the --kernel-key "
               "switch. (default: working directory)"))
+
+    subparser.add_argument(
+        "--ostree-key",
+        dest="ostree_key",
+        metavar="OSTREE_KEY",
+        help=("If specified, this switch causes the ramdisk embedded in the kernel FIT image "
+              "to be updated with the PUBLIC key used for signing the root filesystem (OSTree "
+              "commit); this is done before the FIT image is signed. The string passed to the "
+              "switch should have the form 'name=<NAME>;algo=<ALGO>' where <NAME> is the key "
+              "name and <ALGO> corresponds to the signing algorithm (e.g. "
+              "'name=prod;algo=ed25519'); <ALGO> defaults to "
+              f"'{OSTreeKey.OSTREE_KEY_DEFAULT_ALGO}' if not provided."))
+
+    subparser.add_argument(
+        "--ostree-key-dir",
+        dest="ostree_key_dir",
+        metavar="OSTREE_KEY_DIR",
+        help=("OSTree key directory path. This directory must contain a PUBLIC key file named "
+              "<NAME>.pub, where <NAME> is specified through the --ostree-key switch."))
 
     subparser.set_defaults(func=do_sign_kernel)
 
