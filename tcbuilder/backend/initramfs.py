@@ -6,7 +6,6 @@ import logging
 import os
 import subprocess
 import shutil
-import shlex
 
 from tcbuilder.errors import \
     (InvalidArgumentError, InvalidDataError, PathNotExistError, TorizonCoreBuilderError)
@@ -95,9 +94,11 @@ def find_initramfs_in_changes_dir(changes_dir, basename=None):
     return initramfs_src_path
 
 
-def _get_initramfs_path(source):
-    """Get initramfs file path according to source"""
+def _get_initramfs_path(source, fixed_path=None):
+    """Get initramfs file path according to source."""
 
+    if source == "fixed":
+        return fixed_path, source
     if source == "sysroot":
         return find_initramfs_in_sysroot(), source
 
@@ -113,9 +114,11 @@ def _get_initramfs_path(source):
     raise InvalidArgumentError(f"_get_initramfs_path(): invalid initramfs source '{source}'")
 
 
-def _get_kernel_path(source):
-    """Get kernel file path according to source"""
+def _get_kernel_path(source, fixed_path=None):
+    """Get kernel file path according to source."""
 
+    if source == "fixed":
+        return fixed_path, source
     if source == "sysroot":
         return kernel_be.find_kernel_in_sysroot(), source
 
@@ -141,12 +144,16 @@ def extract_initramfs_from_fit(fit):
     initramfs_path = os.path.join(changes_dir, initramfs_name)
     with open(initramfs_path, "wb") as fhandle:
         fhandle.write(initramfs_data)
-    log.debug(f"Extracted initramfs node '{initramfs_name}' inside FIT to {initramfs_path}")
+    log.debug(f"Extracted initramfs node '{initramfs_name}' inside FIT to '{initramfs_path}'.")
     return initramfs_path
 
 
-def stage_kernel_fit(fit):
-    """Create kernel FIT file from given object and save it to be committed."""
+def stage_kernel_fit(fit, dst_path=None):
+    """Create kernel FIT file from given object and stage it for commit.
+
+    The staging is performed by default; but, if `dst_path` is specified, then
+    the FIT image is copied over to that path.
+    """
 
     changes_dir = kernel_be.get_kernel_changes_dir()
     os.makedirs(changes_dir, exist_ok=True)
@@ -155,13 +162,13 @@ def stage_kernel_fit(fit):
     with open(src_path, "wb") as fhandle:
         fit.write(fhandle)
 
-    # If the new file was created successfully, remove any previous kernel FIT
-    # and move it to its respective union command "staging dir".
-    dst_path = os.path.join(
-        changes_dir,
-        kernel_be.get_kernel_subdir(),
-        kernel_be.KERNEL_FIT_FILENAME
-    )
+    # If the new file was created successfully, remove any previous kernel FIT and move
+    # it to its respective union command "staging dir" or to the specified destination.
+    if dst_path is None:
+        dst_path = os.path.join(
+            changes_dir,
+            kernel_be.get_kernel_subdir(), kernel_be.KERNEL_FIT_FILENAME)
+
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     if os.path.isfile(dst_path):
         os.remove(dst_path)
@@ -169,8 +176,12 @@ def stage_kernel_fit(fit):
     shutil.move(src_path, dst_path)
 
 
-def stage_initramfs_contents(data):
-    """Create initramfs file from given data and save it to be committed."""
+def stage_initramfs_contents(data, dst_path=None):
+    """Create initramfs file from given data and stage it for commit.
+
+    The staging is performed by default; but, if dst_path is specified, then
+    the generated initramfs file is copied over to that path.
+    """
 
     changes_dir = splash_be.get_splash_changes_dir()
     os.makedirs(changes_dir, exist_ok=True)
@@ -179,13 +190,13 @@ def stage_initramfs_contents(data):
     with open(src_path, "wb") as fhandle:
         fhandle.write(data)
 
-    # If the new file was created successfully, remove any previous initramfs file
-    # and move it to its respective union command "staging dir".
-    dst_path = os.path.join(
-        changes_dir,
-        get_initramfs_subdir(),
-        OSTREE_INITRAMFS_FILENAME
-    )
+    # If the new file was created successfully, remove any previous initramfs file and
+    # move it to its respective union command "staging dir" or to the specified destination.
+    if dst_path is None:
+        dst_path = os.path.join(
+            changes_dir,
+            get_initramfs_subdir(), OSTREE_INITRAMFS_FILENAME)
+
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     if os.path.isfile(dst_path):
         os.remove(dst_path)
@@ -208,13 +219,19 @@ class UnpackedInitramfs:
 
     Args:
         source: Indicates the location to search for the kernel FIT or initramfs file
-                Possible values are: 'sysroot', 'changes' or 'auto'
+                Possible values are: 'sysroot', 'changes', 'auto' or 'fixed'
                 If the value is set to:
                 - 'sysroot': Only the unpacked sysroot directory will be checked
                 - 'changes': Only the appropriate changes directory will be checked
                 - 'auto': First search in the appropriate changes directory; if the file is
                           not found there, search in the unpacked sysroot directory.
+                - 'fixed': Get the input from a fixed path specified via `src_file`.
 
+        src_file: Full path to the FIT image (FIT case) or to the initramfs file to be taken
+                  as input when `source` is "fixed".
+        dst_file: Final destination path for the output FIT image (FIT case) or for the initramfs
+                  file; this is optional and independent of `source`. When specified, it prevents
+                  the normal staging of the output file.
         repack: Boolean variable that tells whether the unpacked initramfs is repacked and staged
                 at the end of the context. 'True' by default.
 
@@ -240,33 +257,52 @@ class UnpackedInitramfs:
           during initialization.
     """
 
-    def __init__(self, source="auto", repack=True):
+    def __init__(self, source="auto", *, src_file=None, dst_file=None, repack=True):
+        # Ensure valid source was passed:
+        assert source in ["auto", "sysroot", "changes", "fixed"], \
+            f"UnpackedInitramfs: Invalid source: '{source}'."
+        if source == "fixed":
+            assert src_file, "UnpackedInitramfs: src_file must be passed."
+        else:
+            assert not src_file, "UnpackedInitramfs: src_file must not be passed."
 
-        log.debug("UnpackedInitramfs: Checking if unpacked OS image kernel is in FIT format")
-        sysroot_kernel_path = kernel_be.find_kernel_in_sysroot()
-        self.kernel_is_fit = is_file_type_fit(sysroot_kernel_path)
-        log.debug(f"UnpackedInitramfs: kernel_is_fit={self.kernel_is_fit}")
-        log.debug(f"UnpackedInitramfs: source={source}")
+        # The kernel type is always determined from the kernel in the sysroot.
+        log.debug("UnpackedInitramfs: Checking if unpacked OS image kernel is in FIT format.")
+        self.kernel_is_fit = is_file_type_fit(kernel_be.find_kernel_in_sysroot())
+        log.debug("UnpackedInitramfs: source='%s', kernel_is_fit=%s.",
+                  source, str(self.kernel_is_fit))
+
+        # Object holding a representation for the kernel FIT image.
         self.fit_obj = None
+        # Source file: path to the initramfs file or the FIT image from where the initramfs
+        # contents is to be taken.
+        self.src_file = None
+        # Destination file: path to the initramfs file or the FIT image to which the initramfs
+        # contents is to be written (optional).
+        self.dst_file = dst_file
         self.src_initramfs_file = None
         self.repack = repack
         suffix = ''
 
         if self.kernel_is_fit:
-            log.debug("UnpackedInitramfs: Searching for kernel FIT to extract initramfs")
-            kernel_fit_path, suffix = _get_kernel_path(source)
-            if kernel_fit_path:
-                with open(kernel_fit_path, "rb") as fhandle:
+            log.debug("UnpackedInitramfs: Searching for kernel FIT to extract initramfs.")
+            self.src_file, suffix = _get_kernel_path(source, src_file)
+            if self.src_file:
+                log.debug("UnpackedInitramfs: Loading kernel FIT from '%s'.", self.src_file)
+                with open(self.src_file, "rb") as fhandle:
                     self.fit_obj = KernelFit(fhandle)
                 self.src_initramfs_file = extract_initramfs_from_fit(self.fit_obj)
         else:
-            log.debug("UnpackedInitramfs: Searching for initramfs")
-            self.src_initramfs_file, suffix = _get_initramfs_path(source)
+            log.debug("UnpackedInitramfs: Searching for initramfs.")
+            self.src_file, suffix = _get_initramfs_path(source, src_file)
+            self.src_initramfs_file = self.src_file
 
+        # Define directory where the initramfs file will be unpacked.
         self.unpacked_initramfs_dir = os.path.join(
-            get_storage_dir(),
-            UNPACKED_INITRAMFS_DIR.format(suffix=suffix)
-        )
+            get_storage_dir(), UNPACKED_INITRAMFS_DIR.format(suffix=suffix))
+
+        log.debug("UnpackedInitramfs: src_file='%s', src_initramfs_file='%s'.",
+                  self.src_file, self.src_initramfs_file)
 
     def __enter__(self):
         """Unpack initramfs contents to storage."""
@@ -302,18 +338,21 @@ class UnpackedInitramfs:
         if not self.unpacked_initramfs_dir:
             log.debug("__exit__(): Unpack not done, nothing to do.")
             return
+        if not self.repack:
+            log.debug(f"__exit__(): Skipping repack of {self.unpacked_initramfs_dir}")
+            return
+
         try:
-            if not self.repack:
-                log.debug(f"__exit__(): Skipping repack of {self.unpacked_initramfs_dir}")
-                return
             log.debug(f"__exit__(): Repacking {self.unpacked_initramfs_dir}")
             # cd unpacked_initramfs_dir/ && find . -print | cpio --create --format=newc | gzip
-            find_cmd = "cd {} && find . -print".format(shlex.quote(self.unpacked_initramfs_dir))
-            find_out = subprocess.check_output(find_cmd, shell=True)
+            find_cmd = [
+                "find", ".", "-print"
+            ]
             cpio_cmd = [
                 "cpio", "--directory", self.unpacked_initramfs_dir,
                 "--create", "--format=newc"
             ]
+            find_out = subprocess.check_output(find_cmd, cwd=self.unpacked_initramfs_dir)
             cpio_out = subprocess.check_output(cpio_cmd, input=find_out)
             gzip_out = subprocess.check_output("gzip", input=cpio_out)
 
@@ -329,11 +368,11 @@ class UnpackedInitramfs:
                 log.debug(f"__exit__(): Removing {self.src_initramfs_file}")
                 os.remove(self.src_initramfs_file)
                 # Stage updated kernel FIT to be committed
-                stage_kernel_fit(self.fit_obj)
+                stage_kernel_fit(self.fit_obj, self.dst_file)
             else:
                 # Stage updated initramfs to be committed
                 log.debug(f"New initramfs file will be {len(gzip_out)/1024:.2f} kiB in size")
-                stage_initramfs_contents(gzip_out)
+                stage_initramfs_contents(gzip_out, self.dst_file)
         except subprocess.CalledProcessError as exc:
             # pylint: disable-next=raise-missing-from
             raise TorizonCoreBuilderError(exc.output.strip())
