@@ -82,7 +82,7 @@ def update_fit_configs_keyname(fit_path, key_name):
     update_keyname_script = os.path.join(SECURE_BOOT_FILES_DIR, UPDATE_FIT_CONFIGS_KEYNAME_SCRIPT)
     script_extra_env = {"PREFIX": fit_dir}
 
-    log.info(f"Updating FIT image configurations to be signed with key name: {key_name}")
+    log.info(f"Updating FIT image configurations to be signed with key name \"{key_name}\".")
     try:
         subprocess.check_output(["bash", update_keyname_script, fit_filename, key_name],
                                 text=True, env=(os.environ | script_extra_env),
@@ -315,8 +315,8 @@ def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_al
     sig_match = re.search(r"Signature written to '(.*)'", mkimage_output, re.IGNORECASE)
 
     if sig_match:
-        log.info(f"Signature written to '{sig_match.group(1)}'.")
-        log.info(f"Kernel FIT image signed successfully with key in {kernel_key_dir}.")
+        log.info("Signature written to '%s'.", sig_match.group(1))
+        log.info("Kernel FIT image signed successfully with key in '%s'.", kernel_key_dir)
     else:
         raise InvalidStateError(
             "Could not confirm if mkimage correctly signed the kernel FIT image. Aborting.")
@@ -592,7 +592,7 @@ def check_unpacked_tezi_kernel_signing_support():
         env = file.read()
 
     board = find_board(env)
-    log.info(f"Detected image for {board}")
+    log.info(f"Detected image for machine \"{board}\".")
 
     if board not in KERNEL_SIGNING_SUPPORTED_MACHINES:
         raise InvalidStateError(
@@ -621,7 +621,7 @@ def check_unpacked_tezi_hab_signing_support():
         env = file.read()
 
     board = find_board(env)
-    log.info(f"Detected image for {board}")
+    log.info(f"Detected image for machine \"{board}\".")
 
     if SECBOOT_TECH_PER_MACHINE.get(board) != "hab":
         raise InvalidStateError(
@@ -712,7 +712,7 @@ def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=N
     if ostree_key is not None:
         update_ostree_key_in_initramfs(kernel_workdir_path, ostree_key)
     else:
-        log.debug("Skipping initramfs update: OSTree keys not specified.")
+        log.info("Skipping initramfs update: OSTree keys not specified.")
 
     sign_kernel_with_mkimage(kernel_workdir_path, key_dir, key_algo)
 

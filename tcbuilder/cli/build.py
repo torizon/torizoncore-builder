@@ -280,8 +280,8 @@ def handle_secboot_customization(props):
         assert "name" in kernel_key, "'kernel-key' requires 'name' property"
 
         if "algo" not in kernel_key:
-            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
-                     f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                     f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
 
         kernel_changes_dir = kernel_be.get_kernel_changes_dir()
         if not os.path.isdir(kernel_changes_dir):
@@ -330,8 +330,8 @@ def handle_secboot_customization(props):
             assert "name" in kernel_key, "'kernel-key' requires 'name' property"
 
             if "algo" not in kernel_key:
-                log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
-                         f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+                log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                         f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
 
         cst_args = {
             "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),

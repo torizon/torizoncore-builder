@@ -70,7 +70,7 @@ def _sign_commit(repo, commit, ostree_key):
     """
 
     pk_file = ostree_key.get_sec_key_path()
-    log.info("Signing commit '%s' with private-key file '%s'.", commit, pk_file)
+    log.info("Commit %s will be signed with the private key in '%s'.", commit, pk_file)
 
     sign = None
     algo = ostree_key.get_key_algo()

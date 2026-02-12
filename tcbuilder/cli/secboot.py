@@ -58,8 +58,8 @@ def _parse_kernel_key_arg(kernel_key):
         raise InvalidArgumentError("Could not find value of 'name' in --kernel-key. Aborting.")
 
     if not kernel_key_algo:
-        log.info("Could not find value of 'algo' in --kernel-key. "
-                 f"Defaulting to {KERNEL_KEY_DEFAULT_ALGO}.")
+        log.info("Could not find value of 'algo' in --kernel-key; "
+                 f"defaulting to {KERNEL_KEY_DEFAULT_ALGO}.")
         kernel_key_algo = KERNEL_KEY_DEFAULT_ALGO
 
     return kernel_key_name, kernel_key_algo

@@ -353,7 +353,7 @@ class UnpackedInitramfs:
                 "--create", "--format=newc"
             ]
             find_out = subprocess.check_output(find_cmd, cwd=self.unpacked_initramfs_dir)
-            cpio_out = subprocess.check_output(cpio_cmd, input=find_out)
+            cpio_out = subprocess.check_output(cpio_cmd, input=find_out, stderr=subprocess.DEVNULL)
             gzip_out = subprocess.check_output("gzip", input=cpio_out)
 
             check_initramfs_data_size(gzip_out)

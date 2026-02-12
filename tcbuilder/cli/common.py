@@ -45,8 +45,8 @@ def parse_ostree_key(ostree_key, *, ostree_key_dir=None):
             "The key name was not specified via the ostree-key parameter. Aborting.")
 
     if not key_algo:
-        log.info("Could not find value of 'algo' in the ostree-key parameter. "
-                 f"Defaulting to '{OSTreeKey.OSTREE_KEY_DEFAULT_ALGO}'.")
+        log.info("Could not find value of 'algo' in the ostree-key parameter; "
+                 f"defaulting to '{OSTreeKey.OSTREE_KEY_DEFAULT_ALGO}'.")
         key_algo = OSTreeKey.OSTREE_KEY_DEFAULT_ALGO
 
     # Wrap key information into appropriate object:
