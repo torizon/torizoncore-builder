@@ -13,10 +13,10 @@ from tcbuilder.cli.bundle import parse_env_assignments
 from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.backend.registryops import RegistryOperations
-from tcbuilder.errors import (
-    FileContentMissing, FeatureNotImplementedError, InvalidDataError,
-    InvalidStateError, LicenceAcceptanceError, TorizonCoreBuilderError,
-    ParseError, ParseErrors, InvalidArgumentError)
+from tcbuilder.errors import \
+    (FeatureNotImplementedError, FileContentMissing, InvalidArgumentError, InvalidDataError,
+     InvalidStateError, LicenceAcceptanceError, ParseError, ParseErrors, PathNotExistError,
+     TorizonCoreBuilderError)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
@@ -24,6 +24,7 @@ from tcbuilder.backend import combine as comb_be
 from tcbuilder.backend import dt as dt_be
 from tcbuilder.backend import images as images_be
 from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend import ostree as ostree_be
 from tcbuilder.backend import secboot as secboot_be
 from tcbuilder.cli import deploy as deploy_cli
 from tcbuilder.cli import dt as dt_cli
@@ -321,9 +322,71 @@ def _handle_secboot_sign_bootloader_hab(sign_hab_props):
     log.info("Bootloader in Torizon OS image signed successfully!")
 
 
+def _parse_ostree_key(ostree_key_props, *, ostree_key_dir=None):
+    """Parse the secboot.sign-kernel.ostree-key section."""
+
+    assert "name" in ostree_key_props, "'ostree-key' requires 'name' property"
+    key_name = ostree_key_props["name"]
+
+    if "algo" not in ostree_key_props:
+        log.info("Property 'algo' for ostree key '%s' has not been set; defaulting to '%s'.",
+                 key_name, ostree_be.OSTreeKey.OSTREE_KEY_DEFAULT_ALGO)
+    key_algo = ostree_key_props.get("algo", ostree_be.OSTreeKey.OSTREE_KEY_DEFAULT_ALGO)
+
+    # Wrap key information into appropriate object:
+    ostree_key_obj = ostree_be.OSTreeKey(
+        key_dir=ostree_key_dir, key_name=key_name, key_algo=key_algo)
+
+    return ostree_key_obj
+
+
+def _sign_kernel_parse_ostree_key(ostree_key_dir, ostree_key_props, *, check_pubk=True):
+    """Parse and validate the secboot.sign-kernel.ostree-key section.
+
+    :param ostree_key_dir: OSTree keys directory; if None, the working directory is
+        taken as default.
+    :param ostree_key: Dict with contents of the section; None indicates the section
+        was not provided as input.
+    :param check_pubk: Whether or not to check the existence of the public key file.
+    :returns: `OSTreeKey` object representing the key or None.
+    """
+
+    if ostree_key_dir and ostree_key_props is None:
+        raise InvalidArgumentError(
+            "Error: Property 'sign-kernel.ostree-key-dir' was set, but 'sign-kernel.ostree-key' "
+            "was not provided. Aborting.")
+
+    if not common.image_has_cfs_support():
+        if ostree_key_props is not None:
+            raise InvalidArgumentError(
+                "Error: Property 'sign-kernel.ostree-key' has been set for an image that has "
+                "no support for the root filesystem protection. Aborting.")
+
+    if ostree_key_props is None:
+        return None
+
+    if ostree_key_dir is not None and not os.path.isdir(ostree_key_dir):
+        raise PathNotExistError(
+            f"Error: OSTree keys directory '{ostree_key_dir}' does not exist. Aborting.")
+
+    ostree_key_dir = ostree_key_dir or "."
+    ostree_key_obj = _parse_ostree_key(ostree_key_props, ostree_key_dir=ostree_key_dir)
+
+    if check_pubk:
+        pubk_file = ostree_key_obj.get_pub_key_path()
+        if not os.path.isfile(pubk_file):
+            raise PathNotExistError(
+                f"Error: Cannot read public key file '{pubk_file}'.")
+
+    return ostree_key_obj
+
+
 def _handle_secboot_sign_kernel(sign_kernel_props):
     """Handle the secboot.sign-kernel section."""
 
+    # ---
+    # Collect/check the kernel-key related properties:
+    # ---
     if len(sign_kernel_props["kernel-key"]) > 1:
         raise InvalidArgumentError(
             "TorizonCore Builder only supports signing the kernel FIT with one key. Aborting.")
@@ -342,6 +405,22 @@ def _handle_secboot_sign_kernel(sign_kernel_props):
                  f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
     kernel_key_algo = kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO)
 
+    # ---
+    # Collect/check the ostree-key related properties:
+    # ---
+    ostree_key_ = sign_kernel_props.get("ostree-key")
+    ostree_key_dir = sign_kernel_props.get("ostree-key-dir")
+    ostree_key_obj = None
+
+    if ostree_key_:
+        if len(ostree_key_) > 1:
+            raise InvalidArgumentError(
+                "Error: Currently only one OSTree (public) key can be specified under the "
+                "'sign-kernel.ostree-key' property.")
+
+    ostree_key_obj = _sign_kernel_parse_ostree_key(
+        ostree_key_dir, None if ostree_key_ is None else ostree_key_[0])
+
     kernel_changes_dir = kernel_be.get_kernel_changes_dir()
     if not os.path.isdir(kernel_changes_dir):
         os.mkdir(kernel_changes_dir)
@@ -350,7 +429,8 @@ def _handle_secboot_sign_kernel(sign_kernel_props):
         kernel_changes_dir=kernel_changes_dir,
         key_dir=kernel_key_dir,
         key_algo=kernel_key_algo,
-        key_name=kernel_key["name"])
+        key_name=kernel_key["name"],
+        ostree_key=ostree_key_obj)
 
 
 def handle_secboot_customization(props):
@@ -369,6 +449,62 @@ def handle_secboot_customization(props):
 
     # NOTE: The "sign-ostree" section is not actually handled with the rest of the
     #       customization section but rather together with the output section.
+
+
+def _union_parse_ostree_key(ostree_key_dir, ostree_key_props, *,
+                            check_seck=True, check_pubk=True):
+    """Parse and validate the secboot.sign-ostree.ostree-key section.
+
+    :param ostree_key_dir: OSTree keys directory; if None, the working directory is
+        taken as default.
+    :param ostree_key: Dict with contents of the section; None indicates the section
+        was not provided as input.
+    :param check_seck: Whether or not to check the existence of the private key file.
+    :param check_pubk: Whether or not to check the existence of the public key file.
+    :returns: `OSTreeKey` object representing the key or None.
+    """
+
+    if ostree_key_dir and ostree_key_props is None:
+        raise InvalidArgumentError(
+            "Error: Property 'sign-ostree.ostree-key-dir' was set but 'sign-ostree.ostree-key' "
+            "was not provided. Aborting.")
+
+    if common.image_has_cfs_support():
+        if ostree_key_props is None:
+            # Abort the operation to avoid producing non-bootable images.
+            raise InvalidArgumentError(
+                "Error: The image has support for the root filesystem protection, but the "
+                "'sign-ostree.ostree-key' property has not been set; the property is required "
+                "for signing the commit.")
+    else:
+        if ostree_key_props is not None:
+            raise InvalidArgumentError(
+                "Error: Property 'sign-ostree.ostree-key' has been set for an image that has "
+                "no support for the root filesystem protection. Aborting.")
+
+    if ostree_key_props is None:
+        return None
+
+    if ostree_key_dir is not None and not os.path.isdir(ostree_key_dir):
+        raise PathNotExistError(
+            f"Error: OSTree keys directory '{ostree_key_dir}' does not exist. Aborting.")
+
+    ostree_key_dir = ostree_key_dir or "."
+    ostree_key_obj = _parse_ostree_key(ostree_key_props, ostree_key_dir=ostree_key_dir)
+
+    if check_seck:
+        seck_file = ostree_key_obj.get_sec_key_path()
+        if not os.path.isfile(seck_file):
+            raise PathNotExistError(
+                f"Error: Cannot read secret key file '{seck_file}'.")
+
+    if check_pubk:
+        pubk_file = ostree_key_obj.get_pub_key_path()
+        if not os.path.isfile(pubk_file):
+            raise PathNotExistError(
+                f"Error: Cannot read public key file '{pubk_file}'.")
+
+    return ostree_key_obj
 
 
 def handle_output_section(props, changes_dirs=None, default_base_raw_image=None):
@@ -404,6 +540,28 @@ def handle_output_section(props, changes_dirs=None, default_base_raw_image=None)
     if "commit-body" in ostree_props:
         union_params["commit_body"] = ostree_props["commit-body"]
 
+    # NB: "sign-ostree" is entered by the user as a "customization" property, but
+    #     it is copied to "output.ostree".
+    if "sign-ostree" in ostree_props:
+        sign_ostree_props = ostree_props["sign-ostree"]
+    else:
+        sign_ostree_props = {}
+
+    # Collect/check the ostree-key related properties:
+    ostree_key_ = sign_ostree_props.get("ostree-key")
+    ostree_key_dir = sign_ostree_props.get("ostree-key-dir")
+    ostree_key_obj = None
+    if ostree_key_:
+        if len(ostree_key_) > 1:
+            raise InvalidArgumentError(
+                "Error: Currently only one OSTree (private) key can be specified under "
+                "the 'sign-ostree.ostree-key' property.")
+    ostree_key_obj = _union_parse_ostree_key(
+        ostree_key_dir, None if ostree_key_ is None else ostree_key_[0])
+
+    union_params["ostree_key_obj"] = ostree_key_obj
+
+    # TODO: Refactor union() by moving all non-CLI code to backend; then the API from the backend.
     union_cli.union(**union_params)
 
     # Handle the "output.ostree.local" property (TODO).
@@ -652,18 +810,12 @@ def handle_provisioning(output_dir, prov_props):
     images_be.provision(**prov_params)
 
 
-def build(config_fname, *, substs=None, enable_subst=True, force=False):
-    """Main handler for the normal operating mode of the build subcommand"""
+def _build_setup(config, force):
+    """Do some sanity checks and prepare for handling the build operations."""
 
-    log.info(f"Building image as per configuration file '{config_fname}'...")
-    log.debug(f"Substitutions ({['disabled', 'enabled'][enable_subst]}): "
-              f"{substs}")
+    output_dir = None
+    output_image = None
 
-    config = bb.parse_config_file(config_fname, substs=(substs if enable_subst else None))
-
-    # ---
-    # Handle each section.
-    # ---
     if "input" not in config:
         # Note that is also checked by the schema.
         raise FileContentMissing("No input specified in configuration file")
@@ -673,44 +825,71 @@ def build(config_fname, *, substs=None, enable_subst=True, force=False):
         raise FileContentMissing("No output specified in configuration file")
 
     if "easy-installer" in config["input"]:
-
         if "easy-installer" not in config["output"]:
             raise InvalidStateError(
-                "Input is 'easy-installer', but couldn't find"
-                " 'easy-installer' in output section. Aborting.")
+                "Input is 'easy-installer', but couldn't find 'easy-installer' in output "
+                "section. Aborting.")
 
         # Check if output directory already exists and fail if it does.
         output_dir = config["output"]["easy-installer"]["local"]
         if os.path.exists(output_dir):
             if force:
-                log.debug(f"Removing existing output directory '{output_dir}'")
+                log.debug("Removing existing output directory '%s'.", output_dir)
                 shutil.rmtree(output_dir)
             else:
                 raise InvalidStateError(
-                    f"Output directory '{output_dir}' already exists; please remove"
-                    " it or select another output directory.")
+                    f"Output directory '{output_dir}' already exists; please remove it or "
+                    "select another output directory.")
 
     elif "raw-image" in config["input"]:
-
         if "raw-image" not in config["output"]:
             raise InvalidStateError(
-                "Input is 'raw-image', but couldn't find"
-                " 'raw-image' in output section. Aborting.")
+                "Input is 'raw-image', but couldn't find 'raw-image' in output section. "
+                "Aborting.")
 
         # Check if output file already exists and fail if it does.
         output_image = config["output"]["raw-image"]["local"]
         if os.path.exists(output_image):
             if force:
                 if os.path.isfile(output_image):
-                    log.debug(f"Removing existing file '{output_image}'")
+                    log.debug("Removing existing file '%s'.", output_image)
                     os.remove(output_image)
                 else:
                     raise InvalidStateError(
                         f"'{output_image}' is not a valid path to a file. Aborting.")
             else:
                 raise InvalidStateError(
-                    f"File '{output_image}' already exists; please remove"
-                    " it or give a different filename for the output.")
+                    f"File '{output_image}' already exists; please remove it or give a "
+                    "different filename for the output.")
+
+    return output_dir, output_image
+
+
+def build(config_fname, *, substs=None, enable_subst=True, force=False):
+    """Main handler for the normal operating mode of the build subcommand"""
+
+    log.info(f"Building image as per configuration file '{config_fname}'...")
+    log.debug(f"Substitutions ({['disabled', 'enabled'][enable_subst]}): "
+              f"{substs}")
+
+    config = bb.parse_config_file(config_fname, substs=(substs if enable_subst else None))
+
+    # Do some sanity checks and select output.
+    output_dir, output_image = _build_setup(config, force)
+
+    # Special handling for OSTree signing:
+    # Copy "customization.secboot.sign-ostree" as a child of "output.ostree".
+    try:
+        _sign_ostree = config["customization"]["secboot"]["sign-ostree"]
+        if "ostree" not in config["output"]:
+            config["output"]["ostree"] = {}
+        config["output"]["ostree"]["sign-ostree"] = _sign_ostree
+    except KeyError as _exc:
+        pass
+
+    # ---
+    # Handle each section.
+    # ---
 
     # Input section (required):
     handle_input_section(config["input"])

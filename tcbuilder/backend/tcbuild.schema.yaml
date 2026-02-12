@@ -327,9 +327,55 @@ properties:
                     - name
                   # No extra props inside 'kernel-key'
                   additionalProperties: false
+              ostree-key-dir:
+                type: string
+                description: "path to ostree key directory"
+              ostree-key:
+                type: array
+                description: "list of OSTree public signing keys to be added to the kernel FIT image"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "name of the key, which correponds to its filename without the file extension"
+                    algo:
+                      type: string
+                      description: "crypto algorithm used to generate the provided key"
+                  required:
+                    - name
+                  # No extra props inside 'ostree-key'
+                  additionalProperties: false
             required:
               - kernel-key
             # No extra props inside 'sign-kernel'
+            additionalProperties: false
+          sign-ostree:
+            type: object
+            description: "OSTree signing configuration"
+            properties:
+              ostree-key-dir:
+                type: string
+                description: "path to ostree key directory"
+              ostree-key:
+                type: array
+                description: "list of private keys to sign the OSTree commit"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "name of the key, which correponds to its filename without the file extension"
+                    algo:
+                      type: string
+                      description: "crypto algorithm used to generate the provided key"
+                  required:
+                    - name
+                  # No extra props inside 'ostree-key'
+                  additionalProperties: false
+            required:
+              - ostree-key
+            # No extra props inside 'sign-ostree'
             additionalProperties: false
         # No extra props inside 'secboot'
         additionalProperties: false

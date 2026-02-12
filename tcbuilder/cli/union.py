@@ -240,12 +240,14 @@ def _check_parse_ostree_key_args(ostree_key_dir, ostree_key, *,
 
 def union(changes_dirs, union_branch, *,
           commit_subject=None, commit_body=None,
-          ostree_key_dir=None, ostree_key=None):
+          ostree_key_dir=None, ostree_key=None,
+          ostree_key_obj=None):
     """Perform the actual work of the union subcommand"""
 
     images_unpack_executed()
 
-    ostree_key_obj = _check_parse_ostree_key_args(ostree_key_dir, ostree_key)
+    if ostree_key_obj is None:
+        ostree_key_obj = _check_parse_ostree_key_args(ostree_key_dir, ostree_key)
 
     # Automatically add directories from storage. The order in which we
     # apply these directories to an ostree commit must be exactly like it is
