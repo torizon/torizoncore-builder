@@ -78,16 +78,6 @@ input:
   # >> NOTE: All secboot options need a Torizon OS image with secure boot support built-in.
   # >> This includes kernel in FIT format, U-Boot built with the corresponding secure boot kconfigs, etc.
   # secboot:
-    # >> Sign kernel FIT image
-    # sign-kernel:
-      # >> (REQUIRED) directory path with the keys to sign the kernel
-      # kernel-key-dir: ./kernel_keys/
-      # >> (REQUIRED) Key details
-      # kernel-key:
-         # >> 'algo' corresponds to the hashing and crypto algorithms to be used for the signing
-         # >> process. If not set it defaults to the value given below.
-         # - name: "prod"
-         #   algo: "sha256,rsa2048"
     # >> Sign bootloader for NXP SoCs supporting High Assurance Boot (HAB)
     # sign-bootloader-hab:
       # >> (REQUIRED) directory path with the CST directory pre-configured with
@@ -111,6 +101,16 @@ input:
       # kernel-key:
          # >> 'algo' corresponds to the hashing and crypto algorithms used to verify and sign the
          # >> kernel, respectively. If not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "sha256,rsa2048"
+    # >> Sign kernel FIT image
+    # sign-kernel:
+      # >> (OPTIONAL) directory path with the keys to sign the kernel
+      # kernel-key-dir: ./kernel_keys/
+      # >> (REQUIRED) Key details
+      # kernel-key:
+         # >> 'algo' corresponds to the hashing and crypto algorithms to be used for the signing
+         # >> process. If not set it defaults to the value given below.
          # - name: "prod"
          #   algo: "sha256,rsa2048"
 

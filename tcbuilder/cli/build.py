@@ -255,6 +255,104 @@ def handle_kernel_customization(props):
         kernel_cli.kernel_set_custom_args(kernel_args=props["arguments"])
 
 
+def _handle_secboot_sign_bootloader_hab(sign_hab_props):
+    """Handle the secboot.sign-bootloader-hab section."""
+
+    cst_dir = sign_hab_props["cst-dir"]
+    cst_dict = sign_hab_props.get("cst-args", {})
+    kernel_key_dir = sign_hab_props.get("kernel-key-dir", None)
+    kernel_key_list = sign_hab_props.get("kernel-key", [])
+    kernel_key = {}
+
+    if not os.path.isdir(cst_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{cst_dir}\" does not exist: aborting.")
+
+    if kernel_key_dir:
+        if not os.path.isdir(kernel_key_dir):
+            raise InvalidArgumentError(
+                f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+        if not kernel_key_list:
+            raise InvalidArgumentError(
+                "sign-bootloader-hab: 'kernel-key-dir' was passed but 'kernel-key' was "
+                "not provided. Aborting.")
+
+    if kernel_key_list:
+        if len(kernel_key_list) > 1:
+            raise InvalidArgumentError(
+                "TorizonCore Builder only supports updating one public key. Aborting.")
+        kernel_key = kernel_key_list[0]
+        kernel_key_dir = kernel_key_dir or "."
+
+        assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+        if "algo" not in kernel_key:
+            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                     f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+
+    cst_args = {
+        "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),
+        "key_size": cst_dict.get("key-size", secboot_cli.CST_DEFAULT_KEY_SIZE),
+        "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEFAULT_KEY_EXP),
+        "dig_algo": cst_dict.get("dig-algo", secboot_cli.CST_DIG_ALGO_TYPES[0]),
+        "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
+        "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),
+        "srk_fuse": cst_dict.get("srk-fuse", secboot_cli.CST_SRK_DEFAULT_FUSE),
+        "srk_no_ca": cst_dict.get("srk-no-ca-flag", False)
+    }
+
+    secboot_be.sign_bootloader_hab(
+        kernel_key_dir=kernel_key_dir,
+        kernel_key_name=kernel_key.get("name"),
+        kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
+        cst_dir=cst_dir,
+        cst_args=cst_args)
+
+    if kernel_key:
+        log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
+                 "the bootloader to verify the kernel signature.")
+    else:
+        log.warning("The bootloader DTBs were NOT updated with a new public key.")
+        log.warning("If the kernel FIT image will be signed with a new key, please set "
+                    "'kernel-key-dir' and 'kernel-key' and re-run the command so the new "
+                    "kernel signature can be properly verified by the bootloader.")
+        log.warning("Otherwise, this message can be ignored.")
+    print()
+
+    log.info("Bootloader in Torizon OS image signed successfully!")
+
+
+def _handle_secboot_sign_kernel(sign_kernel_props):
+    """Handle the secboot.sign-kernel section."""
+
+    if len(sign_kernel_props["kernel-key"]) > 1:
+        raise InvalidArgumentError(
+            "TorizonCore Builder only supports signing the kernel FIT with one key. Aborting.")
+    kernel_key = sign_kernel_props["kernel-key"][0]
+
+    kernel_key_dir = sign_kernel_props.get("kernel-key-dir")
+    if kernel_key_dir and not os.path.isdir(kernel_key_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+    kernel_key_dir = kernel_key_dir or "."
+
+    assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+
+    if "algo" not in kernel_key:
+        log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                 f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+    kernel_key_algo = kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO)
+
+    kernel_changes_dir = kernel_be.get_kernel_changes_dir()
+    if not os.path.isdir(kernel_changes_dir):
+        os.mkdir(kernel_changes_dir)
+
+    secboot_be.sign_kernel(
+        kernel_changes_dir=kernel_changes_dir,
+        key_dir=kernel_key_dir,
+        key_algo=kernel_key_algo,
+        key_name=kernel_key["name"])
+
+
 def handle_secboot_customization(props):
     """Handle the secure boot customization section."""
 
@@ -263,107 +361,14 @@ def handle_secboot_customization(props):
         raise InvalidDataError("TorizonCore Builder does not support signing components for "
                                "WIC/raw images. Aborting.")
 
-    if "sign-kernel" in props:
-        sign_kernel_props = props["sign-kernel"]
-        key_dir = sign_kernel_props["kernel-key-dir"]
-
-        if len(sign_kernel_props["kernel-key"]) > 1:
-            raise InvalidArgumentError(
-                "TorizonCore Builder only supports signing the kernel FIT with one key. Aborting.")
-
-        kernel_key = sign_kernel_props["kernel-key"][0]
-
-        if not os.path.isdir(key_dir):
-            raise InvalidArgumentError(
-                f"Directory \"{key_dir}\" does not exist: aborting.")
-
-        assert "name" in kernel_key, "'kernel-key' requires 'name' property"
-
-        if "algo" not in kernel_key:
-            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
-                     f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
-
-        kernel_changes_dir = kernel_be.get_kernel_changes_dir()
-        if not os.path.isdir(kernel_changes_dir):
-            os.mkdir(kernel_changes_dir)
-
-        secboot_be.sign_kernel(
-            kernel_changes_dir=kernel_changes_dir,
-            key_dir=key_dir,
-            key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
-            key_name=kernel_key["name"]
-        )
-
     if "sign-bootloader-hab" in props:
-        sign_hab_props = props["sign-bootloader-hab"]
-        cst_dir = sign_hab_props["cst-dir"]
-        cst_dict = sign_hab_props.get("cst-args", {})
-        kernel_key_dir = sign_hab_props.get("kernel-key-dir", None)
-        kernel_key_list = sign_hab_props.get("kernel-key", [])
-        kernel_key = {}
+        _handle_secboot_sign_bootloader_hab(props["sign-bootloader-hab"])
 
-        if not os.path.isdir(cst_dir):
-            raise InvalidArgumentError(
-                f"Directory \"{cst_dir}\" does not exist: aborting.")
+    if "sign-kernel" in props:
+        _handle_secboot_sign_kernel(props["sign-kernel"])
 
-        if kernel_key_dir:
-            if not os.path.isdir(kernel_key_dir):
-                raise InvalidArgumentError(
-                    f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
-            if not kernel_key_list:
-                raise InvalidArgumentError(
-                    "sign-bootloader-hab: 'kernel-key-dir' was passed but 'kernel-key' was "
-                    "not provided. Aborting.")
-
-        if kernel_key_list:
-            if not kernel_key_dir:
-                raise InvalidArgumentError(
-                    "sign-bootloader-hab: 'kernel-key' was passed but 'kernel-key-dir' was "
-                    "not provided. Aborting.")
-
-            if len(kernel_key_list) > 1:
-                raise InvalidArgumentError(
-                    "TorizonCore Builder only supports updating one public key. Aborting.")
-
-            kernel_key = kernel_key_list[0]
-
-            assert "name" in kernel_key, "'kernel-key' requires 'name' property"
-
-            if "algo" not in kernel_key:
-                log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
-                         f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
-
-        cst_args = {
-            "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),
-            "key_size": cst_dict.get("key-size", secboot_cli.CST_DEFAULT_KEY_SIZE),
-            "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEFAULT_KEY_EXP),
-            "dig_algo": cst_dict.get("dig-algo", secboot_cli.CST_DIG_ALGO_TYPES[0]),
-            "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
-            "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),
-            "srk_fuse": cst_dict.get("srk-fuse", secboot_cli.CST_SRK_DEFAULT_FUSE),
-            "srk_no_ca": cst_dict.get("srk-no-ca-flag", False)
-        }
-
-        secboot_be.sign_bootloader_hab(
-            kernel_key_dir=kernel_key_dir,
-            kernel_key_name=kernel_key.get("name"),
-            kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
-            cst_dir=cst_dir,
-            cst_args=cst_args
-        )
-
-        if kernel_key_dir:
-            log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
-                     "the bootloader to verify the kernel signature.")
-        else:
-            log.warning("The bootloader DTBs were NOT updated with a new public key.")
-            log.warning("If the kernel FIT image will be signed with a new key, please set "
-                        "'kernel-key-dir' and 'kernel-key' and re-run the command so the new "
-                        "kernel signature can be properly verified by the bootloader.")
-            log.warning("Otherwise, this message can be ignored.")
-        print()
-
-        log.info("Bootloader in Torizon OS image signed successfully!")
+    # NOTE: The "sign-ostree" section is not actually handled with the rest of the
+    #       customization section but rather together with the output section.
 
 
 def handle_output_section(props, changes_dirs=None, default_base_raw_image=None):
