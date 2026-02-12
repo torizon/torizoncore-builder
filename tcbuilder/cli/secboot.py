@@ -193,7 +193,7 @@ def sign_bootloader_hab(
                  "the bootloader to verify the kernel signature.\n")
     else:
         log.warning("The bootloader DTBs were NOT updated with a new public key.")
-        log.warning("If the kernel fitImage will be signed with a new key, please re-run the "
+        log.warning("If the kernel FIT image will be signed with a new key, please re-run the "
                     "command with --kernel-key-dir and --kernel-key so the new kernel signature "
                     "can be properly verified by the bootloader.")
         log.warning("Otherwise, this message can be ignored.\n")
@@ -232,8 +232,8 @@ def init_parser(subparsers):
     # secboot sign-kernel
     subparser = subparsers.add_parser(
         "sign-kernel",
-        help="Sign the kernel fitImage of an unpacked Torizon OS image.",
-        description="Sign the kernel fitImage of an unpacked Torizon OS image.",
+        help="Sign the kernel FIT image of an unpacked Torizon OS image.",
+        description="Sign the kernel FIT image of an unpacked Torizon OS image.",
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
 
@@ -280,7 +280,7 @@ def init_parser(subparsers):
         "sign-bootloader-hab",
         help="Sign bootloader components for images targeting devices based on NXP HAB.",
         description=(
-            "Sign bootloader components (SPL, DDR Firmware, U-Boot fitImage) for i.MX-based "
+            "Sign bootloader components (SPL, DDR Firmware, U-Boot FIT image) for i.MX-based "
             "modules compatible with HAB. The signing is performed using the Code Signing Tool "
             "(CST) from NXP. The CST directory is specified with the --cst-dir argument. Keys "
             "and certificates (in PEM format, with the .pem extension), SRK table and E-fuse "

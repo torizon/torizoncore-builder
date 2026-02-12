@@ -181,9 +181,9 @@ teardown_file() {
 
     assert_success
     # sign-kernel output
-    assert_output --partial "Updating fitImage configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
-    assert_output --regexp "Signing kernel fitImage with .* algorithm: ${KERNEL_KEY_ALGO}"
-    assert_output --partial 'Kernel fitImage signed successfully'
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
     assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
     # sign-bootloader-hab output
     assert_output --partial "Key type: ${CST_CRYPTO}"

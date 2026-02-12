@@ -73,7 +73,7 @@ OSTREE_ROOT_BINDING_KEY_PATH = "etc/ostree/initramfs-root-binding.key"
 def update_fit_configs_keyname(fit_path, key_name):
     """Update the 'key-name-hint' property of all config nodes in /configurations with a new value
 
-    :param fit_path: Path to signed fitImage
+    :param fit_path: Path to signed FIT image
     :param key_name: New value of key-name-hint
     """
 
@@ -82,7 +82,7 @@ def update_fit_configs_keyname(fit_path, key_name):
     update_keyname_script = os.path.join(SECURE_BOOT_FILES_DIR, UPDATE_FIT_CONFIGS_KEYNAME_SCRIPT)
     script_extra_env = {"PREFIX": fit_dir}
 
-    log.info(f"Updating fitImage configurations to be signed with key name: {key_name}")
+    log.info(f"Updating FIT image configurations to be signed with key name: {key_name}")
     try:
         subprocess.check_output(["bash", update_keyname_script, fit_filename, key_name],
                                 text=True, env=(os.environ | script_extra_env),
@@ -233,7 +233,7 @@ def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
 
     else:
         raise InvalidStateError("Could not confirm if mkimage correctly wrote the public key. "
-                                "of the kernel fitImage. Aborting.")
+                                "of the kernel FIT image. Aborting.")
 
 
 def overwrite_file_contents(src_file, dst_file):
@@ -279,9 +279,9 @@ def update_ostree_key_in_initramfs(fit_path, ostree_key):
 
 
 def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
-    """Sign the kernel fitImage with mkimage.
+    """Sign the kernel FIT image with mkimage.
 
-    :param kernel_fitimage_path: Path to the fitImage
+    :param kernel_fitimage_path: Path to the FIT image
     :param kernel_key_dir: Path to directory with the key to sign the kernel
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     """
@@ -292,7 +292,7 @@ def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_al
             [f"{UBOOT_TOOLS_DIR}/mkimage", "--version"],
             text=True, stderr=subprocess.STDOUT)
         mkimage_version = mkimage_version.strip()
-        log.info("Signing kernel fitImage with tool %s; algorithm: %s.",
+        log.info("Signing kernel FIT image with tool %s; algorithm: %s.",
                  mkimage_version, kernel_key_algo)
 
         mkimage_env = {"SOURCE_DATE_EPOCH": "0"}
@@ -316,10 +316,10 @@ def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_al
 
     if sig_match:
         log.info(f"Signature written to '{sig_match.group(1)}'.")
-        log.info(f"Kernel fitImage signed successfully with key in {kernel_key_dir}.")
+        log.info(f"Kernel FIT image signed successfully with key in {kernel_key_dir}.")
     else:
         raise InvalidStateError(
-            "Could not confirm if mkimage correctly signed the kernel fitImage. Aborting.")
+            "Could not confirm if mkimage correctly signed the kernel FIT image. Aborting.")
 
 
 def assemble_flash_bin_with_binman(input_binaries_dir, dt_of_list, binman_output_dir):
@@ -673,10 +673,10 @@ def check_cst_dir(abs_cst_dir, cst_args):
 
 
 def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=None):
-    """Sign kernel fitImage of unpacked Easy Installer image in storage
+    """Sign kernel FIT image of unpacked Easy Installer image in storage
 
     :param kernel_changes_dir: Path to directory with all kernel changes to be committed
-    :param key_dir: Path to directory with the key to sign the kernel fitImage
+    :param key_dir: Path to directory with the key to sign the kernel FIT image
     :param key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param key_name: Name of the provided key
     :param ostree_key: `OSTreeKey` object or None if no signing key update is required
@@ -726,7 +726,7 @@ def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=N
 def sign_bootloader_hab(kernel_key_dir, kernel_key_name, kernel_key_algo, cst_dir, cst_args):
     """Sign bootloader container of a HAB-compatible image in input_dir
 
-    :param kernel_key_dir: Path to directory with the key to sign the kernel fitImage
+    :param kernel_key_dir: Path to directory with the key to sign the kernel FIT image
     :param kernel_key_name: Name of the provided kernel key
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param cst_dir: Path to CST directory tree

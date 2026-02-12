@@ -78,7 +78,7 @@ setup_file() {
     assert_failure
     assert_output --partial 'the following arguments are required: --kernel-key'
 
-    # non-existent kernel fitImage key directory
+    # non-existent kernel FIT image key directory
     run torizoncore-builder secboot sign-kernel \
         --kernel-key-dir "foo" \
         --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
@@ -154,9 +154,9 @@ setup_file() {
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_success
-    assert_output --partial "Updating fitImage configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
-    assert_output --regexp "Signing kernel fitImage with .* algorithm: ${KERNEL_KEY_ALGO}"
-    assert_output --partial 'Kernel fitImage signed successfully'
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
     assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
 
     run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
@@ -171,9 +171,9 @@ setup_file() {
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}"
     assert_success
-    assert_output --partial "Updating fitImage configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
-    assert_output --regexp "Signing kernel fitImage with .* algorithm: ${KERNEL_KEY_ALGO}"
-    assert_output --partial 'Kernel fitImage signed successfully'
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
     assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
 
     run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"

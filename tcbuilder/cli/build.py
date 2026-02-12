@@ -357,7 +357,7 @@ def handle_secboot_customization(props):
                      "the bootloader to verify the kernel signature.")
         else:
             log.warning("The bootloader DTBs were NOT updated with a new public key.")
-            log.warning("If the kernel fitImage will be signed with a new key, please set "
+            log.warning("If the kernel FIT image will be signed with a new key, please set "
                         "'kernel-key-dir' and 'kernel-key' and re-run the command so the new "
                         "kernel signature can be properly verified by the bootloader.")
             log.warning("Otherwise, this message can be ignored.")
