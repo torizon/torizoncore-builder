@@ -44,161 +44,6 @@ setup_file() {
     assert_output --partial '{sign-kernel,sign-bootloader-hab}'
 }
 
-@test "secboot sign-kernel: check help output" {
-    run torizoncore-builder secboot sign-kernel --help
-    assert_success
-    assert_output --partial "usage: torizoncore-builder secboot sign-kernel"
-    assert_output --partial "Currently supported machines:"
-}
-
-@test "secboot sign-kernel: run without parameters" {
-    run torizoncore-builder secboot sign-kernel
-    assert_failure
-    assert_output --partial \
-        "the following arguments are required: --kernel-key"
-}
-
-@test "secboot sign-kernel: attempt to sign kernel FIT without images unpack" {
-    torizoncore-builder-clean-storage
-
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
-    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
-}
-
-@test "secboot sign-kernel: invalid parameters" {
-    # Unpack an unsigned image just so the initial 'images unpack' check is passed
-    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
-
-    # --kernel-key not specified
-    run torizoncore-builder secboot sign-kernel --kernel-key-dir "${KERNEL_KEY_DIR}"
-    assert_failure
-    assert_output --partial 'the following arguments are required: --kernel-key'
-
-    # non-existent kernel FIT image key directory
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "foo" \
-        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial 'does not exist'
-
-    # key name that does not match file in key directory
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name=foo;algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial 'Could not find'
-
-    # Invalid --kernel-key format (comma instead of semicolon)
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name=${KERNEL_KEY_NAME},algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial '--kernel-key is not correctly formatted'
-
-    # --kernel-key without name
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial "Could not find value of 'name' in --kernel-key"
-}
-
-@test "secboot sign-kernel: image with unsupported kernel format" {
-    requires-supported-kernel-signing-machine
-    requires-non-fit-kernel
-
-    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
-
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial 'Unpacked image does not have the kernel in FIT format'
-}
-
-@test "secboot sign-kernel: unsupported machine" {
-
-    unpack-image "${DEFAULT_TEZI_IMAGE}"
-    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
-
-    # change the U-Boot environment file to change the machine name to an invalid one
-    UBOOT_ENV_FILE=$(cat "${INPUT_IMAGE_DIR}/image.json" \
-                         | grep u_boot_env \
-                         | sed 's/.*"u_boot_env": "\(.*\)",/\1/')
-    sed -i 's/^board=/board=dummy-/' "${INPUT_IMAGE_DIR}/${UBOOT_ENV_FILE}"
-
-    # Unpack the image to internal storage
-    torizoncore-builder images --remove-storage unpack "${INPUT_IMAGE_DIR}"
-
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_failure
-    assert_output --partial "TorizonCore Builder doesn't support signing the kernel of images for"
-    torizoncore-builder-clean-storage
-    rm -rf "${INPUT_IMAGE_DIR}"
-}
-
-@test "secboot sign-kernel: sign with test key" {
-
-    requires-supported-kernel-signing-machine
-    requires-signed-image
-
-    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
-
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
-    assert_success
-    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
-    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
-    assert_output --partial 'Kernel FIT image signed successfully'
-    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
-
-    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
-    assert_success
-
-    torizoncore-builder-clean-storage
-
-    # run with --kernel-key parameters separated with space (should still work)
-    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
-
-    run torizoncore-builder secboot sign-kernel \
-        --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}"
-    assert_success
-    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
-    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
-    assert_output --partial 'Kernel FIT image signed successfully'
-    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
-
-    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
-    assert_success
-
-    local CONFIG_LIST=$(torizoncore-builder-shell \
-                        "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
-                        /configurations -l")
-
-    local CONFIG1=$(echo "${CONFIG_LIST}" | head -n 1)
-
-    local CONFIG1_SUBNODES=$(torizoncore-builder-shell \
-                             "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
-                             /configurations/${CONFIG1} -l")
-
-    local SIG_NODE=$(echo "${CONFIG1_SUBNODES}" | grep signature)
-
-    local FOUND_KEY_NAME=$(torizoncore-builder-shell \
-                           "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
-                           /configurations/${CONFIG1}/${SIG_NODE} key-name-hint")
-
-    run test "${FOUND_KEY_NAME}" == "${KERNEL_KEY_NAME}"
-    assert_success
-}
-
 @test "secboot sign-bootloader-hab: check help output" {
     run torizoncore-builder secboot sign-bootloader-hab --help
     assert_success
@@ -310,7 +155,6 @@ setup_file() {
 }
 
 @test "secboot sign-bootloader-hab: machine not compatible with HAB" {
-
     unpack-image "${DEFAULT_TEZI_IMAGE}"
     local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
     local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
@@ -510,4 +354,157 @@ setup_file() {
     # delete copied CST binaries as they're no longer needed
     rm -rf "${CST_DIR}/linux32"
     rm -rf "${CST_DIR}/linux64"
+}
+
+@test "secboot sign-kernel: check help output" {
+    run torizoncore-builder secboot sign-kernel --help
+    assert_success
+    assert_output --partial "usage: torizoncore-builder secboot sign-kernel"
+    assert_output --partial "Currently supported machines:"
+}
+
+@test "secboot sign-kernel: run without parameters" {
+    run torizoncore-builder secboot sign-kernel
+    assert_failure
+    assert_output --partial \
+        "the following arguments are required: --kernel-key"
+}
+
+@test "secboot sign-kernel: attempt to sign kernel FIT without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
+}
+
+@test "secboot sign-kernel: invalid parameters" {
+    # Unpack an unsigned image just so the initial 'images unpack' check is passed
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    # --kernel-key not specified
+    run torizoncore-builder secboot sign-kernel --kernel-key-dir "${KERNEL_KEY_DIR}"
+    assert_failure
+    assert_output --partial 'the following arguments are required: --kernel-key'
+
+    # non-existent kernel FIT image key directory
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "foo" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial 'does not exist'
+
+    # key name that does not match file in key directory
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=foo;algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial 'Could not find'
+
+    # Invalid --kernel-key format (comma instead of semicolon)
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME},algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial '--kernel-key is not correctly formatted'
+
+    # --kernel-key without name
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "Could not find value of 'name' in --kernel-key"
+}
+
+@test "secboot sign-kernel: image with unsupported kernel format" {
+    requires-supported-kernel-signing-machine
+    requires-non-fit-kernel
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial 'Unpacked image does not have the kernel in FIT format'
+}
+
+@test "secboot sign-kernel: unsupported machine" {
+    unpack-image "${DEFAULT_TEZI_IMAGE}"
+    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
+
+    # change the U-Boot environment file to change the machine name to an invalid one
+    UBOOT_ENV_FILE=$(cat "${INPUT_IMAGE_DIR}/image.json" \
+                         | grep u_boot_env \
+                         | sed 's/.*"u_boot_env": "\(.*\)",/\1/')
+    sed -i 's/^board=/board=dummy-/' "${INPUT_IMAGE_DIR}/${UBOOT_ENV_FILE}"
+
+    # Unpack the image to internal storage
+    torizoncore-builder images --remove-storage unpack "${INPUT_IMAGE_DIR}"
+
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "TorizonCore Builder doesn't support signing the kernel of images for"
+    torizoncore-builder-clean-storage
+    rm -rf "${INPUT_IMAGE_DIR}"
+}
+
+@test "secboot sign-kernel: sign with test key" {
+    requires-supported-kernel-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_success
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+
+    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
+    assert_success
+
+    torizoncore-builder-clean-storage
+
+    # run with --kernel-key parameters separated with space (should still work)
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}"
+    assert_success
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+
+    run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
+    assert_success
+
+    local CONFIG_LIST=$(torizoncore-builder-shell \
+                        "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                        /configurations -l")
+
+    local CONFIG1=$(echo "${CONFIG_LIST}" | head -n 1)
+
+    local CONFIG1_SUBNODES=$(torizoncore-builder-shell \
+                             "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                             /configurations/${CONFIG1} -l")
+
+    local SIG_NODE=$(echo "${CONFIG1_SUBNODES}" | grep signature)
+
+    local FOUND_KEY_NAME=$(torizoncore-builder-shell \
+                           "fdtget -ts /storage/kernel/usr/lib/modules/*/vmlinuz \
+                           /configurations/${CONFIG1}/${SIG_NODE} key-name-hint")
+
+    run test "${FOUND_KEY_NAME}" == "${KERNEL_KEY_NAME}"
+    assert_success
 }
