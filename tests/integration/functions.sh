@@ -332,14 +332,14 @@ unpacked-kernel-in-fit-format() {
 export -f unpacked-kernel-in-fit-format
 
 requires-non-fit-kernel() {
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         skip "kernel in FIT format is unsupported"
     fi
 }
 export -f requires-non-fit-kernel
 
 requires-fit-kernel() {
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" != "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" != "1" ]; then
         skip "kernel is not in FIT format"
     fi
 }

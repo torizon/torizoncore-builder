@@ -51,7 +51,7 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_output --partial "Splash screen configuration updated"
 
     local STORAGE_DIR="/storage/splash"
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" != "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" != "1" ]; then
         run torizoncore-builder-shell "ls -l ${STORAGE_DIR}/usr/lib/modules/*/initramfs.img"
         assert_success
     else
