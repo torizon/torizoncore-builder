@@ -225,6 +225,7 @@ fi
 # prepare tests
 export BATS_LIB_PATH="$WORK_DIR"
 export DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL=""
+export DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT=""
 cd $WORK_DIR
 rm -rf $SAMPLES_DIR && cp -a ../$SAMPLES_DIR .
 mkdir -p $REPORT_DIR
@@ -237,7 +238,8 @@ _setup_fit_image_vars() {
 
         # Check if image with FIT kernel has signing artifacts
         if signing-artifacts-in-unpacked-tezi-image; then
-            echo "Image has signing artifacts - Secure boot related tests will be executed for machine ${MACHINE}."
+            echo "Image has signing artifacts;" \
+                 "Secure boot related tests will be executed for machine ${MACHINE}."
             DEFAULT_SIGNED_TEZI_IMAGE="${DEFAULT_TEZI_IMAGE}"
         fi
     else
@@ -251,10 +253,21 @@ _setup_fit_image_vars() {
     fi
 }
 
+_setup_cfs_supp_vars() {
+    DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT="0"
+    if unpacked-ostree-repo-has-composefs-support; then
+        echo "Image has composefs (root filesystem protection) support."
+        DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT="1"
+    else
+        echo "Image has NO composefs (root filesystem protection) support."
+    fi
+}
+
 # If using TEZI image, check if it has a kernel in FIT format as some tests need this info
 if [ "$IS_WIC" != "1" ] && [ -n "$DEFAULT_TEZI_IMAGE" ]; then
     torizoncore-builder images --remove-storage unpack "$DEFAULT_TEZI_IMAGE"
     _setup_fit_image_vars
+    _setup_cfs_supp_vars
 fi
 
 # Run tests
