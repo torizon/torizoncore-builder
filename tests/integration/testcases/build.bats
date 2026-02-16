@@ -66,7 +66,7 @@ teardown_file() {
     assert_output --partial 'output:'
 }
 
-@test "build: config file with error detected by YAML parser" {
+@test "build: tcbuild with error detected by YAML parser" {
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-yaml-error.yaml"
     run torizoncore-builder build --file "$FNAME"
     assert_failure
@@ -74,7 +74,7 @@ teardown_file() {
     assert_output --partial "expected alphabetic"
 }
 
-@test "build: config file with multiple validation errors" {
+@test "build: tcbuild with multiple validation errors" {
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-validation-errors.yaml"
     run torizoncore-builder build --file "$FNAME"
     assert_failure
@@ -87,7 +87,7 @@ teardown_file() {
     assert_output --partial 'while parsing /customization/device-tree/overlays/clear'
 }
 
-@test "build: config file with variables" {
+@test "build: tcbuild with variables not passed" {
     rm -rf dummy_output_directory
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-variables.yaml"
     run torizoncore-builder build --file "$FNAME"
@@ -103,7 +103,7 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
-@test "build: config file with variables in input section" {
+@test "build: tcbuild with variables not passed (input section)" {
     rm -rf dummy_output_directory
     run torizoncore-builder build \
         --file "$SAMPLES_DIR/config/tcbuild-with-variables2.yaml" \
@@ -116,7 +116,7 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
-@test "build: re-signing of kernel FIT and bootloader with HAB" {
+@test "build: re-signing of bootloader (HAB) and kernel FIT image" {
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine
     requires-signed-image
@@ -430,7 +430,7 @@ teardown_file() {
     assert_output --partial 'key2=val2'
 }
 
-@test "build: config file with autoinstall and autoreboot" {
+@test "build: check autoinstall, autoreboot and accept-licence" {
     local DUMMY_OUTPUT="dummy_output_directory"
     rm -rf $DUMMY_OUTPUT
 
@@ -466,7 +466,7 @@ teardown_file() {
     rm -rf "$DUMMY_OUTPUT"
 }
 
-@test "build: check overlays's clear" {
+@test "build: check overlays clearing" {
     local OVERLAY_IMAGE="overlay_image"
     local DUMMY_OUTPUT="dummy_output_directory"
 
@@ -552,7 +552,7 @@ teardown_file() {
     rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
 }
 
-@test "build: basic tcbuild referencing a docker-compose file" {
+@test "build: check basic container bundling" {
     local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
 
     local COMPOSE='docker-compose.yml'
@@ -591,7 +591,7 @@ teardown_file() {
     rm -fr "$OUTDIR"
 }
 
-@test "build: check with secure registry with authentication" {
+@test "build: check container bundling with secure registry" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
     local COMPOSE="${SR_COMPOSE_FOLDER}/docker-compose.yml"
     local OUTDIR="customized_image"
