@@ -490,7 +490,12 @@ test_canonicalize_only_success() {
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder union $IMG_NAME
+    local cfs_support="$(cfs-support-flag)"
+
+    run torizoncore-builder union $IMG_NAME \
+	${cfs_support:+
+	  --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+	  --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_success
 
     # Grab Commit hash created by the union command

@@ -396,3 +396,62 @@ cfs-support-flag() {
     [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ] && echo "1"
 }
 export -f cfs-support-flag
+
+# Usage: set-ostree-key-in-tcbuild <tcbuild> <ostree-key> [<ostree-key-dir>]
+#
+# Contents of the tcbuild file should look like this:
+#
+# ```
+# # customization:
+#   # secboot:
+#     # sign-ostree:
+#       # ostree-key-dir: {{ ostree_key_dir }}
+#       # ostree-key:
+#          # - name: {{ ostree_key_name }}
+#          #   algo: {{ ostree_key_algo }}
+# ```
+#
+# Example:
+#
+# $ set-ostree-key-in-tcbuild "tcbuild.yaml" "name=CFS;algo=ed25519" "key-dir/"
+#
+set-ostree-key-in-tcbuild() {
+    local tcbuild="${1?tcbuild file path expected}"
+    local ostree_key="${2?ostree-key expected}"
+    local ostree_key_dir="${3-}"
+
+    # Uncomment parent properties:
+    sed -e '/^[[:space:]]*##[[:space:]]*\(customization\|secboot\|sign-ostree\):$/ {s/## //}' \
+	"${tcbuild}" > "${tcbuild}.tmp"
+
+    if [ -n "${ostree_key_dir}" ]; then
+	sed -e "\,^[[:space:]]*##.*{{ ostree_key_dir }}, {
+                   s,## ,,
+                   s,{{ ostree_key_dir }},\"${ostree_key_dir}\",
+               }" \
+	    -i "${tcbuild}.tmp"
+    fi
+
+    sed -e '/^[[:space:]]*##[[:space:]]*ostree-key:$/ {s/## //}' \
+	-i "${tcbuild}.tmp"
+
+    (
+	IFS=";"
+	for fld in ${ostree_key}; do
+	    local key="${fld%%=*}"
+	    local val="${fld#*=}"
+	    sed -e "\,^[[:space:]]*##.*{{ ostree_key_${key} }}, {
+                       s,## ,,
+                       s,{{ ostree_key_${key} }},\"${val}\",
+                   }" \
+		-i "${tcbuild}.tmp"
+	done
+    )
+
+    if [ "${DBG_SET_OSTREE_KEY-0}" = "1" ]; then
+        cat "${tcbuild}.tmp"
+    else
+        mv "${tcbuild}.tmp" "${tcbuild}"
+    fi
+}
+export -f set-ostree-key-in-tcbuild

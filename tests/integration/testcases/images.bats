@@ -91,8 +91,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: missing properties
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-offline-error1.yml" "tcbuild-offline-error1.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-offline-error1.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-offline-error1.yml" \
+        --file "tcbuild-offline-error1.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -101,8 +108,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: extraneous properties
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-offline-error2.yml" "tcbuild-offline-error2.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-offline-error2.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-offline-error2.yml" \
+        --file "tcbuild-offline-error2.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -111,8 +125,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: all good
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-offline-basic.yml" "tcbuild-offline-basic.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-offline-basic.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-offline-basic.yml" \
+        --file "tcbuild-offline-basic.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -213,8 +234,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: missing properties
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-online-error1.yml" "tcbuild-online-error1.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-online-error1.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-online-error1.yml" \
+        --file "tcbuild-online-error1.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -223,8 +251,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: extraneous properties
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-online-error2.yml" "tcbuild-online-error2.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-online-error2.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-online-error2.yml" \
+        --file "tcbuild-online-error2.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -233,8 +268,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: all good
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-online-basic.yml" "tcbuild-online-basic.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-online-basic.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-online-basic.yml" \
+        --file "tcbuild-online-basic.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -246,8 +288,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: disabled
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-online-disabled.yml" "tcbuild-online-disabled.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-online-disabled.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-online-disabled.yml" \
+        --file "tcbuild-online-disabled.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR" \
         --set SHARED_DATA_TARBALL="${SAMPLES_DIR}/provision/shared-data.tar.gz"
@@ -337,8 +386,15 @@ bats_load_library 'bats/bats-file/load.bash'
 
     # case: all good
     rm -fr "${OUTPUT_IMAGE_DIR}"
+    cp "${SAMPLES_DIR}/provision/tcbuild-custom-description.yml" "tcbuild-custom-description.yml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-custom-description.yml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/provision/tcbuild-custom-description.yml" \
+        --file "tcbuild-custom-description.yml" \
         --set INPUT_DIR="$INPUT_IMAGE_DIR" \
         --set OUTPUT_DIR="$OUTPUT_IMAGE_DIR"
     assert_success

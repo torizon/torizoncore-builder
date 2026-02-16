@@ -2,6 +2,14 @@ input:
   easy-installer:
     local: "${INPUT_IMAGE:?Please specify input image}"
 
+## customization:
+  ## secboot:
+    ## sign-ostree:
+      ## ostree-key-dir: {{ ostree_key_dir }}
+      ## ostree-key:
+         ## - name: {{ ostree_key_name }}
+         ##   algo: {{ ostree_key_algo }}
+
 output:
   easy-installer:
     local: "${OUTPUT_DIR:?Please specify output directory}"

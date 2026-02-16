@@ -29,9 +29,15 @@ load 'lib/common.bash'
     rm -rf my_new_image
     rm -rf $ROOTFS
 
+    local cfs_support="$(cfs-support-flag)"
+
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
+    torizoncore-builder union branch1 \
+        --changes-directory $SAMPLES_DIR/changes \
+	${cfs_support:+
+	  --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+	  --ostree-key "name=cfs-dev;algo=ed25519"}
 
     run torizoncore-builder deploy --output-directory my_new_image branch1
     assert_success
@@ -66,6 +72,7 @@ load 'lib/common.bash'
 
 # bats test_tags=requires-device
 @test "deploy: deploy changes to device" {
+    requires-no-cfs-support
     requires-device
 
     torizoncore-builder-clean-storage
@@ -95,7 +102,12 @@ load 'lib/common.bash'
     run torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
     assert_success
 
-    run torizoncore-builder union branch1
+    local cfs_support="$(cfs-support-flag)"
+
+    run torizoncore-builder union branch1 \
+	${cfs_support:+
+	  --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+	  --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_success
 
     # Check if licence is present in the image.
@@ -169,10 +181,15 @@ load 'lib/common.bash'
 }
 
 @test "deploy: check with --image-autoreboot" {
+    local cfs_support="$(cfs-support-flag)"
+
     local REG_EX_GENERATED='^\s*reboot\s+-f\s*#\s*torizoncore-builder\s+generated'
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
-    torizoncore-builder union branch1
+    torizoncore-builder union branch1 \
+	${cfs_support:+
+	  --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+	  --ostree-key "name=cfs-dev;algo=ed25519"}
 
     rm -rf some_dir
 
