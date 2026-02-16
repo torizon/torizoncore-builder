@@ -59,6 +59,10 @@ load 'lib/union.bash'
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        assert_output --regexp "Commit .* will be signed with the private key in"
+    fi
+
     local COMMIT=$(echo "$output" | grep '^Commit.*has been generated' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
     torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
@@ -69,6 +73,20 @@ load 'lib/union.bash'
     run torizoncore-builder-shell "ostree refs --repo=/storage/ostree-archive/"
     assert_success
     assert_output --partial "branch1"
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # Ensure composefs image hash is in the commit medatada.
+        run torizoncore-builder-shell \
+            "ostree show --repo=/storage/ostree-archive/ --list-metadata-keys branch1"
+        assert_success
+        assert_output --partial "ostree.composefs.digest.v0"
+
+        # Ensure hash signature is present in detached metadata.
+        run torizoncore-builder-shell \
+            "ostree show --repo=/storage/ostree-archive/ --list-detached-metadata-keys branch1"
+        assert_success
+        assert_output --partial "ostree.sign.ed25519"
+    fi
 }
 
 @test "union: create branch using multiple --changes-directory" {

@@ -381,42 +381,89 @@ setup_file() {
     assert_output --partial "Please use the 'images' command to unpack an image before running this command"
 }
 
-@test "secboot sign-kernel: invalid parameters" {
-    # Unpack an unsigned image just so the initial 'images unpack' check is passed
+@test "secboot sign-kernel: invalid parameters or bad input" {
+    # Unpack image so the initial 'images unpack' check passes:
     torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
 
-    # --kernel-key not specified
+    # Switch --kernel-key not specified:
     run torizoncore-builder secboot sign-kernel --kernel-key-dir "${KERNEL_KEY_DIR}"
     assert_failure
     assert_output --partial 'the following arguments are required: --kernel-key'
 
-    # non-existent kernel FIT image key directory
+    # Non-existent kernel FIT image key directory:
     run torizoncore-builder secboot sign-kernel \
         --kernel-key-dir "foo" \
         --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial 'does not exist'
 
-    # key name that does not match file in key directory
+    # Key name that does not match file in key directory:
     run torizoncore-builder secboot sign-kernel \
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "name=foo;algo=${KERNEL_KEY_ALGO}"
     assert_failure
-    assert_output --partial 'Could not find'
+    assert_output --regexp "Could not find 'foo.key' in"
 
-    # Invalid --kernel-key format (comma instead of semicolon)
+    # Invalid --kernel-key format (comma instead of semicolon):
     run torizoncore-builder secboot sign-kernel \
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "name=${KERNEL_KEY_NAME},algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial '--kernel-key is not correctly formatted'
 
-    # --kernel-key without name
+    # --kernel-key without name:
     run torizoncore-builder secboot sign-kernel \
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
         --kernel-key "algo=${KERNEL_KEY_ALGO}"
     assert_failure
     assert_output --partial "Could not find value of 'name' in --kernel-key"
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # Switch --ostree-key-dir passed without --ostree-key being passed:
+        run torizoncore-builder secboot sign-kernel \
+            --kernel-key-dir "${KERNEL_KEY_DIR}" \
+            --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
+            --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+        assert_failure
+        assert_output --partial 'ostree-key-dir was passed but ostree-key was not provided'
+
+        # Invalid --ostree-key format (comma instead of semicolon):
+        run torizoncore-builder secboot sign-kernel \
+            --kernel-key-dir "${KERNEL_KEY_DIR}" \
+            --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
+            --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/" \
+            --ostree-key "name=cfs-dev,algo=ed25519"
+        assert_failure
+        assert_output --regexp 'The ostree-key parameter is not correctly formatted'
+
+        # Non-existing ostree-key-dir passed:
+        run torizoncore-builder secboot sign-kernel \
+            --kernel-key-dir "${KERNEL_KEY_DIR}" \
+            --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
+            --ostree-key-dir "${SAMPLES_DIR}/signing_keys/dummy-dir/" \
+            --ostree-key "name=cfs-dev;algo=ed25519"
+        assert_failure
+        assert_output --regexp 'OSTree keys directory .*dummy-dir.* does not exist.'
+
+        # Bad key name passed, no algorithm passed:
+        run torizoncore-builder secboot sign-kernel \
+            --kernel-key-dir "${KERNEL_KEY_DIR}" \
+            --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
+            --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/" \
+            --ostree-key "name=badkey"
+        assert_failure
+        assert_output --partial "Could not find value of 'algo' in the ostree-key parameter; defaulting to"
+        assert_output --partial 'Cannot read public key file'
+    else
+        # Switch --ostree-key passed for an image having no composefs support:
+        run torizoncore-builder secboot sign-kernel \
+            --kernel-key-dir "${KERNEL_KEY_DIR}" \
+            --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
+            --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/" \
+            --ostree-key "name=cfs-dev;algo=ed25519"
+        assert_failure
+        assert_output --partial 'ostree-key parameter has been passed for an image that has no support for the root filesystem protection.'
+    fi
 }
 
 @test "secboot sign-kernel: image with unsupported kernel format" {
@@ -474,17 +521,29 @@ setup_file() {
 
     torizoncore-builder-clean-storage
 
-    # run with --kernel-key parameters separated with space (should still work)
+    # Run with --kernel-key parameters separated with space (should still work).
+    # Also check passing an ostree signing key to update the ramdisk.
     torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    local cfs_support="$(cfs-support-flag)"
 
     run torizoncore-builder secboot sign-kernel \
         --kernel-key-dir "${KERNEL_KEY_DIR}" \
-        --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}"
+        --kernel-key "name = ${KERNEL_KEY_NAME}; algo = ${KERNEL_KEY_ALGO}" \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_success
     assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
     assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
     assert_output --partial 'Kernel FIT image signed successfully'
     assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        assert_output --partial 'Public OSTree binding key successfully updated in initramfs'
+    else
+        refute_output --partial 'Public OSTree binding key successfully updated in initramfs'
+    fi
 
     run torizoncore-builder-shell "ls -l /storage/kernel/usr/lib/modules/*/vmlinuz"
     assert_success

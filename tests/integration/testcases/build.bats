@@ -191,11 +191,6 @@ teardown_file() {
         --set OUTPUT_DIR="$OUTDIR" --force
 
     assert_success
-    # sign-kernel output
-    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
-    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
-    assert_output --partial 'Kernel FIT image signed successfully'
-    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
     # sign-bootloader-hab output
     assert_output --partial "Key type: ${CST_CRYPTO}"
     assert_output --partial "Key length: ${CST_KEY_SIZE}"
@@ -210,11 +205,35 @@ teardown_file() {
     assert_output --partial "Using SRK${CST_SRK_INDEX} for signing"
     assert_output --partial 'Bootloader container signed successfully'
     assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+    # sign-kernel output
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # sign-ostree output
+        assert_output --regexp "Commit .* will be signed with the private key in"
+    fi
 
     assert_output --partial 'Deploying commit ref: re-signed-branch'
 
     local ARCHIVE='/storage/ostree-archive/'
     local COMMIT='re-signed-branch'
+
+    # Check sign-ostree operation:
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # Ensure composefs image hash is in the commit medatada.
+        run torizoncore-builder-shell \
+            "ostree show --repo=$ARCHIVE --list-metadata-keys $COMMIT"
+        assert_success
+        assert_output --partial "ostree.composefs.digest.v0"
+
+        # Ensure hash signature is present in detached metadata.
+        run torizoncore-builder-shell \
+            "ostree show --repo=$ARCHIVE --list-detached-metadata-keys $COMMIT"
+        assert_success
+        assert_output --partial "ostree.sign.ed25519"
+    fi
 
     # Check output/ostree/commit-{subject,body} props:
     run torizoncore-builder-shell "ostree --repo=$ARCHIVE log $COMMIT"
