@@ -41,7 +41,7 @@ setup_file() {
 @test "secboot: check help output" {
     run torizoncore-builder secboot --help
     assert_success
-    assert_output --partial '{sign-kernel,sign-bootloader-hab}'
+    assert_output --partial '{sign-bootloader-hab,sign-kernel}'
 }
 
 @test "secboot sign-bootloader-hab: check help output" {

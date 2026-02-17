@@ -28,6 +28,83 @@ CST_SRK_DEFAULT_FUSE = "SRK_1_2_3_4_fuse.bin"
 KERNEL_KEY_DEFAULT_ALGO = "sha256,rsa2048"
 
 
+# pylint: disable-next=too-many-arguments
+def sign_bootloader_hab(
+        *,
+        cst_dir, cst_crypto, cst_key_size, cst_key_exp, cst_dig_algo,
+        cst_srk_index, cst_srk_table, cst_srk_fuse, cst_srk_no_ca,
+        kernel_key, kernel_key_dir=None):
+    """Execute the work of the "sign-bootloader-hab" command."""
+
+    images_unpack_executed()
+    fail_on_raw_image("Secboot commands are not supported for WIC/raw images. Aborting.")
+
+    if not os.path.isdir(cst_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{cst_dir}\" does not exist: aborting.")
+
+    if kernel_key_dir and not kernel_key:
+        raise InvalidArgumentError(
+            "Error: --kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
+
+    kernel_key_name = None
+    kernel_key_algo = None
+    if kernel_key is not None:
+        if kernel_key_dir is not None and not os.path.isdir(kernel_key_dir):
+            raise InvalidArgumentError(
+                f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
+        kernel_key_dir = kernel_key_dir or "."
+        kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
+
+    cst_args = {
+        "crypto": cst_crypto,
+        "key_size": cst_key_size,
+        "key_exp": cst_key_exp,
+        "dig_algo": cst_dig_algo,
+        "srk_index": cst_srk_index,
+        "srk_table": cst_srk_table,
+        "srk_fuse": cst_srk_fuse,
+        "srk_no_ca": cst_srk_no_ca
+    }
+
+    secboot.sign_bootloader_hab(
+        kernel_key_dir=kernel_key_dir,
+        kernel_key_name=kernel_key_name,
+        kernel_key_algo=kernel_key_algo,
+        cst_dir=cst_dir,
+        cst_args=cst_args
+    )
+
+    if kernel_key_dir:
+        log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
+                 "the bootloader to verify the kernel signature.\n")
+    else:
+        log.warning("The bootloader DTBs were NOT updated with a new public key.")
+        log.warning("If the kernel FIT image will be signed with a new key, please re-run the "
+                    "command with --kernel-key-dir and --kernel-key so the new kernel signature "
+                    "can be properly verified by the bootloader.")
+        log.warning("Otherwise, this message can be ignored.\n")
+
+    log.info("Bootloader in Torizon OS image signed successfully!")
+
+
+def do_sign_bootloader_hab(args):
+    """Get the arguments of the sign-bootloader-hab command from the CLI parser."""
+
+    sign_bootloader_hab(
+        cst_dir=args.cst_dir,
+        cst_crypto=args.cst_crypto,
+        cst_key_size=args.cst_key_size,
+        cst_key_exp=args.cst_key_exp,
+        cst_dig_algo=args.cst_dig_algo,
+        cst_srk_index=args.cst_srk_index,
+        cst_srk_table=args.cst_srk_table,
+        cst_srk_fuse=args.cst_srk_fuse,
+        cst_srk_no_ca=args.cst_srk_no_ca,
+        kernel_key=args.kernel_key,
+        kernel_key_dir=args.kernel_key_dir)
+
+
 def _parse_kernel_key_arg(kernel_key):
     """Parse and validate --kernel-key arg."""
 
@@ -141,83 +218,6 @@ def do_sign_kernel(args):
         ostree_key_dir=args.ostree_key_dir)
 
 
-# pylint: disable-next=too-many-arguments
-def sign_bootloader_hab(
-        *,
-        cst_dir, cst_crypto, cst_key_size, cst_key_exp, cst_dig_algo,
-        cst_srk_index, cst_srk_table, cst_srk_fuse, cst_srk_no_ca,
-        kernel_key, kernel_key_dir=None):
-    """Execute the work of the "sign-bootloader-hab" command."""
-
-    images_unpack_executed()
-    fail_on_raw_image("Secboot commands are not supported for WIC/raw images. Aborting.")
-
-    if not os.path.isdir(cst_dir):
-        raise InvalidArgumentError(
-            f"Directory \"{cst_dir}\" does not exist: aborting.")
-
-    if kernel_key_dir and not kernel_key:
-        raise InvalidArgumentError(
-            "Error: --kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
-
-    kernel_key_name = None
-    kernel_key_algo = None
-    if kernel_key is not None:
-        if kernel_key_dir is not None and not os.path.isdir(kernel_key_dir):
-            raise InvalidArgumentError(
-                f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
-        kernel_key_dir = kernel_key_dir or "."
-        kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
-
-    cst_args = {
-        "crypto": cst_crypto,
-        "key_size": cst_key_size,
-        "key_exp": cst_key_exp,
-        "dig_algo": cst_dig_algo,
-        "srk_index": cst_srk_index,
-        "srk_table": cst_srk_table,
-        "srk_fuse": cst_srk_fuse,
-        "srk_no_ca": cst_srk_no_ca
-    }
-
-    secboot.sign_bootloader_hab(
-        kernel_key_dir=kernel_key_dir,
-        kernel_key_name=kernel_key_name,
-        kernel_key_algo=kernel_key_algo,
-        cst_dir=cst_dir,
-        cst_args=cst_args
-    )
-
-    if kernel_key_dir:
-        log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
-                 "the bootloader to verify the kernel signature.\n")
-    else:
-        log.warning("The bootloader DTBs were NOT updated with a new public key.")
-        log.warning("If the kernel FIT image will be signed with a new key, please re-run the "
-                    "command with --kernel-key-dir and --kernel-key so the new kernel signature "
-                    "can be properly verified by the bootloader.")
-        log.warning("Otherwise, this message can be ignored.\n")
-
-    log.info("Bootloader in Torizon OS image signed successfully!")
-
-
-def do_sign_bootloader_hab(args):
-    """Get the arguments of the sign-bootloader-hab command from the CLI parser."""
-
-    sign_bootloader_hab(
-        cst_dir=args.cst_dir,
-        cst_crypto=args.cst_crypto,
-        cst_key_size=args.cst_key_size,
-        cst_key_exp=args.cst_key_exp,
-        cst_dig_algo=args.cst_dig_algo,
-        cst_srk_index=args.cst_srk_index,
-        cst_srk_table=args.cst_srk_table,
-        cst_srk_fuse=args.cst_srk_fuse,
-        cst_srk_no_ca=args.cst_srk_no_ca,
-        kernel_key=args.kernel_key,
-        kernel_key_dir=args.kernel_key_dir)
-
-
 def init_parser(subparsers):
     """Initialize argument parser."""
 
@@ -228,52 +228,6 @@ def init_parser(subparsers):
         allow_abbrev=False)
 
     subparsers = parser.add_subparsers(title='Commands', required=True, dest='cmd')
-
-    # secboot sign-kernel
-    subparser = subparsers.add_parser(
-        "sign-kernel",
-        help="Sign the kernel FIT image of an unpacked Torizon OS image.",
-        description="Sign the kernel FIT image of an unpacked Torizon OS image.",
-        epilog=("Currently supported machines: "
-                f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
-
-    subparser.add_argument(
-        "--kernel-key", dest="kernel_key",
-        help=("Kernel key information in the form 'name=<NAME>;algo=<ALGO>', where <NAME> is "
-              "the key name and <ALGO> is a comma-separated pair of the hashing and crypto "
-              "algorithms to be used for the signing process (e.g. 'name=prod;algo=sha256,"
-              "rsa2048'). If <ALGO> is not provided, it defaults to "
-              f"'{KERNEL_KEY_DEFAULT_ALGO}'."),
-        required=True)
-
-    subparser.add_argument(
-        "--kernel-key-dir", dest="kernel_key_dir",
-        default=".",
-        metavar="KERNEL_KEY_DIR",
-        help=("Kernel key directory path. This directory must contain a PRIVATE key file named "
-              "<NAME>.key in PEM format, where <NAME> is specified through the --kernel-key "
-              "switch. (default: working directory)"))
-
-    subparser.add_argument(
-        "--ostree-key",
-        dest="ostree_key",
-        metavar="OSTREE_KEY",
-        help=("If specified, this switch causes the ramdisk embedded in the kernel FIT image "
-              "to be updated with the PUBLIC key used for signing the root filesystem (OSTree "
-              "commit); this is done before the FIT image is signed. The string passed to the "
-              "switch should have the form 'name=<NAME>;algo=<ALGO>' where <NAME> is the key "
-              "name and <ALGO> corresponds to the signing algorithm (e.g. "
-              "'name=prod;algo=ed25519'); <ALGO> defaults to "
-              f"'{OSTreeKey.OSTREE_KEY_DEFAULT_ALGO}' if not provided."))
-
-    subparser.add_argument(
-        "--ostree-key-dir",
-        dest="ostree_key_dir",
-        metavar="OSTREE_KEY_DIR",
-        help=("OSTree key directory path. This directory must contain a PUBLIC key file named "
-              "<NAME>.pub, where <NAME> is specified through the --ostree-key switch."))
-
-    subparser.set_defaults(func=do_sign_kernel)
 
     # secboot sign-bootloader-hab
     subparser = subparsers.add_parser(
@@ -363,3 +317,50 @@ def init_parser(subparsers):
               "(default: working directory)"))
 
     subparser.set_defaults(func=do_sign_bootloader_hab)
+
+    # secboot sign-kernel
+    subparser = subparsers.add_parser(
+        "sign-kernel",
+        help="Sign the kernel FIT image of an unpacked Torizon OS image.",
+        description="Sign the kernel FIT image of an unpacked Torizon OS image.",
+        epilog=("Currently supported machines: "
+                f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
+
+    subparser.add_argument(
+        "--kernel-key", dest="kernel_key",
+        help=("Kernel key information in the form 'name=<NAME>;algo=<ALGO>', where <NAME> is "
+              "the key name and <ALGO> is a comma-separated pair of the hashing and crypto "
+              "algorithms to be used for the signing process (e.g. 'name=prod;algo=sha256,"
+              "rsa2048'). If <ALGO> is not provided, it defaults to "
+              f"'{KERNEL_KEY_DEFAULT_ALGO}'."),
+        required=True)
+
+    subparser.add_argument(
+        "--kernel-key-dir", dest="kernel_key_dir",
+        default=".",
+        metavar="KERNEL_KEY_DIR",
+        help=("Kernel key directory path. This directory must contain a PRIVATE key file named "
+              "<NAME>.key in PEM format, where <NAME> is specified through the --kernel-key "
+              "switch. (default: working directory)"))
+
+    subparser.add_argument(
+        "--ostree-key",
+        dest="ostree_key",
+        metavar="OSTREE_KEY",
+        help=("If specified, this switch causes the ramdisk embedded in the kernel FIT image "
+              "to be updated with the PUBLIC key used for signing the root filesystem (OSTree "
+              "commit); this is done before the FIT image is signed. The string passed to the "
+              "switch should have the form 'name=<NAME>;algo=<ALGO>' where <NAME> is the key "
+              "name and <ALGO> corresponds to the signing algorithm (e.g. "
+              "'name=prod;algo=ed25519'); <ALGO> defaults to "
+              f"'{OSTreeKey.OSTREE_KEY_DEFAULT_ALGO}' if not provided."))
+
+    subparser.add_argument(
+        "--ostree-key-dir",
+        dest="ostree_key_dir",
+        metavar="OSTREE_KEY_DIR",
+        help=("OSTree key directory path. This directory must contain a PUBLIC key file named "
+              "<NAME>.pub, where <NAME> is specified through the --ostree-key switch. "
+              "(default: working directory)"))
+
+    subparser.set_defaults(func=do_sign_kernel)
