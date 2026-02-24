@@ -4,13 +4,14 @@
 
 import logging
 import os
-import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import time
 
+from contextlib import closing
 from datetime import datetime
 
 import docker
@@ -69,6 +70,16 @@ def get_compression_command(output_file):
         output_file_tar = f"{output_file}.tar"
 
     return (output_file_tar, command)
+
+
+def get_unused_port():
+    """Returns an unused network port for localhost."""
+
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        # Binding to port 0 asks the OS to find an available ephemeral port
+        s.bind(('127.0.0.1', 0))
+        # Get the port number the OS assigned
+        return s.getsockname()[1]
 
 
 class DockerManager:
@@ -203,7 +214,9 @@ class DindManager(DockerManager):
 
         self.docker_host = None
         self.dind_volume = None
+        self.volume_name = None
         self.dind_container = None
+        self.timestamp = None
 
     def _wait_certs(self):
         # Wait until TLS certificate is generated
@@ -243,32 +256,20 @@ class DindManager(DockerManager):
         log.info("\nStarting DIND container")
         dind_cmd = ["--storage-driver", "overlay2"]
         ports = None
+        port = get_unused_port()
 
         if network_name == "host":
-            # Choose a safe and high port to avoid conflict with already
-            # running docker instance...
-            port = 22376
+            self.docker_host = f"tcp://127.0.0.1:{port}"
             dind_cmd.append(f"--host=tcp://0.0.0.0:{port}")
-
-            if "DOCKER_HOST" in os.environ:
-                # In case we use a Docker host, also connect to that host to
-                # reach the DIND instance (Gitlab CI case)
-                docker_host = os.environ["DOCKER_HOST"]
-                results = re.findall(r"tcp?:\/\/(.*):(\d*)\/?.*", docker_host)
-                if not results or len(results) < 1:
-                    raise InvalidArgumentError(f"Regex does not match: {docker_host}")
-                host_ip = results[0][0]
-                self.docker_host = f"tcp://{host_ip}:{port}"
-            else:
-                self.docker_host = f"tcp://127.0.0.1:{port}"
             log.info(f"Using Docker host \"{self.docker_host}\"")
         else:
-            port = 22376
             ports = {f"{port}/tcp": port}
             dind_cmd.append(f"--host=tcp://0.0.0.0:{port}")
 
         # Create the volume to hold the /var/lib/docker data.
-        self.dind_volume = self.host_client.volumes.create(name=self.DIND_VOLUME_NAME)
+        self.timestamp = datetime.now().strftime("-%Y%m%d%H%M%S_%f")
+        self.volume_name = self.DIND_VOLUME_NAME + self.timestamp
+        self.dind_volume = self.host_client.volumes.create(name=self.volume_name)
 
         # The workdir below is for the DinD instance.
         environ = {
@@ -286,7 +287,7 @@ class DindManager(DockerManager):
                 read_only=False
             ),
             docker.types.Mount(
-                source=self.DIND_VOLUME_NAME,
+                source=self.volume_name,
                 type='volume',
                 target='/var/lib/docker/',
                 read_only=False
@@ -306,13 +307,14 @@ class DindManager(DockerManager):
         if dind_env is not None:
             environ.update(dind_env)
 
+        container_name = self.DIND_CONTAINER_NAME + self.timestamp
         run_kwargs = {
             "privileged": True,
             "environment": environ,
             "mounts": mounts,
             "ports": ports,
             "network": network_name,
-            "name": self.DIND_CONTAINER_NAME,
+            "name": container_name,
             "auto_remove": False,
             "detach": True,
             "command": dind_cmd
@@ -341,7 +343,7 @@ class DindManager(DockerManager):
             self.dind_container.reload()
             dind_ip = self.dind_container.attrs \
                 ["NetworkSettings"]["Networks"][network_name]["IPAddress"]
-            self.docker_host = "tcp://{}:22376".format(dind_ip)
+            self.docker_host = "tcp://{}:{}".format(dind_ip, port)
 
     def _stop_container(self):
         log.info("Stopping DIND container")
@@ -440,7 +442,7 @@ class DindManager(DockerManager):
                 read_only=False
             ),
             docker.types.Mount(
-                source=self.DIND_VOLUME_NAME,
+                source=self.volume_name,
                 type='volume',
                 target='/var/lib/docker/',
                 read_only=True
@@ -453,9 +455,10 @@ class DindManager(DockerManager):
 
         # Due to issues with WSL, we are running the container detached and
         # explicitly waiting it to stop.
+        tar_container_name = self.TAR_CONTAINER_NAME + self.timestamp
         _tar_container = self.host_client.containers.run(
             "debian:bullseye-slim",
-            name=self.TAR_CONTAINER_NAME,
+            name=tar_container_name,
             mounts=_mounts,
             command=_tar_command,
             detach=True)
