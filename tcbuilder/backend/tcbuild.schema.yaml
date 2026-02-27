@@ -244,34 +244,6 @@ properties:
         type: object
         description: "secure boot related configuration"
         properties:
-          sign-kernel:
-            type: object
-            description: "kernel signing configuration"
-            properties:
-              kernel-key-dir:
-                type: string
-                description: "path to key directory"
-              kernel-key:
-                type: array
-                description: "list of keys to be used to sign the kernel FIT"
-                items:
-                  type: object
-                  properties:
-                    name:
-                      type: string
-                      description: "name of the key, which correponds to its filename without the file extension"
-                    algo:
-                      type: string
-                      description: "comma-separated pair of the hashing the crypto algorithms to be used for the signing process"
-                  required:
-                    - name
-                  # No extra props inside 'kernel-key'
-                  additionalProperties: false
-            required:
-              - kernel-key-dir
-              - kernel-key
-            # No extra props inside 'sign-kernel'
-            additionalProperties: false
           sign-bootloader-hab:
             type: object
             description: "bootloader signing configuration for NXP SoCs supporting HAB"
@@ -331,6 +303,79 @@ properties:
             required:
               - cst-dir
             # No extra props inside 'sign-bootloader-hab'
+            additionalProperties: false
+          sign-kernel:
+            type: object
+            description: "kernel signing configuration"
+            properties:
+              kernel-key-dir:
+                type: string
+                description: "path to kernel key directory"
+              kernel-key:
+                type: array
+                description: "list of keys to be used to sign the kernel FIT"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "name of the key, which correponds to its filename without the file extension"
+                    algo:
+                      type: string
+                      description: "comma-separated pair of the hashing the crypto algorithms to be used for the signing process"
+                  required:
+                    - name
+                  # No extra props inside 'kernel-key'
+                  additionalProperties: false
+              ostree-key-dir:
+                type: string
+                description: "path to ostree key directory"
+              ostree-key:
+                type: array
+                description: "list of OSTree public signing keys to be added to the kernel FIT image"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "name of the key, which correponds to its filename without the file extension"
+                    algo:
+                      type: string
+                      description: "crypto algorithm used to generate the provided key"
+                  required:
+                    - name
+                  # No extra props inside 'ostree-key'
+                  additionalProperties: false
+            required:
+              - kernel-key
+            # No extra props inside 'sign-kernel'
+            additionalProperties: false
+          sign-ostree:
+            type: object
+            description: "OSTree signing configuration"
+            properties:
+              ostree-key-dir:
+                type: string
+                description: "path to ostree key directory"
+              ostree-key:
+                type: array
+                description: "list of private keys to sign the OSTree commit"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "name of the key, which correponds to its filename without the file extension"
+                    algo:
+                      type: string
+                      description: "crypto algorithm used to generate the provided key"
+                  required:
+                    - name
+                  # No extra props inside 'ostree-key'
+                  additionalProperties: false
+            required:
+              - ostree-key
+            # No extra props inside 'sign-ostree'
             additionalProperties: false
         # No extra props inside 'secboot'
         additionalProperties: false

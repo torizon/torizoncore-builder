@@ -2,7 +2,7 @@
 #
 # Usage: update_fit_configs_keyname.sh <fit-with-signature-node> <new-key-name>
 #
-# Normally <fit-with-signature-node> would be set to the kernel fitImage.
+# Normally <fit-with-signature-node> would be set to the kernel FIT image.
 #
 
 set -e

@@ -30,7 +30,7 @@ load 'lib/common.bash'
     torizoncore-builder-shell "rm -rf device-trees"
 
     run torizoncore-builder dt checkout
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         assert_failure
         assert_output --partial "Command not supported for images with kernel in the FIT format"
         return 0
@@ -58,7 +58,7 @@ load 'lib/common.bash'
 
     run torizoncore-builder dt checkout
     run torizoncore-builder dt checkout --update
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         assert_failure
         assert_output --partial "Command not supported for images with kernel in the FIT format"
         return 0
@@ -136,7 +136,7 @@ load 'lib/common.bash'
     assert_success
     assert_output --partial "$DTB"
 
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         echo "Checking existence of device-tree inside FIT image."
         run torizoncore-builder-shell \
             "VMLINUZ=\$(find /storage/kernel -name vmlinuz); echo \${VMLINUZ}; test -n \"\${VMLINUZ}\""

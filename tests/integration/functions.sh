@@ -332,14 +332,14 @@ unpacked-kernel-in-fit-format() {
 export -f unpacked-kernel-in-fit-format
 
 requires-non-fit-kernel() {
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         skip "kernel in FIT format is unsupported"
     fi
 }
 export -f requires-non-fit-kernel
 
 requires-fit-kernel() {
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" != "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" != "1" ]; then
         skip "kernel is not in FIT format"
     fi
 }
@@ -358,3 +358,100 @@ signing-artifacts-in-unpacked-tezi-image() {
     torizoncore-builder-shell "[ -f /storage/tezi/${DEFAULT_TCB_SIGNING_FILES_TARNAME} ]"
 }
 export -f signing-artifacts-in-unpacked-tezi-image
+
+unpacked-ostree-repo-has-composefs-support() {
+    local status
+    local repo="/storage/sysroot/ostree/repo/"
+    local prop="ex-integrity.composefs"
+    if status=$(torizoncore-builder-shell "ostree config --repo ${repo} get ${prop}"); then
+	if [[ "${status}" == @(true|yes|1) ]]; then
+	    # composefs is enabled
+	    return 0
+	fi
+	# composefs is not enabled
+	return 1
+    fi
+    # composefs is not configured (default state: disabled)
+    return 2
+}
+export -f unpacked-ostree-repo-has-composefs-support
+
+requires-no-cfs-support() {
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        skip "composefs image not supported"
+    fi
+}
+export -f requires-no-cfs-support
+
+requires-cfs-support() {
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" != "1" ]; then
+        skip "non-composefs image not supported"
+    fi
+}
+export -f requires-cfs-support
+
+# Returns string "1" if the default tezi image has composefs support.
+# This function is used to facilitate the use of the ${parameter:+word} substitution feature in Bash.
+cfs-support-flag() {
+    [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ] && echo "1"
+}
+export -f cfs-support-flag
+
+# Usage: set-ostree-key-in-tcbuild <tcbuild> <ostree-key> [<ostree-key-dir>]
+#
+# Contents of the tcbuild file should look like this:
+#
+# ```
+# # customization:
+#   # secboot:
+#     # sign-ostree:
+#       # ostree-key-dir: {{ ostree_key_dir }}
+#       # ostree-key:
+#          # - name: {{ ostree_key_name }}
+#          #   algo: {{ ostree_key_algo }}
+# ```
+#
+# Example:
+#
+# $ set-ostree-key-in-tcbuild "tcbuild.yaml" "name=CFS;algo=ed25519" "key-dir/"
+#
+set-ostree-key-in-tcbuild() {
+    local tcbuild="${1?tcbuild file path expected}"
+    local ostree_key="${2?ostree-key expected}"
+    local ostree_key_dir="${3-}"
+
+    # Uncomment parent properties:
+    sed -e '/^[[:space:]]*##[[:space:]]*\(customization\|secboot\|sign-ostree\):$/ {s/## //}' \
+	"${tcbuild}" > "${tcbuild}.tmp"
+
+    if [ -n "${ostree_key_dir}" ]; then
+	sed -e "\,^[[:space:]]*##.*{{ ostree_key_dir }}, {
+                   s,## ,,
+                   s,{{ ostree_key_dir }},\"${ostree_key_dir}\",
+               }" \
+	    -i "${tcbuild}.tmp"
+    fi
+
+    sed -e '/^[[:space:]]*##[[:space:]]*ostree-key:$/ {s/## //}' \
+	-i "${tcbuild}.tmp"
+
+    (
+	IFS=";"
+	for fld in ${ostree_key}; do
+	    local key="${fld%%=*}"
+	    local val="${fld#*=}"
+	    sed -e "\,^[[:space:]]*##.*{{ ostree_key_${key} }}, {
+                       s,## ,,
+                       s,{{ ostree_key_${key} }},\"${val}\",
+                   }" \
+		-i "${tcbuild}.tmp"
+	done
+    )
+
+    if [ "${DBG_SET_OSTREE_KEY-0}" = "1" ]; then
+        cat "${tcbuild}.tmp"
+    else
+        mv "${tcbuild}.tmp" "${tcbuild}"
+    fi
+}
+export -f set-ostree-key-in-tcbuild

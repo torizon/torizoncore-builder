@@ -248,8 +248,9 @@ def download_tezi(r_host, r_username, r_password, r_port, *,
                        src_sysroot_dir, src_ostree_archive_dir)
 
 
-def unpack_local_image(image_dir, sysroot_dir):
+def unpack_tezi_rootfs_tarball(image_dir, sysroot_dir):
     """Extract the root fs tarball from the image into the sysroot directory"""
+
     tarfile = get_rootfs_tarball(image_dir)
 
     # pylint: disable=line-too-long
@@ -269,6 +270,49 @@ def unpack_local_image(image_dir, sysroot_dir):
 
     # Remove the tarball since we have it unpacked now
     os.unlink(tarfile)
+
+
+def unpack_local_tezi_image(image_dir_or_file, tezi_dir):
+    """Handle the unpacking or copying of a Toradex Easy Installer image."""
+
+    if os.path.isfile(image_dir_or_file):
+        # This creates tempdir next to tezi_dir to ensure moving files
+        # can be efficiently done with a single rename syscall by
+        # shutil.move later.
+        with tempfile.TemporaryDirectory(dir=os.path.dirname(tezi_dir)) as tempdir:
+            tar_compress_options = get_tar_compress_program_options(image_dir_or_file)
+
+            if image_dir_or_file.endswith(".tar") or tar_compress_options:
+                log.info("Unpacking Toradex Easy Installer image.")
+                tarcmd = [
+                    "tar",
+                    "-xf", image_dir_or_file,
+                    "-C", tempdir,
+                ] + tar_compress_options
+                log.debug(f"Running tar command: {shlex.join(tarcmd)}")
+                subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
+            elif image_dir_or_file.endswith(".zip"):
+                log.info("Unzipping Toradex Easy Installer image.")
+                with ZipFile(image_dir_or_file, "r") as file:
+                    file.extractall(tempdir)
+            else:
+                raise TorizonCoreBuilderError(
+                    f"Unsupported image file type: {image_dir_or_file}")
+
+            contents = os.listdir(tempdir)
+            if len(contents) == 1 and os.path.isdir(os.path.join(tempdir, contents[0])):
+                shutil.move(os.path.join(tempdir, contents[0]), tezi_dir)
+            else:
+                shutil.move(tempdir, tezi_dir)
+
+    elif os.path.isdir(image_dir_or_file):
+        log.info("Copying Toradex Easy Installer image.")
+        log.debug(f"Copy directory {image_dir_or_file} -> {tezi_dir}.")
+        shutil.copytree(image_dir_or_file, tezi_dir)
+    elif os.path.exists(image_dir_or_file):
+        raise TorizonCoreBuilderError(f"Image is not a file or directory: {image_dir_or_file}")
+    else:
+        raise TorizonCoreBuilderError(f"Image does not exist: {image_dir_or_file}")
 
 
 def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
@@ -321,13 +365,13 @@ def _make_tezi_extract_dir(tezi_dir):
     return extract_dir
 
 
-# pylint: disable-next=too-many-locals
 def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
                        raw_rootfs_label=None):
-    """Import local raw/WIC or Toradex Easy Installer image
+    """Import local raw/WIC or Toradex Easy Installer image.
 
-    Import local raw/WIC or Toradex Easy installer image (archive file or unpacked dir) to be
-    customized. Assuming an empty/non-existing src_sysroot_dir as well as src_ostree_archive_dir.
+    Import local raw/WIC or Toradex Easy installer image (archive file or unpacked
+    dir) to be customized. Assuming an empty/non-existing src_sysroot_dir as well
+    as src_ostree_archive_dir.
     """
     os.mkdir(src_sysroot_dir)
 
@@ -335,48 +379,10 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
          image_dir_or_file.lower().endswith(".img")) and os.path.isfile(image_dir_or_file)):
         unpack_local_raw_image(image_dir_or_file, src_sysroot_dir, raw_rootfs_label)
     else:
-        # Check TEZI image:
-        if os.path.isfile(image_dir_or_file):
-            # This creates tempdir next to tezi_dir to ensure moving files
-            # can be efficiently done with a single rename syscall by
-            # shutil.move later.
-            with tempfile.TemporaryDirectory(dir=os.path.dirname(tezi_dir)) as tempdir:
-                tar_compress_options = get_tar_compress_program_options(image_dir_or_file)
-
-                if image_dir_or_file.endswith(".tar") or tar_compress_options:
-                    log.info("Unpacking Toradex Easy Installer image.")
-                    tarcmd = [
-                        "tar",
-                        "-xf", image_dir_or_file,
-                        "-C", tempdir,
-                    ] + tar_compress_options
-                    log.debug(f"Running tar command: {shlex.join(tarcmd)}")
-                    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
-                elif image_dir_or_file.endswith(".zip"):
-                    log.info("Unzipping Toradex Easy Installer image.")
-                    with ZipFile(image_dir_or_file, "r") as file:
-                        file.extractall(tempdir)
-                else:
-                    raise TorizonCoreBuilderError(
-                        f"Unsupported image file type: {image_dir_or_file}")
-
-                contents = os.listdir(tempdir)
-                if len(contents) == 1 and os.path.isdir(os.path.join(tempdir, contents[0])):
-                    shutil.move(os.path.join(tempdir, contents[0]), tezi_dir)
-                else:
-                    shutil.move(tempdir, tezi_dir)
-
-        elif os.path.isdir(image_dir_or_file):
-            log.info("Copying Toradex Easy Installer image.")
-            log.debug(f"Copy directory {image_dir_or_file} -> {tezi_dir}.")
-            shutil.copytree(image_dir_or_file, tezi_dir)
-        elif os.path.exists(image_dir_or_file):
-            raise TorizonCoreBuilderError(f"Image is not a file or directory: {image_dir_or_file}")
-        else:
-            raise TorizonCoreBuilderError(f"Image does not exist: {image_dir_or_file}")
+        unpack_local_tezi_image(image_dir_or_file, tezi_dir)
 
         common_raw_props_args = {
-            "raw_rootfs_label" : raw_rootfs_label
+            "raw_rootfs_label": raw_rootfs_label
         }
         # pylint: disable-next=consider-using-dict-items
         for prop in common_raw_props_args:
@@ -385,7 +391,7 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
                             "is specific to raw images. Ignoring.")
 
         log.info("Unpacking TorizonCore Toradex Easy Installer image.")
-        unpack_local_image(tezi_dir, src_sysroot_dir)
+        unpack_tezi_rootfs_tarball(tezi_dir, src_sysroot_dir)
 
     src_sysroot = ostree.load_sysroot(src_sysroot_dir)
     csum, _ = ostree.get_deployment_info_from_sysroot(src_sysroot)
@@ -393,6 +399,11 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
     log.info(f"Importing OSTree revision {csum} from local repository...")
     repo = ostree.create_ostree(src_ostree_archive_dir)
     src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
+
+    # Copy the original OSTree repo configuration (essential for composefs).
+    src_repo = ostree.open_ostree(src_ostree_dir)
+    ostree.copy_repo_config(src_repo, repo, keep_core=True)
+    ostree.dump_repo_config(repo)
 
     target_refs = ostree.get_reference_dict(src_ostree_dir, base_csum=csum)
     ostree.pull_local_refs(repo, src_ostree_dir, refs=target_refs, remote="torizon")
@@ -604,7 +615,7 @@ def track_tezi_signed_files(tezi_dir, commit_hash, machine):
             log.warning("Warning: secboot commands are not supported for this machine.")
             return
 
-        log.info(f"Found {DEFAULT_TCB_SIGNING_FILES_TARNAME}. Linking it to {commit_hash}.")
+        log.info(f"Found {DEFAULT_TCB_SIGNING_FILES_TARNAME}.")
         commit_dir = os.path.join(SECBOOT_ARTIFACTS_DIR, commit_hash)
         os.makedirs(commit_dir, exist_ok=True)
         shutil.copy2(tcb_signing_files_tar, commit_dir)

@@ -38,6 +38,7 @@ IMAGE_OVERHEAD_FACTOR = 2.3
 
 
 def create_sysroot(deploy_sysroot_dir):
+    log.debug("Creating OSTree sysroot at '%s'", deploy_sysroot_dir)
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(deploy_sysroot_dir))
 
     if not sysroot.ensure_initialized():
@@ -242,6 +243,7 @@ def copy_files_from_old_sysroot(src_sysroot, dst_sysroot):
             raise TorizonCoreBuilderError(
                 "Cannot deploy home directories.") from exc
 
+
 # pylint: disable-next=too-many-locals
 def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
                         dst_sysroot_dir, ref):
@@ -256,6 +258,12 @@ def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
     # Create a new sysroot for our deployment
     sysroot = create_sysroot(dst_sysroot_dir)
     repo = sysroot.repo()
+
+    # Copy the original OSTree repo configuration (essential for composefs).
+    src_ostree_dir = os.path.join(src_sysroot_dir, "ostree/repo")
+    src_repo = ostree.open_ostree(src_ostree_dir)
+    ostree.copy_repo_config(src_repo, repo, keep_core=True)
+    ostree.dump_repo_config(repo)
 
     # We need to resolve the reference to a checksum again, otherwise
     # pull_local_ref complains with:
@@ -296,7 +304,7 @@ def deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir,
 
 # pylint: disable-next=too-many-positional-arguments
 def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
-                      output_dir, dst_sysroot_dir, ref=None):
+                      output_dir, dst_sysroot_dir, *, ref=None):
     """Deploys a Toradex Easy Installer image with given OSTree reference
 
     Creates a new Toradex Easy Installer image with a OSTree deployment of the
@@ -399,7 +407,7 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
 
 # pylint: disable-next=too-many-positional-arguments
 def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
-                     output_raw_img, dst_sysroot_dir, rootfs_label, ref=None):
+                     output_raw_img, dst_sysroot_dir, rootfs_label, *, ref=None):
     """Deploys a WIC image with given OSTree reference
 
     Creates a new WIC image with an OSTree deployment of the

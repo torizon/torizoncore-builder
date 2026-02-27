@@ -113,3 +113,6 @@ class InvalidStorageDriverError(TorizonCoreBuilderError):
 
 class UnsupportedImageFeature(TorizonCoreBuilderError):
     pass
+
+class OSTreeSigningError(TorizonCoreBuilderError):
+    pass

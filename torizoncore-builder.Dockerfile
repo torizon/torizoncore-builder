@@ -57,15 +57,72 @@ RUN apt-get -q -y update && \
     rm -rf /var/lib/apt/lists/*
 
 
+# Build ostree/libostree from source.
+FROM builder-base AS ostree-builder
+
+WORKDIR /root
+
+# Install dependencies except those already present in builder-base.
+RUN apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install \
+            autoconf \
+            automake \
+            bison \
+            gobject-introspection \
+            libgirepository1.0-dev \
+            libtool \
+            libfuse3-dev \
+            libsodium-dev \
+    && \
+    rm -rf /var/lib/apt/lists/*
+
+# Fetch source code.
+RUN git clone -b v2024.5 https://github.com/ostreedev/ostree.git ostree && \
+    cd ostree/ && \
+    git submodule update --init --recursive
+
+# Build ostree.
+RUN cd ostree/ && \
+    echo "Configuring ostree..." && \
+    env NOCONFIGURE=1 ./autogen.sh && \
+    ./configure --prefix=/usr \
+                --without-soup \
+                --without-gpgme \
+                --with-curl \
+                --with-ed25519-libsodium && \
+    echo "Building ostree..." && \
+    make -j"$(nproc)"
+
+# Generate installation tarballs.
+RUN cd ostree/ && B="$(pwd)" && \
+    rm -fr "${B}/install-dir" && \
+    make install DESTDIR="${B}/install-dir" && \
+    \
+    echo "Building full tarball..." && \
+    tar cjvf /root/ostree-full.tar.bz2 \
+             --show-transformed-names --transform="s,^install-dir,," install-dir/ && \
+    \
+    echo "Building stripped down tarball..." && \
+    rm -fr install-dir-stripped/ && \
+    cp -av install-dir/ install-dir-stripped/ && \
+    rm -fr install-dir-stripped/usr/include/ostree-1/ \
+           install-dir-stripped/usr/libexec/libostree/grub2-15_ostree \
+           install-dir-stripped/usr/etc/grub.d/15_ostree \
+    && \
+    tar cjvf /root/ostree-stripped.tar.bz2 \
+             --show-transformed-names --transform="s,^install-dir-stripped,," install-dir-stripped/
+
+
 # Build SOTA tools (garage-push/garage-sign).
 FROM builder-base AS sota-builder
 
 WORKDIR /root
 
-# Dependencies according to aktualizr/README.adoc except those already present in builder-base.
-RUN apt-get -q -y update && \
+# Dependencies according to aktualizr/README.adoc except those in builder-base.
+RUN --mount=type=bind,from=ostree-builder,source=/root,target=/build/ostree \
+    tar xvf /build/ostree/ostree-full.tar.bz2 -C / && ldconfig -v && \
+    apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
-            libostree-dev \
             python3-requests \
     && \
     rm -rf /var/lib/apt/lists/*
@@ -210,7 +267,6 @@ RUN apt-get -q -y update && \
             curl \
             device-tree-compiler \
             file \
-            gir1.2-ostree-1.0 \
             gzip \
             imx-code-signing-tool \
             jq \
@@ -218,7 +274,6 @@ RUN apt-get -q -y update && \
             libguestfs-tools \
             lz4 \
             lzop \
-            ostree \
             python3 \
             python3-dnspython \
             python3-gi \
@@ -245,6 +300,17 @@ RUN mkdir -p /usr/share/man/man1/ && \
     apt-get -q -y update && \
     apt-get -q -y --no-install-recommends install \
             openjdk-21-jre-headless \
+    && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install libostree from our ostree-builder generated tarball.
+RUN --mount=type=bind,from=ostree-builder,source=/root,target=/build/ostree \
+    tar xvf /build/ostree/ostree-stripped.tar.bz2 -C / && ldconfig -v && \
+    apt-get -q -y update && \
+    apt-get -q -y --no-install-recommends install \
+            libarchive13 \
+            libfuse3-4 \
+            libsodium23 \
     && \
     rm -rf /var/lib/apt/lists/*
 

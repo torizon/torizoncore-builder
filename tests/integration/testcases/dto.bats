@@ -142,7 +142,7 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_output --partial "'bad_overlay.dts' compiles successfully"
     assert_output --partial "cannot apply device tree overlay"
 
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         echo "Checking existence of overlays.txt in the kernel changes directory."
 	run torizoncore-builder-shell "cat /storage/kernel/usr/lib/modules/*/dtb/overlays.txt"
 	assert_success

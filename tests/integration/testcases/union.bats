@@ -7,7 +7,7 @@ load 'lib/union.bash'
 @test "union: run without parameters" {
     run torizoncore-builder union
     assert_failure
-    assert_output --partial "UNION_BRANCH positional argument is required"
+    assert_output --partial "the following arguments are required: UNION_BRANCH"
 }
 
 @test "union: check help output" {
@@ -19,7 +19,14 @@ load 'lib/union.bash'
 @test "union: invalid changes directory" {
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder union --changes-directory invalid_changes/ branch1
+    local cfs_support="$(cfs-support-flag)"
+
+    run torizoncore-builder union branch1 \
+        --changes-directory invalid_changes/ \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
+
     assert_failure
     assert_output --partial "Changes directory \"invalid_changes/\" does not exist"
 }
@@ -27,7 +34,12 @@ load 'lib/union.bash'
 @test "union: create branch without images unpack" {
     torizoncore-builder-clean-storage
 
-    run torizoncore-builder union branch1
+    local cfs_support="$(cfs-support-flag)"
+
+    run torizoncore-builder union branch1 \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_failure
     assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage."
     assert_output --partial "Please use the 'images' command to unpack an image before running this command."
@@ -37,11 +49,21 @@ load 'lib/union.bash'
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
+    local cfs_support="$(cfs-support-flag)"
+
+    run torizoncore-builder union branch1 \
+        --changes-directory $SAMPLES_DIR/changes \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
-    local COMMIT=$(echo "$output" | grep '^Commit' | cut -d' ' -f 2)
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        assert_output --regexp "Commit .* will be signed with the private key in"
+    fi
+
+    local COMMIT=$(echo "$output" | grep '^Commit.*has been generated' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
     torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
     run torizoncore-builder-shell "cat $ROOTFS/usr/etc/myconfig.txt"
@@ -51,19 +73,40 @@ load 'lib/union.bash'
     run torizoncore-builder-shell "ostree refs --repo=/storage/ostree-archive/"
     assert_success
     assert_output --partial "branch1"
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # Ensure composefs image hash is in the commit medatada.
+        run torizoncore-builder-shell \
+            "ostree show --repo=/storage/ostree-archive/ --list-metadata-keys branch1"
+        assert_success
+        assert_output --partial "ostree.composefs.digest.v0"
+
+        # Ensure hash signature is present in detached metadata.
+        run torizoncore-builder-shell \
+            "ostree show --repo=/storage/ostree-archive/ --list-detached-metadata-keys branch1"
+        assert_success
+        assert_output --partial "ostree.sign.ed25519"
+    fi
 }
 
 @test "union: create branch using multiple --changes-directory" {
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    run torizoncore-builder union --changes-directory "$SAMPLES_DIR/changes" \
+    local cfs_support="$(cfs-support-flag)"
+
+    run torizoncore-builder union branch2 \
+        --changes-directory "$SAMPLES_DIR/changes" \
         --changes-directory "$SAMPLES_DIR/changes2" \
-        --subject integration-tests --body my-customizations branch2
+        --subject integration-tests \
+        --body my-customizations \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_success
     assert_output --regexp "Commit.*has been generated for changes and (is )?ready to be deployed."
 
-    local COMMIT=$(echo "$output" | grep '^Commit' | cut -d' ' -f 2)
+    local COMMIT=$(echo "$output" | grep '^Commit.*has been generated' | cut -d' ' -f 2)
     local ROOTFS=/storage/$COMMIT
     torizoncore-builder-shell "ostree checkout --repo=/storage/ostree-archive/ $COMMIT $ROOTFS"
     run torizoncore-builder-shell "cat $ROOTFS/usr/etc/myconfig.txt"
@@ -84,6 +127,7 @@ load 'lib/union.bash'
 
 # bats test_tags=requires-device
 @test "union: create branch using storage and check credentials" {
+    requires-no-cfs-support
     requires-device
 
     torizoncore-builder-clean-storage
@@ -114,6 +158,7 @@ load 'lib/union.bash'
 
 # bats test_tags=requires-device
 @test "union: create branch using --changes-directory and check credentials" {
+    requires-no-cfs-support
     requires-device
 
     torizoncore-builder-clean-storage
@@ -150,10 +195,14 @@ load 'lib/union.bash'
     torizoncore-builder-clean-storage
     torizoncore-builder images --remove-storage unpack $DEFAULT_TEZI_IMAGE
 
-    local EXTRA_DIR="$SAMPLES_DIR/changes3"
+    local cfs_support="$(cfs-support-flag)"
 
     local COMMIT=tcattr-branch
-    run torizoncore-builder union --changes-directory $EXTRA_DIR $COMMIT
+    run torizoncore-builder union $COMMIT \
+        --changes-directory "$SAMPLES_DIR/changes3" \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
     assert_success
 
     local ROOTFS=/storage/$COMMIT

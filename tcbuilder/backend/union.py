@@ -4,10 +4,9 @@ import os
 import shutil
 
 from tcbuilder.backend import ostree
-from tcbuilder.backend.ostree import OSTREE_WHITEOUT_PREFIX, OSTREE_OPAQUE_WHITEOUT_NAME
+from tcbuilder.backend.common import get_int_ostree_dir, SECBOOT_ARTIFACTS_DIR
 from tcbuilder.backend.secboot import SIGNED_BOOTLOADER_ARTIFACTS_DIR
-from tcbuilder.backend.common import SECBOOT_ARTIFACTS_DIR
-from tcbuilder.errors import TorizonCoreBuilderError
+from tcbuilder.errors import OSTreeSigningError, TorizonCoreBuilderError
 
 # pylint: disable=wrong-import-order,wrong-import-position
 import gi
@@ -33,14 +32,15 @@ def process_whiteouts(mtree, path="/"):
     remove_tcattr_files_from_ostree(mtree)
 
     # Check for opaque whiteouts
-    if any(name == OSTREE_OPAQUE_WHITEOUT_NAME for name in mtree.get_files().keys()):
+    if any(name == ostree.OSTREE_OPAQUE_WHITEOUT_NAME
+           for name in mtree.get_files().keys()):
         log.debug(f"Removing all contents from {path}.")
         for name in mtree.get_files().keys():
             mtree.remove(name, False)
         return
 
     for name in mtree.get_files().keys():
-        if name.startswith(OSTREE_WHITEOUT_PREFIX):
+        if name.startswith(ostree.OSTREE_WHITEOUT_PREFIX):
             mtree.remove(name, False)
             name_to_remove = name[4:]
             log.debug(f"Removing file {path}/{name_to_remove}.")
@@ -61,9 +61,50 @@ def process_whiteouts(mtree, path="/"):
         process_whiteouts(submt, os.path.join(path, dirname))
 
 
+def _sign_commit(repo, commit, ostree_key):
+    """Sign a commit.
+
+    :param repo: OSTree repository (OSTree.Repo).
+    :param commit: Checksum of commit to be signed.
+    :param ostree_key: Wrapper object for key information (OSTreeKey).
+    """
+
+    pk_file = ostree_key.get_sec_key_path()
+    log.info("Commit %s will be signed with the private key in '%s'.", commit, pk_file)
+
+    sign = None
+    algo = ostree_key.get_key_algo()
+    log.debug("Getting signing engine for algorithm '%s'.", algo)
+    try:
+        sign = OSTree.Sign.get_by_name(algo)
+        if not sign:
+            raise OSTreeSigningError(
+                "OSTree.Sign.get_by_name returned no engine.")
+    except (GLib.Error, OSTreeSigningError) as exc:
+        raise OSTreeSigningError(
+            f"Error: Could not obtain signing engine for algorithm '{algo}'.") from exc
+
+    try:
+        # Read the secret key from file.
+        with open(pk_file, "r", encoding="utf-8") as seck:
+            b64key = seck.read()
+    except OSError as exc:
+        raise TorizonCoreBuilderError(
+            f"Error: Could not load private-key file '{pk_file}'.") from exc
+
+    # Store key data into engine object.
+    sign.set_sk(GLib.Variant("s", b64key))
+
+    # Sign the commit.
+    if not sign.commit(repo, commit, None):
+        raise OSTreeSigningError(
+            f"Failed to sign commit '{commit}'; aborting.")
+
+
 # pylint: disable-next=too-many-locals
-def commit_changes(repo, ref, changes_dirs, branch_name, *,
-                   subject, body, pre_apply_callback=None):
+def _commit_changes(repo, ref, changes_dirs, branch_name, *,
+                    subject=None, body=None,
+                    ostree_key=None, pre_apply_callback=None):
     # ostree --repo=toradex-os-tree commit -b my-changes --tree=ref=<ref> --tree=dir=my-changes
     if not repo.prepare_transaction():
         raise TorizonCoreBuilderError("Error preparing transaction.")
@@ -107,44 +148,56 @@ def commit_changes(repo, ref, changes_dirs, branch_name, *,
     # the whole GLib.Variant's structure, which we do not know (e.g. future
     # OSTree commits might add structured data we do not know about today).
     metadata = commitvar.get_child_value(0)
-    _orig_subject = commitvar.get_child_value(3).get_string()
-    _orig_body = commitvar.get_child_value(4).get_string()
+    #_orig_subject = commitvar.get_child_value(3).get_string()
+    #_orig_body = commitvar.get_child_value(4).get_string()
 
-    # Append something to the version object
+    # TODO: Put metadata into a VariantDict to simplify manipulations.
     newmetadata = []
     timestamp = datetime.datetime.now()
     for ind in range(metadata.n_children()):
         val = metadata.get_child_value(ind)
-        # Adjust the "version" metadata
-        if val.get_child_value(0).get_string() == 'version':
-            # Version itself is a Variant, which just contains a string...
+        if val.get_child_value(0).get_string() == "version":
+            # Adjust the "version" metadata.
+            # "version" itself is a Variant, which just contains a string...
             version = val.get_child_value(1).get_child_value(0).get_string()
             version += "-tcbuilder." + timestamp.strftime("%Y%m%d%H%M%S")
             newmetadata.append(
                 GLib.Variant.new_dict_entry(
                     GLib.Variant("s", "version"),
-                    GLib.Variant('v', GLib.Variant("s", version))))
-        # Adjust the "ostree.ref-binding" metadata, to avoid ref bindings mismatch
-        elif val.get_child_value(0).get_string() == 'ostree.ref-binding':
+                    GLib.Variant("v", GLib.Variant("s", version))))
+        elif val.get_child_value(0).get_string() == "ostree.ref-binding":
+            # Adjust the "ostree.ref-binding" metadata to avoid ref bindings mismatch.
             newmetadata.append(
                 GLib.Variant.new_dict_entry(
                     GLib.Variant("s", "ostree.ref-binding"),
-                    GLib.Variant('v', GLib.Variant("as", [branch_name]))))
-        # Pass everything else transparently
+                    GLib.Variant("v", GLib.Variant("as", [branch_name]))))
+        elif val.get_child_value(0).get_string().startswith("ostree.composefs.digest"):
+            # Drop this metadata field which will be set again when signing.
+            log.debug("Dropping composefs digest from commit metadata.")
         else:
+            # Pass everything else transparently.
             newmetadata.append(val)
-
-    if subject is None:
-        isodatetime = timestamp.replace(microsecond=0).isoformat()
-        subject = f"TorizonCore Builder union commit created at {isodatetime}"
 
     # GLib.Variant of type "a{sv}" (array of dictionaries), which is the
     # metadata obeject
     newmetadatavar = GLib.Variant.new_array(GLib.VariantType("{sv}"), newmetadata)
 
+    # Add composefs properties (esp. digest) to the commit metadata.
+    if ostree_key is not None:
+        newmetadatavar_dict = GLib.VariantDict.new(newmetadatavar)
+        assert repo.commit_add_composefs_metadata(0, newmetadatavar_dict, root, None)
+        newmetadatavar = newmetadatavar_dict.end()
+
+    if subject is None:
+        isodatetime = timestamp.replace(microsecond=0).isoformat()
+        subject = f"TorizonCore Builder union commit created at {isodatetime}"
+
     result, commit = repo.write_commit(csum, subject, body, newmetadatavar, root)
     if not result:
         raise TorizonCoreBuilderError("Write commit failed.")
+
+    if ostree_key is not None:
+        _sign_commit(repo, commit, ostree_key)
 
     repo.transaction_set_ref(None, branch_name, commit)
     result, stats = repo.commit_transaction()
@@ -157,18 +210,20 @@ def commit_changes(repo, ref, changes_dirs, branch_name, *,
     return commit
 
 
-def union_changes(changes_dir, ostree_archive_dir, union_branch, *,
-                  subject, body, pre_apply_callback=None):
-    repo = ostree.open_ostree(ostree_archive_dir)
+def union_changes(*,
+                  changes_dir, union_branch, subject, body,
+                  ostree_key=None, pre_apply_callback=None):
+    """Create new commit with the changes overlaid in a single transaction."""
 
-    # Create new commit with the changes overlayed in a single transaction
-    final_commit = commit_changes(
+    repo = ostree.open_ostree(get_int_ostree_dir())
+    commit = _commit_changes(
         repo, ostree.OSTREE_BASE_REF, changes_dir, union_branch,
-        subject=subject, body=body, pre_apply_callback=pre_apply_callback)
+        subject=subject, body=body,
+        ostree_key=ostree_key, pre_apply_callback=pre_apply_callback)
 
-    track_signed_bootloader(final_commit)
+    track_signed_bootloader(commit)
 
-    return final_commit
+    return commit
 
 
 def track_signed_bootloader(commit_hash):

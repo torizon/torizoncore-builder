@@ -19,16 +19,16 @@ import ifaddr
 
 from docker import DockerClient
 from docker.errors import NotFound
+from gi.repository import GLib
 
 import tezi.utils
 
 from tezi.image import ImageConfig
 from tcbuilder.backend import ostree
-from tcbuilder.errors import (FileContentMissing, OperationFailureError,
-                              PathNotExistError, TorizonCoreBuilderError,
-                              InvalidStateError, InvalidDataError,
-                              GitRepoError, ImageUnpackError,
-                              LicenceAcceptanceError)
+from tcbuilder.errors import \
+    (FileContentMissing, GitRepoError, ImageUnpackError, InvalidDataError,
+     InvalidStateError, LicenceAcceptanceError, OperationFailureError,
+     PathNotExistError, TorizonCoreBuilderError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -82,6 +82,25 @@ def get_storage_dir():
 def set_storage_dir(storage_dir):
     """Set the path to the "storage" directory."""
     os.environ["TCB_STORAGE_DIR"] = storage_dir
+
+
+def get_src_sysroot_dir():
+    """Get the path to the source sysroot."""
+    storage_dir = get_storage_dir()
+    return os.path.join(storage_dir, "sysroot")
+
+
+def get_src_ostree_dir():
+    """Get the path to the ostree repository in the source sysroot."""
+    src_sysroot = get_src_sysroot_dir()
+    return os.path.join(src_sysroot, "ostree", "repo")
+
+
+# TODO: Use this function everywhere instead of hardcoding "ostree-archive".
+def get_int_ostree_dir():
+    """Get the path to the internal (archive) ostree repository."""
+    storage_dir = get_storage_dir()
+    return os.path.join(storage_dir, "ostree-archive")
 
 
 # Based on this solution: https://stackoverflow.com/a/50690347
@@ -779,6 +798,34 @@ def fail_on_raw_image(message):
         raise InvalidDataError(message)
 
 
+def image_has_cfs_support(ostree_dir=None):
+    """Determine if the image has composefs support.
+
+    :param ostree_dir: If specified, defines the path to the OSTree repository
+        whose configuration will be checked. When not specified, the check is
+        performed on the repo belonging to the original sysroot in the image
+        (source repository).
+    """
+    ostree_dir = ostree_dir or get_src_ostree_dir()
+    repo = ostree.open_ostree(ostree_dir)
+    conf = repo.get_config()
+
+    res = False
+    try:
+        val = conf.get_string("ex-integrity", "composefs")
+        val = val.lower()
+        if val in ["true", "yes", "1"]:
+            res = True
+        elif val in ["false", "no", "0"]:
+            res = False
+        else:
+            log.debug("ex-integrity.composefs='%s' will be assumed as False", val)
+    except GLib.GError as _exc:
+        pass
+
+    return res
+
+
 def get_own_network():
     """ Determine Network mode of current tcb container
     Given the host `docker_client`. This function returns
@@ -858,9 +905,9 @@ def check_if_file_exists(filename, directory):
     list_len = len(file_list)
 
     if list_len <= 0:
-        raise FileContentMissing(f"Could not find {filename} in {directory}. Aborting.")
+        raise FileContentMissing(f"Could not find '{filename}' in '{directory}'. Aborting.")
     if list_len >= 2:
-        log.debug(f"Found more than one match for {filename} in {directory}. "
+        log.debug(f"Found more than one match for '{filename}' in '{directory}'. "
                   f"Choosing {file_list[0]}.")
 
     return file_list[0]

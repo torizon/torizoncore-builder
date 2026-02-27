@@ -78,16 +78,6 @@ input:
   # >> NOTE: All secboot options need a Torizon OS image with secure boot support built-in.
   # >> This includes kernel in FIT format, U-Boot built with the corresponding secure boot kconfigs, etc.
   # secboot:
-    # >> Sign kernel FIT image
-    # sign-kernel:
-      # >> (REQUIRED) directory path with the keys to sign the kernel
-      # kernel-key-dir: ./kernel_keys/
-      # >> (REQUIRED) Key details
-      # kernel-key:
-         # >> 'algo' corresponds to the hashing and crypto algorithms to be used for the signing
-         # >> process. If not set it defaults to the value given below.
-         # - name: "prod"
-         #   algo: "sha256,rsa2048"
     # >> Sign bootloader for NXP SoCs supporting High Assurance Boot (HAB)
     # sign-bootloader-hab:
       # >> (REQUIRED) directory path with the CST directory pre-configured with
@@ -113,6 +103,36 @@ input:
          # >> kernel, respectively. If not set it defaults to the value given below.
          # - name: "prod"
          #   algo: "sha256,rsa2048"
+    # >> Sign kernel FIT image
+    # sign-kernel:
+      # >> (OPTIONAL) directory path with the keys to sign the kernel
+      # kernel-key-dir: ./kernel_keys/
+      # >> (REQUIRED) Key details
+      # kernel-key:
+         # >> 'algo' corresponds to the hashing and crypto algorithms to be used for the signing
+         # >> process. If not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "sha256,rsa2048"
+      # >> (OPTIONAL) If the options below (ostree-key and optionally ostree-key-dir) are provided,
+      # >> the public key inside the kernel FIT image which is used to verify the deployed OSTree
+      # >> commit (root filesystem) will be updated. These must be set if signing the OSTree commit
+      # >> with a new key.
+      # ostree-key-dir: ./ostree_keys/
+      # ostree-key:
+         # >> 'algo' corresponds to the crypto algorithm used to generate the provided key. If
+         # >> not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "ed25519"
+    # sign-ostree:
+      # >> (OPTIONAL) path to directory containing the OSTree commit signing keys; those are the
+      # >> keys used to validate the root filesystem.
+      # ostree-key-dir: ./ostree_keys/
+      # >> (REQUIRED) Key details
+      # ostree-key:
+         # >> 'algo' corresponds to the crypto algorithm used to generate the provided key. If
+         # >> not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "ed25519"
 
 # >> The output section defines properties of the output image.
 output:

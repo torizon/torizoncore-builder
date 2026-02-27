@@ -13,10 +13,10 @@ from tcbuilder.cli.bundle import parse_env_assignments
 from tcbuilder.backend.bundle import download_containers_by_compose_file
 from tcbuilder.backend.expandvars import UserFailureException
 from tcbuilder.backend.registryops import RegistryOperations
-from tcbuilder.errors import (
-    FileContentMissing, FeatureNotImplementedError, InvalidDataError,
-    InvalidStateError, LicenceAcceptanceError, TorizonCoreBuilderError,
-    ParseError, ParseErrors, InvalidArgumentError)
+from tcbuilder.errors import \
+    (FeatureNotImplementedError, FileContentMissing, InvalidArgumentError, InvalidDataError,
+     InvalidStateError, LicenceAcceptanceError, ParseError, ParseErrors, PathNotExistError,
+     TorizonCoreBuilderError)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
@@ -24,6 +24,7 @@ from tcbuilder.backend import combine as comb_be
 from tcbuilder.backend import dt as dt_be
 from tcbuilder.backend import images as images_be
 from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend import ostree as ostree_be
 from tcbuilder.backend import secboot as secboot_be
 from tcbuilder.cli import deploy as deploy_cli
 from tcbuilder.cli import dt as dt_cli
@@ -255,6 +256,183 @@ def handle_kernel_customization(props):
         kernel_cli.kernel_set_custom_args(kernel_args=props["arguments"])
 
 
+def _handle_secboot_sign_bootloader_hab(sign_hab_props):
+    """Handle the secboot.sign-bootloader-hab section."""
+
+    cst_dir = sign_hab_props["cst-dir"]
+    cst_dict = sign_hab_props.get("cst-args", {})
+    kernel_key_dir = sign_hab_props.get("kernel-key-dir", None)
+    kernel_key_list = sign_hab_props.get("kernel-key", [])
+    kernel_key = {}
+
+    if not os.path.isdir(cst_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{cst_dir}\" does not exist: aborting.")
+
+    if kernel_key_dir:
+        if not os.path.isdir(kernel_key_dir):
+            raise InvalidArgumentError(
+                f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+        if not kernel_key_list:
+            raise InvalidArgumentError(
+                "sign-bootloader-hab: 'kernel-key-dir' was passed but 'kernel-key' was "
+                "not provided. Aborting.")
+
+    if kernel_key_list:
+        if len(kernel_key_list) > 1:
+            raise InvalidArgumentError(
+                "TorizonCore Builder only supports updating one public key. Aborting.")
+        kernel_key = kernel_key_list[0]
+        kernel_key_dir = kernel_key_dir or "."
+
+        assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+        if "algo" not in kernel_key:
+            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                     f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+
+    cst_args = {
+        "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),
+        "key_size": cst_dict.get("key-size", secboot_cli.CST_DEFAULT_KEY_SIZE),
+        "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEFAULT_KEY_EXP),
+        "dig_algo": cst_dict.get("dig-algo", secboot_cli.CST_DIG_ALGO_TYPES[0]),
+        "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
+        "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),
+        "srk_fuse": cst_dict.get("srk-fuse", secboot_cli.CST_SRK_DEFAULT_FUSE),
+        "srk_no_ca": cst_dict.get("srk-no-ca-flag", False)
+    }
+
+    secboot_be.sign_bootloader_hab(
+        kernel_key_dir=kernel_key_dir,
+        kernel_key_name=kernel_key.get("name"),
+        kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
+        cst_dir=cst_dir,
+        cst_args=cst_args)
+
+    if kernel_key:
+        log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
+                 "the bootloader to verify the kernel signature.")
+    else:
+        log.warning("The bootloader DTBs were NOT updated with a new public key.")
+        log.warning("If the kernel FIT image will be signed with a new key, please set "
+                    "'kernel-key-dir' and 'kernel-key' and re-run the command so the new "
+                    "kernel signature can be properly verified by the bootloader.")
+        log.warning("Otherwise, this message can be ignored.")
+    print()
+
+    log.info("Bootloader in Torizon OS image signed successfully!")
+
+
+def _parse_ostree_key(ostree_key_props, *, ostree_key_dir=None):
+    """Parse the secboot.sign-kernel.ostree-key section."""
+
+    assert "name" in ostree_key_props, "'ostree-key' requires 'name' property"
+    key_name = ostree_key_props["name"]
+
+    if "algo" not in ostree_key_props:
+        log.info("Property 'algo' for ostree key '%s' has not been set; defaulting to '%s'.",
+                 key_name, ostree_be.OSTreeKey.OSTREE_KEY_DEFAULT_ALGO)
+    key_algo = ostree_key_props.get("algo", ostree_be.OSTreeKey.OSTREE_KEY_DEFAULT_ALGO)
+
+    # Wrap key information into appropriate object:
+    ostree_key_obj = ostree_be.OSTreeKey(
+        key_dir=ostree_key_dir, key_name=key_name, key_algo=key_algo)
+
+    return ostree_key_obj
+
+
+def _sign_kernel_parse_ostree_key(ostree_key_dir, ostree_key_props, *, check_pubk=True):
+    """Parse and validate the secboot.sign-kernel.ostree-key section.
+
+    :param ostree_key_dir: OSTree keys directory; if None, the working directory is
+        taken as default.
+    :param ostree_key: Dict with contents of the section; None indicates the section
+        was not provided as input.
+    :param check_pubk: Whether or not to check the existence of the public key file.
+    :returns: `OSTreeKey` object representing the key or None.
+    """
+
+    if ostree_key_dir and ostree_key_props is None:
+        raise InvalidArgumentError(
+            "Error: Property 'sign-kernel.ostree-key-dir' was set, but 'sign-kernel.ostree-key' "
+            "was not provided. Aborting.")
+
+    if not common.image_has_cfs_support():
+        if ostree_key_props is not None:
+            raise InvalidArgumentError(
+                "Error: Property 'sign-kernel.ostree-key' has been set for an image that has "
+                "no support for the root filesystem protection. Aborting.")
+
+    if ostree_key_props is None:
+        return None
+
+    if ostree_key_dir is not None and not os.path.isdir(ostree_key_dir):
+        raise PathNotExistError(
+            f"Error: OSTree keys directory '{ostree_key_dir}' does not exist. Aborting.")
+
+    ostree_key_dir = ostree_key_dir or "."
+    ostree_key_obj = _parse_ostree_key(ostree_key_props, ostree_key_dir=ostree_key_dir)
+
+    if check_pubk:
+        pubk_file = ostree_key_obj.get_pub_key_path()
+        if not os.path.isfile(pubk_file):
+            raise PathNotExistError(
+                f"Error: Cannot read public key file '{pubk_file}'.")
+
+    return ostree_key_obj
+
+
+def _handle_secboot_sign_kernel(sign_kernel_props):
+    """Handle the secboot.sign-kernel section."""
+
+    # ---
+    # Collect/check the kernel-key related properties:
+    # ---
+    if len(sign_kernel_props["kernel-key"]) > 1:
+        raise InvalidArgumentError(
+            "TorizonCore Builder only supports signing the kernel FIT with one key. Aborting.")
+    kernel_key = sign_kernel_props["kernel-key"][0]
+
+    kernel_key_dir = sign_kernel_props.get("kernel-key-dir")
+    if kernel_key_dir and not os.path.isdir(kernel_key_dir):
+        raise InvalidArgumentError(
+            f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
+    kernel_key_dir = kernel_key_dir or "."
+
+    assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+
+    if "algo" not in kernel_key:
+        log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                 f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+    kernel_key_algo = kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO)
+
+    # ---
+    # Collect/check the ostree-key related properties:
+    # ---
+    ostree_key_ = sign_kernel_props.get("ostree-key")
+    ostree_key_dir = sign_kernel_props.get("ostree-key-dir")
+    ostree_key_obj = None
+
+    if ostree_key_:
+        if len(ostree_key_) > 1:
+            raise InvalidArgumentError(
+                "Error: Currently only one OSTree (public) key can be specified under the "
+                "'sign-kernel.ostree-key' property.")
+
+    ostree_key_obj = _sign_kernel_parse_ostree_key(
+        ostree_key_dir, None if ostree_key_ is None else ostree_key_[0])
+
+    kernel_changes_dir = kernel_be.get_kernel_changes_dir()
+    if not os.path.isdir(kernel_changes_dir):
+        os.mkdir(kernel_changes_dir)
+
+    secboot_be.sign_kernel(
+        kernel_changes_dir=kernel_changes_dir,
+        key_dir=kernel_key_dir,
+        key_algo=kernel_key_algo,
+        key_name=kernel_key["name"],
+        ostree_key=ostree_key_obj)
+
+
 def handle_secboot_customization(props):
     """Handle the secure boot customization section."""
 
@@ -263,107 +441,70 @@ def handle_secboot_customization(props):
         raise InvalidDataError("TorizonCore Builder does not support signing components for "
                                "WIC/raw images. Aborting.")
 
-    if "sign-kernel" in props:
-        sign_kernel_props = props["sign-kernel"]
-        key_dir = sign_kernel_props["kernel-key-dir"]
-
-        if len(sign_kernel_props["kernel-key"]) > 1:
-            raise InvalidArgumentError(
-                "TorizonCore Builder only supports signing the kernel FIT with one key. Aborting.")
-
-        kernel_key = sign_kernel_props["kernel-key"][0]
-
-        if not os.path.isdir(key_dir):
-            raise InvalidArgumentError(
-                f"Directory \"{key_dir}\" does not exist: aborting.")
-
-        assert "name" in kernel_key, "'kernel-key' requires 'name' property"
-
-        if "algo" not in kernel_key:
-            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
-                     f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
-
-        kernel_changes_dir = kernel_be.get_kernel_changes_dir()
-        if not os.path.isdir(kernel_changes_dir):
-            os.mkdir(kernel_changes_dir)
-
-        secboot_be.sign_kernel(
-            kernel_changes_dir=kernel_changes_dir,
-            key_dir=key_dir,
-            key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
-            key_name=kernel_key["name"]
-        )
-
     if "sign-bootloader-hab" in props:
-        sign_hab_props = props["sign-bootloader-hab"]
-        cst_dir = sign_hab_props["cst-dir"]
-        cst_dict = sign_hab_props.get("cst-args", {})
-        kernel_key_dir = sign_hab_props.get("kernel-key-dir", None)
-        kernel_key_list = sign_hab_props.get("kernel-key", [])
-        kernel_key = {}
+        _handle_secboot_sign_bootloader_hab(props["sign-bootloader-hab"])
 
-        if not os.path.isdir(cst_dir):
+    if "sign-kernel" in props:
+        _handle_secboot_sign_kernel(props["sign-kernel"])
+
+    # NOTE: The "sign-ostree" section is not actually handled with the rest of the
+    #       customization section but rather together with the output section.
+
+
+def _union_parse_ostree_key(ostree_key_dir, ostree_key_props, *,
+                            check_seck=True, check_pubk=True):
+    """Parse and validate the secboot.sign-ostree.ostree-key section.
+
+    :param ostree_key_dir: OSTree keys directory; if None, the working directory is
+        taken as default.
+    :param ostree_key: Dict with contents of the section; None indicates the section
+        was not provided as input.
+    :param check_seck: Whether or not to check the existence of the private key file.
+    :param check_pubk: Whether or not to check the existence of the public key file.
+    :returns: `OSTreeKey` object representing the key or None.
+    """
+
+    if ostree_key_dir and ostree_key_props is None:
+        raise InvalidArgumentError(
+            "Error: Property 'sign-ostree.ostree-key-dir' was set but 'sign-ostree.ostree-key' "
+            "was not provided. Aborting.")
+
+    if common.image_has_cfs_support():
+        if ostree_key_props is None:
+            # Abort the operation to avoid producing non-bootable images.
             raise InvalidArgumentError(
-                f"Directory \"{cst_dir}\" does not exist: aborting.")
+                "Error: The image has support for the root filesystem protection, but the "
+                "'sign-ostree.ostree-key' property has not been set; the property is required "
+                "for signing the commit.")
+    else:
+        if ostree_key_props is not None:
+            raise InvalidArgumentError(
+                "Error: Property 'sign-ostree.ostree-key' has been set for an image that has "
+                "no support for the root filesystem protection. Aborting.")
 
-        if kernel_key_dir:
-            if not os.path.isdir(kernel_key_dir):
-                raise InvalidArgumentError(
-                    f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
-            if not kernel_key_list:
-                raise InvalidArgumentError(
-                    "sign-bootloader-hab: 'kernel-key-dir' was passed but 'kernel-key' was "
-                    "not provided. Aborting.")
+    if ostree_key_props is None:
+        return None
 
-        if kernel_key_list:
-            if not kernel_key_dir:
-                raise InvalidArgumentError(
-                    "sign-bootloader-hab: 'kernel-key' was passed but 'kernel-key-dir' was "
-                    "not provided. Aborting.")
+    if ostree_key_dir is not None and not os.path.isdir(ostree_key_dir):
+        raise PathNotExistError(
+            f"Error: OSTree keys directory '{ostree_key_dir}' does not exist. Aborting.")
 
-            if len(kernel_key_list) > 1:
-                raise InvalidArgumentError(
-                    "TorizonCore Builder only supports updating one public key. Aborting.")
+    ostree_key_dir = ostree_key_dir or "."
+    ostree_key_obj = _parse_ostree_key(ostree_key_props, ostree_key_dir=ostree_key_dir)
 
-            kernel_key = kernel_key_list[0]
+    if check_seck:
+        seck_file = ostree_key_obj.get_sec_key_path()
+        if not os.path.isfile(seck_file):
+            raise PathNotExistError(
+                f"Error: Cannot read secret key file '{seck_file}'.")
 
-            assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+    if check_pubk:
+        pubk_file = ostree_key_obj.get_pub_key_path()
+        if not os.path.isfile(pubk_file):
+            raise PathNotExistError(
+                f"Error: Cannot read public key file '{pubk_file}'.")
 
-            if "algo" not in kernel_key:
-                log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'. "
-                         f"Defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
-
-        cst_args = {
-            "crypto": cst_dict.get("crypto", secboot_cli.CST_CRYPTO_TYPES[0]),
-            "key_size": cst_dict.get("key-size", secboot_cli.CST_DEFAULT_KEY_SIZE),
-            "key_exp": cst_dict.get("key-exp", secboot_cli.CST_DEAFULT_KEY_EXP),
-            "dig_algo": cst_dict.get("dig-algo", secboot_cli.CST_DIG_ALGO_TYPES[0]),
-            "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
-            "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),
-            "srk_fuse": cst_dict.get("srk-fuse", secboot_cli.CST_SRK_DEFAULT_FUSE),
-            "srk_no_ca": cst_dict.get("srk-no-ca-flag", False)
-        }
-
-        secboot_be.sign_bootloader_hab(
-            kernel_key_dir=kernel_key_dir,
-            kernel_key_name=kernel_key.get("name"),
-            kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
-            cst_dir=cst_dir,
-            cst_args=cst_args
-        )
-
-        if kernel_key_dir:
-            log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
-                     "the bootloader to verify the kernel signature.")
-        else:
-            log.warning("The bootloader DTBs were NOT updated with a new public key.")
-            log.warning("If the kernel fitImage will be signed with a new key, please set "
-                        "'kernel-key-dir' and 'kernel-key' and re-run the command so the new "
-                        "kernel signature can be properly verified by the bootloader.")
-            log.warning("Otherwise, this message can be ignored.")
-        print()
-
-        log.info("Bootloader in Torizon OS image signed successfully!")
+    return ostree_key_obj
 
 
 def handle_output_section(props, changes_dirs=None, default_base_raw_image=None):
@@ -399,6 +540,28 @@ def handle_output_section(props, changes_dirs=None, default_base_raw_image=None)
     if "commit-body" in ostree_props:
         union_params["commit_body"] = ostree_props["commit-body"]
 
+    # NB: "sign-ostree" is entered by the user as a "customization" property, but
+    #     it is copied to "output.ostree".
+    if "sign-ostree" in ostree_props:
+        sign_ostree_props = ostree_props["sign-ostree"]
+    else:
+        sign_ostree_props = {}
+
+    # Collect/check the ostree-key related properties:
+    ostree_key_ = sign_ostree_props.get("ostree-key")
+    ostree_key_dir = sign_ostree_props.get("ostree-key-dir")
+    ostree_key_obj = None
+    if ostree_key_:
+        if len(ostree_key_) > 1:
+            raise InvalidArgumentError(
+                "Error: Currently only one OSTree (private) key can be specified under "
+                "the 'sign-ostree.ostree-key' property.")
+    ostree_key_obj = _union_parse_ostree_key(
+        ostree_key_dir, None if ostree_key_ is None else ostree_key_[0])
+
+    union_params["ostree_key_obj"] = ostree_key_obj
+
+    # TODO: Refactor union() by moving all non-CLI code to backend; then the API from the backend.
     union_cli.union(**union_params)
 
     # Handle the "output.ostree.local" property (TODO).
@@ -647,18 +810,12 @@ def handle_provisioning(output_dir, prov_props):
     images_be.provision(**prov_params)
 
 
-def build(config_fname, *, substs=None, enable_subst=True, force=False):
-    """Main handler for the normal operating mode of the build subcommand"""
+def _build_setup(config, force):
+    """Do some sanity checks and prepare for handling the build operations."""
 
-    log.info(f"Building image as per configuration file '{config_fname}'...")
-    log.debug(f"Substitutions ({['disabled', 'enabled'][enable_subst]}): "
-              f"{substs}")
+    output_dir = None
+    output_image = None
 
-    config = bb.parse_config_file(config_fname, substs=(substs if enable_subst else None))
-
-    # ---
-    # Handle each section.
-    # ---
     if "input" not in config:
         # Note that is also checked by the schema.
         raise FileContentMissing("No input specified in configuration file")
@@ -668,44 +825,71 @@ def build(config_fname, *, substs=None, enable_subst=True, force=False):
         raise FileContentMissing("No output specified in configuration file")
 
     if "easy-installer" in config["input"]:
-
         if "easy-installer" not in config["output"]:
             raise InvalidStateError(
-                "Input is 'easy-installer', but couldn't find"
-                " 'easy-installer' in output section. Aborting.")
+                "Input is 'easy-installer', but couldn't find 'easy-installer' in output "
+                "section. Aborting.")
 
         # Check if output directory already exists and fail if it does.
         output_dir = config["output"]["easy-installer"]["local"]
         if os.path.exists(output_dir):
             if force:
-                log.debug(f"Removing existing output directory '{output_dir}'")
+                log.debug("Removing existing output directory '%s'.", output_dir)
                 shutil.rmtree(output_dir)
             else:
                 raise InvalidStateError(
-                    f"Output directory '{output_dir}' already exists; please remove"
-                    " it or select another output directory.")
+                    f"Output directory '{output_dir}' already exists; please remove it or "
+                    "select another output directory.")
 
     elif "raw-image" in config["input"]:
-
         if "raw-image" not in config["output"]:
             raise InvalidStateError(
-                "Input is 'raw-image', but couldn't find"
-                " 'raw-image' in output section. Aborting.")
+                "Input is 'raw-image', but couldn't find 'raw-image' in output section. "
+                "Aborting.")
 
         # Check if output file already exists and fail if it does.
         output_image = config["output"]["raw-image"]["local"]
         if os.path.exists(output_image):
             if force:
                 if os.path.isfile(output_image):
-                    log.debug(f"Removing existing file '{output_image}'")
+                    log.debug("Removing existing file '%s'.", output_image)
                     os.remove(output_image)
                 else:
                     raise InvalidStateError(
                         f"'{output_image}' is not a valid path to a file. Aborting.")
             else:
                 raise InvalidStateError(
-                    f"File '{output_image}' already exists; please remove"
-                    " it or give a different filename for the output.")
+                    f"File '{output_image}' already exists; please remove it or give a "
+                    "different filename for the output.")
+
+    return output_dir, output_image
+
+
+def build(config_fname, *, substs=None, enable_subst=True, force=False):
+    """Main handler for the normal operating mode of the build subcommand"""
+
+    log.info(f"Building image as per configuration file '{config_fname}'...")
+    log.debug(f"Substitutions ({['disabled', 'enabled'][enable_subst]}): "
+              f"{substs}")
+
+    config = bb.parse_config_file(config_fname, substs=(substs if enable_subst else None))
+
+    # Do some sanity checks and select output.
+    output_dir, output_image = _build_setup(config, force)
+
+    # Special handling for OSTree signing:
+    # Copy "customization.secboot.sign-ostree" as a child of "output.ostree".
+    try:
+        _sign_ostree = config["customization"]["secboot"]["sign-ostree"]
+        if "ostree" not in config["output"]:
+            config["output"]["ostree"] = {}
+        config["output"]["ostree"]["sign-ostree"] = _sign_ostree
+    except KeyError as _exc:
+        pass
+
+    # ---
+    # Handle each section.
+    # ---
 
     # Input section (required):
     handle_input_section(config["input"])

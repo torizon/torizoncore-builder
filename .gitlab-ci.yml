@@ -372,6 +372,27 @@ test-host-tos7-64bit-signed-nightly:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
+test-host-tos7-torizon-signed-nightly:
+  # TODO: Review once signed images are available publicly.
+  tags:
+    - "all"
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "verdin-imx8mp"
+    TARGET_SIGNING_CLASS: "torizon-signed"
+    ACCEPT_VARIANTS: "torizon-minimal"
+  script:
+    # set extra variables for downloading signed images from the internal Artifactory
+    - export BASE_ARTIFACTORY_URL_PROD=""
+    - export BASE_ARTIFACTORY_URL_PRERELEASE=""
+    - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
 .test-base-common-torizon:
   variables:
     IS_WIC: 1

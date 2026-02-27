@@ -39,6 +39,13 @@ HASH_PROPS_TO_DELETE = [
 
 DELETE_PROPS_ON_DTB_COPY = True
 
+# TODO: Understand why deleting the hash properties is causing "no-space" errors:
+# When running mkimage we get:
+#
+#   Can't set hash 'value' property for 'hash-1' node(FDT_ERR_NOSPACE)
+#
+DELETE_HASH_PROPS_ON_RAMDISK_UPDATE = False
+
 
 class KernelFitException(Exception):
     """Exception thrown by KernelFit class methods and internal helpers"""
@@ -659,13 +666,14 @@ class KernelFit:
         log.debug("Updating ramdisk entry '%s'.", ramdisk_name)
         _set_prop(self.fdt, "raw", ramdisk_path, RAMDISK_IMAGE_DATA_PROP, data)
 
-        # Remove relevant properties from hash nodes:
-        for index in range(8):
-            hash_node_name = f"hash-{index}"
-            hash_node_path = self._get_std_node_path("image", ramdisk_name, hash_node_name)
-            if _node_present(self.fdt, ramdisk_path, hash_node_name):
-                for prop_name in HASH_PROPS_TO_DELETE:
-                    _del_prop(self.fdt, hash_node_path, prop_name)
+        if DELETE_HASH_PROPS_ON_RAMDISK_UPDATE:
+            # Remove relevant properties from hash nodes:
+            for index in range(8):
+                hash_node_name = f"hash-{index}"
+                hash_node_path = self._get_std_node_path("image", ramdisk_name, hash_node_name)
+                if _node_present(self.fdt, ramdisk_path, hash_node_name):
+                    for prop_name in HASH_PROPS_TO_DELETE:
+                        _del_prop(self.fdt, hash_node_path, prop_name)
 
     def extract_ramdisk(self, conf_name: str) -> tuple[str, bytearray]:
         """Extract the data of a ramdisk entry in a given DTB configuration node.

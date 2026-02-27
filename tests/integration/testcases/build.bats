@@ -23,6 +23,9 @@ setup_file() {
 
     export IS_KERNEL_SIGNING_SUPPORTED
     export IS_HAB_SIGNING_SUPPORTED
+
+    start-registries || true
+    check-registries
 }
 
 teardown_file() {
@@ -63,7 +66,7 @@ teardown_file() {
     assert_output --partial 'output:'
 }
 
-@test "build: config file with error detected by YAML parser" {
+@test "build: tcbuild with error detected by YAML parser" {
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-yaml-error.yaml"
     run torizoncore-builder build --file "$FNAME"
     assert_failure
@@ -71,7 +74,7 @@ teardown_file() {
     assert_output --partial "expected alphabetic"
 }
 
-@test "build: config file with multiple validation errors" {
+@test "build: tcbuild with multiple validation errors" {
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-validation-errors.yaml"
     run torizoncore-builder build --file "$FNAME"
     assert_failure
@@ -84,7 +87,7 @@ teardown_file() {
     assert_output --partial 'while parsing /customization/device-tree/overlays/clear'
 }
 
-@test "build: config file with variables" {
+@test "build: tcbuild with variables not passed" {
     rm -rf dummy_output_directory
     local FNAME="$SAMPLES_DIR/config/tcbuild-with-variables.yaml"
     run torizoncore-builder build --file "$FNAME"
@@ -100,7 +103,7 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
-@test "build: config file with variables in input section" {
+@test "build: tcbuild with variables not passed (input section)" {
     rm -rf dummy_output_directory
     run torizoncore-builder build \
         --file "$SAMPLES_DIR/config/tcbuild-with-variables2.yaml" \
@@ -113,7 +116,7 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
-@test "build: re-signing of kernel FIT and bootloader with HAB" {
+@test "build: re-signing of bootloader (HAB) and kernel FIT image" {
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine
     requires-signed-image
@@ -139,8 +142,29 @@ teardown_file() {
     local CST_SRK_FUSE_NAME="SRK_1_2_3_4_fuse.bin"
     local CST_SRK_NO_CA_FLAG="1"
 
-    local TCBUILD_YAML="$SAMPLES_DIR/config/tcbuild-hab-re-signing-components.yaml"
-    local OUTDIR='re_signed_image'
+    # Prepare tcbuild file:
+    cp "${SAMPLES_DIR}/config/tcbuild-hab-re-signing-components.yaml" \
+       "tcbuild-hab-re-signing-components.yaml"
+    local TCBUILD_YAML="tcbuild-hab-re-signing-components.yaml"
+
+    if [ "$CST_SRK_NO_CA_FLAG" == "1" ]; then
+        # Enable `srk-no-ca-flag`
+        cat "${TCBUILD_YAML}" | \
+                sed -Ee 's/## srk-no-ca-flag/srk-no-ca-flag/' > \
+                "${TCBUILD_YAML}-no-ca.yaml"
+        TCBUILD_YAML="${TCBUILD_YAML}-no-ca.yaml"
+
+        CST_SRK_NO_CA_FLAG="YES"
+    else
+        CST_SRK_NO_CA_FLAG="NO"
+    fi
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "${TCBUILD_YAML}" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
 
     unpack-image "${CST_TARBALL}"
 
@@ -148,20 +172,10 @@ teardown_file() {
     cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
     cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
 
-    if [ "$CST_SRK_NO_CA_FLAG" == "1" ]; then
-        # Enable `srk-no-ca-flag`
-        cat "$TCBUILD_YAML" | \
-                sed -Ee 's/## srk-no-ca-flag/srk-no-ca-flag/' > \
-                "$TCBUILD_YAML-no-ca.yaml"
-        TCBUILD_YAML="$TCBUILD_YAML-no-ca.yaml"
-
-        CST_SRK_NO_CA_FLAG="YES"
-    else
-        CST_SRK_NO_CA_FLAG="NO"
-    fi
+    local OUTDIR='re_signed_image'
 
     run torizoncore-builder build \
-        --file "$TCBUILD_YAML" \
+        --file "${TCBUILD_YAML}" \
         --set KERNEL_KEY_DIR="$KERNEL_KEY_DIR" \
         --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
         --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
@@ -177,11 +191,6 @@ teardown_file() {
         --set OUTPUT_DIR="$OUTDIR" --force
 
     assert_success
-    # sign-kernel output
-    assert_output --partial "Updating fitImage configurations to be signed with key name: ${KERNEL_KEY_NAME}"
-    assert_output --partial "Using ${KERNEL_KEY_ALGO} for the signing process"
-    assert_output --partial 'Kernel fitImage signed successfully'
-    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
     # sign-bootloader-hab output
     assert_output --partial "Key type: ${CST_CRYPTO}"
     assert_output --partial "Key length: ${CST_KEY_SIZE}"
@@ -196,11 +205,35 @@ teardown_file() {
     assert_output --partial "Using SRK${CST_SRK_INDEX} for signing"
     assert_output --partial 'Bootloader container signed successfully'
     assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+    # sign-kernel output
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # sign-ostree output
+        assert_output --regexp "Commit .* will be signed with the private key in"
+    fi
 
     assert_output --partial 'Deploying commit ref: re-signed-branch'
 
     local ARCHIVE='/storage/ostree-archive/'
     local COMMIT='re-signed-branch'
+
+    # Check sign-ostree operation:
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        # Ensure composefs image hash is in the commit medatada.
+        run torizoncore-builder-shell \
+            "ostree show --repo=$ARCHIVE --list-metadata-keys $COMMIT"
+        assert_success
+        assert_output --partial "ostree.composefs.digest.v0"
+
+        # Ensure hash signature is present in detached metadata.
+        run torizoncore-builder-shell \
+            "ostree show --repo=$ARCHIVE --list-detached-metadata-keys $COMMIT"
+        assert_success
+        assert_output --partial "ostree.sign.ed25519"
+    fi
 
     # Check output/ostree/commit-{subject,body} props:
     run torizoncore-builder-shell "ostree --repo=$ARCHIVE log $COMMIT"
@@ -248,9 +281,19 @@ teardown_file() {
 @test "build: full customization checked on host" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
 
+    # Prepare tcbuild file:
+    cp "${SAMPLES_DIR}/config/tcbuild-full-customization.yaml" \
+       "tcbuild-full-customization.yaml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-full-customization.yaml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+
     local OUTDIR='fully_customized_image'
     run torizoncore-builder --log-level debug build \
-        --file "$SAMPLES_DIR/config/tcbuild-full-customization.yaml" \
+        --file "tcbuild-full-customization.yaml" \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" --force
 
@@ -427,9 +470,19 @@ teardown_file() {
     assert_output --partial 'key2=val2'
 }
 
-@test "build: config file with autoinstall and autoreboot" {
+@test "build: check autoinstall, autoreboot and accept-licence" {
     local DUMMY_OUTPUT="dummy_output_directory"
     rm -rf $DUMMY_OUTPUT
+
+    # Prepare tcbuild file:
+    cp "${SAMPLES_DIR}/config/tcbuild-with-autoinstall.yaml" \
+       "tcbuild-with-autoinstall.yaml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-with-autoinstall.yaml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
 
     # Check if licence is present in the image.
     local licence=$(torizoncore-builder-shell "grep -E \
@@ -438,7 +491,7 @@ teardown_file() {
     if [ -n "$licence" ]; then
       licence=$(echo "$licence" | sed -En -e 's/\s*\"license\":\s*\"(.*)\",/\1/p')
       run torizoncore-builder build \
-          --file "$SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml" \
+          --file "tcbuild-with-autoinstall.yaml" \
           --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE"
       assert_failure
       assert_output --partial \
@@ -446,12 +499,12 @@ teardown_file() {
     fi
 
     # Enable `accept-licence`
-    cat "$SAMPLES_DIR/config/tcbuild-with-autoinstall.yaml" | \
-              sed -Ee 's/## accept-licence/accept-licence/' > \
-              "$SAMPLES_DIR/config/tcbuild-with-accept.yaml"
+    cat "tcbuild-with-autoinstall.yaml" | \
+        sed -Ee 's/## accept-licence/accept-licence/' > \
+        "tcbuild-with-accept.yaml"
 
     run torizoncore-builder build \
-          --file "$SAMPLES_DIR/config/tcbuild-with-accept.yaml" \
+          --file "tcbuild-with-accept.yaml" \
           --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE"
     assert_success
 
@@ -463,23 +516,32 @@ teardown_file() {
     rm -rf "$DUMMY_OUTPUT"
 }
 
-@test "build: check overlays's clear" {
-    local OVERLAY_IMAGE="overlay_image"
-    local DUMMY_OUTPUT="dummy_output_directory"
-
-    rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
-
+@test "build: check overlays clearing" {
     torizoncore-builder-clean-storage
 
+    local OVERLAY_IMAGE="overlay_image"
+    local DUMMY_OUTPUT="dummy_output_directory"
+    rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
+
+    # Prepare tcbuild file:
+    cp "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" \
+       "tcbuild-with-clear.yaml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-with-clear.yaml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+
     # Create input image, clearing all overlays and adding 2 dummy overlays.
-    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
+    cat "tcbuild-with-clear.yaml" | \
               sed -Ee 's/## add:/add:/' \
                   -Ee '/\badd:/ s/sample_overlay2/sample_overlay/' \
                   -Ee '/\badd:/ s@]@, samples/dts/sample_overlay1.dts]@' > \
-              "$SAMPLES_DIR/config/tcbuild-modified.yaml"
+              "tcbuild-modified.yaml"
 
     run torizoncore-builder build \
-              --file "$SAMPLES_DIR/config/tcbuild-modified.yaml" \
+              --file "tcbuild-modified.yaml" \
               --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
               --set OUTPUT_DIR="$OVERLAY_IMAGE" --force
     assert_success
@@ -492,12 +554,12 @@ teardown_file() {
     assert_equal "$actual_result" "$expect_result"
 
     # Test with clear as true, Adding just one overlay.
-    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
+    cat "tcbuild-with-clear.yaml" | \
               sed -Ee 's/## add:/add:/' > \
-              "$SAMPLES_DIR/config/tcbuild-clear-true.yaml"
+              "tcbuild-clear-true.yaml"
 
     run torizoncore-builder build \
-            --file "$SAMPLES_DIR/config/tcbuild-clear-true.yaml" \
+            --file "tcbuild-clear-true.yaml" \
             --set INPUT_IMAGE="$OVERLAY_IMAGE" \
             --set OUTPUT_DIR="$DUMMY_OUTPUT" --force
     assert_success
@@ -510,13 +572,13 @@ teardown_file() {
     assert_equal "$actual_result" "$expect_result"
 
     # Test with clear as false, no image added.
-    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
+    cat "tcbuild-with-clear.yaml" | \
               sed -Ee 's/\bclear:\s*true/clear: false/' \
                   -Ee 's/## add:/add:/' > \
-              "$SAMPLES_DIR/config/tcbuild-clear-false.yaml"
+              "tcbuild-clear-false.yaml"
 
     run torizoncore-builder build \
-            --file "$SAMPLES_DIR/config/tcbuild-clear-false.yaml" \
+            --file "tcbuild-clear-false.yaml" \
             --set INPUT_IMAGE="$OVERLAY_IMAGE" \
             --set OUTPUT_DIR="$DUMMY_OUTPUT" --force
     assert_success
@@ -529,12 +591,12 @@ teardown_file() {
     assert_equal "$actual_result" "$expect_result"
 
     # Test with clear as default, adding one image.
-    cat "$SAMPLES_DIR/config/tcbuild-with-clear.yaml" | \
+    cat "tcbuild-with-clear.yaml" | \
           sed -Ee '/\bclear:\s*true/d' -Ee 's/## add:/add:/' > \
-          "$SAMPLES_DIR/config/tcbuild-clear-default.yaml"
+          "tcbuild-clear-default.yaml"
 
     run torizoncore-builder build \
-            --file "$SAMPLES_DIR/config/tcbuild-clear-default.yaml" \
+            --file "tcbuild-clear-default.yaml" \
             --set INPUT_IMAGE="$OVERLAY_IMAGE" \
             --set OUTPUT_DIR="$DUMMY_OUTPUT" --force
     assert_success
@@ -549,30 +611,41 @@ teardown_file() {
     rm -rf $DUMMY_OUTPUT $OVERLAY_IMAGE
 }
 
-@test "build: basic tcbuild referencing a docker-compose file" {
+@test "build: check basic container bundling" {
     local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
 
     local COMPOSE='docker-compose.yml'
     cp "$SAMPLES_DIR/compose/hello/docker-compose.yml" "$COMPOSE"
 
     local OUTDIR='customized_image'
-    local FILE="$SAMPLES_DIR/config/tcbuild-with-compose.yaml"
+
+    # Prepare tcbuild file:
+    cp "${SAMPLES_DIR}/config/tcbuild-with-compose.yaml" \
+       "tcbuild-with-compose.yaml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-with-compose.yaml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+    local FILE="tcbuild-with-compose.yaml"
 
     if [ "${ci_dockerhub_login}" = "1" ]; then
-        cat "$SAMPLES_DIR/config/tcbuild-with-compose.yaml" | \
+        cat "${FILE}" | \
               sed -Ee 's/## username:/username:/' \
                   -Ee 's/## password:/password:/' > \
-              "$SAMPLES_DIR/config/tcbuild-with-compose-login.yaml"
-        FILE="$SAMPLES_DIR/config/tcbuild-with-compose-login.yaml"
+              "tcbuild-with-compose-login.yaml"
+        FILE="tcbuild-with-compose-login.yaml"
     fi
 
-    run torizoncore-builder build \
+    run torizoncore-builder --log-level debug build \
         --file "$FILE" --force \
         --set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
         --set OUTPUT_DIR="$OUTDIR" \
         --set COMPOSE_FILE="$COMPOSE" \
-        ${ci_dockerhub_login:+--set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
-                 --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
+        ${ci_dockerhub_login:+
+          --set "USERNAME=${CI_DOCKER_HUB_PULL_USER}"
+          --set "PASSWORD=${CI_DOCKER_HUB_PULL_PASSWORD}"}
 
     assert_success
     assert_output --partial 'Connecting to Docker Daemon'
@@ -587,27 +660,28 @@ teardown_file() {
     rm -fr "$OUTDIR"
 }
 
-@test "build: check with secure registry with authentication" {
+@test "build: check container bundling with secure registry" {
     local SR_COMPOSE_FOLDER="${SAMPLES_DIR}/compose/secure-registry"
     local COMPOSE="${SR_COMPOSE_FOLDER}/docker-compose.yml"
     local OUTDIR="customized_image"
-    local FILE="${SAMPLES_DIR}/config/tcbuild-with-cacert-registry.yaml"
     local USERNAME="toradex"
     local PASSWORD="test"
     local REGISTRY="${SR_WITH_AUTH_IP}"
     local CA_CERTIFICATE="${SR_WITH_AUTH_CERTS}/cacert.crt"
 
+    # Prepare tcbuild file:
+    cp "${SAMPLES_DIR}/config/tcbuild-with-cacert-registry.yaml" \
+       "tcbuild-with-cacert-registry.yaml"
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "tcbuild-with-cacert-registry.yaml" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+    local FILE="tcbuild-with-cacert-registry.yaml"
+
     rm -fr "$OUTDIR"
-    # At the time of writing, this is the only testcase in this module that requires the registries
-    # to be running; because of that we start the registry here. Later if we have more testcases
-    # requiring the registries we may consider moving the call to start-registries to a setup_file()
-    # function.
-    start-registries || true
-    run check-registries
-    assert_success
-
     cp "${SR_COMPOSE_FOLDER}/docker-compose-sr-only.yml" "${COMPOSE}"
-
     sed -i -E -e "s/# @NAME1@/test/" \
               -e "s/# image: @IMAGE5@/ image: ${SR_WITH_AUTH_IP}\/test1/" \
               "${COMPOSE}"

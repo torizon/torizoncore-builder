@@ -218,7 +218,7 @@ is_uenv_kargs_passing_supported() {
         assert_success
     fi
 
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         # In case of FIT images, the new passing method is strictly needed for
         # setting/clearing (not for getting); check that:
         echo "Performing basic set/get/clear checks for FIT-kernel case"
@@ -247,7 +247,7 @@ is_uenv_kargs_passing_supported() {
     echo "Run kernel set_custom_args with no bootargs setting method available"
     run torizoncore-builder kernel set_custom_args "arg1=val1" "arg2=val2"
     assert_failure
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         assert_output --partial "Error: the Torizon OS image you are customizing has a kernel in FIT format but it does not support the uEnv method"
     else
         assert_output --partial "Error: the Torizon OS image you are customizing does not support custom kernel arguments"
@@ -256,7 +256,7 @@ is_uenv_kargs_passing_supported() {
     echo "Run kernel get_custom_args with no bootargs setting method available"
     run torizoncore-builder kernel get_custom_args
     assert_failure
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         assert_output --partial "Notice: this image has a kernel in FIT format but it does not support the uEnv method for passing kernel arguments"
     fi
     assert_output --partial "Error: the Torizon OS image you are customizing does not support custom kernel arguments"
@@ -264,7 +264,7 @@ is_uenv_kargs_passing_supported() {
     echo "Run kernel clear_custom_args with no bootargs setting method available"
     run torizoncore-builder kernel clear_custom_args
     assert_failure
-    if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         assert_output --partial "Error: the Torizon OS image you are customizing has a kernel in FIT format but it does not support the uEnv method"
     else
         assert_output --partial "Error: the Torizon OS image you are customizing does not support custom kernel arguments"
@@ -307,7 +307,7 @@ is_uenv_kargs_passing_supported() {
         uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
         check_append="1"
 
-        if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+        if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
             echo "Run extra checks for FIT case."
             if echo "${output}" | \
                grep -q "Overlay with secboot required-bootargs found in the kernel"; then
@@ -349,7 +349,7 @@ is_uenv_kargs_passing_supported() {
         fi
 
     elif [ "${ovl_kargs_supported}" = "1" ]; then
-        if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+        if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
             # Testing with deprecated secboot image (rare).
             assert_failure
             assert_output --regexp 'Error: the Torizon OS image you are customizing has a kernel in FIT format but it does not support the uEnv method for passing kernel arguments'
@@ -379,7 +379,7 @@ is_uenv_kargs_passing_supported() {
     assert_output --partial 'Currently configured custom kernel arguments: "arg1=val1 arg2=val2"'
 
     if [ "${uenv_kargs_supported}" = "1" ] && \
-       [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+       [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
         if echo "${output}" | \
            grep -q "Overlay with secboot required-bootargs found in the kernel"; then
             # Check if the overlay keeping the required-bootargs was updated.
@@ -401,7 +401,7 @@ is_uenv_kargs_passing_supported() {
         assert_output --partial 'Custom kernel arguments successfully cleared'
         assert_output --partial "Clearing bootargs (uenv method)"
 
-        if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+        if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
             if echo "${output}" | \
                     grep -q "Overlay with secboot required-bootargs found in the kernel"; then
                 # Check if the required-bootargs was cleared (based on logs).
@@ -462,7 +462,7 @@ is_uenv_kargs_passing_supported() {
         assert_success
         assert_output --partial "Clearing bootargs (uenv method)"
 
-        if [ "${IS_DEFAULT_TEZI_IMAGE_FIT}" = "1" ]; then
+        if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
             if echo "${output}" | \
                grep -q "Overlay with secboot required-bootargs found in the kernel"; then
                 # Check if the required-bootargs was cleared (based on logs).

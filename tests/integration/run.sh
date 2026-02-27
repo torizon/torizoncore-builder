@@ -66,7 +66,7 @@ fi
 if [ ! -z "$TCB_MACHINE" ]; then
     export MACHINE=$TCB_MACHINE
 else
-    echo "Error: machine was not set"
+    echo "Error: TCB_MACHINE is not set."
     exit 1
 fi
 
@@ -117,14 +117,14 @@ FILTER_TAGS=""
 if [ -v TCB_TAGS ]; then
     case "$TCB_TAGS" in
         "")
-            echo "Running untagged tests"
+            echo "Running untagged tests."
             FILTER_TAGS='--filter-tags ,'
             ;;
         "all")
             echo "Running all tests."
             ;;
         *all*)
-            echo "Error: 'all' filter cannot be used with other filters"
+            echo "Error: 'all' filter cannot be used with other filters."
             exit 1
             ;;
         *)
@@ -224,35 +224,53 @@ fi
 
 # prepare tests
 export BATS_LIB_PATH="$WORK_DIR"
-export IS_DEFAULT_TEZI_IMAGE_FIT=""
+export DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL=""
+export DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT=""
 cd $WORK_DIR
 rm -rf $SAMPLES_DIR && cp -a ../$SAMPLES_DIR .
 mkdir -p $REPORT_DIR
 echo -e "Starting integration tests...\n"
 
-# If using TEZI image, check if it has a kernel in FIT format as some tests need this info
-if [ "$IS_WIC" != "1" ] && [ -n "$DEFAULT_TEZI_IMAGE" ]; then
-    torizoncore-builder images --remove-storage unpack "$DEFAULT_TEZI_IMAGE"
+_setup_fit_image_vars() {
     if unpacked-kernel-in-fit-format; then
-        echo "Image has kernel in FIT format"
-        IS_DEFAULT_TEZI_IMAGE_FIT="1" # valid FIT kernel
+        echo "Image has kernel in FIT format."
+        DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL="1" # valid FIT kernel
 
         # Check if image with FIT kernel has signing artifacts
         if signing-artifacts-in-unpacked-tezi-image; then
-            echo "Image has signing artifacts - Secure boot related tests will be executed for machine $MACHINE"
+            echo "Image has signing artifacts;" \
+                 "Secure boot related tests will be executed for machine ${MACHINE}."
             DEFAULT_SIGNED_TEZI_IMAGE="${DEFAULT_TEZI_IMAGE}"
         fi
     else
         status=$?
         if [ $status -eq 1 ]; then
-            IS_DEFAULT_TEZI_IMAGE_FIT="0" # non-FIT kernel
+            DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL="0" # non-FIT kernel
         else
             # Error case: specific error message provided by the function
             exit $status
         fi
     fi
+}
+
+_setup_cfs_supp_vars() {
+    DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT="0"
+    if unpacked-ostree-repo-has-composefs-support; then
+        echo "Image has composefs (root filesystem protection) support."
+        DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT="1"
+    else
+        echo "Image has NO composefs (root filesystem protection) support."
+    fi
+}
+
+# If using TEZI image, check if it has a kernel in FIT format as some tests need this info
+if [ "$IS_WIC" != "1" ] && [ -n "$DEFAULT_TEZI_IMAGE" ]; then
+    torizoncore-builder images --remove-storage unpack "$DEFAULT_TEZI_IMAGE"
+    _setup_fit_image_vars
+    _setup_cfs_supp_vars
 fi
-# run tests
+
+# Run tests
 if [ "$TCB_REPORT" = "1" ]; then
     if [ "$TCB_UNDER_CI" = "1" ]; then
         BATS_CMD="$BATS_CMD --report-formatter junit --output $REPORT_DIR"
@@ -265,7 +283,7 @@ if [ "$TCB_REPORT" = "1" ]; then
         echo "Running locally with tee to save report..."
         $BATS_CMD 2>&1 | tee "$REPORT_FILE"
         EXIT_CODE_TESTS=$?
-        echo "Test report available in $REPORT_FILE"
+        echo "Test report available in ${REPORT_FILE}."
     fi
 else
     echo "Running without report..."
