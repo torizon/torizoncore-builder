@@ -298,6 +298,8 @@ class RegistryOperations:
     LOGINS = []
     CACERTS = []
 
+    _INTERNAL_EMPTY_SCOPE = "_empty_scope"
+
     @classmethod
     def set_logins(cls, logins):
         """Set the username/password for authenticating with registries
@@ -371,15 +373,15 @@ class RegistryOperations:
         """Get the OAuth2 token required for accessing some resources"""
 
         # --
-        # Expected format (https://docs.docker.com/registry/spec/auth/token/):
+        # Expected format (https://docs.docker.com/reference/api/registry/auth/#requesting-a-token):
         # Bearer realm="https://auth.docker.io/token",
         #        service="registry.docker.io",
         #        scope="repository:samalba/my-app:pull,push"
-        # With scope being a space-separated list of scopes.
+        # With scope being a space-separated list of scopes or empty (scope keyword not available).
         # --
 
         # Helper function:
-        def _consume_attrib(key, unique=True):
+        def _consume_attrib(key, unique=True, default=""):
             nonlocal attribs
             values_ = []
             attribs_ = []
@@ -391,6 +393,10 @@ class RegistryOperations:
                     # Non-consumed pair.
                     attribs_.append(attr)
             attribs = attribs_
+            if default != "":
+                if len(values_) == 0:
+                    log.debug(f"Attributes in the WWW-Authenticate header not given: {key}")
+                    return default
             if unique:
                 if len(values_) != 1:
                     assert False, \
@@ -402,7 +408,7 @@ class RegistryOperations:
         # Parse attributes:
         realm = _consume_attrib("realm")
         service = _consume_attrib("service")
-        scope = _consume_attrib("scope")
+        scope = _consume_attrib("scope", True, _INTERNAL_EMPTY_SCOPE)
         scopes = scope.split(" ")
         if attribs:
             log.warning(f"Attributes not processed in the WWW-Authenticate header: {attribs}")
@@ -412,7 +418,8 @@ class RegistryOperations:
         auth_parms = []
         auth_parms.append(("service", service))
         for scope in scopes:
-            auth_parms.append(("scope", scope))
+            if scope != _INTERNAL_EMPTY_SCOPE:
+                auth_parms.append(("scope", scope))
 
         # Request token to authorization end-point.
         assert regurl.startswith("https://"), \
@@ -456,6 +463,11 @@ class RegistryOperations:
                 # Bearer token previously.
                 log.debug(f"Using cached token for scope '{scope}'")
                 headers.update({"Authorization": f"Bearer {self.token_cache[scope]}"})
+            if _INTERNAL_EMPTY_SCOPE in self.token_cache:
+                # If _INTERNAL_EMPTY_SCOPE is in the cache it means this end-point was accessed with a
+                # Bearer token previously.
+                log.debug(f"Using cached token for scope '' (empty)")
+                headers.update({"Authorization": f"Bearer {self.token_cache[_INTERNAL_EMPTY_SCOPE]}"})
             elif self.login:
                 # Using Basic Authentication for the request.
                 log.debug("Using Basic Authentication credentials")
