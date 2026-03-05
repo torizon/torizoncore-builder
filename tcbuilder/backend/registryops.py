@@ -408,7 +408,7 @@ class RegistryOperations:
         # Parse attributes:
         realm = _consume_attrib("realm")
         service = _consume_attrib("service")
-        scope = _consume_attrib("scope", True, _INTERNAL_EMPTY_SCOPE)
+        scope = _consume_attrib("scope", True, self._INTERNAL_EMPTY_SCOPE)
         scopes = scope.split(" ")
         if attribs:
             log.warning(f"Attributes not processed in the WWW-Authenticate header: {attribs}")
@@ -418,7 +418,7 @@ class RegistryOperations:
         auth_parms = []
         auth_parms.append(("service", service))
         for scope in scopes:
-            if scope != _INTERNAL_EMPTY_SCOPE:
+            if scope != self._INTERNAL_EMPTY_SCOPE:
                 auth_parms.append(("scope", scope))
 
         # Request token to authorization end-point.
@@ -463,11 +463,12 @@ class RegistryOperations:
                 # Bearer token previously.
                 log.debug(f"Using cached token for scope '{scope}'")
                 headers.update({"Authorization": f"Bearer {self.token_cache[scope]}"})
-            if _INTERNAL_EMPTY_SCOPE in self.token_cache:
-                # If _INTERNAL_EMPTY_SCOPE is in the cache it means this end-point was accessed with a
-                # Bearer token previously.
-                log.debug(f"Using cached token for scope '' (empty)")
-                headers.update({"Authorization": f"Bearer {self.token_cache[_INTERNAL_EMPTY_SCOPE]}"})
+            if self._INTERNAL_EMPTY_SCOPE in self.token_cache:
+                # If _INTERNAL_EMPTY_SCOPE is in the cache it means this end-point was
+                # accessed with a bearer token previously, with no scope.
+                log.debug("Using cached token for scope '' (empty)")
+                headers.update({
+                    "Authorization": f"Bearer {self.token_cache[self._INTERNAL_EMPTY_SCOPE]}"})
             elif self.login:
                 # Using Basic Authentication for the request.
                 log.debug("Using Basic Authentication credentials")
