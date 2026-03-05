@@ -463,7 +463,7 @@ class RegistryOperations:
                 # Bearer token previously.
                 log.debug(f"Using cached token for scope '{scope}'")
                 headers.update({"Authorization": f"Bearer {self.token_cache[scope]}"})
-            if self._INTERNAL_EMPTY_SCOPE in self.token_cache:
+            elif self._INTERNAL_EMPTY_SCOPE in self.token_cache:
                 # If _INTERNAL_EMPTY_SCOPE is in the cache it means this end-point was
                 # accessed with a bearer token previously, with no scope.
                 log.debug("Using cached token for scope '' (empty)")
