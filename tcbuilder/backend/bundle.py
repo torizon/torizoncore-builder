@@ -174,12 +174,12 @@ class DindManager(DockerManager):
         self.host_client = docker.from_env()
 
         storage_driver = self.host_client.info()["Driver"]
-        if storage_driver != "overlay2":
+        if storage_driver not in ["overlay2", "overlayfs"]:
             raise InvalidStorageDriverError(
-                f"Error: Incompatible Docker Storage Driver '{storage_driver}'; "
-                "only 'overlay2' is currently supported.\nLearn more on "
-                "https://developer.toradex.com/software/torizon/"
-                "torizoncore-builder-issue-tracker?issue=TCB-328")
+                f'Error: Incompatible Docker Storage Driver "{storage_driver}"; '
+                'only "overlay2" and "overlayfs" are currently supported.\nLearn '
+                'more on https://developer.toradex.com/software/torizon/'
+                'torizoncore-builder-issue-tracker?issue=TCB-328')
 
         self.network = None
 
