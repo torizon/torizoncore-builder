@@ -12,10 +12,12 @@ import binascii
 import glob
 
 from typing import Optional
+from contextlib import contextmanager
 
 import git
 import dns.resolver
 import ifaddr
+import guestfs
 
 from docker import DockerClient
 from docker.errors import NotFound
@@ -974,3 +976,34 @@ def is_file_type_fit(file_path):
             f"Error running fdtget: {exc.output.strip()}") from exc
 
     return True
+
+
+@contextmanager
+def open_disk_image(image_path, *, delete_on_error=False, readonly=False, loading_msg=None):
+    """Create a context manager to open and manipulate raw disk images."""
+
+    try:
+        gfs = guestfs.GuestFS(python_return_dict=True)
+        gfs.add_drive_opts(image_path, format="raw", readonly=readonly)
+        run_with_loading_animation(
+            func=gfs.launch,
+            loading_msg=loading_msg or "Initializing image...")
+        if len(gfs.list_partitions()) < 1:
+            raise TorizonCoreBuilderError(
+                "Image doesn't have any partitions or it's not a valid raw image. Aborting.")
+        yield gfs
+    except RuntimeError as gfserr:
+        if delete_on_error:
+            log.info("Removing '%s'", image_path)
+            os.remove(image_path)
+        match = re.search(r"unable to resolve 'LABEL=(.*)'", str(gfserr), re.IGNORECASE)
+        if match:
+            # pylint: disable-next=raise-missing-from
+            raise TorizonCoreBuilderError(
+                f"Filesystem with label '{match.group(1)}' not found in image. Aborting.")
+        # pylint: disable-next=raise-missing-from
+        raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
+    finally:
+        if gfs:
+            gfs.shutdown()
+            gfs.close()

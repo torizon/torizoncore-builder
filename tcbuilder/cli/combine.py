@@ -60,6 +60,9 @@ def do_combine(args):
     if not os.path.exists(dir_containers):
         raise PathNotExistError(f"Bundle directory {args.bundle_directory} does not exist.")
 
+    if not os.path.exists(args.image_path):
+        raise PathNotExistError(f"Image path {args.image_path} does not exist. Aborting.")
+
     output_path = os.path.abspath(args.output_path)
 
     image_path = os.path.abspath(args.image_path)
