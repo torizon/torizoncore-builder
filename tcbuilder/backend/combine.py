@@ -9,11 +9,12 @@ import re
 import datetime
 
 import fnmatch
+import subprocess
 
 from tezi.image import ImageConfig
 from tcbuilder.backend.common import \
     (set_output_ownership, check_licence_acceptance, run_with_loading_animation,
-     open_disk_image, DOCKER_BUNDLE_TARNAME)
+     open_disk_image, get_tar_compress_program_options, DOCKER_BUNDLE_TARNAME)
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -24,6 +25,7 @@ DOCKER_FILES_TO_ADD = [
     TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
 ]
 DOCKER_STORAGE_DESTINATION = "/ostree/deploy/torizon/var/lib/docker/"
+DOCKER_STORAGE_DIRNAME = "docker-storage"
 
 TEZI_PROPS = [
     "name",
@@ -44,6 +46,14 @@ TAR_EXT_TO_COMPRESSION_TYPE = {
     ".lzo": "lzop",
     ".tar": None
 }
+
+# Disk size increase factor on top of filesystem size increase
+DISK_INCREASE_FACTOR = 1.20
+# Fixed disk size increase
+DISK_FIXED_INCREASE_KB = 200*1024 # 200 MiB
+# Maximum allowed ratio between required and available root filesystem space.
+# If higher than that, the disk size will be increased.
+MAX_REQ_AVAIL_RATIO = 0.98
 
 
 def check_docker_storage_file(bundle_dir):
@@ -200,7 +210,7 @@ def combine_single_tezi_image(bundle_dir, files_to_add, output_dir, tezi_props):
     return update_tezi_files(output_dir, tezi_props, files_to_add)
 
 
-def check_combine_files(bundle_dir):
+def check_combine_files(bundle_dir, *, untar_storage=False):
     """
     Verify if the bundle directory has the required files, and optionally unpack the docker
     storage tarfile.
@@ -225,7 +235,10 @@ def check_combine_files(bundle_dir):
 
         docker_storage_filename = check_docker_storage_file(bundle_dir)
         if docker_storage_filename is not None:
-            files_to_add.append(f"{docker_storage_filename}:{DOCKER_STORAGE_DESTINATION}:true")
+            if untar_storage:
+                unpack_docker_storage(docker_storage_filename, files_to_add, bundle_dir)
+            else:
+                files_to_add.append(f"{docker_storage_filename}:{DOCKER_STORAGE_DESTINATION}:true")
         else:
             log.error("Error: %s not found in bundle directory.", DOCKER_BUNDLE_TARNAME)
             return None
@@ -321,7 +334,7 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
 
     log.info("Combining Torizon OS image with Docker Container bundle.")
 
-    files_to_add = check_combine_files(bundle_dir)
+    files_to_add = check_combine_files(bundle_dir, untar_storage=True)
 
     if not files_to_add:
         if delete_on_error and os.path.isfile(output_path):
@@ -329,10 +342,89 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
             os.remove(output_path)
         raise TorizonCoreBuilderError("Some required bundle files were not found. Aborting.")
 
+    req_space_kb = get_bundle_size_kb(files_to_add, bundle_dir)
+
     with open_disk_image(output_path, delete_on_error=delete_on_error) as gfs:
         root_partition = gfs.findfs_label(rootfs_label)
         gfs.mount(root_partition, "/")
+        statvfs_dict = gfs.statvfs("/")
+        root_avail_kb = statvfs_dict['bsize'] * statvfs_dict['bavail'] / 1024
+
+        log.info(f"Required free space in root filesystem: {req_space_kb/1024:.2f} MiB")
+        log.info(f"Available space in root filesystem: {root_avail_kb/1024:.2f} MiB")
+
+        req_avail_ratio = req_space_kb / root_avail_kb
+        if req_avail_ratio <= MAX_REQ_AVAIL_RATIO:
+            # Contents fit in root filesystem, add them and return
+            copy_to_mounted_root(gfs, files_to_add, bundle_dir)
+            return
+
+    # Contents don't fit (or barely fit) in root filesystem, disk needs to be increased.
+    extra_disk_size_kb = DISK_FIXED_INCREASE_KB
+    if req_avail_ratio > 1:
+        extra_disk_size_kb += int((req_space_kb - root_avail_kb) * DISK_INCREASE_FACTOR)
+
+    log.info(f"Output disk will be increased by {extra_disk_size_kb/1024:.2f} MiB")
+    subprocess.check_output(["truncate", "-s", f"+{extra_disk_size_kb}K", output_path])
+
+    tmp_image = None
+    if output_path == image_path:
+        # The build command uses in-place modification.
+        # virt-resize doesn't support that, so we need to create a temporary copy.
+        tmp_image = output_path + ".not_bundled"
+        log.debug("Copying '%s' -> '%s' for virt-resize.", output_path, tmp_image)
+        shutil.copyfile(output_path, tmp_image)
+        image_path = tmp_image
+
+    try:
+        expand_disk_partition(image_path, root_partition, output_path)
+    finally:
+        if tmp_image and os.path.isfile(tmp_image):
+            log.debug("Deleting '%s'", tmp_image)
+            os.remove(tmp_image)
+
+    with open_disk_image(output_path, delete_on_error=delete_on_error) as gfs:
+        gfs.mount(root_partition, "/")
         copy_to_mounted_root(gfs, files_to_add, bundle_dir)
+
+
+def expand_disk_partition(src_image, src_partition, dst_image):
+    """
+    Using virt-resize, expand a given partition on src_image and copy the end result into
+    dst_image. The expanded partition will fill any extra disk space in dst_image.
+
+    virt-resize will automatically resize ext4 filesystems after expanding the partition.
+    """
+
+    log.info("Starting virt-resize...")
+    print("------------------------------------------------------------")
+    expandcmd = ["virt-resize", "--format", "raw", "--expand"]
+    expandcmd.extend([src_partition, src_image, dst_image])
+    subprocess.run(expandcmd, check=True)
+    print("------------------------------------------------------------")
+
+
+def get_bundle_size_kb(files_to_add, src_dir):
+    """Get total size of files/directories in a files_to_add list from a source directory."""
+
+    size_kb = 0
+    for src_dest_untar in files_to_add:
+        src_dest_untar = src_dest_untar.split(":")
+        filename = src_dest_untar[0]
+        file_path = os.path.join(src_dir , filename)
+
+        if not os.path.exists(file_path):
+            raise InvalidDataError(f'Error: "{filename}" not found in "{src_dir}". Aborting.')
+
+        if os.path.isdir(file_path):
+            filesize_kb = subprocess.check_output(["du", "-s", file_path], text=True)
+            filesize_kb = int(filesize_kb.split('\t', maxsplit=1)[0])
+        else:
+            filesize_kb = os.path.getsize(file_path) / 1024
+
+        size_kb += filesize_kb
+
+    return size_kb
 
 
 def copy_to_mounted_root(gfs, files_to_add, contents_dir):
@@ -370,3 +462,27 @@ def copy_to_mounted_root(gfs, files_to_add, contents_dir):
                 func=gfs.copy_in,
                 args=(os.path.join(contents_dir, src), dest),
                 loading_msg=f"  Copying {src} to {dest} ...")
+
+
+def unpack_docker_storage(docker_storage_filename, files_to_add, bundle_dir):
+    """Unpack the docker storage tarfile and add its contents to the files_to_add list."""
+
+    docker_storage_path = os.path.join(bundle_dir, docker_storage_filename)
+    extracted_path = os.path.join(bundle_dir, DOCKER_STORAGE_DIRNAME)
+
+    if os.path.isdir(extracted_path):
+        shutil.rmtree(extracted_path)
+    os.mkdir(extracted_path)
+
+    log.info("Unpacking '%s'", docker_storage_filename)
+    tar_compress_options = get_tar_compress_program_options(docker_storage_path)
+    tarcmd = [
+        "tar",
+        "-xf", docker_storage_path,
+        "-C", extracted_path,
+    ] + tar_compress_options
+    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
+
+    for content in os.listdir(extracted_path):
+        files_to_add.append(
+            f"{os.path.join(DOCKER_STORAGE_DIRNAME, content)}:{DOCKER_STORAGE_DESTINATION}")
