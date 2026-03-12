@@ -19,13 +19,12 @@ import urllib.request
 from zipfile import ZipFile
 from tempfile import TemporaryDirectory
 
-import guestfs
 import fabric
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
                                       set_output_ownership, run_with_loading_animation,
-                                      get_tezi_image_version, DEFAULT_RAW_ROOTFS_LABEL,
-                                      RAW_PROP_TO_ARGNAME, SECBOOT_ARTIFACTS_DIR)
+                                      get_tezi_image_version, open_disk_image, RAW_PROP_TO_ARGNAME,
+                                      DEFAULT_RAW_ROOTFS_LABEL, SECBOOT_ARTIFACTS_DIR)
 from tcbuilder.backend import ostree
 from tcbuilder.backend.secboot import DEFAULT_TCB_SIGNING_FILES_TARNAME, BOOTLOADER_CONTAINER_NAME
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
@@ -321,19 +320,7 @@ def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
     if raw_rootfs_label is None:
         raw_rootfs_label = DEFAULT_RAW_ROOTFS_LABEL
 
-    try:
-        gfs = guestfs.GuestFS(python_return_dict=True)
-        # Add input image
-        gfs.add_drive_opts(image_dir, format="raw", readonly=1)
-        # Launch libguestfs backend
-        run_with_loading_animation(
-            func=gfs.launch,
-            loading_msg="Initializing WIC/raw image...")
-
-        if len(gfs.list_partitions()) < 1:
-            raise TorizonCoreBuilderError(
-                "Image doesn't have any partitions or it's not a valid WIC/raw image. Aborting.")
-
+    with open_disk_image(image_dir, readonly=True) as gfs:
         # Get partition number from ext4 fs called raw_rootfs_label in disk image (.wic/.img)
         rootfs_partition = gfs.findfs_label(raw_rootfs_label)
         log.info(f"'{raw_rootfs_label}' partition found: {rootfs_partition}")
@@ -342,18 +329,6 @@ def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
             func=gfs.copy_out,
             args=("/", sysroot_dir),
             loading_msg="Unpacking image. This may take a few minutes...")
-        gfs.shutdown()
-        gfs.close()
-    except RuntimeError as gfserr:
-        if gfs:
-            gfs.close()
-        if f"unable to resolve 'LABEL={raw_rootfs_label}'" in str(gfserr):
-            # pylint: disable-next=raise-missing-from
-            raise TorizonCoreBuilderError(
-                f"Filesystem with label '{raw_rootfs_label}' not found in image. Aborting.")
-
-        # pylint: disable-next=raise-missing-from
-        raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}")
 
 
 def _make_tezi_extract_dir(tezi_dir):
