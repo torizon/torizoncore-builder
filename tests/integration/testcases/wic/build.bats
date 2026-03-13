@@ -145,7 +145,7 @@ teardown_file() {
     assert_output --partial 'Deploying commit ref: my-raw-image-branch'
     assert_output --partial "created successfully"
     assert_output --partial "Copying docker-compose.yml"
-    assert_output --partial "Unpacking docker-storage.tar"
+    assert_output --regexp "Unpacking .*docker-storage.*"
 
     local ARCHIVE='/storage/ostree-archive/'
     local COMMIT='my-raw-image-branch'
@@ -194,7 +194,7 @@ teardown_file() {
     assert_output --partial 'Deploying commit ref: my-raw-image-branch'
     assert_output --partial "created successfully"
     assert_output --partial "Copying docker-compose.yml"
-    assert_output --partial "Unpacking docker-storage.tar"
+    assert_output --regexp "Unpacking .*docker-storage.*"
 
     local ARCHIVE='/storage/ostree-archive/'
     local COMMIT='my-raw-image-branch'

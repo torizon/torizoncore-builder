@@ -7,6 +7,7 @@ container(s) from the "bundle" command.
 import os
 import logging
 import argparse
+import shutil
 
 from tcbuilder.backend.common import (add_common_tezi_image_arguments,
                                       add_common_raw_image_arguments,
@@ -60,6 +61,9 @@ def do_combine(args):
     if not os.path.exists(dir_containers):
         raise PathNotExistError(f"Bundle directory {args.bundle_directory} does not exist.")
 
+    if not os.path.exists(args.image_path):
+        raise PathNotExistError(f"Image path {args.image_path} does not exist. Aborting.")
+
     output_path = os.path.abspath(args.output_path)
 
     image_path = os.path.abspath(args.image_path)
@@ -100,9 +104,14 @@ def do_combine(args):
             if raw_props_args[prop] is None:
                 raw_props_args[prop] = RAW_PROP_DEFAULTS[prop]
 
-        combine.combine_raw_image(image_path, dir_containers, output_path,
-                                  raw_props_args["raw_rootfs_label"], args.force)
-
+        try:
+            combine.combine_raw_image(image_path, dir_containers, output_path,
+                                      raw_props_args["raw_rootfs_label"], args.force)
+        finally:
+            docker_storage_dir_path = os.path.join(dir_containers, combine.DOCKER_STORAGE_DIRNAME)
+            if os.path.isdir(docker_storage_dir_path):
+                log.debug("Deleting '%s'", docker_storage_dir_path)
+                shutil.rmtree(docker_storage_dir_path)
     # If TEZI image:
     else:
 

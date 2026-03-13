@@ -1,3 +1,7 @@
+"""
+Backend handling for the combine subcommand
+"""
+
 import os
 import shutil
 import logging
@@ -5,12 +9,12 @@ import re
 import datetime
 
 import fnmatch
-import guestfs
+import subprocess
 
 from tezi.image import ImageConfig
 from tcbuilder.backend.common import \
-    (set_output_ownership, check_licence_acceptance,
-     run_with_loading_animation, DOCKER_BUNDLE_TARNAME)
+    (set_output_ownership, check_licence_acceptance, run_with_loading_animation,
+     open_disk_image, get_tar_compress_program_options, DOCKER_BUNDLE_TARNAME)
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -20,7 +24,8 @@ DOCKER_FILES_TO_ADD = [
     "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
     TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
 ]
-DOCKER_BUNDLE_DESTINATION = "/ostree/deploy/torizon/var/lib/docker/:true"
+DOCKER_STORAGE_DESTINATION = "/ostree/deploy/torizon/var/lib/docker/"
+DOCKER_STORAGE_DIRNAME = "docker-storage"
 
 TEZI_PROPS = [
     "name",
@@ -42,10 +47,20 @@ TAR_EXT_TO_COMPRESSION_TYPE = {
     ".tar": None
 }
 
+# Disk size increase factor on top of filesystem size increase
+DISK_INCREASE_FACTOR = 1.20
+# Fixed disk size increase
+DISK_FIXED_INCREASE_KB = 200*1024 # 200 MiB
+# Maximum allowed ratio between required and available root filesystem space.
+# If higher than that, the disk size will be increased.
+MAX_REQ_AVAIL_RATIO = 0.98
 
-# Search in bundle_dir if there is a file named DOCKER_BUNDLE_TARNAME*
-# e.g. DOCKER_BUNDLE_TARNAME, DOCKER_BUNDLE_TARNAME.xz, DOCKER_BUNDLE_TARNAME.gz, etc.
+
 def check_docker_storage_file(bundle_dir):
+    """
+    Search in bundle_dir if there is a file named DOCKER_BUNDLE_TARNAME*
+    e.g. DOCKER_BUNDLE_TARNAME, DOCKER_BUNDLE_TARNAME.xz, DOCKER_BUNDLE_TARNAME.gz, etc.
+    """
     for filename in os.listdir(bundle_dir):
         if fnmatch.fnmatch(filename, f"{DOCKER_BUNDLE_TARNAME}*"):
             return filename
@@ -53,6 +68,8 @@ def check_docker_storage_file(bundle_dir):
 
 
 def set_autoreboot(output_dir, include):
+    """Set autoreboot feature in TEZI image."""
+
     wrapup_sh = os.path.join(os.path.abspath(output_dir), 'wrapup.sh')
 
     with open(wrapup_sh, "r", encoding="utf-8") as infile:
@@ -95,7 +112,8 @@ def set_autoreboot(output_dir, include):
         output.writelines(lines)
 
 
-def add_files(tezidir, image_json_filename, filelist, tezi_props):
+def add_files_to_tezi(tezidir, image_json_filename, filelist, tezi_props):
+    """Add files in filelist to a Toradex Easy Installer image directory."""
 
     config_fname = os.path.join(tezidir, image_json_filename)
     config = ImageConfig(config_fname)
@@ -146,6 +164,8 @@ def add_files(tezidir, image_json_filename, filelist, tezi_props):
 
 
 def update_tezi_files(image_dir, tezi_props, files_to_add=None):
+    """Update Toradex Easy Installer metadata present in image.json."""
+
     licence_file_bn = None
     if tezi_props.get("licence_file") is not None:
         licence_file = tezi_props.get("licence_file")
@@ -171,12 +191,14 @@ def update_tezi_files(image_dir, tezi_props, files_to_add=None):
         "filelist": files_to_add,
         "tezi_props": tezi_props
     }
-    version = add_files(**add_files_params)
+    version = add_files_to_tezi(**add_files_params)
 
     return version
 
 
 def combine_single_tezi_image(bundle_dir, files_to_add, output_dir, tezi_props):
+    """Add files in bundle_dir to TEZI image according to files_to_add list."""
+
     for prop in tezi_props:
         assert prop in TEZI_PROPS, f"Unknown property {prop} to combine_single_image"
 
@@ -188,7 +210,11 @@ def combine_single_tezi_image(bundle_dir, files_to_add, output_dir, tezi_props):
     return update_tezi_files(output_dir, tezi_props, files_to_add)
 
 
-def check_combine_files(bundle_dir):
+def check_combine_files(bundle_dir, *, untar_storage=False):
+    """
+    Verify if the bundle directory has the required files, and optionally unpack the docker
+    storage tarfile.
+    """
 
     files_to_add = []
     if bundle_dir is not None:
@@ -204,21 +230,34 @@ def check_combine_files(bundle_dir):
             filename = filename.split(":", maxsplit=1)[0]
             filename_path = os.path.join(bundle_dir, filename)
             if not os.path.exists(filename_path):
-                log.error(f"Error: {filename} not found in bundle directory.")
+                log.error("Error: %s not found in bundle directory.", filename)
                 return None
 
         docker_storage_filename = check_docker_storage_file(bundle_dir)
         if docker_storage_filename is not None:
-            files_to_add.append(
-                f"{docker_storage_filename}:{DOCKER_BUNDLE_DESTINATION}")
+            if untar_storage:
+                unpack_docker_storage(docker_storage_filename, files_to_add, bundle_dir)
+            else:
+                files_to_add.append(f"{docker_storage_filename}:{DOCKER_STORAGE_DESTINATION}:true")
         else:
-            log.error(f"Error: {DOCKER_BUNDLE_TARNAME} not found in bundle directory.")
+            log.error("Error: %s not found in bundle directory.", DOCKER_BUNDLE_TARNAME)
             return None
 
     return files_to_add
 
 
 def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props, force):
+    """
+    Combine a container bundle to a Toradex Easy Installer image by copying its contents to the
+    image directory and add instructions in image.json to copy them to the device during
+    installation.
+
+    :param image_path: Path of the Toradex Easy Installer image.
+    :param bundle_dir: Path of the container bundle directory.
+    :param output_path: Path where the resulting image directory will be created.
+    :param tezi_props: TEZI-specific metadata dictionary to be added in the output image.
+    :param force: Overwrite output directory if it already exists.
+    """
 
     check_licence_acceptance(image_dir, tezi_props)
 
@@ -261,94 +300,189 @@ def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props, forc
 
 
 def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
+    """
+    Combine a container bundle to a raw disk image by copying its contents to the image root
+    filesystem. If the size of the container bundle exceeds the available space in root,
+    then the disk image will be resized beforehand.
 
-    files_to_add = check_combine_files(bundle_dir)
+    :param image_path: Path of the input raw disk image.
+    :param bundle_dir: Path of the container bundle directory.
+    :param output_path: Path where the resulting raw disk image will be created.
+    :param rootfs_label: Filesystem label of the root partition.
+    :param force: Overwrite output file if it already exists.
+    """
 
-    if files_to_add:
-
-        if (output_path is None or output_path == image_path) and force:
-            log.info("Updating Torizon OS raw image in place.")
-            output_path = image_path
-        else:
-            if os.path.exists(output_path):
-                if force:
-                    log.info(f"Removing existing file '{output_path}'")
-                    os.remove(output_path)
-                else:
-                    raise InvalidStateError(
-                        f"File {output_path} already exists. "
-                        "Rename output or use --force to overwrite.")
-
-            run_with_loading_animation(
-                func=shutil.copyfile,
-                args=(image_path, output_path),
-                loading_msg="Creating copy of source image...")
-
-        log.info("Combining Torizon OS image with Docker Container bundle.")
-
-        try:
-            gfs = guestfs.GuestFS(python_return_dict=True)
-            gfs.add_drive_opts(output_path, format="raw")
-            run_with_loading_animation(
-                func=gfs.launch,
-                loading_msg="Initializing image...")
-            if len(gfs.list_partitions()) < 1:
-                raise TorizonCoreBuilderError(
-                    "Image doesn't have any partitions or it's not a valid raw image. Aborting.")
-
-            # Get partition number from ext4 fs called rootfs_label in disk image (.wic/.img)
-            rootfs_partition = gfs.findfs_label(rootfs_label)
-            log.info(f"  rootfs partition found: {rootfs_partition} "
-                     f"(filesystem label: {rootfs_label})")
-            gfs.mount(rootfs_partition, "/")
-
-            log.info("Adding files to rootfs.")
-            for src_dest_untar in files_to_add:
-
-                src_dest_untar = src_dest_untar.split(":")
-                list_len = len(src_dest_untar)
-                untar = False
-
-                if list_len < 2:
-                    raise TorizonCoreBuilderError(
-                        "Internal error: DOCKER_FILES_TO_ADD not properly formatted. Aborting.")
-
-                if list_len >= 3:
-                    untar = src_dest_untar[2]
-                    untar = untar.lower() == 'true'
-
-                src, dest = src_dest_untar[0:2]
-
-                # Create destination path in rootfs if it doesn't exist
-                if not gfs.is_dir(dest):
-                    gfs.mkdir_p(dest)
-
-                if untar:
-                    run_with_loading_animation(
-                        func=gfs.tar_in,
-                        args=(os.path.join(bundle_dir, src), dest),
-                        kwargs={'compress': TAR_EXT_TO_COMPRESSION_TYPE[os.path.splitext(src)[1]]},
-                        loading_msg=f"  Unpacking {src} to {dest} ...")
-
-                else:
-                    run_with_loading_animation(
-                        func=gfs.copy_in,
-                        args=(os.path.join(bundle_dir, src), dest),
-                        loading_msg=f"  Copying {src} to {dest} ...")
-
-            gfs.shutdown()
-            gfs.close()
-        except RuntimeError as gfserr:
-            if output_path != image_path:
-                log.info("Removing copy of source image.")
-                os.remove(output_path)
-            if gfs:
-                gfs.close()
-            if f"unable to resolve 'LABEL={rootfs_label}'" in str(gfserr):
-                # pylint: disable-next=raise-missing-from
-                raise TorizonCoreBuilderError(
-                    f"Filesystem with label '{rootfs_label}' not found in image. Aborting.")
-            # pylint: disable-next=raise-missing-from
-            raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
+    delete_on_error = True
+    if (output_path is None or output_path == image_path) and force:
+        log.info("Updating Torizon OS raw image in place.")
+        delete_on_error = False
+        output_path = image_path
     else:
+        if os.path.isfile(output_path):
+            if force:
+                log.info(f"Removing existing file '{output_path}'")
+                os.remove(output_path)
+            else:
+                raise InvalidStateError(
+                    f"File {output_path} already exists. "
+                    "Rename output or use --force to overwrite.")
+
+        run_with_loading_animation(
+            func=shutil.copyfile,
+            args=(image_path, output_path),
+            loading_msg="Creating copy of source image...")
+
+    log.info("Combining Torizon OS image with Docker Container bundle.")
+
+    files_to_add = check_combine_files(bundle_dir, untar_storage=True)
+
+    if not files_to_add:
+        if delete_on_error and os.path.isfile(output_path):
+            log.info("Removing '%s'", output_path)
+            os.remove(output_path)
         raise TorizonCoreBuilderError("Some required bundle files were not found. Aborting.")
+
+    req_space_kb = get_bundle_size_kb(files_to_add, bundle_dir)
+
+    with open_disk_image(output_path, delete_on_error=delete_on_error) as gfs:
+        root_partition = gfs.findfs_label(rootfs_label)
+        gfs.mount(root_partition, "/")
+        statvfs_dict = gfs.statvfs("/")
+        root_avail_kb = statvfs_dict['bsize'] * statvfs_dict['bavail'] / 1024
+
+        log.info(f"Required free space in root filesystem: {req_space_kb/1024:.2f} MiB")
+        log.info(f"Available space in root filesystem: {root_avail_kb/1024:.2f} MiB")
+
+        req_avail_ratio = req_space_kb / root_avail_kb
+        if req_avail_ratio <= MAX_REQ_AVAIL_RATIO:
+            # Contents fit in root filesystem, add them and return
+            copy_to_mounted_root(gfs, files_to_add, bundle_dir)
+            return
+
+    # Contents don't fit (or barely fit) in root filesystem, disk needs to be increased.
+    extra_disk_size_kb = DISK_FIXED_INCREASE_KB
+    if req_avail_ratio > 1:
+        extra_disk_size_kb += int((req_space_kb - root_avail_kb) * DISK_INCREASE_FACTOR)
+
+    log.info(f"Output disk will be increased by {extra_disk_size_kb/1024:.2f} MiB")
+    subprocess.check_output(["truncate", "-s", f"+{extra_disk_size_kb}K", output_path])
+
+    tmp_image = None
+    if output_path == image_path:
+        # The build command uses in-place modification.
+        # virt-resize doesn't support that, so we need to create a temporary copy.
+        tmp_image = output_path + ".not_bundled"
+        log.debug("Copying '%s' -> '%s' for virt-resize.", output_path, tmp_image)
+        shutil.copyfile(output_path, tmp_image)
+        image_path = tmp_image
+
+    try:
+        expand_disk_partition(image_path, root_partition, output_path)
+    finally:
+        if tmp_image and os.path.isfile(tmp_image):
+            log.debug("Deleting '%s'", tmp_image)
+            os.remove(tmp_image)
+
+    with open_disk_image(output_path, delete_on_error=delete_on_error) as gfs:
+        gfs.mount(root_partition, "/")
+        copy_to_mounted_root(gfs, files_to_add, bundle_dir)
+
+
+def expand_disk_partition(src_image, src_partition, dst_image):
+    """
+    Using virt-resize, expand a given partition on src_image and copy the end result into
+    dst_image. The expanded partition will fill any extra disk space in dst_image.
+
+    virt-resize will automatically resize ext4 filesystems after expanding the partition.
+    """
+
+    log.info("Starting virt-resize...")
+    print("------------------------------------------------------------")
+    expandcmd = ["virt-resize", "--format", "raw", "--expand"]
+    expandcmd.extend([src_partition, src_image, dst_image])
+    subprocess.run(expandcmd, check=True)
+    print("------------------------------------------------------------")
+
+
+def get_bundle_size_kb(files_to_add, src_dir):
+    """Get total size of files/directories in a files_to_add list from a source directory."""
+
+    size_kb = 0
+    for src_dest_untar in files_to_add:
+        src_dest_untar = src_dest_untar.split(":")
+        filename = src_dest_untar[0]
+        file_path = os.path.join(src_dir , filename)
+
+        if not os.path.exists(file_path):
+            raise InvalidDataError(f'Error: "{filename}" not found in "{src_dir}". Aborting.')
+
+        if os.path.isdir(file_path):
+            filesize_kb = subprocess.check_output(["du", "-s", file_path], text=True)
+            filesize_kb = int(filesize_kb.split('\t', maxsplit=1)[0])
+        else:
+            filesize_kb = os.path.getsize(file_path) / 1024
+
+        size_kb += filesize_kb
+
+    return size_kb
+
+
+def copy_to_mounted_root(gfs, files_to_add, contents_dir):
+    """Copy list of files inside a directory to a mounted filesystem in '/'."""
+
+    log.info("Adding files to disk root.")
+    for src_dest_untar in files_to_add:
+
+        src_dest_untar = src_dest_untar.split(":")
+        list_len = len(src_dest_untar)
+        untar = False
+
+        if list_len < 2:
+            raise TorizonCoreBuilderError(
+                "Internal error: DOCKER_FILES_TO_ADD not properly formatted. Aborting.")
+
+        if list_len >= 3:
+            untar = src_dest_untar[2]
+            untar = untar.lower() == 'true'
+
+        src, dest = src_dest_untar[0:2]
+
+        # Create destination path in root if it doesn't exist already
+        if not gfs.is_dir(dest):
+            gfs.mkdir_p(dest)
+
+        if untar:
+            run_with_loading_animation(
+                func=gfs.tar_in,
+                args=(os.path.join(contents_dir, src), dest),
+                kwargs={'compress': TAR_EXT_TO_COMPRESSION_TYPE[os.path.splitext(src)[1]]},
+                loading_msg=f"  Unpacking {src} to {dest} ...")
+        else:
+            run_with_loading_animation(
+                func=gfs.copy_in,
+                args=(os.path.join(contents_dir, src), dest),
+                loading_msg=f"  Copying {src} to {dest} ...")
+
+
+def unpack_docker_storage(docker_storage_filename, files_to_add, bundle_dir):
+    """Unpack the docker storage tarfile and add its contents to the files_to_add list."""
+
+    docker_storage_path = os.path.join(bundle_dir, docker_storage_filename)
+    extracted_path = os.path.join(bundle_dir, DOCKER_STORAGE_DIRNAME)
+
+    if os.path.isdir(extracted_path):
+        shutil.rmtree(extracted_path)
+    os.mkdir(extracted_path)
+
+    log.info("Unpacking '%s'", docker_storage_filename)
+    tar_compress_options = get_tar_compress_program_options(docker_storage_path)
+    tarcmd = [
+        "tar",
+        "-xf", docker_storage_path,
+        "-C", extracted_path,
+    ] + tar_compress_options
+    subprocess.check_output(tarcmd, stderr=subprocess.STDOUT)
+
+    for content in os.listdir(extracted_path):
+        files_to_add.append(
+            f"{os.path.join(DOCKER_STORAGE_DIRNAME, content)}:{DOCKER_STORAGE_DESTINATION}")

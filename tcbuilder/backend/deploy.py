@@ -10,7 +10,6 @@ import subprocess
 import threading
 import shlex
 
-import guestfs
 import fabric
 
 # pylint: disable=wrong-import-position
@@ -20,8 +19,8 @@ from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
-                                      run_with_loading_animation, REMOTE_CMD_TIMEOUT,
-                                      SECBOOT_ARTIFACTS_DIR)
+                                      run_with_loading_animation, open_disk_image,
+                                      REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.backend.secboot import FUSE_CMD_TXT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
@@ -310,6 +309,7 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
     Creates a new Toradex Easy Installer image with a OSTree deployment of the
     given OSTree reference.
     """
+
     commit = deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
     log.info("Packing rootfs...")
@@ -331,6 +331,7 @@ def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
     The result is a copy of the base disk image with all partitions except
     the rootfs one, replaced by an empty partition at the end of the disk.
     """
+
     base_img_size_kb = os.path.getsize(base_raw_img)/1024
     out_size_kb = max(base_img_size_kb,
                       IMAGE_OVERHEAD_FACTOR*(rootfs_size_kb + other_partitions_size_kb))
@@ -366,16 +367,11 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
     Creates a new rootfs ext4 partition with a given label on the last partition
     of a raw disk and writes the contents of the provided rootfs directory.
     """
-    try:
-        gfs = guestfs.GuestFS(python_return_dict=True)
-        gfs.add_drive_opts(raw_disk_img, format="raw")
-        run_with_loading_animation(
-            func=gfs.launch,
-            loading_msg="Initializing output image...")
 
+    loading_msg="Initializing output image..."
+    with open_disk_image(raw_disk_img, loading_msg=loading_msg) as gfs:
         # virt-resize rearranged all existing partitions and generated a new empty partition at the
         # end of the disk. We will format it to ext4 and put the unpacked rootfs contents in it.
-
         # Its partition number (/dev/sda1, /dev/sda2, etc.) is equal to the number of partitions
         # in the image, given that it is the last one.
         output_rootfs_partition = f"/dev/sda{len(gfs.list_partitions())}"
@@ -396,14 +392,6 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
                 args=(f"{rootfs_dir}/{content}", "/"),
                 loading_msg=f"  Copying /{content}...")
 
-        gfs.shutdown()
-        gfs.close()
-    except RuntimeError as gfserr:
-        if gfs:
-            gfs.close()
-        # pylint: disable-next=raise-missing-from
-        raise TorizonCoreBuilderError(f"guestfs: {gfserr.args[0]}")
-
 
 # pylint: disable-next=too-many-positional-arguments
 def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
@@ -415,15 +403,8 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
     """
     deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
-    try:
-        gfs = guestfs.GuestFS(python_return_dict=True)
-        gfs.add_drive_opts(base_raw_img, format="raw", readonly=1)
-        run_with_loading_animation(
-            func=gfs.launch,
-            loading_msg="Initializing base WIC/raw image...")
-        if len(gfs.list_partitions()) < 1:
-            raise TorizonCoreBuilderError(
-                "Image doesn't have any partitions or it's not a valid WIC/raw image. Aborting.")
+    loading_msg="Initializing base WIC/raw image..."
+    with open_disk_image(base_raw_img, readonly=True, loading_msg=loading_msg) as gfs:
         # Get partition number from ext4 fs called rootfs_label in disk image (.wic/.img)
         rootfs_partition = gfs.findfs_label(rootfs_label)
         log.info(f"  '{rootfs_label}' partition found: {rootfs_partition}")
@@ -433,19 +414,6 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
         partitions.remove(rootfs_partition)
         for part in partitions:
             other_partitions_size_kb += gfs.blockdev_getsize64(part) / 1024
-
-        # Close read-only handle
-        gfs.shutdown()
-        gfs.close()
-    except RuntimeError as gfserr:
-        if gfs:
-            gfs.close()
-        if f"unable to resolve 'LABEL={rootfs_label}'" in str(gfserr):
-            raise TorizonCoreBuilderError(
-                f"Filesystem with label '{rootfs_label}'"
-                " not found in image. Aborting.") from gfserr
-
-        raise TorizonCoreBuilderError(f"guestfs: {str(gfserr)}") from gfserr
 
     if other_partitions_size_kb > 0:
         log.info("  Combined size of all partitions except rootfs: "

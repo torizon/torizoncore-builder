@@ -772,9 +772,15 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
         comb_be.combine_raw_image(**combine_params)
 
     finally:
-        if bundle_dir is not None and is_tmp_dir:
-            log.debug(f"Removing temporary bundle directory {bundle_dir}")
-            shutil.rmtree(bundle_dir)
+        if bundle_dir is not None:
+            if is_tmp_dir:
+                log.debug(f"Removing temporary bundle directory {bundle_dir}")
+                shutil.rmtree(bundle_dir)
+            else:
+                docker_storage_dir_path = os.path.join(bundle_dir, comb_be.DOCKER_STORAGE_DIRNAME)
+                if os.path.isdir(docker_storage_dir_path):
+                    log.debug("Deleting '%s'", docker_storage_dir_path)
+                    shutil.rmtree(docker_storage_dir_path)
 
 
 def handle_provisioning(output_dir, prov_props):
