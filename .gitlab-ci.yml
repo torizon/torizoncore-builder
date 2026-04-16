@@ -333,7 +333,7 @@ wsl-test-host-tos7-64bit-nightly:
 test-host-tos7-32bit-signed-nightly:
   # TODO: Review once signed images are available publicly.
   tags:
-    - "all"
+    - internal-network-access
   extends: .test-base
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -353,7 +353,7 @@ test-host-tos7-32bit-signed-nightly:
 
 test-host-tos7-64bit-signed-nightly:
   tags:
-    - "all"
+    - internal-network-access
   extends: .test-base
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -368,7 +368,7 @@ test-host-tos7-64bit-signed-nightly:
 test-host-tos7-torizon-signed-nightly:
   # TODO: Review once signed images are available publicly.
   tags:
-    - "all"
+    - internal-network-access
   extends: .test-base
   variables:
     YOCTO_BRANCH: "scarthgap-7.x.y"
@@ -451,7 +451,7 @@ test-common-torizon-rasp4:
 # Job mostly triggered by Jenkins.
 test-torizoncore:
   tags:
-    - "all"
+    - internal-network-access
   extends: .test-base
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
