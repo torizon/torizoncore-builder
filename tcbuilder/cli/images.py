@@ -105,6 +105,8 @@ def do_images_provision(args):
             sys.exit(1)
         if args.hibernated:
             log.warning("Warning: --hibernated is specific to online provisioning. Ignoring.")
+        if args.fleets:
+            log.warning("Warning: --fleet is specific to online provisioning. Ignoring.")
 
     elif args.mode == PROV_MODE_ONLINE:
         if not (args.shared_data_file and args.online_data):
@@ -122,6 +124,7 @@ def do_images_provision(args):
             shared_data=args.shared_data_file,
             online_data=args.online_data,
             hibernated=args.hibernated,
+            fleets=args.fleets,
             force=args.force)
 
     except (TorizonCoreBuilderError, TeziError) as exc:
@@ -219,6 +222,11 @@ def init_parser(subparsers):
         help=("(Torizon OS 6.8+) Add flag to auto-provision in hibernated mode. Hibernated "
               "devices are registered, but cannot receive updates from Torizon Cloud nor "
               "send data to it."))
+    subparser.add_argument(
+        "--fleet", dest="fleets", action="append",
+        help=("(Torizon OS 7.7+) Add fleet UUID to the provisioning. Devices that provision "
+              "themselves will also try to be added to the fleet corresponding to the provided "
+              "UUID. Can be passed multiple times to signify multiple fleets."))
     subparser.set_defaults(func=do_images_provision)
 
     # images serve
