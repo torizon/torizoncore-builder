@@ -215,3 +215,7 @@ output:
       # >> cannot send/receive data to/from Torizon Cloud, and they're not counted
       # >> towards a subscription.
       # hibernated: false
+      # >> List of fleet UUIDs to provision to.
+      # >> Replace example UUID with your actual fleet UUID.
+      # fleets:
+        # - 0dfab76b-5b71-4435-ab6f-c6cdc62690c6
