@@ -55,7 +55,7 @@ build-aval-docker:
     # To circumvent the mismatch between Aktualizr's database and ostree when an external entity manages ostree without
     # Aktualizr, delete the database files, which forces Aktualizr to create database again, this time synced with ostree
     - cd tests/integration && python /aval/main.py --delegation-config $DELEGATION_CONFIG --ignore-different-secondaries-between-updates
-      --remove-databases --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
+      --run-before-on-host "./run_all.sh --device --machine $TCB_MACHINE --report --tcb-tags requires-device
       --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
   artifacts:
     when: always
