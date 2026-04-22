@@ -64,6 +64,16 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_output --partial "--hibernated is specific to online provisioning. Ignoring."
     assert_output --partial 'Image successfully provisioned'
 
+    # case: success, with --fleet option ignored
+    rm -fr "${OUTPUT_IMAGE_DIR}"
+    run torizoncore-builder images provision \
+        --shared-data "${SAMPLES_DIR}/provision/shared-data.tar.gz" \
+        --fleet "4a83db78-b746-4685-9ccd-ba566d1a012b" \
+        --mode=offline "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
+    assert_success
+    assert_output --partial "--fleet is specific to online provisioning. Ignoring."
+    assert_output --partial 'Image successfully provisioned'
+
     run cat "${OUTPUT_IMAGE_DIR}/image.json"
     assert_output --partial 'provisioning-data.tar.gz:/ostree/deploy/torizon/var/sota/:true'
 
@@ -209,6 +219,33 @@ bats_load_library 'bats/bats-file/load.bash'
     tar -xf "${OUTPUT_IMAGE_DIR}/provisioning-data.tar.gz"
     run cat "auto-provisioning.json"
     assert_output --partial '"hibernated": true'
+
+    # case: error with --fleet option, malformed uuid
+    rm -fr "${OUTPUT_IMAGE_DIR}"
+    run torizoncore-builder images provision \
+        --shared-data "${SAMPLES_DIR}/provision/shared-data.tar.gz" \
+        --online-data "eyJkdW1teSI6MX0K" \
+        --fleet "foo" \
+        --mode=online "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
+    assert_failure
+    assert_output --partial 'do not appear to be a UUID'
+
+    # case: success with --fleet option enabled
+    rm -fr "${OUTPUT_IMAGE_DIR}"
+    run torizoncore-builder images provision \
+        --shared-data "${SAMPLES_DIR}/provision/shared-data.tar.gz" \
+        --online-data "eyJkdW1teSI6MX0K" \
+        --fleet "4a83db78-b746-4685-9ccd-ba566d1a012b" \
+        --mode=online "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
+    assert_success
+    assert_output --partial 'Adding fleet UUID'
+    assert_output --partial 'Image successfully provisioned'
+
+    run cat "${OUTPUT_IMAGE_DIR}/image.json"
+    assert_output --partial 'provisioning-data.tar.gz:/ostree/deploy/torizon/var/sota/:true'
+    tar -xf "${OUTPUT_IMAGE_DIR}/provisioning-data.tar.gz"
+    run cat "auto-provisioning.json"
+    assert_output --partial '"fleetids"'
 
     # check if uncompressed_size field was updated correctly:
     # we are using 'bc' here due to the floating point calculations.

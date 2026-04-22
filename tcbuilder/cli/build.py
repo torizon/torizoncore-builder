@@ -791,7 +791,8 @@ def handle_provisioning(output_dir, prov_props):
         "output_dir": None,
         "shared_data": prov_props.get("shared-data"),
         "online_data": prov_props.get("online-data"),
-        "hibernated": prov_props.get("hibernated", False)
+        "hibernated": prov_props.get("hibernated", False),
+        "fleets": prov_props.get("fleets")
     }
 
     if prov_props.get("mode") == images_cli.PROV_MODE_OFFLINE:

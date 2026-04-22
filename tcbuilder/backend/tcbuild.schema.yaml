@@ -537,6 +537,13 @@ properties:
                   hibernated:
                     type: boolean
                     description: "provision in hibernated mode"
+                  fleets:
+                    type: array
+                    description: "list of UUID(s) to provision to"
+                    items:
+                      type: string
+                      description: "version 4 UUID string"
+                      tdxMeta: "uuid"
                 required: [mode]
                 additionalProperties: false
               bundle:

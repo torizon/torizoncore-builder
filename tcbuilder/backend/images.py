@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
+import uuid
 
 from zipfile import ZipFile
 from tempfile import TemporaryDirectory
@@ -415,7 +416,8 @@ def prov_check_provdata_presence(input_dir):
     return config.search_filelist(src=PROV_DATA_FILENAME) is not None
 
 
-def prov_gen_provdata_tarball(output_dir, shared_data, online_data, hibernated):
+def prov_gen_provdata_tarball(output_dir, shared_data, online_data, *,
+                              hibernated=False, fleets=None):
     """Generate tarball containing all provisioning data
 
     The tarball will be stored into the output directory; then it should be
@@ -459,6 +461,12 @@ def prov_gen_provdata_tarball(output_dir, shared_data, online_data, hibernated):
                         online_data_obj['hibernated'] = True
                         online_data_json = json.dumps(online_data_obj).encode("utf-8")
 
+                    # Add fleet UUIDs if present
+                    if fleets and isinstance(online_data_obj, dict):
+                        log.info("Adding fleet UUID(s).")
+                        online_data_obj['fleetids'] = fleets
+                        online_data_json = json.dumps(online_data_obj).encode("utf-8")
+
                 except (binascii.Error, json.decoder.JSONDecodeError) as exc:
                     raise TorizonCoreBuilderError(
                         "Failure decoding online data: aborting.") from exc
@@ -489,7 +497,7 @@ def prov_add_provdata_tarball(output_dir):
 
 
 def provision(input_dir, output_dir, shared_data, online_data, *,
-              hibernated=False, force=False):
+              hibernated=False, fleets=None, force=False):
     """Generate TEZI image with added provisioning data
 
     :param input_dir: Path of directory containing input image.
@@ -498,6 +506,7 @@ def provision(input_dir, output_dir, shared_data, online_data, *,
                         offline and online cases) provisioning data.
     :param online_data: Base-64 string containing online provisioning data.
     :param hibernated: Boolean that indicates to whether or not provision in hibernated mode
+    :param fleets: List of fleet UUID(s) to provision to
     :param force: Boolean indicating whether to remove output directory if it
                   already exists.
     """
@@ -519,18 +528,26 @@ def provision(input_dir, output_dir, shared_data, online_data, *,
         raise InvalidStateError(
             "Input image already contains provisioning data: aborting.")
 
-    if online_data and hibernated:
-        # Check unpacked version of Torizon OS
-        img_major, img_minor, _ = get_tezi_image_version(input_dir)
+    # Check unpacked version of Torizon OS
+    img_major, img_minor, _ = get_tezi_image_version(input_dir)
 
-        if img_major is None or img_minor is None:
-            log.warning("Warning: Unable to determine image version in input directory. "
-                        "Proceeding anyway.")
-        elif (img_major == 6 and img_minor <= 7) or img_major < 6:
+    if img_major is None or img_minor is None:
+        log.warning("Warning: Unable to determine image version in input directory. "
+                    "Proceeding anyway.")
+    elif online_data:
+        if hibernated and ((img_major == 6 and img_minor <= 7) or img_major < 6):
             # Torizon OS 6.7 or below doesn't support hibernated auto-provisioning
             # without changes to the auto-provisioning script.
             log.warning("Warning: Hibernated auto-provisioning is not supported on Torizon "
                         "OS 6.7 or older. Proceeding anyway.")
+        if fleets:
+            if (img_major == 7 and img_minor <= 6) or img_major < 7:
+                # Torizon OS 7.6 or below doesn't support fleet auto-provisioning
+                log.warning("Warning: Fleet auto-provisioning is not supported on Torizon "
+                            "OS 7.6 or older. Proceeding anyway.")
+
+            _validate_fleets(fleets)
+
 
     # Handle normal or in-place modifications:
     inplace = False
@@ -552,7 +569,12 @@ def provision(input_dir, output_dir, shared_data, online_data, *,
 
     # Actual provisioning:
     try:
-        prov_gen_provdata_tarball(output_dir, shared_data, online_data, hibernated)
+        prov_gen_provdata_tarball(
+            output_dir=output_dir,
+            shared_data=shared_data,
+            online_data=online_data,
+            hibernated=hibernated,
+            fleets=fleets)
         prov_add_provdata_tarball(output_dir)
         set_output_ownership(output_dir)
         log.info("Image successfully provisioned.")
@@ -562,6 +584,26 @@ def provision(input_dir, output_dir, shared_data, online_data, *,
             log.debug("Removing output directory due to error.")
             shutil.rmtree(output_dir)
         raise
+
+
+def _validate_fleets(fleets):
+    """
+    Check if provided list of fleet UUIDs are in the form of UUIDs
+
+    :param fleets: List of potential UUIDs
+    """
+
+    bad_uuids = []
+    for uuids in fleets:
+        try:
+            # Torizon Cloud uses version 4 UUIDs
+            uuid.UUID(uuids, version=4)
+        except ValueError:
+            bad_uuids.append(uuids)
+
+    if bad_uuids:
+        raise InvalidArgumentError(
+            f"The following UUID(s) do not appear to be a UUID: {bad_uuids}")
 
 
 def track_tezi_signed_files(tezi_dir, commit_hash, machine):
