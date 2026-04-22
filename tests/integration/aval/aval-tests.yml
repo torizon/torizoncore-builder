@@ -12,7 +12,7 @@ variables:
 # Build the AVAL container with docker that will run the tests on the host PC
 build-aval-docker:
   tags:
-    - saas-linux-small-amd64
+    - amd64
   stage: build
   rules:
     - if: '$AVAL_DISABLED =~ /^true$/i'
@@ -67,7 +67,7 @@ build-aval-docker:
 .aval-template-linux-default-machines:
   extends: .aval-template
   tags:
-    - all
+    - internal-network-access
   rules:
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
@@ -81,7 +81,7 @@ build-aval-docker:
 .aval-template-linux-all-machines:
   extends: .aval-template
   tags:
-    - all
+    - internal-network-access
   rules:
     - if: '$AVAL_DISABLED =~ /^true$/i'
       when: never
