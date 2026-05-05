@@ -16,6 +16,8 @@ export DIND_CONTAINER="dind-for-registries"
 
 export REGISTRIES_NETWORK="registry-network"
 
+export DOCKER_VERSION="29.3.1"
+
 
 _start-registries() {
     local ci_dockerhub_login="$(ci-dockerhub-login-flag)"
@@ -89,11 +91,24 @@ _start-registries() {
     if [ -n "$(docker container ls -qaf name="^${DIND_CONTAINER}\$")" ]; then
         docker container rm -f "${DIND_CONTAINER}"
     fi
+    # --tls=false skips dockerd's intentional ~15s startup slowdown for
+    # plain-TCP-without-TLS; safe since this daemon is only reached over
+    # loopback in the shared netns.
     docker run \
         -d --name "${DIND_CONTAINER}" --privileged --network host \
         -v "$(pwd):/certs" -e DOCKER_HOST="tcp://127.0.0.1:23736" \
-	docker:19.03.8-dind dockerd \
+	docker:${DOCKER_VERSION}-dind dockerd --tls=false \
 	--host=tcp://0.0.0.0:23736 --insecure-registry="${INSEC_REG_IP}"
+
+    # Wait until the inner dockerd is actually accepting connections before
+    # running any docker client commands against it. Without this, fast hosts
+    # can race past the listener coming up.
+    for _ in {1..30}; do
+        if docker exec "${DIND_CONTAINER}" docker version >/dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
 
     # Add the CA certificates to DinD.
     docker exec "${DIND_CONTAINER}" /bin/ash -c "\
