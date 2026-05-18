@@ -355,13 +355,13 @@ def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
     # except base_rootfs_partition:
     log.info("Starting virt-resize...")
     print("------------------------------------------------------------")
-    resizecmd = ["virt-resize", "--format", "raw", "--delete"]
+    resizecmd = ["virt-resize", "--format", "raw", "--expand"]
     resizecmd.extend([base_rootfs_partition, base_raw_img, output_raw_img])
     subprocess.run(resizecmd, check=True)
     print("------------------------------------------------------------")
 
 
-def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
+def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_partition, rootfs_dir):
     """Writes unpacked rootfs contents to a raw disk image
 
     Creates a new rootfs ext4 partition with a given label on the last partition
@@ -370,16 +370,13 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_dir):
 
     loading_msg="Initializing output image..."
     with open_disk_image(raw_disk_img, loading_msg=loading_msg) as gfs:
-        # virt-resize rearranged all existing partitions and generated a new empty partition at the
-        # end of the disk. We will format it to ext4 and put the unpacked rootfs contents in it.
-        # Its partition number (/dev/sda1, /dev/sda2, etc.) is equal to the number of partitions
-        # in the image, given that it is the last one.
-        output_rootfs_partition = f"/dev/sda{len(gfs.list_partitions())}"
-        log.info(f"Creating new '{rootfs_label}' rootfs partition at {output_rootfs_partition}.")
+        # virt-resize expanded the root partition without moving any of the others, so
+        # the partition numbering of the input disk should be valid for the output one.
+        log.info("Formatting '%s' at %s.", rootfs_label, rootfs_partition)
 
-        gfs.mkfs("ext4", output_rootfs_partition)
-        gfs.set_label(output_rootfs_partition, rootfs_label)
-        gfs.mount(output_rootfs_partition, "/")
+        gfs.mkfs("ext4", rootfs_partition)
+        gfs.set_label(rootfs_partition, rootfs_label)
+        gfs.mount(rootfs_partition, "/")
 
         rootfs_dir_ls = os.listdir(rootfs_dir)
         if 'lost+found' in rootfs_dir_ls:
@@ -426,7 +423,7 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
     create_output_raw_image(base_raw_img, output_raw_img, rootfs_partition,
                             other_partitions_size_kb, rootfs_size_kb)
 
-    write_rootfs_to_raw_image(output_raw_img, rootfs_label, dst_sysroot_dir)
+    write_rootfs_to_raw_image(output_raw_img, rootfs_label, rootfs_partition, dst_sysroot_dir)
 
     log.info(f"Image {os.path.basename(output_raw_img)} created successfully!")
 
