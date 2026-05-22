@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-TCB_COMP_ARGS_MAIN="
+_TCBCOMP_ARGS_MAIN="
     -h --help
     --verbose
     --log-level
@@ -22,7 +22,7 @@ TCB_COMP_ARGS_MAIN="
     union
 "
 
-TCB_COMP_ARGS_MAIN_LOGLEVEL="
+_TCBCOMP_ARGS_MAIN_LOGLEVEL="
     debug
     info
     warning
@@ -30,7 +30,7 @@ TCB_COMP_ARGS_MAIN_LOGLEVEL="
     critical
 "
 
-TCB_COMP_ARGS_BUILD="
+_TCBCOMP_ARGS_BUILD="
     --help
     --create-template
     --file
@@ -39,11 +39,11 @@ TCB_COMP_ARGS_BUILD="
     --no-subst
 "
 
-TCB_COMP_ARGS_BUILD_SET="
+_TCBCOMP_ARGS_BUILD_SET="
     VAR=\"value\"
 "
 
-TCB_COMP_ARGS_BUNDLE="
+_TCBCOMP_ARGS_BUNDLE="
     --help
     --bundle-directory
     --force
@@ -56,12 +56,12 @@ TCB_COMP_ARGS_BUNDLE="
     --dind-env
 "
 
-TCB_COMP_ARGS_BUNDLE_PLATFORM="
+_TCBCOMP_ARGS_BUNDLE_PLATFORM="
     linux/arm/v7
     linux/arm64
 "
 
-TCB_COMP_ARGS_COMBINE="
+_TCBCOMP_ARGS_COMBINE="
     --help
     --bundle-directory
     --image-name
@@ -74,7 +74,7 @@ TCB_COMP_ARGS_COMBINE="
     --no-image-autoreboot
 "
 
-TCB_COMP_ARGS_DEPLOY="
+_TCBCOMP_ARGS_DEPLOY="
     --help
     --output-directory
     --remote-host
@@ -94,28 +94,28 @@ TCB_COMP_ARGS_DEPLOY="
     --no-image-autoreboot
 "
 
-TCB_COMP_ARGS_DT="
+_TCBCOMP_ARGS_DT="
     --help
     status
     checkout
     apply
 "
 
-TCB_COMP_ARGS_DT_STATUS="
+_TCBCOMP_ARGS_DT_STATUS="
     --help
 "
 
-TCB_COMP_ARGS_DT_CHECKOUT="
+_TCBCOMP_ARGS_DT_CHECKOUT="
     --help
     --update
 "
 
-TCB_COMP_ARGS_DT_APPLY="
+_TCBCOMP_ARGS_DT_APPLY="
     --help
     --include-dir
 "
 
-TCB_COMP_ARGS_DTO="
+_TCBCOMP_ARGS_DTO="
     --help
     apply
     list
@@ -124,28 +124,28 @@ TCB_COMP_ARGS_DTO="
     deploy
 "
 
-TCB_COMP_ARGS_DTO_APPLY="
+_TCBCOMP_ARGS_DTO_APPLY="
     --help
     --include-dir
     --device-tree
     --force
 "
 
-TCB_COMP_ARGS_DTO_LIST="
+_TCBCOMP_ARGS_DTO_LIST="
     --help
     --device-tree
 "
 
-TCB_COMP_ARGS_DTO_STATUS="
+_TCBCOMP_ARGS_DTO_STATUS="
     --help
 "
 
-TCB_COMP_ARGS_DTO_REMOVE="
+_TCBCOMP_ARGS_DTO_REMOVE="
     --help
     --all
 "
 
-TCB_COMP_ARGS_DTO_DEPLOY="
+_TCBCOMP_ARGS_DTO_DEPLOY="
     --help
     --remote-host
     --remote-username
@@ -159,7 +159,7 @@ TCB_COMP_ARGS_DTO_DEPLOY="
     --clear
 "
 
-TCB_COMP_ARGS_IMAGES="
+_TCBCOMP_ARGS_IMAGES="
     --help
     --remove-storage
     download
@@ -168,7 +168,7 @@ TCB_COMP_ARGS_IMAGES="
     unpack
 "
 
-TCB_COMP_ARGS_IMAGES_DOWNLOAD="
+_TCBCOMP_ARGS_IMAGES_DOWNLOAD="
     --help
     --remote-host
     --remote-username
@@ -177,7 +177,7 @@ TCB_COMP_ARGS_IMAGES_DOWNLOAD="
     --mdns-source
 "
 
-TCB_COMP_ARGS_IMAGES_PROVISION="
+_TCBCOMP_ARGS_IMAGES_PROVISION="
     --help
     --mode
     --force
@@ -185,20 +185,20 @@ TCB_COMP_ARGS_IMAGES_PROVISION="
     --online-data
 "
 
-TCB_COMP_ARGS_IMAGES_PROVISION_MODES="
+_TCBCOMP_ARGS_IMAGES_PROVISION_MODES="
     offline
     online
 "
 
-TCB_COMP_ARGS_IMAGES_UNPACK="
+_TCBCOMP_ARGS_IMAGES_UNPACK="
     --help
 "
 
-TCB_COMP_ARGS_IMAGES_SERVE="
+_TCBCOMP_ARGS_IMAGES_SERVE="
     --help
 "
 
-TCB_COMP_ARGS_ISOLATE="
+_TCBCOMP_ARGS_ISOLATE="
     --help
     --changes-directory
     --force
@@ -209,7 +209,7 @@ TCB_COMP_ARGS_ISOLATE="
     --mdns-source
 "
 
-TCB_COMP_ARGS_KERNEL="
+_TCBCOMP_ARGS_KERNEL="
     --help
     build_module
     set_custom_args
@@ -217,41 +217,41 @@ TCB_COMP_ARGS_KERNEL="
     clear_custom_args
 "
 
-TCB_COMP_ARGS_KERNEL_BUILD_MODULE="
+_TCBCOMP_ARGS_KERNEL_BUILD_MODULE="
     --help
     --autoload
 "
 
-TCB_COMP_ARGS_KERNEL_SET_CUSTOM_ARGS="
+_TCBCOMP_ARGS_KERNEL_SET_CUSTOM_ARGS="
     --help
 "
 
-TCB_COMP_ARGS_KERNEL_GET_CUSTOM_ARGS="
+_TCBCOMP_ARGS_KERNEL_GET_CUSTOM_ARGS="
     --help
 "
 
-TCB_COMP_ARGS_KERNEL_CLEAR_CUSTOM_ARGS="
+_TCBCOMP_ARGS_KERNEL_CLEAR_CUSTOM_ARGS="
     --help
 "
 
-TCB_COMP_ARGS_OSTREE="
+_TCBCOMP_ARGS_OSTREE="
     --help
     serve
 "
 
-TCB_COMP_ARGS_OSTREE_SERVE="
+_TCBCOMP_ARGS_OSTREE_SERVE="
     --help
     --ostree-repo-directory
 "
 
-TCB_COMP_ARGS_PLATFORM="
+_TCBCOMP_ARGS_PLATFORM="
     --help
     lockbox
     provisioning-data
     push
 "
 
-TCB_COMP_ARGS_PLATFORM_LOCKBOX="
+_TCBCOMP_ARGS_PLATFORM_LOCKBOX="
     --help
     --credentials
     --force
@@ -264,9 +264,9 @@ TCB_COMP_ARGS_PLATFORM_LOCKBOX="
     --output-directory
 "
 
-TCB_COMP_ARGS_PLATFORM_LOCKBOX_PLATFORM="$TCB_COMP_ARGS_BUNDLE_PLATFORM"
+_TCBCOMP_ARGS_PLATFORM_LOCKBOX_PLATFORM="$_TCBCOMP_ARGS_BUNDLE_PLATFORM"
 
-TCB_COMP_ARGS_PLATFORM_PROVDATA="
+_TCBCOMP_ARGS_PLATFORM_PROVDATA="
     --help
     --credentials
     --force
@@ -274,7 +274,7 @@ TCB_COMP_ARGS_PLATFORM_PROVDATA="
     --online-data
 "
 
-TCB_COMP_ARGS_PUSH="
+_TCBCOMP_ARGS_PUSH="
     --help
     --credentials
     --repo
@@ -288,11 +288,11 @@ TCB_COMP_ARGS_PUSH="
     --verbose
 "
 
-TCB_COMP_ARGS_SPLASH="
+_TCBCOMP_ARGS_SPLASH="
     --help
 "
 
-TCB_COMP_ARGS_UNION="
+_TCBCOMP_ARGS_UNION="
     --help
     --changes-directory
     --subject
@@ -300,38 +300,38 @@ TCB_COMP_ARGS_UNION="
 "
 
 # default value to complete parameters
-TCB_COMP_ARGS_DEF_PASSWORD="_TYPE_HERE_PASSWORD_"
-TCB_COMP_ARGS_DEF_USERNAME="_TYPE_HERE_USERNAME_"
-TCB_COMP_ARGS_DEF_REGISTRY="_TYPE_HERE_REGISTRY_"
-TCB_COMP_ARGS_DEF_CERT="_TYPE_HERE_CERT_"
-TCB_COMP_ARGS_DEF_DIND_PARAM="_TYPE_HERE_DIND_PARAM_"
-TCB_COMP_ARGS_DEF_DIND_ENV="ENV1=VAL1"
-TCB_COMP_ARGS_DEF_IMAGE_NAME="_TYPE_HERE_IMAGE_NAME_"
-TCB_COMP_ARGS_DEF_IMAGE_DESCRIPTION="_TYPE_HERE_IMAGE_DESCRIPTION_"
-TCB_COMP_ARGS_DEF_REMOTE_HOST="_TYPE_HERE_REMOTE_HOST_"
-TCB_COMP_ARGS_DEF_REMOTE_USERNAME="torizon"
-TCB_COMP_ARGS_DEF_REMOTE_PASSWORD="_TYPE_HERE_PASSWORD_"
-TCB_COMP_ARGS_DEF_REMOTE_PORT="_TYPE_HERE_REMOTE_PORT_"
-TCB_COMP_ARGS_DEF_MDNS_SOURCE="_TYPE_HERE_MDNS_SOURCE_"
-TCB_COMP_ARGS_DEF_KERNEL_ARGS="ARG1=VAL1"
-TCB_COMP_ARGS_DEF_HARDWAREID="_TYPE_HERE_HARDWARE_ID_"
-TCB_COMP_ARGS_DEF_SUBJECT="_TYPE_HERE_COMMIT_SUBJECT_"
-TCB_COMP_ARGS_DEF_BODY="_TYPE_HERE_COMMIT_BODY_"
-TCB_COMP_ARGS_DEF_OSTREE_REF="_TYPE_HERE_OSTREE_REF_OR_COMPOSE_FILE_NAME_"
-TCB_COMP_ARGS_DEF_UNION_BRANCH="_TYPE_HERE_UNION_BRANCH_"
-TCB_COMP_ARGS_DEF_PACKAGE_NAME="_TYPE_HERE_PACKAGE_NAME_"
-TCB_COMP_ARGS_DEF_PACKAGE_VERSION="_TYPE_HERE_PACKAGE_VERSION_"
-TCB_COMP_ARGS_DEF_ONLINE_PROVDATA="_TYPE_HERE_ONLINE_PROVISIONING_STRING_"
-TCB_COMP_ARGS_DEF_LOCKBOX_NAME="_TYPE_HERE_LOCKBOX_NAME_"
-TCB_COMP_ARGS_DEF_SHARED_DATA="_TYPE_HERE_SHARED_DATA_FILE_NAME_"
-TCB_COMP_ARGS_DEF_CLIENT_NAME="_TYPE_HERE_API_CLIENT_NAME_"
+_TCBCOMP_ARGS_DEF_PASSWORD="_TYPE_HERE_PASSWORD_"
+_TCBCOMP_ARGS_DEF_USERNAME="_TYPE_HERE_USERNAME_"
+_TCBCOMP_ARGS_DEF_REGISTRY="_TYPE_HERE_REGISTRY_"
+_TCBCOMP_ARGS_DEF_CERT="_TYPE_HERE_CERT_"
+_TCBCOMP_ARGS_DEF_DIND_PARAM="_TYPE_HERE_DIND_PARAM_"
+_TCBCOMP_ARGS_DEF_DIND_ENV="ENV1=VAL1"
+_TCBCOMP_ARGS_DEF_IMAGE_NAME="_TYPE_HERE_IMAGE_NAME_"
+_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION="_TYPE_HERE_IMAGE_DESCRIPTION_"
+_TCBCOMP_ARGS_DEF_REMOTE_HOST="_TYPE_HERE_REMOTE_HOST_"
+_TCBCOMP_ARGS_DEF_REMOTE_USERNAME="torizon"
+_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD="_TYPE_HERE_PASSWORD_"
+_TCBCOMP_ARGS_DEF_REMOTE_PORT="_TYPE_HERE_REMOTE_PORT_"
+_TCBCOMP_ARGS_DEF_MDNS_SOURCE="_TYPE_HERE_MDNS_SOURCE_"
+_TCBCOMP_ARGS_DEF_KERNEL_ARGS="ARG1=VAL1"
+_TCBCOMP_ARGS_DEF_HARDWAREID="_TYPE_HERE_HARDWARE_ID_"
+_TCBCOMP_ARGS_DEF_SUBJECT="_TYPE_HERE_COMMIT_SUBJECT_"
+_TCBCOMP_ARGS_DEF_BODY="_TYPE_HERE_COMMIT_BODY_"
+_TCBCOMP_ARGS_DEF_OSTREE_REF="_TYPE_HERE_OSTREE_REF_OR_COMPOSE_FILE_NAME_"
+_TCBCOMP_ARGS_DEF_UNION_BRANCH="_TYPE_HERE_UNION_BRANCH_"
+_TCBCOMP_ARGS_DEF_PACKAGE_NAME="_TYPE_HERE_PACKAGE_NAME_"
+_TCBCOMP_ARGS_DEF_PACKAGE_VERSION="_TYPE_HERE_PACKAGE_VERSION_"
+_TCBCOMP_ARGS_DEF_ONLINE_PROVDATA="_TYPE_HERE_ONLINE_PROVISIONING_STRING_"
+_TCBCOMP_ARGS_DEF_LOCKBOX_NAME="_TYPE_HERE_LOCKBOX_NAME_"
+_TCBCOMP_ARGS_DEF_SHARED_DATA="_TYPE_HERE_SHARED_DATA_FILE_NAME_"
+_TCBCOMP_ARGS_DEF_CLIENT_NAME="_TYPE_HERE_API_CLIENT_NAME_"
 
 # return in $COMPREPLY a list of files and directories starting from the
 # current working directory. The first parameter can be used to filter
 # the output files (e.g. *.txt), and if not passed, only directories are
 # returned. The second parameter, if true, can be used in conjuction with the first
 # to exclude the directories from the results
-_torizoncore-builder_completions_helper_filter_files_and_dirs() {
+_tcbcomp_helper_filter_files_and_dirs() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local filterpath="$1"
 
@@ -366,19 +366,19 @@ _torizoncore-builder_completions_helper_filter_files_and_dirs() {
     fi
 }
 
-_torizoncore-builder_completions_helper_filter_files() {
-    _torizoncore-builder_completions_helper_filter_files_and_dirs "$1" true
+_tcbcomp_helper_filter_files() {
+    _tcbcomp_helper_filter_files_and_dirs "$1" true
 }
 
 # return in $COMPREPLY a list of directories starting from the current
 # working directory.
-_torizoncore-builder_completions_helper_filter_dirs() {
-    _torizoncore-builder_completions_helper_filter_files_and_dirs ""
+_tcbcomp_helper_filter_dirs() {
+    _tcbcomp_helper_filter_files_and_dirs ""
 }
 
 # return in $COMPREPLY a list of static options passed as a parameter
 # to this function, removing the list the last typed word
-_torizoncore-builder_completions_helper_static_options() {
+_tcbcomp_helper_static_options() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
     local opts=($(compgen_compat -W "$@" -- ${cur}))
@@ -392,7 +392,7 @@ _torizoncore-builder_completions_helper_static_options() {
 
 # given the current command line, return the current subcommand being processed.
 # For example, 'torizoncore-builder images unpack' will return 'unpack'
-_torizoncore-builder_completions_helper_find_subcmd() {
+_tcbcomp_helper_find_subcmd() {
     local cmd=$1
     local opts=$2
 
@@ -421,24 +421,24 @@ _torizoncore-builder_completions_helper_find_subcmd() {
 }
 
 # 'build' command
-_torizoncore-builder_completions_build() {
+_tcbcomp_build() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --file)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*.y*ml"
+            _tcbcomp_helper_filter_files_and_dirs "*.y*ml"
             ;;
         --set)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_BUILD_SET"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUILD_SET"
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_BUILD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUILD"
             ;;
     esac
 }
 
 # 'bundle' command
-_torizoncore-builder_completions_bundle() {
+_tcbcomp_bundle() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev1="${COMP_WORDS[COMP_CWORD-1]}"
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
@@ -446,542 +446,542 @@ _torizoncore-builder_completions_bundle() {
 
     case "$prev3" in
         --login-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
             return
             ;;
     esac
 
     case "$prev2" in
         --login)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
             return
             ;;
         --login-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
             return
             ;;
         --cacert-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_CERT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_CERT"
             ;;
     esac
 
     case "$prev1" in
         --bundle-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --platform)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_BUNDLE_PLATFORM"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUNDLE_PLATFORM"
             ;;
         --login)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
             ;;
         --login-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
             ;;
         --cacert-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
             ;;
         --dind-param)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_DIND_PARAM"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_PARAM"
             ;;
         --dind-env)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_DIND_ENV"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_ENV"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_BUNDLE"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUNDLE"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*.y*ml"
+                _tcbcomp_helper_filter_files_and_dirs "*.y*ml"
             fi
             ;;
     esac
 }
 
 # 'combine' command
-_torizoncore-builder_completions_combine() {
+_tcbcomp_combine() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --bundle-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --image-name)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_IMAGE_NAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_NAME"
             ;;
         --image-description)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_IMAGE_DESCRIPTION"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION"
             ;;
         --image-licence|--image-release-notes)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*"
+            _tcbcomp_helper_filter_files_and_dirs "*"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_COMBINE"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_COMBINE"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_dirs
+                _tcbcomp_helper_filter_dirs
             fi
             ;;
     esac
 }
 
 # 'deploy' command
-_torizoncore-builder_completions_deploy() {
+_tcbcomp_deploy() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --bundle-directory|--output-directory|--deploy-sysroot-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --image-name)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_IMAGE_NAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_NAME"
             ;;
         --image-description)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_IMAGE_DESCRIPTION"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION"
             ;;
         --remote-host)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
             ;;
         --remote-username)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
             ;;
         --remote-password)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
             ;;
         --remote-port)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
             ;;
         --mdns-source)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
             ;;
         --image-licence|--image-release-notes)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*"
+            _tcbcomp_helper_filter_files_and_dirs "*"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEPLOY"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEPLOY"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_OSTREE_REF"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_OSTREE_REF"
             fi
             ;;
     esac
 }
 
 # 'dt apply' command
-_torizoncore-builder_completions_dt_apply() {
+_tcbcomp_dt_apply() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --include-dir)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         *.dts)
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DT_APPLY"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT_APPLY"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+                _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
     esac
 }
 
 # 'dt' command
-_torizoncore-builder_completions_dt() {
+_tcbcomp_dt() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local cmd=$(_torizoncore-builder_completions_helper_find_subcmd "dt" "$TCB_COMP_ARGS_DT")
+    local cmd=$(_tcbcomp_helper_find_subcmd "dt" "$_TCBCOMP_ARGS_DT")
 
     case "$cmd" in
         status)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DT_STATUS"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT_STATUS"
             ;;
         checkout)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DT_CHECKOUT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT_CHECKOUT"
             ;;
         apply)
-            _torizoncore-builder_completions_dt_apply
+            _tcbcomp_dt_apply
             ;;
         *)
             if [ "$prev" = "dt" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DT"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT"
             fi
             ;;
     esac
 }
 
 # 'dto apply' command
-_torizoncore-builder_completions_dto_apply() {
+_tcbcomp_dto_apply() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
 
     case "$prev" in
         --include-dir)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --device-tree)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+            _tcbcomp_helper_filter_files_and_dirs "*.dts"
             ;;
         *.dts)
             if [ "$prev2" != "--device-tree" ]; then
                 return;
             fi
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_APPLY"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_APPLY"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+                _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_APPLY"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_APPLY"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+                _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
     esac
 }
 
 # 'dto list' command
-_torizoncore-builder_completions_dto_list() {
+_tcbcomp_dto_list() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --device-tree)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+            _tcbcomp_helper_filter_files_and_dirs "*.dts"
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_LIST"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_LIST"
             ;;
     esac
 }
 
 # 'dto remove' command
-_torizoncore-builder_completions_dto_remove() {
+_tcbcomp_dto_remove() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         *.dtbo)
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_REMOVE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_REMOVE"
             ;;
     esac
 }
 
 # 'dto deploy' command
-_torizoncore-builder_completions_dto_deploy() {
+_tcbcomp_dto_deploy() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
 
     case "$prev" in
         --include-dir)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --device-tree)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+            _tcbcomp_helper_filter_files_and_dirs "*.dts"
             ;;
         --remote-host)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
             ;;
         --remote-username)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
             ;;
         --remote-password)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
             ;;
         --remote-port)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
             ;;
         --mdns-source)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
             ;;
         *.dts)
             if [ "$prev2" != "--device-tree" ]; then
                 return;
             fi
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_DEPLOY"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_DEPLOY"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+                _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_DEPLOY"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_DEPLOY"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*.dts"
+                _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
     esac
 }
 
 # 'dto' command
-_torizoncore-builder_completions_dto() {
+_tcbcomp_dto() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local cmd=$(_torizoncore-builder_completions_helper_find_subcmd "dto" "$TCB_COMP_ARGS_DTO")
+    local cmd=$(_tcbcomp_helper_find_subcmd "dto" "$_TCBCOMP_ARGS_DTO")
 
     case "$cmd" in
         apply)
-            _torizoncore-builder_completions_dto_apply
+            _tcbcomp_dto_apply
             ;;
         list)
-            _torizoncore-builder_completions_dto_list
+            _tcbcomp_dto_list
             ;;
         status)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO_STATUS"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_STATUS"
             ;;
         remove)
-            _torizoncore-builder_completions_dto_remove
+            _tcbcomp_dto_remove
             ;;
         deploy)
-            _torizoncore-builder_completions_dto_deploy
+            _tcbcomp_dto_deploy
             ;;
         *)
             if [ "$prev" = "dto" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DTO"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO"
             fi
             ;;
     esac
 }
 
 # 'images unpack' command
-_torizoncore-builder_completions_images_unpack() {
+_tcbcomp_images_unpack() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_IMAGES_UNPACK"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_UNPACK"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*"
+                _tcbcomp_helper_filter_files_and_dirs "*"
             fi
             ;;
     esac
 }
 
 # 'images download' command
-_torizoncore-builder_completions_images_download() {
+_tcbcomp_images_download() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --remote-host)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
             ;;
         --remote-username)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
             ;;
         --remote-password)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
             ;;
         --remote-port)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
             ;;
         --mdns-source)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_IMAGES_DOWNLOAD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_DOWNLOAD"
             ;;
     esac
 }
 
 # 'images provision' command
-_torizoncore-builder_completions_images_provision() {
+_tcbcomp_images_provision() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --mode)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_IMAGES_PROVISION_MODES"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_PROVISION_MODES"
             ;;
         --shared-data)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "*.tar.gz"
+            _tcbcomp_helper_filter_files_and_dirs "*.tar.gz"
             ;;
         --online-data)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_ONLINE_PROVDATA"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_ONLINE_PROVDATA"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_IMAGES_PROVISION"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_PROVISION"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_dirs
+                _tcbcomp_helper_filter_dirs
             fi
             ;;
     esac
 }
 
 # 'images serve' command
-_torizoncore-builder_completions_images_serve() {
+_tcbcomp_images_serve() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_IMAGES_SERVE"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_SERVE"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_dirs
+                _tcbcomp_helper_filter_dirs
             fi
             ;;
     esac
 }
 
 # 'images' command
-_torizoncore-builder_completions_images() {
-    local cmd=$(_torizoncore-builder_completions_helper_find_subcmd "images" "$TCB_COMP_ARGS_IMAGES")
+_tcbcomp_images() {
+    local cmd=$(_tcbcomp_helper_find_subcmd "images" "$_TCBCOMP_ARGS_IMAGES")
 
     case "$cmd" in
         download)
-            _torizoncore-builder_completions_images_download
+            _tcbcomp_images_download
             ;;
         provision)
-            _torizoncore-builder_completions_images_provision
+            _tcbcomp_images_provision
             ;;
         serve)
-            _torizoncore-builder_completions_images_serve
+            _tcbcomp_images_serve
             ;;
         unpack)
-            _torizoncore-builder_completions_images_unpack
+            _tcbcomp_images_unpack
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_IMAGES"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES"
             ;;
     esac
 }
 
 # 'isolate' command
-_torizoncore-builder_completions_isolate() {
+_tcbcomp_isolate() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --changes-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --remote-host)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
             ;;
         --remote-username)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
             ;;
         --remote-password)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
             ;;
         --remote-port)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
             ;;
         --mdns-source)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_ISOLATE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_ISOLATE"
             ;;
     esac
 }
 
 # 'kernel build_module' command
-_torizoncore-builder_completions_kernel_build_module() {
+_tcbcomp_kernel_build_module() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_KERNEL_BUILD_MODULE"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_BUILD_MODULE"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_dirs "*"
+                _tcbcomp_helper_filter_dirs "*"
             fi
             ;;
     esac
 }
 
 # 'kernel set_custom_args' command
-_torizoncore-builder_completions_kernel_set_custom_args() {
+_tcbcomp_kernel_set_custom_args() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         set_custom_args)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_KERNEL_SET_CUSTOM_ARGS"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_SET_CUSTOM_ARGS"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_KERNEL_ARGS"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_KERNEL_ARGS"
             fi
             ;;
     esac
 }
 
 # 'kernel' command
-_torizoncore-builder_completions_kernel() {
-    local cmd=$(_torizoncore-builder_completions_helper_find_subcmd "kernel" "$TCB_COMP_ARGS_KERNEL")
+_tcbcomp_kernel() {
+    local cmd=$(_tcbcomp_helper_find_subcmd "kernel" "$_TCBCOMP_ARGS_KERNEL")
 
     case "$cmd" in
         build_module)
-            _torizoncore-builder_completions_kernel_build_module
+            _tcbcomp_kernel_build_module
             ;;
         set_custom_args)
-            _torizoncore-builder_completions_kernel_set_custom_args
+            _tcbcomp_kernel_set_custom_args
             ;;
         get_custom_args)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_KERNEL_GET_CUSTOM_ARGS"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_GET_CUSTOM_ARGS"
             ;;
         clear_custom_args)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_KERNEL_CLEAR_CUSTOM_ARGS"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_CLEAR_CUSTOM_ARGS"
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_KERNEL"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL"
             ;;
     esac
 }
 
 # 'ostree serve' command
-_torizoncore-builder_completions_ostree_serve() {
+_tcbcomp_ostree_serve() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --ostree-repo-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_OSTREE_SERVE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_OSTREE_SERVE"
             ;;
     esac
 }
 
 # 'ostree' command
-_torizoncore-builder_completions_ostree() {
+_tcbcomp_ostree() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local cmd=$(_torizoncore-builder_completions_helper_find_subcmd "ostree" "$TCB_COMP_ARGS_OSTREE")
+    local cmd=$(_tcbcomp_helper_find_subcmd "ostree" "$_TCBCOMP_ARGS_OSTREE")
 
     case "$cmd" in
         serve)
-            _torizoncore-builder_completions_ostree_serve
+            _tcbcomp_ostree_serve
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_OSTREE"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_OSTREE"
             ;;
     esac
 }
 
-_torizoncore-builder_completions_platform_lockbox() {
+_tcbcomp_platform_lockbox() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev1="${COMP_WORDS[COMP_CWORD-1]}"
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
@@ -989,103 +989,103 @@ _torizoncore-builder_completions_platform_lockbox() {
 
     case "$prev3" in
         --login-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
             return
             ;;
     esac
 
     case "$prev2" in
         --login)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
             return
             ;;
         --login-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
             return
             ;;
         --cacert-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_CERT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_CERT"
             ;;
     esac
 
     case "$prev1" in
         --credentials)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "credentials.zip"
+            _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
             ;;
         --platform)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_PLATFORM_LOCKBOX_PLATFORM"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM_LOCKBOX_PLATFORM"
             ;;
         --login)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
             ;;
         --login-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
             ;;
         --cacert-to)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
             ;;
         --dind-param)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_DIND_PARAM"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_PARAM"
             ;;
         --dind-env)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_DIND_ENV"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_ENV"
             ;;
         --output-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_PLATFORM_LOCKBOX"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM_LOCKBOX"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_LOCKBOX_NAME"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_LOCKBOX_NAME"
             fi
             ;;
     esac
 }
 
-_torizoncore-builder_completions_platform_provisioning_data() {
+_tcbcomp_platform_provisioning_data() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --credentials)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "credentials.zip"
+            _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
             ;;
         --shared-data)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_SHARED_DATA"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_SHARED_DATA"
             ;;
         --online-data)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_CLIENT_NAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_CLIENT_NAME"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_PLATFORM_PROVDATA"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM_PROVDATA"
             fi
             ;;
     esac
 }
 
-_torizoncore-builder_completions_platform_push() {
-    _torizoncore-builder_completions_push "$@"
+_tcbcomp_platform_push() {
+    _tcbcomp_push "$@"
 }
 
 # 'platform' command
-_torizoncore-builder_completions_platform() {
-    local cmd=$(_torizoncore-builder_completions_helper_find_subcmd "platform" "$TCB_COMP_ARGS_PLATFORM")
+_tcbcomp_platform() {
+    local cmd=$(_tcbcomp_helper_find_subcmd "platform" "$_TCBCOMP_ARGS_PLATFORM")
 
     case "$cmd" in
         lockbox)
-            _torizoncore-builder_completions_platform_lockbox
+            _tcbcomp_platform_lockbox
             ;;
         provisioning-data)
-            _torizoncore-builder_completions_platform_provisioning_data
+            _tcbcomp_platform_provisioning_data
             ;;
         push)
-            _torizoncore-builder_completions_platform_push
+            _tcbcomp_platform_push
             ;;
         *)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_PLATFORM"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM"
             ;;
     esac
 }
@@ -1094,7 +1094,7 @@ _torizoncore-builder_completions_platform() {
 # a compose file ending with .yaml/yml or the list of references from
 # the ostree folder if the `--repo` argument is already present and it
 # points to a valid ostree folder.
-_torizoncore-builder_completions_push_reference() {
+_tcbcomp_push_reference() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local repo
 
@@ -1116,86 +1116,86 @@ _torizoncore-builder_completions_push_reference() {
         results=${results[@]/$refs_path/}
         COMPREPLY=($(compgen_compat -W "$results" -- ${cur}))
     else
-        _torizoncore-builder_completions_helper_filter_files "*.y*ml"
+        _tcbcomp_helper_filter_files "*.y*ml"
     fi
 
 }
 
 # 'push' command
-_torizoncore-builder_completions_push() {
+_tcbcomp_push() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --credentials)
-            _torizoncore-builder_completions_helper_filter_files_and_dirs "credentials.zip"
+            _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
             ;;
         --repo)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --hardwareid)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_HARDWAREID"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_HARDWAREID"
             ;;
         --package-name)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_PACKAGE_NAME"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PACKAGE_NAME"
             ;;
         --package-version)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_PACKAGE_VERSION"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PACKAGE_VERSION"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_PUSH"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PUSH"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_push_reference
+                _tcbcomp_push_reference
             fi
             ;;
     esac
 }
 
 # 'splash' command
-_torizoncore-builder_completions_splash() {
+_tcbcomp_splash() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_SPLASH"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_filter_files_and_dirs "*"
+                _tcbcomp_helper_filter_files_and_dirs "*"
             fi
             ;;
     esac
 }
 
 # 'union' command
-_torizoncore-builder_completions_union() {
+_tcbcomp_union() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     case "$prev" in
         --changes-directory)
-            _torizoncore-builder_completions_helper_filter_dirs
+            _tcbcomp_helper_filter_dirs
             ;;
         --subject)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_SUBJECT"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_SUBJECT"
             ;;
         --body)
-            _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_BODY"
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_BODY"
             ;;
         *)
             if [ -n "$cur" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_UNION"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_UNION"
             fi
             if [ -z "$COMPREPLY" ]; then
-                _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_DEF_UNION_BRANCH"
+                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_UNION_BRANCH"
             fi
             ;;
     esac
 }
 
 # 'main' command
-_torizoncore-builder_completions() {
+_tcbcomp() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local i=1 cmd
 
@@ -1207,7 +1207,7 @@ _torizoncore-builder_completions() {
         case "$s" in
             --log-level)
                 if [ "$i" -eq "$COMP_CWORD" ]; then
-                    _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_MAIN_LOGLEVEL"
+                    _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_MAIN_LOGLEVEL"
                     return
                 else
                     i=$((i + 1))
@@ -1215,7 +1215,7 @@ _torizoncore-builder_completions() {
                 ;;
             --log-file)
                 if [ "$i" -eq "$COMP_CWORD" ]; then
-                    _torizoncore-builder_completions_helper_filter_files_and_dirs "*"
+                    _tcbcomp_helper_filter_files_and_dirs "*"
                     return
                 else
                     i=$((i + 1))
@@ -1231,52 +1231,52 @@ _torizoncore-builder_completions() {
     done
 
     if [ -z "$cmd" ]; then
-        _torizoncore-builder_completions_helper_static_options "$TCB_COMP_ARGS_MAIN"
+        _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_MAIN"
         return
     fi
 
     case "$cmd" in
         build)
-            _torizoncore-builder_completions_build
+            _tcbcomp_build
             ;;
         bundle)
-            _torizoncore-builder_completions_bundle
+            _tcbcomp_bundle
             ;;
         combine)
-            _torizoncore-builder_completions_combine
+            _tcbcomp_combine
             ;;
         deploy)
-            _torizoncore-builder_completions_deploy
+            _tcbcomp_deploy
             ;;
         dt)
-            _torizoncore-builder_completions_dt
+            _tcbcomp_dt
             ;;
         dto)
-            _torizoncore-builder_completions_dto
+            _tcbcomp_dto
             ;;
         images)
-            _torizoncore-builder_completions_images
+            _tcbcomp_images
             ;;
         isolate)
-            _torizoncore-builder_completions_isolate
+            _tcbcomp_isolate
             ;;
         kernel)
-            _torizoncore-builder_completions_kernel
+            _tcbcomp_kernel
             ;;
         ostree)
-            _torizoncore-builder_completions_ostree
+            _tcbcomp_ostree
             ;;
         platform)
-            _torizoncore-builder_completions_platform
+            _tcbcomp_platform
             ;;
         push)
-            _torizoncore-builder_completions_push
+            _tcbcomp_push
             ;;
         splash)
-            _torizoncore-builder_completions_splash
+            _tcbcomp_splash
             ;;
         union)
-            _torizoncore-builder_completions_union
+            _tcbcomp_union
             ;;
         *)
             ;;
@@ -1411,11 +1411,10 @@ _bash_complete_zsh () {
 }
 
 if [ -z "$ZSH_VERSION" ]; then
-  complete -o bashdefault -F _torizoncore-builder_completions torizoncore-builder
+  complete -o bashdefault -F _tcbcomp torizoncore-builder
 else
   setopt completealiases
   autoload bashcompinit && bashcompinit
-  _function=('-F' '_torizoncore-builder_completions')
+  _function=('-F' '_tcbcomp')
   compdef _bash_complete_zsh\ ${(j. .)${(q)_function}} torizoncore-builder
 fi
-
