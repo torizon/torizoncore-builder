@@ -298,6 +298,8 @@ _TCBCOMP_ARGS_UNION="
     --changes-directory
     --subject
     --body
+    --ostree-key
+    --ostree-key-dir
 "
 
 # default value to complete parameters
@@ -1187,6 +1189,12 @@ _tcbcomp_union() {
             ;;
         --body)
             _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_BODY"
+            ;;
+        --ostree-key)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_OSTREE_KEY"
+            ;;
+        --ostree-key-dir)
+            _tcbcomp_helper_filter_dirs
             ;;
         *)
             if [ -n "$cur" ]; then
