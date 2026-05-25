@@ -19,6 +19,7 @@ _TCBCOMP_ARGS_MAIN="
     platform
     push
     splash
+    splash-config
     union
 "
 
@@ -291,6 +292,22 @@ _TCBCOMP_ARGS_PUSH="
 
 _TCBCOMP_ARGS_SPLASH="
     --help
+"
+
+_TCBCOMP_ARGS_SPLASH_CONFIG="
+    --help
+    set
+    dump
+"
+
+_TCBCOMP_ARGS_SPLASH_CONFIG_SET="
+    --help
+"
+
+_TCBCOMP_ARGS_SPLASH_CONFIG_DUMP="
+    --help
+    --file
+    --force
 "
 
 _TCBCOMP_ARGS_UNION="
@@ -1207,6 +1224,49 @@ _tcbcomp_union() {
     esac
 }
 
+# 'splash-config' command
+_tcbcomp_splash_config() {
+    local cmd=$(_tcbcomp_helper_find_subcmd "splash-config" "$_TCBCOMP_ARGS_SPLASH_CONFIG")
+
+    case "$cmd" in
+        set)
+            _tcbcomp_splash_config_set
+            ;;
+        dump)
+            _tcbcomp_splash_config_dump
+            ;;
+        *)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH_CONFIG"
+            ;;
+    esac
+}
+
+# 'splash-config set' command
+_tcbcomp_splash_config_set() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+
+    if [ -n "$cur" ]; then
+        _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH_CONFIG_SET"
+    fi
+    if [ -z "$COMPREPLY" ]; then
+        _tcbcomp_helper_filter_files_and_dirs "*"
+    fi
+}
+
+# 'splash-config dump' command
+_tcbcomp_splash_config_dump() {
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "$prev" in
+        --file)
+            _tcbcomp_helper_filter_files_and_dirs "*"
+            ;;
+        *)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH_CONFIG_DUMP"
+            ;;
+    esac
+}
+
 # 'main' command
 _tcbcomp() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
@@ -1287,6 +1347,9 @@ _tcbcomp() {
             ;;
         splash)
             _tcbcomp_splash
+            ;;
+        splash-config)
+            _tcbcomp_splash_config
             ;;
         union)
             _tcbcomp_union
