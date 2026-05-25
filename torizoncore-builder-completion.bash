@@ -183,6 +183,7 @@ _TCBCOMP_ARGS_IMAGES_PROVISION="
     --force
     --shared-data
     --online-data
+    --fleet
 "
 
 _TCBCOMP_ARGS_IMAGES_PROVISION_MODES="
@@ -322,6 +323,7 @@ _TCBCOMP_ARGS_DEF_UNION_BRANCH="_TYPE_HERE_UNION_BRANCH_"
 _TCBCOMP_ARGS_DEF_PACKAGE_NAME="_TYPE_HERE_PACKAGE_NAME_"
 _TCBCOMP_ARGS_DEF_PACKAGE_VERSION="_TYPE_HERE_PACKAGE_VERSION_"
 _TCBCOMP_ARGS_DEF_ONLINE_PROVDATA="_TYPE_HERE_ONLINE_PROVISIONING_STRING_"
+_TCBCOMP_ARGS_DEF_FLEET_UUID="_TYPE_HERE_FLEET_UUID_"
 _TCBCOMP_ARGS_DEF_LOCKBOX_NAME="_TYPE_HERE_LOCKBOX_NAME_"
 _TCBCOMP_ARGS_DEF_SHARED_DATA="_TYPE_HERE_SHARED_DATA_FILE_NAME_"
 _TCBCOMP_ARGS_DEF_CLIENT_NAME="_TYPE_HERE_API_CLIENT_NAME_"
@@ -814,6 +816,9 @@ _tcbcomp_images_provision() {
             ;;
         --online-data)
             _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_ONLINE_PROVDATA"
+            ;;
+        --fleet)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_FLEET_UUID"
             ;;
         *)
             if [ -n "$cur" ]; then
