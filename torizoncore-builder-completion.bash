@@ -18,6 +18,7 @@ _TCBCOMP_ARGS_MAIN="
     ostree
     platform
     push
+    secboot
     splash
     splash-config
     union
@@ -290,6 +291,52 @@ _TCBCOMP_ARGS_PUSH="
     --verbose
 "
 
+_TCBCOMP_ARGS_SECBOOT="
+    --help
+    sign-bootloader-hab
+    sign-kernel
+"
+
+_TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_HAB="
+    --help
+    --cst-dir
+    --cst-crypto
+    --cst-key-size
+    --cst-key-exp
+    --cst-dig-algo
+    --cst-srk-index
+    --cst-srk-table
+    --cst-srk-fuse
+    --cst-srk-no-ca
+    --kernel-key
+    --kernel-key-dir
+"
+
+_TCBCOMP_ARGS_SECBOOT_CST_CRYPTO="
+    rsa
+    ecdsa
+"
+_TCBCOMP_ARGS_SECBOOT_CST_DIG_ALGO="
+    sha1
+    sha256
+    sha384
+    sha512
+"
+_TCBCOMP_ARGS_SECBOOT_CST_SRK_INDEX="
+    1
+    2
+    3
+    4
+"
+
+_TCBCOMP_ARGS_SECBOOT_SIGN_KERNEL="
+    --help
+    --kernel-key
+    --kernel-key-dir
+    --ostree-key
+    --ostree-key-dir
+"
+
 _TCBCOMP_ARGS_SPLASH="
     --help
 "
@@ -346,6 +393,8 @@ _TCBCOMP_ARGS_DEF_FLEET_UUID="_TYPE_HERE_FLEET_UUID_"
 _TCBCOMP_ARGS_DEF_LOCKBOX_NAME="_TYPE_HERE_LOCKBOX_NAME_"
 _TCBCOMP_ARGS_DEF_SHARED_DATA="_TYPE_HERE_SHARED_DATA_FILE_NAME_"
 _TCBCOMP_ARGS_DEF_CLIENT_NAME="_TYPE_HERE_API_CLIENT_NAME_"
+_TCBCOMP_ARGS_DEF_KERNEL_KEY="name=dev;algo=sha256,rsa2048"
+_TCBCOMP_ARGS_DEF_OSTREE_KEY="name=dev;algo=ed25519"
 
 # return in $COMPREPLY a list of files and directories starting from the
 # current working directory. The first parameter can be used to filter
@@ -1193,6 +1242,80 @@ _tcbcomp_splash() {
     esac
 }
 
+# 'secboot sign-bootloader-hab' command
+_tcbcomp_secboot_sign_bootloader_hab() {
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "$prev" in
+        --cst-dir)
+            _tcbcomp_helper_filter_dirs
+            ;;
+        --cst-crypto)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_CST_CRYPTO"
+            ;;
+        --cst-key-size|--cst-key-exp)
+            ;;
+        --cst-dig-algo)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_CST_DIG_ALGO"
+            ;;
+        --cst-srk-index)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_CST_SRK_INDEX"
+            ;;
+        --cst-srk-table|--cst-srk-fuse)
+            _tcbcomp_helper_filter_files_and_dirs "*.bin"
+            ;;
+        --kernel-key)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_KERNEL_KEY"
+            ;;
+        --kernel-key-dir)
+            _tcbcomp_helper_filter_dirs
+            ;;
+        *)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_HAB"
+            ;;
+    esac
+}
+
+# 'secboot sign-kernel' command
+_tcbcomp_secboot_sign_kernel() {
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "$prev" in
+        --kernel-key)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_KERNEL_KEY"
+            ;;
+        --kernel-key-dir)
+            _tcbcomp_helper_filter_dirs
+            ;;
+        --ostree-key)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_OSTREE_KEY"
+            ;;
+        --ostree-key-dir)
+            _tcbcomp_helper_filter_dirs
+            ;;
+        *)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_SIGN_KERNEL"
+            ;;
+    esac
+}
+
+# 'secboot' command
+_tcbcomp_secboot() {
+    local cmd=$(_tcbcomp_helper_find_subcmd "secboot" "$_TCBCOMP_ARGS_SECBOOT")
+
+    case "$cmd" in
+        sign-bootloader-hab)
+            _tcbcomp_secboot_sign_bootloader_hab
+            ;;
+        sign-kernel)
+            _tcbcomp_secboot_sign_kernel
+            ;;
+        *)
+            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT"
+            ;;
+    esac
+}
+
 # 'union' command
 _tcbcomp_union() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -1344,6 +1467,9 @@ _tcbcomp() {
             ;;
         push)
             _tcbcomp_push
+            ;;
+        secboot)
+            _tcbcomp_secboot
             ;;
         splash)
             _tcbcomp_splash
