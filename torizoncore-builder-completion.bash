@@ -1608,10 +1608,10 @@ _bash_complete_zsh () {
 }
 
 if [ -z "$ZSH_VERSION" ]; then
-    complete -o bashdefault -F _tcbcomp torizoncore-builder
+    complete -o bashdefault -F _tcbcomp ${TCB_FUNCTION_NAME:-torizoncore-builder}
 else
     setopt completealiases
     autoload bashcompinit && bashcompinit
     _function=('-F' '_tcbcomp')
-    compdef _bash_complete_zsh\ ${(j. .)${(q)_function}} torizoncore-builder
+    compdef _bash_complete_zsh\ ${(j. .)${(q)_function}} ${TCB_FUNCTION_NAME:-torizoncore-builder}
 fi
