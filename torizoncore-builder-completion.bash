@@ -267,7 +267,7 @@ _TCBCOMP_ARGS_PLATFORM_LOCKBOX="
     --output-directory
 "
 
-_TCBCOMP_ARGS_PLATFORM_LOCKBOX_PLATFORM="$_TCBCOMP_ARGS_BUNDLE_PLATFORM"
+_TCBCOMP_ARGS_PLATFORM_LOCKBOX_PLATFORM="${_TCBCOMP_ARGS_BUNDLE_PLATFORM}"
 
 _TCBCOMP_ARGS_PLATFORM_PROVDATA="
     --help
@@ -396,7 +396,7 @@ _TCBCOMP_ARGS_DEF_CLIENT_NAME="_TYPE_HERE_API_CLIENT_NAME_"
 _TCBCOMP_ARGS_DEF_KERNEL_KEY="name=dev;algo=sha256,rsa2048"
 _TCBCOMP_ARGS_DEF_OSTREE_KEY="name=dev;algo=ed25519"
 
-# return in $COMPREPLY a list of files and directories starting from the
+# return in ${COMPREPLY} a list of files and directories starting from the
 # current working directory. The first parameter can be used to filter
 # the output files (e.g. *.txt), and if not passed, only directories are
 # returned. The second parameter, if true, can be used in conjuction with the first
@@ -414,24 +414,24 @@ _tcbcomp_helper_filter_files_and_dirs() {
         arg=()
     fi
 
-    if [ -z "$ZSH_VERSION" ]; then
+    if [ -z "${ZSH_VERSION}" ]; then
         compopt -o nospace
     fi
 
-    if [ -z "$filterpath" ]; then
+    if [ -z "${filterpath}" ]; then
         COMPREPLY=($(compgen_compat -d -- ${cur}))
     else
-        COMPREPLY=($(compgen_compat ${arg[@]} -f -X "!$filterpath" -- ${cur}))
+        COMPREPLY=($(compgen_compat ${arg[@]} -f -X "!${filterpath}" -- ${cur}))
     fi
 
     if [ ${#COMPREPLY[@]} = 1 ]; then
-        [ -d "$COMPREPLY" ] && LASTCHAR=/
-        [ -z "$ZSH_VERSION" ] && \
-            COMPREPLY=$(printf %q%s "$COMPREPLY" "$LASTCHAR")
+        [ -d "${COMPREPLY}" ] && LASTCHAR=/
+        [ -z "${ZSH_VERSION}" ] && \
+            COMPREPLY=$(printf %q%s "${COMPREPLY}" "${LASTCHAR}")
     else
         for ((i=0; i < ${#COMPREPLY[@]}; i++)); do
-            [ -z "$ZSH_VERSION" ] && [ -d "${COMPREPLY[$i]}" ] && \
-                COMPREPLY[$i]=${COMPREPLY[$i]}/
+            [ -z "${ZSH_VERSION}" ] && [ -d "${COMPREPLY[${i}]}" ] && \
+                COMPREPLY[${i}]=${COMPREPLY[${i}]}/
         done
     fi
 }
@@ -440,13 +440,13 @@ _tcbcomp_helper_filter_files() {
     _tcbcomp_helper_filter_files_and_dirs "$1" true
 }
 
-# return in $COMPREPLY a list of directories starting from the current
+# return in ${COMPREPLY} a list of directories starting from the current
 # working directory.
 _tcbcomp_helper_filter_dirs() {
     _tcbcomp_helper_filter_files_and_dirs ""
 }
 
-# return in $COMPREPLY a list of static options passed as a parameter
+# return in ${COMPREPLY} a list of static options passed as a parameter
 # to this function, removing the list the last typed word
 _tcbcomp_helper_static_options() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
@@ -454,7 +454,7 @@ _tcbcomp_helper_static_options() {
     local opts=($(compgen_compat -W "$@" -- ${cur}))
     local i=0
     for opt in "${opts[@]}"; do
-      [ "$opt" = "$prev" ] && unset opts["$i"]
+      [ "${opt}" = "${prev}" ] && unset opts["${i}"]
       ((++i))
     done
     COMPREPLY=(${opts[@]})
@@ -469,18 +469,18 @@ _tcbcomp_helper_find_subcmd() {
     local cmd_found=0
     local i=1
 
-    while [ $i -lt $((COMP_CWORD+1)) ]; do
+    while [ ${i} -lt $((COMP_CWORD+1)) ]; do
         local word="${COMP_WORDS[i]}"
         local opt=""
 
-        first_chars=$(echo $word | cut -c1-2)
+        first_chars=$(echo ${word} | cut -c1-2)
 
-        if [ "$word" == "$cmd" ]; then
+        if [ "${word}" == "${cmd}" ]; then
             cmd_found=1
-        elif [ "$cmd_found" == "1" -a "$first_chars" != "--" ]; then
-            for opt in $opts; do
-                if [ "$word" == "$opt" ]; then
-                    echo $word
+        elif [ "${cmd_found}" == "1" -a "${first_chars}" != "--" ]; then
+            for opt in ${opts}; do
+                if [ "${word}" == "${opt}" ]; then
+                    echo ${word}
                     return
                 fi
             done
@@ -494,15 +494,15 @@ _tcbcomp_helper_find_subcmd() {
 _tcbcomp_build() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --file)
             _tcbcomp_helper_filter_files_and_dirs "*.y*ml"
             ;;
         --set)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUILD_SET"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_BUILD_SET}"
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUILD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_BUILD}"
             ;;
     esac
 }
@@ -514,54 +514,54 @@ _tcbcomp_bundle() {
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
     local prev3="${COMP_WORDS[COMP_CWORD-3]}"
 
-    case "$prev3" in
+    case "${prev3}" in
         --login-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PASSWORD}"
             return
             ;;
     esac
 
-    case "$prev2" in
+    case "${prev2}" in
         --login)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PASSWORD}"
             return
             ;;
         --login-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_USERNAME}"
             return
             ;;
         --cacert-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_CERT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_CERT}"
             ;;
     esac
 
-    case "$prev1" in
+    case "${prev1}" in
         --bundle-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         --platform)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUNDLE_PLATFORM"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_BUNDLE_PLATFORM}"
             ;;
         --login)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_USERNAME}"
             ;;
         --login-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REGISTRY}"
             ;;
         --cacert-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REGISTRY}"
             ;;
         --dind-param)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_PARAM"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_DIND_PARAM}"
             ;;
         --dind-env)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_ENV"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_DIND_ENV}"
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_BUNDLE"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_BUNDLE}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*.y*ml"
             fi
             ;;
@@ -573,24 +573,24 @@ _tcbcomp_combine() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --bundle-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         --image-name)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_NAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_IMAGE_NAME}"
             ;;
         --image-description)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION}"
             ;;
         --image-licence|--image-release-notes)
             _tcbcomp_helper_filter_files_and_dirs "*"
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_COMBINE"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_COMBINE}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_dirs
             fi
             ;;
@@ -601,40 +601,40 @@ _tcbcomp_combine() {
 _tcbcomp_deploy() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --bundle-directory|--output-directory|--deploy-sysroot-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         --image-name)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_NAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_IMAGE_NAME}"
             ;;
         --image-description)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION}"
             ;;
         --remote-host)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_HOST}"
             ;;
         --remote-username)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_USERNAME}"
             ;;
         --remote-password)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD}"
             ;;
         --remote-port)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PORT}"
             ;;
         --mdns-source)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_MDNS_SOURCE}"
             ;;
         --image-licence|--image-release-notes)
             _tcbcomp_helper_filter_files_and_dirs "*"
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEPLOY"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEPLOY}"
             fi
-            if [ -z "$COMPREPLY" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_OSTREE_REF"
+            if [ -z "${COMPREPLY}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_OSTREE_REF}"
             fi
             ;;
     esac
@@ -645,17 +645,17 @@ _tcbcomp_dt_apply() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --include-dir)
             _tcbcomp_helper_filter_dirs
             ;;
         *.dts)
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT_APPLY"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DT_APPLY}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
@@ -666,21 +666,21 @@ _tcbcomp_dt_apply() {
 _tcbcomp_dt() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local cmd=$(_tcbcomp_helper_find_subcmd "dt" "$_TCBCOMP_ARGS_DT")
+    local cmd=$(_tcbcomp_helper_find_subcmd "dt" "${_TCBCOMP_ARGS_DT}")
 
-    case "$cmd" in
+    case "${cmd}" in
         status)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT_STATUS"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DT_STATUS}"
             ;;
         checkout)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT_CHECKOUT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DT_CHECKOUT}"
             ;;
         apply)
             _tcbcomp_dt_apply
             ;;
         *)
-            if [ "$prev" = "dt" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DT"
+            if [ "${prev}" = "dt" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DT}"
             fi
             ;;
     esac
@@ -692,7 +692,7 @@ _tcbcomp_dto_apply() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
 
-    case "$prev" in
+    case "${prev}" in
         --include-dir)
             _tcbcomp_helper_filter_dirs
             ;;
@@ -700,21 +700,21 @@ _tcbcomp_dto_apply() {
             _tcbcomp_helper_filter_files_and_dirs "*.dts"
             ;;
         *.dts)
-            if [ "$prev2" != "--device-tree" ]; then
+            if [ "${prev2}" != "--device-tree" ]; then
                 return;
             fi
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_APPLY"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_APPLY}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_APPLY"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_APPLY}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
@@ -725,12 +725,12 @@ _tcbcomp_dto_apply() {
 _tcbcomp_dto_list() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --device-tree)
             _tcbcomp_helper_filter_files_and_dirs "*.dts"
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_LIST"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_LIST}"
             ;;
     esac
 }
@@ -739,11 +739,11 @@ _tcbcomp_dto_list() {
 _tcbcomp_dto_remove() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         *.dtbo)
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_REMOVE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_REMOVE}"
             ;;
     esac
 }
@@ -754,7 +754,7 @@ _tcbcomp_dto_deploy() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
 
-    case "$prev" in
+    case "${prev}" in
         --include-dir)
             _tcbcomp_helper_filter_dirs
             ;;
@@ -762,36 +762,36 @@ _tcbcomp_dto_deploy() {
             _tcbcomp_helper_filter_files_and_dirs "*.dts"
             ;;
         --remote-host)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_HOST}"
             ;;
         --remote-username)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_USERNAME}"
             ;;
         --remote-password)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD}"
             ;;
         --remote-port)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PORT}"
             ;;
         --mdns-source)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_MDNS_SOURCE}"
             ;;
         *.dts)
-            if [ "$prev2" != "--device-tree" ]; then
+            if [ "${prev2}" != "--device-tree" ]; then
                 return;
             fi
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_DEPLOY"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_DEPLOY}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_DEPLOY"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_DEPLOY}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*.dts"
             fi
             ;;
@@ -801,9 +801,9 @@ _tcbcomp_dto_deploy() {
 # 'dto' command
 _tcbcomp_dto() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local cmd=$(_tcbcomp_helper_find_subcmd "dto" "$_TCBCOMP_ARGS_DTO")
+    local cmd=$(_tcbcomp_helper_find_subcmd "dto" "${_TCBCOMP_ARGS_DTO}")
 
-    case "$cmd" in
+    case "${cmd}" in
         apply)
             _tcbcomp_dto_apply
             ;;
@@ -811,7 +811,7 @@ _tcbcomp_dto() {
             _tcbcomp_dto_list
             ;;
         status)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO_STATUS"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO_STATUS}"
             ;;
         remove)
             _tcbcomp_dto_remove
@@ -820,8 +820,8 @@ _tcbcomp_dto() {
             _tcbcomp_dto_deploy
             ;;
         *)
-            if [ "$prev" = "dto" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DTO"
+            if [ "${prev}" = "dto" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DTO}"
             fi
             ;;
     esac
@@ -832,12 +832,12 @@ _tcbcomp_images_unpack() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_UNPACK"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_IMAGES_UNPACK}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*"
             fi
             ;;
@@ -848,24 +848,24 @@ _tcbcomp_images_unpack() {
 _tcbcomp_images_download() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --remote-host)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_HOST}"
             ;;
         --remote-username)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_USERNAME}"
             ;;
         --remote-password)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD}"
             ;;
         --remote-port)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PORT}"
             ;;
         --mdns-source)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_MDNS_SOURCE}"
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_DOWNLOAD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_IMAGES_DOWNLOAD}"
             ;;
     esac
 }
@@ -875,24 +875,24 @@ _tcbcomp_images_provision() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --mode)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_PROVISION_MODES"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_IMAGES_PROVISION_MODES}"
             ;;
         --shared-data)
             _tcbcomp_helper_filter_files_and_dirs "*.tar.gz"
             ;;
         --online-data)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_ONLINE_PROVDATA"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_ONLINE_PROVDATA}"
             ;;
         --fleet)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_FLEET_UUID"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_FLEET_UUID}"
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_PROVISION"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_IMAGES_PROVISION}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_dirs
             fi
             ;;
@@ -904,12 +904,12 @@ _tcbcomp_images_serve() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES_SERVE"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_IMAGES_SERVE}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_dirs
             fi
             ;;
@@ -918,9 +918,9 @@ _tcbcomp_images_serve() {
 
 # 'images' command
 _tcbcomp_images() {
-    local cmd=$(_tcbcomp_helper_find_subcmd "images" "$_TCBCOMP_ARGS_IMAGES")
+    local cmd=$(_tcbcomp_helper_find_subcmd "images" "${_TCBCOMP_ARGS_IMAGES}")
 
-    case "$cmd" in
+    case "${cmd}" in
         download)
             _tcbcomp_images_download
             ;;
@@ -934,7 +934,7 @@ _tcbcomp_images() {
             _tcbcomp_images_unpack
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_IMAGES"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_IMAGES}"
             ;;
     esac
 }
@@ -943,27 +943,27 @@ _tcbcomp_images() {
 _tcbcomp_isolate() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --changes-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         --remote-host)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_HOST"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_HOST}"
             ;;
         --remote-username)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_USERNAME}"
             ;;
         --remote-password)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PASSWORD}"
             ;;
         --remote-port)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REMOTE_PORT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REMOTE_PORT}"
             ;;
         --mdns-source)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_MDNS_SOURCE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_MDNS_SOURCE}"
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_ISOLATE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_ISOLATE}"
             ;;
     esac
 }
@@ -973,12 +973,12 @@ _tcbcomp_kernel_build_module() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_BUILD_MODULE"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_KERNEL_BUILD_MODULE}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_dirs "*"
             fi
             ;;
@@ -990,13 +990,13 @@ _tcbcomp_kernel_set_custom_args() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         set_custom_args)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_SET_CUSTOM_ARGS"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_KERNEL_SET_CUSTOM_ARGS}"
             fi
-            if [ -z "$COMPREPLY" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_KERNEL_ARGS"
+            if [ -z "${COMPREPLY}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_KERNEL_ARGS}"
             fi
             ;;
     esac
@@ -1004,9 +1004,9 @@ _tcbcomp_kernel_set_custom_args() {
 
 # 'kernel' command
 _tcbcomp_kernel() {
-    local cmd=$(_tcbcomp_helper_find_subcmd "kernel" "$_TCBCOMP_ARGS_KERNEL")
+    local cmd=$(_tcbcomp_helper_find_subcmd "kernel" "${_TCBCOMP_ARGS_KERNEL}")
 
-    case "$cmd" in
+    case "${cmd}" in
         build_module)
             _tcbcomp_kernel_build_module
             ;;
@@ -1014,13 +1014,13 @@ _tcbcomp_kernel() {
             _tcbcomp_kernel_set_custom_args
             ;;
         get_custom_args)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_GET_CUSTOM_ARGS"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_KERNEL_GET_CUSTOM_ARGS}"
             ;;
         clear_custom_args)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL_CLEAR_CUSTOM_ARGS"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_KERNEL_CLEAR_CUSTOM_ARGS}"
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_KERNEL"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_KERNEL}"
             ;;
     esac
 }
@@ -1029,12 +1029,12 @@ _tcbcomp_kernel() {
 _tcbcomp_ostree_serve() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --ostree-repo-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_OSTREE_SERVE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_OSTREE_SERVE}"
             ;;
     esac
 }
@@ -1042,14 +1042,14 @@ _tcbcomp_ostree_serve() {
 # 'ostree' command
 _tcbcomp_ostree() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local cmd=$(_tcbcomp_helper_find_subcmd "ostree" "$_TCBCOMP_ARGS_OSTREE")
+    local cmd=$(_tcbcomp_helper_find_subcmd "ostree" "${_TCBCOMP_ARGS_OSTREE}")
 
-    case "$cmd" in
+    case "${cmd}" in
         serve)
             _tcbcomp_ostree_serve
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_OSTREE"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_OSTREE}"
             ;;
     esac
 }
@@ -1060,58 +1060,58 @@ _tcbcomp_platform_lockbox() {
     local prev2="${COMP_WORDS[COMP_CWORD-2]}"
     local prev3="${COMP_WORDS[COMP_CWORD-3]}"
 
-    case "$prev3" in
+    case "${prev3}" in
         --login-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PASSWORD}"
             return
             ;;
     esac
 
-    case "$prev2" in
+    case "${prev2}" in
         --login)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PASSWORD"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PASSWORD}"
             return
             ;;
         --login-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_USERNAME}"
             return
             ;;
         --cacert-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_CERT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_CERT}"
             ;;
     esac
 
-    case "$prev1" in
+    case "${prev1}" in
         --credentials)
             _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
             ;;
         --platform)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM_LOCKBOX_PLATFORM"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PLATFORM_LOCKBOX_PLATFORM}"
             ;;
         --login)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_USERNAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_USERNAME}"
             ;;
         --login-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REGISTRY}"
             ;;
         --cacert-to)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_REGISTRY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_REGISTRY}"
             ;;
         --dind-param)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_PARAM"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_DIND_PARAM}"
             ;;
         --dind-env)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_DIND_ENV"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_DIND_ENV}"
             ;;
         --output-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM_LOCKBOX"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PLATFORM_LOCKBOX}"
             fi
-            if [ -z "$COMPREPLY" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_LOCKBOX_NAME"
+            if [ -z "${COMPREPLY}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_LOCKBOX_NAME}"
             fi
             ;;
     esac
@@ -1121,19 +1121,19 @@ _tcbcomp_platform_provisioning_data() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --credentials)
             _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
             ;;
         --shared-data)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_SHARED_DATA"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_SHARED_DATA}"
             ;;
         --online-data)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_CLIENT_NAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_CLIENT_NAME}"
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM_PROVDATA"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PLATFORM_PROVDATA}"
             fi
             ;;
     esac
@@ -1145,9 +1145,9 @@ _tcbcomp_platform_push() {
 
 # 'platform' command
 _tcbcomp_platform() {
-    local cmd=$(_tcbcomp_helper_find_subcmd "platform" "$_TCBCOMP_ARGS_PLATFORM")
+    local cmd=$(_tcbcomp_helper_find_subcmd "platform" "${_TCBCOMP_ARGS_PLATFORM}")
 
-    case "$cmd" in
+    case "${cmd}" in
         lockbox)
             _tcbcomp_platform_lockbox
             ;;
@@ -1158,12 +1158,12 @@ _tcbcomp_platform() {
             _tcbcomp_platform_push
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PLATFORM"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PLATFORM}"
             ;;
     esac
 }
 
-# return in $COMPREPLY a list of references. references can either be
+# return in ${COMPREPLY} a list of references. references can either be
 # a compose file ending with .yaml/yml or the list of references from
 # the ostree folder if the `--repo` argument is already present and it
 # points to a valid ostree folder.
@@ -1181,13 +1181,13 @@ _tcbcomp_push_reference() {
         fi
     done
 
-    repo=$(echo $repo | tr -d '"')
-    local refs_path="$PWD/$repo/refs/heads/"
+    repo=$(echo ${repo} | tr -d '"')
+    local refs_path="${PWD}/${repo}/refs/heads/"
 
-    if [ -d "$refs_path"  -a -n "$repo" ]; then
-        local results=($(find "$refs_path" -type f 2>/dev/null))
-        results=${results[@]/$refs_path/}
-        COMPREPLY=($(compgen_compat -W "$results" -- ${cur}))
+    if [ -d "${refs_path}"  -a -n "${repo}" ]; then
+        local results=($(find "${refs_path}" -type f 2>/dev/null))
+        results=${results[@]/${refs_path}/}
+        COMPREPLY=($(compgen_compat -W "${results}" -- ${cur}))
     else
         _tcbcomp_helper_filter_files "*.y*ml"
     fi
@@ -1197,7 +1197,7 @@ _tcbcomp_push_reference() {
 _tcbcomp_push() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --credentials)
             _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
             ;;
@@ -1205,19 +1205,19 @@ _tcbcomp_push() {
             _tcbcomp_helper_filter_dirs
             ;;
         --hardwareid)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_HARDWAREID"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_HARDWAREID}"
             ;;
         --package-name)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PACKAGE_NAME"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PACKAGE_NAME}"
             ;;
         --package-version)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_PACKAGE_VERSION"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PACKAGE_VERSION}"
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_PUSH"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PUSH}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_push_reference
             fi
             ;;
@@ -1229,12 +1229,12 @@ _tcbcomp_splash() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SPLASH}"
             fi
-            if [ -z "$COMPREPLY" ]; then
+            if [ -z "${COMPREPLY}" ]; then
                 _tcbcomp_helper_filter_files_and_dirs "*"
             fi
             ;;
@@ -1245,32 +1245,32 @@ _tcbcomp_splash() {
 _tcbcomp_secboot_sign_bootloader_hab() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --cst-dir)
             _tcbcomp_helper_filter_dirs
             ;;
         --cst-crypto)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_CST_CRYPTO"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_CST_CRYPTO}"
             ;;
         --cst-key-size|--cst-key-exp)
             ;;
         --cst-dig-algo)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_CST_DIG_ALGO"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_CST_DIG_ALGO}"
             ;;
         --cst-srk-index)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_CST_SRK_INDEX"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_CST_SRK_INDEX}"
             ;;
         --cst-srk-table|--cst-srk-fuse)
             _tcbcomp_helper_filter_files_and_dirs "*.bin"
             ;;
         --kernel-key)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_KERNEL_KEY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_KERNEL_KEY}"
             ;;
         --kernel-key-dir)
             _tcbcomp_helper_filter_dirs
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_HAB"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_HAB}"
             ;;
     esac
 }
@@ -1279,30 +1279,30 @@ _tcbcomp_secboot_sign_bootloader_hab() {
 _tcbcomp_secboot_sign_kernel() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --kernel-key)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_KERNEL_KEY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_KERNEL_KEY}"
             ;;
         --kernel-key-dir)
             _tcbcomp_helper_filter_dirs
             ;;
         --ostree-key)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_OSTREE_KEY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_OSTREE_KEY}"
             ;;
         --ostree-key-dir)
             _tcbcomp_helper_filter_dirs
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT_SIGN_KERNEL"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_SIGN_KERNEL}"
             ;;
     esac
 }
 
 # 'secboot' command
 _tcbcomp_secboot() {
-    local cmd=$(_tcbcomp_helper_find_subcmd "secboot" "$_TCBCOMP_ARGS_SECBOOT")
+    local cmd=$(_tcbcomp_helper_find_subcmd "secboot" "${_TCBCOMP_ARGS_SECBOOT}")
 
-    case "$cmd" in
+    case "${cmd}" in
         sign-bootloader-hab)
             _tcbcomp_secboot_sign_bootloader_hab
             ;;
@@ -1310,7 +1310,7 @@ _tcbcomp_secboot() {
             _tcbcomp_secboot_sign_kernel
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SECBOOT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT}"
             ;;
     esac
 }
@@ -1319,28 +1319,28 @@ _tcbcomp_secboot() {
 _tcbcomp_union() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --changes-directory)
             _tcbcomp_helper_filter_dirs
             ;;
         --subject)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_SUBJECT"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_SUBJECT}"
             ;;
         --body)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_BODY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_BODY}"
             ;;
         --ostree-key)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_OSTREE_KEY"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_OSTREE_KEY}"
             ;;
         --ostree-key-dir)
             _tcbcomp_helper_filter_dirs
             ;;
         *)
-            if [ -n "$cur" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_UNION"
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_UNION}"
             fi
-            if [ -z "$COMPREPLY" ]; then
-                _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_DEF_UNION_BRANCH"
+            if [ -z "${COMPREPLY}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_UNION_BRANCH}"
             fi
             ;;
     esac
@@ -1348,9 +1348,9 @@ _tcbcomp_union() {
 
 # 'splash-config' command
 _tcbcomp_splash_config() {
-    local cmd=$(_tcbcomp_helper_find_subcmd "splash-config" "$_TCBCOMP_ARGS_SPLASH_CONFIG")
+    local cmd=$(_tcbcomp_helper_find_subcmd "splash-config" "${_TCBCOMP_ARGS_SPLASH_CONFIG}")
 
-    case "$cmd" in
+    case "${cmd}" in
         set)
             _tcbcomp_splash_config_set
             ;;
@@ -1358,7 +1358,7 @@ _tcbcomp_splash_config() {
             _tcbcomp_splash_config_dump
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH_CONFIG"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SPLASH_CONFIG}"
             ;;
     esac
 }
@@ -1367,10 +1367,10 @@ _tcbcomp_splash_config() {
 _tcbcomp_splash_config_set() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
 
-    if [ -n "$cur" ]; then
-        _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH_CONFIG_SET"
+    if [ -n "${cur}" ]; then
+        _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SPLASH_CONFIG_SET}"
     fi
-    if [ -z "$COMPREPLY" ]; then
+    if [ -z "${COMPREPLY}" ]; then
         _tcbcomp_helper_filter_files_and_dirs "*"
     fi
 }
@@ -1379,12 +1379,12 @@ _tcbcomp_splash_config_set() {
 _tcbcomp_splash_config_dump() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    case "$prev" in
+    case "${prev}" in
         --file)
             _tcbcomp_helper_filter_files_and_dirs "*"
             ;;
         *)
-            _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_SPLASH_CONFIG_DUMP"
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SPLASH_CONFIG_DUMP}"
             ;;
     esac
 }
@@ -1395,21 +1395,21 @@ _tcbcomp() {
     local i=1 cmd
 
     # find the subcommand
-    while [[ "$i" -lt "$COMP_CWORD" ]]
+    while [[ "${i}" -lt "${COMP_CWORD}" ]]
     do
         local s="${COMP_WORDS[i]}"
         i=$((i + 1))
-        case "$s" in
+        case "${s}" in
             --log-level)
-                if [ "$i" -eq "$COMP_CWORD" ]; then
-                    _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_MAIN_LOGLEVEL"
+                if [ "${i}" -eq "${COMP_CWORD}" ]; then
+                    _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_MAIN_LOGLEVEL}"
                     return
                 else
                     i=$((i + 1))
                 fi
                 ;;
             --log-file)
-                if [ "$i" -eq "$COMP_CWORD" ]; then
+                if [ "${i}" -eq "${COMP_CWORD}" ]; then
                     _tcbcomp_helper_filter_files_and_dirs "*"
                     return
                 else
@@ -1419,18 +1419,18 @@ _tcbcomp() {
             -*)
                 ;;
             *)
-                cmd="$s"
+                cmd="${s}"
                 break
                 ;;
         esac
     done
 
-    if [ -z "$cmd" ]; then
-        _tcbcomp_helper_static_options "$_TCBCOMP_ARGS_MAIN"
+    if [ -z "${cmd}" ]; then
+        _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_MAIN}"
         return
     fi
 
-    case "$cmd" in
+    case "${cmd}" in
         build)
             _tcbcomp_build
             ;;
@@ -1485,7 +1485,7 @@ _tcbcomp() {
 }
 
 compgen_compat() {
-    if [ -z "$ZSH_VERSION" ]; then
+    if [ -z "${ZSH_VERSION}" ]; then
         compgen "$@"
     else
         compgen_zsh "$@"
@@ -1537,35 +1537,35 @@ compgen_zsh() {
         shift
     done
 
-    if [ "$COMP_OPTION" = "plusdirs" ]; then
+    if [ "${COMP_OPTION}" = "plusdirs" ]; then
         ARGS+='adp'
     fi
 
-    if [ -n "$WORD" -a -n "$CUR" ]; then
-        echo "$WORD" | awk 'NF' | tr ' ' '\n' | sed -En "s;^($CUR.*)$;\1;p"
+    if [ -n "${WORD}" -a -n "${CUR}" ]; then
+        echo "${WORD}" | awk 'NF' | tr ' ' '\n' | sed -En "s;^(${CUR}.*)$;\1;p"
         return
     fi
 
-    # Update pattern to comply with compgen -X '<patter>'
-    if [ -n "$X" ]; then
-        if [ "$COMP_OPTION" = "plusdirs" ]; then
-            FILTER="/($X|.*\/)$/p;"
+    # Update pattern to comply with compgen -X '<pattern>'
+    if [ -n "${X}" ]; then
+        if [ "${COMP_OPTION}" = "plusdirs" ]; then
+            FILTER="/(${X}|.*\/)$/p;"
         else
-            FILTER="/$X$/p;"
+            FILTER="/${X}$/p;"
         fi
     fi
 
     # Gets the base dir and add `(.*|*)`.
-    [ -d "$CUR" -a "$CUR" != '..' ] && R_PATH="$CUR(.*|*)"
-    if [ ! -d "$CUR" -a -n "$CUR" ]; then
-        [ $(dirname -- "$CUR") = '.' ] && R_PATH="(.*|*)" || \
-                R_PATH=$(dirname -- "$CUR" | sed -En -e 's@$@\/(.*|*)@p')
+    [ -d "${CUR}" -a "${CUR}" != '..' ] && R_PATH="${CUR}(.*|*)"
+    if [ ! -d "${CUR}" -a -n "${CUR}" ]; then
+        [ $(dirname -- "${CUR}") = '.' ] && R_PATH="(.*|*)" || \
+                R_PATH=$(dirname -- "${CUR}" | sed -En -e 's@$@\/(.*|*)@p')
     fi
 
     # If either no arguments are passed or the target folder is empty, return nothing
-    [ "$ARGS" = "-1" -o $( (eval "ls -1d $R_PATH" 2>/dev/null) | wc -l) -eq 0 ] && return
+    [ "${ARGS}" = "-1" -o $( (eval "ls -1d ${R_PATH}" 2>/dev/null) | wc -l) -eq 0 ] && return
 
-    eval "ls $ARGS $R_PATH | sed -En -e '$DIR_FILTER' | sed -En -e '$FILTER' | sed -En -e 's;^($CUR.*)$;\1;p'"
+    eval "ls ${ARGS} ${R_PATH} | sed -En -e '${DIR_FILTER}' | sed -En -e '${FILTER}' | sed -En -e 's;^(${CUR}.*)$;\1;p'"
 }
 
 _bash_complete_zsh () {
@@ -1573,23 +1573,23 @@ _bash_complete_zsh () {
     local -a suf matches
     local -x COMP_POINT COMP_CWORD
     local -a COMP_WORDS COMPREPLY BASH_VERSINFO
-    local -x COMP_LINE="$words"
+    local -x COMP_LINE="${words}"
     local -A savejobstates savejobtexts
     (( COMP_POINT = 1 + ${#${(j. .)words[1,CURRENT-1]}} + $#QIPREFIX + $#IPREFIX + $#PREFIX ))
     (( COMP_CWORD = CURRENT - 1))
-    COMP_WORDS=($words)
+    COMP_WORDS=(${words})
     BASH_VERSINFO=(2 05b 0 1 release)
     savejobstates=(${(kv)jobstates})
     savejobtexts=(${(kv)jobtexts})
     [[ ${argv[${argv[(I)nospace]:-0}-1]} = -o ]] && suf=(-S '')
     matches=(${(f)"$(compgen $@ -- ${words[CURRENT]})"})
-    if [[ -n $matches ]]; then
+    if [[ -n ${matches} ]]; then
 	if [[ ${argv[${argv[(I)filenames]:-0}-1]} = -o ]]; then
 	    compset -P '*/' && matches=(${matches##*/})
 	    compset -S '/*' && matches=(${matches%%/*})
 	    compadd -Q -f "${suf[@]}" -a matches && ret=0
 	else
-            if [ ${#matches[@]} = 1 ] && [ -d "$matches" ]; then
+            if [ ${#matches[@]} = 1 ] && [ -d "${matches}" ]; then
                 compadd -Q -S '' "${suf[@]}" -a matches && ret=0
             else
                 compadd -Q "${suf[@]}" -a matches && ret=0
@@ -1607,7 +1607,7 @@ _bash_complete_zsh () {
     return ret
 }
 
-if [ -z "$ZSH_VERSION" ]; then
+if [ -z "${ZSH_VERSION}" ]; then
     complete -o bashdefault -F _tcbcomp ${TCB_FUNCTION_NAME:-torizoncore-builder}
 else
     setopt completealiases
