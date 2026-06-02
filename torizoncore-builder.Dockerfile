@@ -441,6 +441,9 @@ COPY tezi /builder/tezi/
 COPY tcbuilder /builder/tcbuilder/
 COPY torizoncore-builder.py /builder/torizoncore-builder
 
+# Store completion script in the image so the setup script can extract/source it
+COPY torizoncore-builder-completion.bash /opt/torizoncore-builder/completion-scripts/
+
 # Workaround for failure when updating device-trees directory with the "dt checkout" command.
 RUN git config --global --add safe.directory '/workdir/device-trees'
 
