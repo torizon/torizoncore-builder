@@ -21,6 +21,7 @@ _TCBCOMP_ARGS_MAIN="
     secboot
     splash
     splash-config
+    ubootenv
     union
 "
 
@@ -252,6 +253,7 @@ _TCBCOMP_ARGS_PLATFORM="
     lockbox
     provisioning-data
     push
+    push-bootloader
 "
 
 _TCBCOMP_ARGS_PLATFORM_LOCKBOX="
@@ -291,6 +293,20 @@ _TCBCOMP_ARGS_PUSH="
     --verbose
 "
 
+_TCBCOMP_ARGS_PLATFORM_PUSH_BOOTLOADER="
+    --help
+    --credentials
+    --hardwareid
+    --package-name
+    --package-version
+    --description
+    --verbose
+    --uboot-json
+    --keep-var
+    --set-var
+    --no-reset
+"
+
 _TCBCOMP_ARGS_SECBOOT="
     --help
     sign-bootloader-hab
@@ -317,10 +333,7 @@ _TCBCOMP_ARGS_SECBOOT_CST_CRYPTO="
     ecdsa
 "
 _TCBCOMP_ARGS_SECBOOT_CST_DIG_ALGO="
-    sha1
     sha256
-    sha384
-    sha512
 "
 _TCBCOMP_ARGS_SECBOOT_CST_SRK_INDEX="
     1
@@ -354,6 +367,17 @@ _TCBCOMP_ARGS_SPLASH_CONFIG_SET="
 _TCBCOMP_ARGS_SPLASH_CONFIG_DUMP="
     --help
     --file
+    --force
+"
+
+_TCBCOMP_ARGS_UBOOTENV="
+    --help
+    fuses
+"
+
+_TCBCOMP_ARGS_UBOOTENV_FUSES="
+    --help
+    --fuse-file
     --force
 "
 
@@ -395,6 +419,8 @@ _TCBCOMP_ARGS_DEF_SHARED_DATA="_TYPE_HERE_SHARED_DATA_FILE_NAME_"
 _TCBCOMP_ARGS_DEF_CLIENT_NAME="_TYPE_HERE_API_CLIENT_NAME_"
 _TCBCOMP_ARGS_DEF_KERNEL_KEY="name=dev;algo=sha256,rsa2048"
 _TCBCOMP_ARGS_DEF_OSTREE_KEY="name=dev;algo=ed25519"
+_TCBCOMP_ARGS_DEF_UBOOTENV_KEEP_VAR="_TYPE_HERE_UBOOT_ENV_VAR_"
+_TCBCOMP_ARGS_DEF_UBOOTENV_SET_VAR="VAR=VALUE"
 
 # return in ${COMPREPLY} a list of files and directories starting from the
 # current working directory. The first parameter can be used to filter
@@ -1143,6 +1169,46 @@ _tcbcomp_platform_push() {
     _tcbcomp_push "$@"
 }
 
+_tcbcomp_platform_push_bootloader() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "${prev}" in
+        --credentials)
+            _tcbcomp_helper_filter_files_and_dirs "credentials.zip"
+            ;;
+        --hardwareid)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_HARDWAREID}"
+            ;;
+        --package-name)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PACKAGE_NAME}"
+            ;;
+        --package-version)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_PACKAGE_VERSION}"
+            ;;
+        --description)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_IMAGE_DESCRIPTION}"
+            ;;
+        --uboot-json)
+            _tcbcomp_helper_filter_files_and_dirs "*.json" true
+            ;;
+        --keep-var)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_UBOOTENV_KEEP_VAR}"
+            ;;
+        --set-var)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_UBOOTENV_SET_VAR}"
+            ;;
+        *)
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PLATFORM_PUSH_BOOTLOADER}"
+            fi
+            if [ -z "${COMPREPLY}" ]; then
+                _tcbcomp_helper_filter_files_and_dirs "*"
+            fi
+            ;;
+    esac
+}
+
 # 'platform' command
 _tcbcomp_platform() {
     local cmd=$(_tcbcomp_helper_find_subcmd "platform" "${_TCBCOMP_ARGS_PLATFORM}")
@@ -1156,6 +1222,9 @@ _tcbcomp_platform() {
             ;;
         push)
             _tcbcomp_platform_push
+            ;;
+        push-bootloader)
+            _tcbcomp_platform_push_bootloader
             ;;
         *)
             _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_PLATFORM}"
@@ -1311,6 +1380,40 @@ _tcbcomp_secboot() {
             ;;
         *)
             _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT}"
+            ;;
+    esac
+}
+
+# 'ubootenv fuses' command
+_tcbcomp_ubootenv_fuses() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "${prev}" in
+        --fuse-file)
+            _tcbcomp_helper_filter_files_and_dirs "*.y*ml" true
+            ;;
+        *)
+            if [ -n "${cur}" ]; then
+                _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_UBOOTENV_FUSES}"
+            fi
+            if [ -z "${COMPREPLY}" ]; then
+                _tcbcomp_helper_filter_dirs
+            fi
+            ;;
+    esac
+}
+
+# 'ubootenv' command
+_tcbcomp_ubootenv() {
+    local cmd=$(_tcbcomp_helper_find_subcmd "ubootenv" "${_TCBCOMP_ARGS_UBOOTENV}")
+
+    case "${cmd}" in
+        fuses)
+            _tcbcomp_ubootenv_fuses
+            ;;
+        *)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_UBOOTENV}"
             ;;
     esac
 }
@@ -1475,6 +1578,9 @@ _tcbcomp() {
             ;;
         splash-config)
             _tcbcomp_splash_config
+            ;;
+        ubootenv)
+            _tcbcomp_ubootenv
             ;;
         union)
             _tcbcomp_union
