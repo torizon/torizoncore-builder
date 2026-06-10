@@ -188,6 +188,26 @@ aval-aquila-am69octa-scarthgap-nightly:
     DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
     TCB_MACHINE: "aquila-am69"
 
+aval-aquila-imx95h-scarthgap-release:
+  extends: .aval-template-linux-default-machines
+  resource_group: aquila-imx95h
+  variables:
+    SOC_UDT: "aquila-imx95h"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "aquila-imx95"
+
+aval-aquila-imx95h-scarthgap-nightly:
+  extends: .aval-template-linux-all-machines
+  resource_group: aquila-imx95h
+  variables:
+    SOC_UDT: "aquila-imx95h"
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    DELEGATION_CONFIG: "./aval/delegation_config_scarthgap.toml"
+    TCB_MACHINE: "aquila-imx95"
+
 aval-colibri-imx6dl-kirkstone-release:
   extends: .aval-template-linux-default-machines
   resource_group: colibri-imx6dl
