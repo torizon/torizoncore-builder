@@ -489,6 +489,9 @@ test-torizoncore:
     pull_policy: always
   script:
     - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
+    # Required since Homebrew 6.0.0: trusts the tap to resolve the 
+    # 'untrusted tap homebrew-toradex/xray-junit-uploader' error.
+    - brew trust homebrew-toradex/xray-junit-uploader
     - brew install xray-junit-uploader
     - ./tests/integration/xray-junit-uploader-wrapper.sh
   artifacts:
