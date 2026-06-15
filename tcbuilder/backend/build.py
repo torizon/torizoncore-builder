@@ -6,7 +6,6 @@ import os
 import copy
 import logging
 import re
-import sys
 import shutil
 import tempfile
 
@@ -16,7 +15,7 @@ from urllib.request import urlretrieve
 import jsonschema
 import yaml
 
-from tcbuilder.backend.common import progress, get_file_sha256sum
+from tcbuilder.backend.common import download_progress, get_file_sha256sum
 from tcbuilder.backend.expandvars import expand
 from tcbuilder.errors import (PathNotExistError, InvalidDataError,
                               InvalidAssignmentError, OperationFailureError,
@@ -181,18 +180,13 @@ def fetch_remote(url, fname=None, cksum=None, download_dir=None):
     in_fname, is_temp = make_download_fname(fname)
 
     try:
-        # Show progress bar only when outputting to a terminal.
-        progress_hook = None
-        if sys.stdout.isatty():
-            print(f"Fetching URL '{url}' into '{in_fname}'")
-            progress_hook = progress
-        else:
-            log.info(f"Fetching URL '{url}' into '{in_fname}'")
+        log.info(f"Fetching URL '{url}' into '{in_fname}'")
 
         # Do actual download.
-        out_fname, headers = urlretrieve(
-            url, filename=in_fname, reporthook=progress_hook)
-        log.info("\nDownload Complete!")
+        with download_progress() as reporthook:
+            out_fname, headers = urlretrieve(url, filename=in_fname, reporthook=reporthook)
+
+        log.info("Download Complete!")
         # log.debug(f"Downloaded {out_fname}, headers: {headers}")
 
         # If we still haven't decided the name of the file, try to determine

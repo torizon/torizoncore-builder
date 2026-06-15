@@ -535,8 +535,11 @@ def checkout_dt_git_repo(*, git_repo=None, git_branch=None):
     repo_obj.close()
 
 
-def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
-    if totsiz == -1:
+def _progress(blocknum, blocksiz, totsiz, totbarsiz=40):
+    if not sys.stdout.isatty():
+        return
+
+    if totsiz in [0, -1]:
         totread = (blocknum * blocksiz) // (1024*1024)
         sys.stdout.write(f"\rDownloading file: {totread} MB...")
         sys.stdout.flush()
@@ -544,6 +547,22 @@ def progress(blocknum, blocksiz, totsiz, totbarsiz=40):
         barsiz = int(min((blocknum * blocksiz) / (totsiz), 1.0) * totbarsiz)
         sys.stdout.write("\r[" + ("=" * barsiz) + ("." * (totbarsiz - barsiz)) + "] ")
         sys.stdout.flush()
+
+
+@contextmanager
+def download_progress():
+    """Context manager supplying a urlretrieve reporthook"""
+    is_tty = sys.stdout.isatty()
+    try:
+        yield _progress if is_tty else None
+    finally:
+        if is_tty:
+            try:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+            # pylint: disable-next=broad-exception-caught
+            except Exception:
+                pass
 
 
 def get_file_sha256sum(path):

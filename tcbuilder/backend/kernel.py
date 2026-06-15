@@ -11,8 +11,8 @@ import urllib.request
 
 from tcbuilder.backend import ostree, dt
 from tcbuilder.backend.common import \
-    (get_tar_compress_program_options, get_storage_dir,
-     progress, set_output_ownership, OSTREE_ROOT_DEPLOY_PATH)
+    (download_progress, get_tar_compress_program_options, get_storage_dir,
+     set_output_ownership, OSTREE_ROOT_DEPLOY_PATH)
 from tcbuilder.errors import \
     (TorizonCoreBuilderError, PathNotExistError)
 
@@ -247,18 +247,20 @@ def download_toolchain(toolchain, toolchain_path, version_gcc):
         assert False, f"download_toolchain: unhandled toolchain {toolchain}"
     url = url_prefix + tarball
 
-    log.info("A toolchain is required to build the module.\n"
-             f"Downloading toolchain from {url}.\n"
-             "Please wait this could take a while...")
+    log.info("A toolchain is required to build the module.")
+    log.info(f"Downloading toolchain from {url}.")
+    log.info("Please wait this could take a while...")
 
     try:
-        urllib.request.urlretrieve(url, filename=tarball, reporthook=progress)
-        log.info("\nDownload Complete!\n")
+        with download_progress() as reporthook:
+            urllib.request.urlretrieve(url, filename=tarball, reporthook=reporthook)
     except Exception as exc:
         raise TorizonCoreBuilderError(
             "The requested toolchain could not be downloaded") from exc
 
-    log.info("Unpacking downloaded toolchain into storage")
+    log.info("Download Complete!")
+
+    log.info("Unpacking downloaded toolchain into storage.")
     os.makedirs(toolchain_path, exist_ok=True)
     tarcmd = [
         "tar",
