@@ -489,6 +489,9 @@ test-torizoncore:
     pull_policy: always
   script:
     - brew tap homebrew-toradex/xray-junit-uploader https://gitlab.com/toradex/rd/torizon-core/homebrew-toradex.git
+    # Required since Homebrew 6.0.0: trusts the tap to resolve the 
+    # 'untrusted tap homebrew-toradex/xray-junit-uploader' error.
+    - brew trust homebrew-toradex/xray-junit-uploader
     - brew install xray-junit-uploader
     - ./tests/integration/xray-junit-uploader-wrapper.sh
   artifacts:
@@ -511,6 +514,7 @@ test-torizoncore:
     AVAL_VERDIN_IMX8MMQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-527"
     AVAL_VERDIN_IMX8MPQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-528"
     AVAL_AQUILA_AM69OCTA_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-529"
+    AVAL_AQUILA_IMX95H_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-883"
     AVAL_VERDIN_AM62PQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-735"
     AVAL_VERDIN_IMX95H_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-736"
     AVAL_SMARC_IMX8MPQ_SCARTHGAP_NIGHTLY_TEST_EXEC_KEY: "TCB-743"
