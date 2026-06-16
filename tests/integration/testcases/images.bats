@@ -17,7 +17,7 @@ bats_load_library 'bats/bats-file/load.bash'
     run torizoncore-builder images provision
     assert_failure
     assert_output --partial \
-        'the following arguments are required: INPUT_DIRECTORY, OUTPUT_DIRECTORY, --mode'
+        'the following arguments are required: INPUT_PATH, OUTPUT_PATH, --mode'
 
     # case: wrong arguments
     rm -fr "${OUTPUT_IMAGE_DIR}"
@@ -41,7 +41,7 @@ bats_load_library 'bats/bats-file/load.bash'
         --shared-data "${SAMPLES_DIR}/provision/shared-data.tar.gz" \
         --mode=offline "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
     assert_failure
-    assert_output --partial 'already exists: aborting'
+    assert_output --partial 'already exists. Aborting.'
 
     # case: success
     rm -fr "${OUTPUT_IMAGE_DIR}"
@@ -165,7 +165,7 @@ bats_load_library 'bats/bats-file/load.bash'
     run torizoncore-builder images provision
     assert_failure
     assert_output --partial \
-        'the following arguments are required: INPUT_DIRECTORY, OUTPUT_DIRECTORY, --mode'
+        'the following arguments are required: INPUT_PATH, OUTPUT_PATH, --mode'
 
     # case: wrong arguments
     rm -fr "${OUTPUT_IMAGE_DIR}"
@@ -189,7 +189,7 @@ bats_load_library 'bats/bats-file/load.bash'
         --online-data "eyJkdW1teSI6MX0K" \
         --mode=online "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
     assert_failure
-    assert_output --partial 'already exists: aborting'
+    assert_output --partial 'already exists. Aborting'
 
     # case: success
     rm -fr "${OUTPUT_IMAGE_DIR}"
