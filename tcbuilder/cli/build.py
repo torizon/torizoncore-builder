@@ -613,7 +613,8 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
         output_raw_img, output_raw_img, props.get("bundle", {}), props)
     common.set_output_ownership(output_raw_img)
 
-    # TODO: implement provisioning for raw images
+    if "provisioning" in props:
+        handle_provisioning(output_raw_img, props.get("provisioning"), base_rootfs_label)
 
 
 def handle_easy_installer_output(props, union_params):
@@ -783,27 +784,32 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
                     shutil.rmtree(docker_storage_dir_path)
 
 
-def handle_provisioning(output_dir, prov_props):
+def handle_provisioning(output_dir, prov_props, rootfs_label=None):
     """Handle the provisioning step of the output generation."""
 
+    prov_data = {
+        "shared": prov_props.get("shared-data"),
+        "online": prov_props.get("online-data")
+    }
+
     prov_params = {
-        "input_dir": output_dir,
-        "output_dir": None,
-        "shared_data": prov_props.get("shared-data"),
-        "online_data": prov_props.get("online-data"),
+        "input_path": output_dir,
+        "output_path": None,
+        "prov_data": prov_data,
+        "rootfs_label": rootfs_label,
         "hibernated": prov_props.get("hibernated", False),
         "fleets": prov_props.get("fleets")
     }
 
     if prov_props.get("mode") == images_cli.PROV_MODE_OFFLINE:
-        if not prov_params["shared_data"]:
+        if not prov_data["shared"]:
             raise InvalidDataError(
                 "With offline provisioning, property 'shared-data' must be set.")
-        if prov_params["online_data"]:
+        if prov_data["online"]:
             raise InvalidDataError(
                 "With offline provisioning, property 'online-data' cannot be set.")
     elif prov_props.get("mode") == images_cli.PROV_MODE_ONLINE:
-        if not (prov_params["shared_data"] and prov_params["online_data"]):
+        if not (prov_data["shared"] and prov_data["online"]):
             raise InvalidDataError(
                 "With online provisioning, properties 'shared-data' "
                 "and 'online-data' must be set.")
