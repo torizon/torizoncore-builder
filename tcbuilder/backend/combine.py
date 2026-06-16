@@ -13,16 +13,17 @@ import subprocess
 
 from tezi.image import ImageConfig
 from tcbuilder.backend.common import \
-    (set_output_ownership, check_licence_acceptance, run_with_loading_animation,
-     open_disk_image, get_tar_compress_program_options, DOCKER_BUNDLE_TARNAME)
+    (set_output_ownership, check_licence_acceptance, run_with_loading_animation, open_disk_image,
+     get_tar_compress_program_options, DOCKER_BUNDLE_TARNAME, TAR_EXT_TO_PROGRAM,
+     OSTREE_SOTA_DIR_PATH)
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
 TARGET_NAME_FILENAME = "target_name"
 DOCKER_FILES_TO_ADD = [
-    "docker-compose.yml:/ostree/deploy/torizon/var/sota/storage/docker-compose/",
-    TARGET_NAME_FILENAME + ":/ostree/deploy/torizon/var/sota/storage/docker-compose/"
+    f"docker-compose.yml:{OSTREE_SOTA_DIR_PATH}/storage/docker-compose/",
+    TARGET_NAME_FILENAME + f":{OSTREE_SOTA_DIR_PATH}/storage/docker-compose/"
 ]
 DOCKER_STORAGE_DESTINATION = "/ostree/deploy/torizon/var/lib/docker/"
 DOCKER_STORAGE_DIRNAME = "docker-storage"
@@ -36,16 +37,6 @@ TEZI_PROPS = [
     "licence_file",
     "release_notes_file"
 ]
-
-TAR_EXT_TO_COMPRESSION_TYPE = {
-    ".gz": "gzip",
-    ".gzip": "gzip",
-    ".tgz": "gzip",
-    ".xz": "xz",
-    ".bz2": "bzip2",
-    ".lzo": "lzop",
-    ".tar": None
-}
 
 # Disk size increase factor on top of filesystem size increase
 DISK_INCREASE_FACTOR = 1.20
@@ -455,7 +446,7 @@ def copy_to_mounted_root(gfs, files_to_add, contents_dir):
             run_with_loading_animation(
                 func=gfs.tar_in,
                 args=(os.path.join(contents_dir, src), dest),
-                kwargs={'compress': TAR_EXT_TO_COMPRESSION_TYPE[os.path.splitext(src)[1]]},
+                kwargs={'compress': TAR_EXT_TO_PROGRAM[os.path.splitext(src)[1]]},
                 loading_msg=f"  Unpacking {src} to {dest} ...")
         else:
             run_with_loading_animation(

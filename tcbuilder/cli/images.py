@@ -117,12 +117,17 @@ def do_images_provision(args):
     else:
         assert False, "Unhandled provisioning mode"
 
+    prov_data = {
+        "shared": args.shared_data_file,
+        "online": args.online_data,
+    }
+
     try:
         images.provision(
-            input_dir=args.input_directory,
-            output_dir=args.output_directory,
-            shared_data=args.shared_data_file,
-            online_data=args.online_data,
+            input_path=args.input_path,
+            output_path=args.output_path,
+            rootfs_label=args.raw_rootfs_label,
+            prov_data=prov_data,
             hibernated=args.hibernated,
             fleets=args.fleets,
             force=args.force)
@@ -188,18 +193,17 @@ def init_parser(subparsers):
     # images provision
     subparser = subparsers.add_parser(
         "provision",
-        help=("Generate a Toradex Easy Installer image with provisioning data "
+        help=("Generate a Toradex Easy Installer or WIC/disk image with provisioning data "
               "for secure updates."),
         allow_abbrev=False)
     subparser.add_argument(
-        metavar="INPUT_DIRECTORY",
-        dest="input_directory",
-        help="Path to input TorizonCore Toradex Easy Installer image.")
+        metavar="INPUT_PATH",
+        dest="input_path",
+        help="Path to input Torizon OS image.")
     subparser.add_argument(
-        metavar="OUTPUT_DIRECTORY",
-        dest="output_directory",
-        help=("Path to output TorizonCore Toradex Easy Installer image, which "
-              "will hold provisioning data."))
+        metavar="OUTPUT_PATH",
+        dest="output_path",
+        help="Path to output Torizon OS image, which will hold provisioning data.")
     subparser.add_argument(
         "--mode", dest="mode", choices=PROV_MODES,
         help="Select type of provisioning; online mode encompasses offline mode.",
@@ -227,6 +231,8 @@ def init_parser(subparsers):
         help=("(Torizon OS 7.7+) Add fleet UUID to the provisioning. Devices that provision "
               "themselves will also try to be added to the fleet corresponding to the provided "
               "UUID. Can be passed multiple times to signify multiple fleets."))
+
+    common.add_common_raw_image_arguments(subparser)
     subparser.set_defaults(func=do_images_provision)
 
     # images serve
