@@ -9,8 +9,7 @@ import sys
 import tempfile
 
 from tcbuilder.backend import dt, dto, common, kernel
-from tcbuilder.backend.common import \
-    (images_unpack_executed, unpacked_image_type, is_file_type_fit)
+from tcbuilder.backend.common import images_unpack_executed, is_file_type_fit
 from tcbuilder.backend.kernelfit import KernelFit, KernelFitException
 
 from tcbuilder.cli import images as images_cli
@@ -161,9 +160,6 @@ def dto_apply(dtos_path, dtb_path, include_dirs,
     """
 
     images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
-                               "images. Aborting.")
 
     kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
@@ -405,8 +401,6 @@ def dto_list(device_tree, overlays_subdir):
     """Perform the 'dto list' command."""
 
     images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
     _dto_list_check_args(device_tree, overlays_subdir)
 
@@ -505,8 +499,6 @@ def dto_status():
     """Perform the 'dto status' command."""
 
     images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
     # Show the enabled device tree.
     dtb_basename = dt.get_current_dtb_basename()
@@ -611,9 +603,6 @@ def dto_remove_single(dtob_basename, presence_required=True):
     """Remove a single overlay."""
 
     images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
-                               "images. Aborting.")
 
     dtob_basenames = dto.get_applied_overlay_names()
     if not dtob_basename in dtob_basenames:
@@ -660,9 +649,6 @@ def dto_remove_all():
     """Remove all overlays currently applied."""
 
     images_unpack_executed()
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Device tree overlay customization is not supported for WIC/raw "
-                               "images. Aborting.")
 
     kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)

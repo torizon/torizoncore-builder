@@ -12,7 +12,7 @@ import re
 
 from tcbuilder.errors import (InvalidDataError, InvalidStateError)
 from tcbuilder.backend.kernel import get_kernel_changes_dir
-from tcbuilder.backend.common import get_storage_dir, is_file_type_dtb
+from tcbuilder.backend.common import get_storage_dir, is_file_type_dtb, unpacked_image_type
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -170,7 +170,7 @@ def get_uenv_txt_variable(var_name, *, drop_cont=False):
     return var_value
 
 
-def get_uboot_initial_env_path():
+def get_uboot_initial_env_tezi_path():
     """Get the path to u-boot-initial-env-sd, the initial bootloader environment set by Tezi."""
 
     storage_dir = get_storage_dir()
@@ -213,10 +213,11 @@ def get_current_dtb_basename():
         return dtb_basename
 
     # fdtfile is not defined in uEnv.txt.
-    # Find the value of fdtfile in u-boot-initial-env-sd instead.
-    dtb_basename = query_variable_in_config_file("fdtfile", get_uboot_initial_env_path())
-    if dtb_basename:
-        return dtb_basename
+    # For tezi images, find the value of fdtfile in u-boot-initial-env-sd instead.
+    if unpacked_image_type() == "tezi":
+        dtb_basename = query_variable_in_config_file("fdtfile", get_uboot_initial_env_tezi_path())
+        if dtb_basename:
+            return dtb_basename
 
     # Cannot identify the applied device tree.
     return None
@@ -228,8 +229,8 @@ def get_dtb_kernel_subdir():
     storage_dir = get_storage_dir()
     answer = subprocess.check_output(
         ("set -o pipefail && "
-         f"find {storage_dir}/sysroot/ostree/deploy -type d -name dtb -print -quit |"
-         " sed -r -e 's|.*/(usr/lib/modules/)|\\1|'"),
+         f"find {storage_dir}/sysroot/ostree/deploy -type d -path '*/usr/lib/modules/*/dtb' -print "
+         "-quit | sed -r -e 's|.*/(usr/lib/modules/)|\\1|'"),
         shell=True, executable="/bin/bash", text=True).strip()
     assert answer, "panic: missing kernel device tree directory!"
     return answer
