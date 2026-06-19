@@ -28,6 +28,8 @@ OSTREE_KERNEL_SUBDIR_PATH = "usr/lib/modules/{kver}/"
 OSTREE_KERNEL_FILENAME = "vmlinuz"
 KERNEL_FIT_FILENAME = OSTREE_KERNEL_FILENAME
 
+KARGS_SUPPORTED_BOOTLOADERS = ["U-Boot"]
+
 # Name of the "function" in uEnv.txt responsible for handling boot arguments
 # passed by means of an overlay.
 SET_BOOTARGS_CUSTOM_RE = r'^\s*set_bootargs_custom='
