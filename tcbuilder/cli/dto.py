@@ -811,8 +811,15 @@ def init_parser(subparsers):
     # dto deploy
     subparser = subparsers.add_parser(
         "deploy",
-        description="Deploy a device tree overlay in the device",
-        help="Deploy a device tree overlay in the device",
+        description=(
+            "[DEPRECATED] Deploy a device tree overlay in the device. "
+            "This command is deprecated. Use the 'build' command instead. "
+            f"For more information: {BUILD_COMMAND_URL}"
+        ),
+        help=(
+            "[DEPRECATED] Deploy a device tree overlay in the device. "
+            "Use the 'build' command instead."
+        ),
         allow_abbrev=False)
     subparser.add_argument(
         "--remote-host",
