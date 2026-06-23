@@ -65,6 +65,16 @@ RAW_PROP_DEFAULTS = {
     "raw_rootfs_label" : DEFAULT_RAW_ROOTFS_LABEL
 }
 
+TAR_EXT_TO_PROGRAM = {
+    ".gz": "gzip",
+    ".gzip": "gzip",
+    ".tgz": "gzip",
+    ".xz": "xz",
+    ".bz2": "bzip2",
+    ".lzo": "lzop",
+    ".tar": None
+}
+
 #  Hex value taken from the Devicetree Specification available at:
 #  https://devicetree-specification.readthedocs.io/en/stable/flattened-format.html
 FDT_HEADER_MAGIC = "d00dfeed"
@@ -74,6 +84,8 @@ REMOTE_CMD_TIMEOUT = 90
 SECBOOT_ARTIFACTS_DIR = "/storage/secboot_tracked_artifacts"
 
 OSTREE_ROOT_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}"
+
+OSTREE_SOTA_DIR_PATH = "/ostree/deploy/torizon/var/sota"
 
 
 def get_storage_dir():

@@ -407,6 +407,85 @@ properties:
             type: string
             description: "address of a remote OSTree archive"
         additionalProperties: false
+      provisioning:
+        type: object
+        description: "provisioning configuration"
+        properties:
+          mode:
+            type: string
+            enum:
+              - offline
+              - online
+              - disabled
+            description: "provisioning type (online covers offline)"
+          shared-data:
+            type: string
+            description: "path to tarball containing shared provisioning data (required with online and offline modes)"
+            tdxMeta: "file;tar.gz"
+          online-data:
+            type: string
+            description: "string containing provisioning data specific to the online mode"
+          hibernated:
+            type: boolean
+            description: "provision in hibernated mode"
+          fleets:
+            type: array
+            description: "list of UUID(s) to provision to"
+            items:
+              type: string
+              description: "version 4 UUID string"
+              tdxMeta: "uuid"
+        required: [mode]
+        additionalProperties: false
+      bundle:
+        type: object
+        description: "image bundling configuration"
+        oneOf:
+          - properties:
+              compose-file:
+                type: string
+                description: "path of a docker-compose file that will be included in the final image along with the required container images"
+                tdxMeta: "file;yml,yaml"
+              platform:
+                type: string
+                description: "platform for fetching multi-platform container images"
+              username:
+                type: string
+                description: "Docker login username to be used if accessing a private registry is required"
+              password:
+                type: string
+                description: "Docker login password to be used if accessing a private registry is required"
+              registry:
+                type: string
+                description: "Alternative container registry used to access container image"
+              ca-certificate:
+                type: string
+                description: "CA certificate path of alternative container registry"
+                tdxMeta: "file;cer,crt"
+              keep-double-dollar-sign:
+                type: boolean
+                description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
+              dind-params:
+                type: array
+                description: "list of parameters to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
+                items:
+                  type: string
+                  description: "parameter to the Docker-in-Docker container"
+              dind-env:
+                type: array
+                description: "list of environment variables to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
+                items:
+                  type: string
+                  description: "environment variable setting in the form VARIABLE=VALUE (no quotes around the value)"
+            required: [compose-file]
+            additionalProperties: false
+          - properties:
+              dir:
+                type: string
+                description: "path to directory containing the container images bundle to be combined with the installer image"
+                tdxMeta: "path"
+            required: [dir]
+            additionalProperties: false
     # Based on the 'not' approach here: https://medium.com/@smikulcik/oneof-explained-c0264c429735
     # As we're currently using JSON Schema draft-07, the cleaner 'unevaluatedProperties'
     # approach is not supported.
@@ -429,54 +508,9 @@ properties:
                 type: string
                 description: "base image used for the output raw image"
               bundle:
-                type: object
-                description: "image bundling configuration for raw image"
-                oneOf:
-                  - properties:
-                      compose-file:
-                        type: string
-                        description: "path of a docker-compose file that will be included in the final image along with the required container images"
-                        tdxMeta: "file;yml,yaml"
-                      platform:
-                        type: string
-                        description: "platform for fetching multi-platform container images"
-                      username:
-                        type: string
-                        description: "Docker login username to be used if accessing a private registry is required"
-                      password:
-                        type: string
-                        description: "Docker login password to be used if accessing a private registry is required"
-                      registry:
-                        type: string
-                        description: "Alternative container registry used to access container image"
-                      ca-certificate:
-                        type: string
-                        description: "CA certificate path of alternative container registry"
-                        tdxMeta: "file;cer,crt"
-                      keep-double-dollar-sign:
-                        type: boolean
-                        description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
-                      dind-params:
-                        type: array
-                        description: "list of parameters to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
-                        items:
-                          type: string
-                          description: "parameter to the Docker-in-Docker container"
-                      dind-env:
-                        type: array
-                        description: "list of environment variables to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
-                        items:
-                          type: string
-                          description: "environment variable setting in the form VARIABLE=VALUE (no quotes around the value)"
-                    required: [compose-file]
-                    additionalProperties: false
-                  - properties:
-                      dir:
-                        type: string
-                        description: "path to directory containing the container images bundle to be combined with the installer image"
-                        tdxMeta: "path"
-                    required: [dir]
-                    additionalProperties: false
+                $ref: '#/properties/output/definitions/bundle'
+              provisioning:
+                $ref: '#/properties/output/definitions/provisioning'
             required: [local]
             # No extra props inside 'raw-image'
             additionalProperties: false
@@ -517,84 +551,9 @@ properties:
                 type: boolean
                 description: "add/remove auto-reboot in the wrapup.sh file"
               provisioning:
-                type: object
-                description: "provisioning configuration"
-                properties:
-                  mode:
-                    type: string
-                    enum:
-                      - offline
-                      - online
-                      - disabled
-                    description: "provisioning type (online covers offline)"
-                  shared-data:
-                    type: string
-                    description: "path to tarball containing shared provisioning data (required with online and offline modes)"
-                    tdxMeta: "file;tar.gz"
-                  online-data:
-                    type: string
-                    description: "string containing provisioning data specific to the online mode"
-                  hibernated:
-                    type: boolean
-                    description: "provision in hibernated mode"
-                  fleets:
-                    type: array
-                    description: "list of UUID(s) to provision to"
-                    items:
-                      type: string
-                      description: "version 4 UUID string"
-                      tdxMeta: "uuid"
-                required: [mode]
-                additionalProperties: false
+                $ref: '#/properties/output/definitions/provisioning'
               bundle:
-                type: object
-                description: "image bundling configuration"
-                oneOf:
-                  - properties:
-                      compose-file:
-                        type: string
-                        description: "path of a docker-compose file that will be included in the final image along with the required container images"
-                        tdxMeta: "file;yml,yaml"
-                      platform:
-                        type: string
-                        description: "platform for fetching multi-platform container images"
-                      username:
-                        type: string
-                        description: "Docker login username to be used if accessing a private registry is required"
-                      password:
-                        type: string
-                        description: "Docker login password to be used if accessing a private registry is required"
-                      registry:
-                        type: string
-                        description: "Alternative container registry used to access container image"
-                      ca-certificate:
-                        type: string
-                        description: "CA certificate path of alternative container registry"
-                        tdxMeta: "file;cer,crt"
-                      keep-double-dollar-sign:
-                        type: boolean
-                        description: "Keep double dollar sign instead of replacing it with a single one when parsing string values of the compose file"
-                      dind-params:
-                        type: array
-                        description: "list of parameters to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
-                        items:
-                          type: string
-                          description: "parameter to the Docker-in-Docker container"
-                      dind-env:
-                        type: array
-                        description: "list of environment variables to pass to the Docker-in-Docker container executed by TorizonCore Builder to fetch containers and produce a bundle"
-                        items:
-                          type: string
-                          description: "environment variable setting in the form VARIABLE=VALUE (no quotes around the value)"
-                    required: [compose-file]
-                    additionalProperties: false
-                  - properties:
-                      dir:
-                        type: string
-                        description: "path to directory containing the container images bundle to be combined with the installer image"
-                        tdxMeta: "path"
-                    required: [dir]
-                    additionalProperties: false
+                $ref: '#/properties/output/definitions/bundle'
             required: [local]
             # No extra props inside 'easy-installer'
             additionalProperties: false

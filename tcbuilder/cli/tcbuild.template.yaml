@@ -175,6 +175,21 @@ output:
       # >> (2) Specify a local directory containing the bundled images (previously
       # >>     obtained by 'torizoncore-builder bundle' command).
       # dir: bundle/
+    # >> Provisioning configuration:
+    # provisioning:
+      # >> For "online" mode, properties "shared-data" and "online-data" must be specified.
+      # >> For "offline" mode, property "shared-data" must be specified alone.
+      # mode: "online"
+      # shared-data: "shared-data.tar.gz"
+      # online-data: "${ONLINE_PROVISIONING_DATA:?online provisioning data not supplied}"
+      # >> Provision in hibernated mode. In this state devices are registered, but
+      # >> cannot send/receive data to/from Torizon Cloud, and they're not counted
+      # >> towards a subscription.
+      # hibernated: false
+      # >> List of fleet UUIDs to provision to.
+      # >> Replace example UUID with your actual fleet UUID.
+      # fleets:
+        # - 0dfab76b-5b71-4435-ab6f-c6cdc62690c6
   # >> (2) Parameters for deploying to an Easy Installer image.
   easy-installer:
     # >> Output directory of the customized image (REQUIRED):
@@ -201,6 +216,11 @@ output:
       # registry: hub.docker.com
       # ca-certificate: cacert.pem
       # keep-double-dollar-sign: false
+      # dind-params:
+        # - '--param1'
+        # - '--param2'
+      # dind-env:
+        # - 'VAR1=value1'
       # >> (2) Specify a local directory containing the bundled images (previously
       # >>     obtained by 'torizoncore-builder bundle' command).
       # dir: bundle/
