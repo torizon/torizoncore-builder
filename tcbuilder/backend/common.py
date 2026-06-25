@@ -10,14 +10,19 @@ import time
 import threading
 import binascii
 import glob
+import shutil
+import tempfile
 
 from typing import Optional
 from contextlib import contextmanager
+from datetime import datetime
+from urllib.request import urlretrieve
 
 import git
 import dns.resolver
 import ifaddr
 import guestfs
+import requests
 
 from docker import DockerClient
 from docker.errors import NotFound
@@ -28,9 +33,9 @@ import tezi.utils
 from tezi.image import ImageConfig
 from tcbuilder.backend import ostree
 from tcbuilder.errors import \
-    (FileContentMissing, GitRepoError, ImageUnpackError, InvalidDataError,
-     InvalidStateError, LicenceAcceptanceError, OperationFailureError,
-     PathNotExistError, TorizonCoreBuilderError)
+    (FileContentMissing, GitRepoError, ImageUnpackError, InvalidDataError, InvalidStateError,
+     LicenceAcceptanceError, OperationFailureError, PathNotExistError, TorizonCoreBuilderError,
+     IntegrityCheckFailed, ParseError)
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -74,6 +79,49 @@ TAR_EXT_TO_PROGRAM = {
     ".lzo": "lzop",
     ".tar": None
 }
+
+DEFAULT_SERVER_NAME = "frankfurt"
+
+DEFAULT_SRC = "torizoncore-oe"
+
+RELEASE_TO_PROD_MAP = {
+    "nightly": "prerelease",
+    "monthly": "prerelease",
+    "quarterly": "prod"
+}
+RELEASE_TO_DEVEL_MAP = {
+    "nightly": "-devel-",
+    "monthly": "-devel-",
+    "quarterly": ""
+}
+RELEASE_TO_BUILD_TYPE_MAP = {
+    "nightly": "nightly",
+    "monthly": "monthly",
+    "quarterly": "release"
+}
+MAJOR_TO_YOCTO_MAP = {
+    5: "dunfell-5.x.y",
+    6: "kirkstone-6.x.y",
+    7: "scarthgap-7.x.y"
+}
+
+SYNAIMG_MACHINES = ("luna-sl1680", "sl1680")
+
+COMMON_TORIZON_TO_SRC = {
+    "am62lxx-evm": "common-torizon-ti-oe",
+    "am62pxx-evm": "common-torizon-ti-oe",
+    "am62xx-evm": "common-torizon-ti-oe",
+    "beagley-ai": "common-torizon-ti-oe",
+    "intel-corei7-64": "common-torizon-x86-oe",
+    "luna-sl1680": "common-torizon-syn-oe",
+    "sl1680": "common-torizon-syn-oe"
+}
+
+LEGACY_VARIANT_PREFIX = "torizon-core-"
+VARIANT_PREFIX = "torizon-"
+
+DEFAULT_LEGACY_IMAGE_VARIANT = LEGACY_VARIANT_PREFIX + "docker"
+DEFAULT_IMAGE_VARIANT = VARIANT_PREFIX + "docker"
 
 #  Hex value taken from the Devicetree Specification available at:
 #  https://devicetree-specification.readthedocs.io/en/stable/flattened-format.html
@@ -1038,3 +1086,246 @@ def open_disk_image(image_path, *, delete_on_error=False, readonly=False, loadin
         if gfs:
             gfs.shutdown()
             gfs.close()
+
+
+def checksum_match(fpath, cksum, error_on_mismatch=True):
+    """Check if SHA256 checksum of a file matches the provided value."""
+
+    file_cksum = get_file_sha256sum(fpath)
+    log.info("Calculated SHA256 checksum: %s", file_cksum)
+    if cksum != file_cksum:
+        if error_on_mismatch:
+            raise IntegrityCheckFailed(
+                f"Calculated checksum of '{os.path.basename(fpath)}' does not match "
+                "expected value. Aborting.")
+        log.warning("Calculated checksum of '%s' does not match expected value.",
+                    os.path.basename(fpath))
+        return False
+
+    log.info("Integrity check was successful!")
+    return True
+
+
+def checksum_match_with_remote(fpath, url, error_on_mismatch=True):
+    """Check if existing file checksum matches the one referenced in url."""
+
+    # Try to get checksum from response header
+    res = requests.head(url, timeout=60)
+    if res.status_code == requests.codes["ok"] and "X-Checksum-Sha256" in res.headers:
+        cksum = res.headers["X-Checksum-Sha256"]
+        log.info("Got SHA256 checksum from response header: %s", cksum)
+    else:
+        log.info("Could not get file checksum from response header.")
+        return None
+
+    return checksum_match(fpath, cksum, error_on_mismatch)
+
+
+def sanitize_fname(fname, repl="_"):
+    """Replace disallowed characters in file names"""
+    return re.sub(r"[^\w\.\-\+]", repl, fname)
+
+
+# From https://stackoverflow.com/questions/37060344/
+# how-to-determine-the-filename-of-content-downloaded-with-http-in-python
+#
+def parse_disposition_header(header):
+    """Simplified parser of Content-Disposition header (RFC 6266)"""
+    # Review this if a full-blown parser is required (TODO).
+    # See https://tools.ietf.org/html/rfc6266
+    fname = re.findall(r"filename\*?=([^;]+)", header, flags=re.IGNORECASE)
+    assert len(fname) == 1, "Failed parsing Content-Disposition header"
+    return fname[0].strip().strip('"')
+
+
+def fetch_remote(url, fname=None, cksum=None, download_dir=None):
+    """Fetch a remote file
+
+    :param url: Source URL for the file.
+    :param fname: Base name of the file to download (currently required).
+    :param cksum: Expected SHA-256 checksum of the file. If the downloaded
+                  file checksum does not match it an `IntegrityCheckFailed`
+                  exception will be raised.
+    :param download_dir: Directory where file should be downloaded to or
+                         obtained from if it already exists.
+    """
+
+    # No path allowed: paths should be passed through download_dir.
+    if fname:
+        assert os.path.basename(fname) == fname, \
+            "fetch_remote: file name cannot contain a path"
+
+    if None not in [fname, download_dir] and os.path.isfile(os.path.join(download_dir, fname)):
+        fpath = os.path.join(download_dir, fname)
+        log.info("'%s' already exists. Verifying checksum.", fname)
+        if cksum is not None:
+            log.info("Provided SHA256 checksum: %s", cksum)
+            if checksum_match(fpath, cksum, error_on_mismatch=False):
+                return fname, False
+        elif checksum_match_with_remote(fpath, url, error_on_mismatch=False) in [None, True]:
+            return fname, False
+        # Checksum failed for local file, download image
+        fname, ext = os.path.splitext(fname)
+        fname = fname + datetime.now().strftime("_%Y%m%d%H%M%S") + ext
+        log.warning("Downloading file as '%s'.", fname)
+
+    # Inner helper function.
+    def make_download_fname(fname):
+        """Make full name of file to download"""
+        des_fname = None
+        is_temp = False
+        if download_dir and fname:
+            # Download directory and file name known: use them.
+            des_fname = os.path.join(download_dir, fname)
+        elif fname:
+            # Only file name is known: place file into temp directory.
+            des_fname = os.path.join(tempfile.gettempdir(), fname)
+            is_temp = True
+        return des_fname, is_temp
+
+    in_fname, is_temp = make_download_fname(fname)
+
+    try:
+        log.info(f"Fetching URL '{url}' into '{in_fname}'")
+
+        # Do actual download.
+        with download_progress() as reporthook:
+            out_fname, headers = urlretrieve(url, filename=in_fname, reporthook=reporthook)
+
+        log.info("Download Complete!")
+        # log.debug(f"Downloaded {out_fname}, headers: {headers}")
+
+        # If we still haven't decided the name of the file, try to determine
+        # one from the Content-Disposition header.
+        if in_fname is None and "Content-Disposition" in headers:
+            new_fname = parse_disposition_header(headers["Content-Disposition"])
+            new_fname = sanitize_fname(new_fname)
+            new_fname, is_temp = make_download_fname(new_fname)
+            log.debug(f"Moving '{out_fname}' to '{new_fname}'")
+            shutil.move(out_fname, new_fname)
+            out_fname = new_fname
+
+        elif in_fname is None:
+            # Currently a temporary name is useless to the program because the
+            # file name is used to determine its type. This should be reviewed
+            # if the logic in 'images unpack' changes (TODO).
+            os.unlink(out_fname)
+            raise InvalidDataError(
+                "Cannot determine appropriate file name after download!")
+    except Exception as exc:
+        raise OperationFailureError(f"Could not fetch URL '{url}'") from exc
+
+    log.info(f"Downloaded file name: '{out_fname}'")
+    if not is_temp:
+        set_output_ownership(out_fname)
+
+    # Ensure checksum matches expected one:
+    if cksum is not None:
+        checksum_match(out_fname, cksum, error_on_mismatch=True)
+    elif checksum_match_with_remote(out_fname, url, error_on_mismatch=True) is None:
+        log.info("No integrity check performed because reference checksum could not be obtained.")
+
+    return out_fname, is_temp
+
+
+def make_feed_url(feed_props):
+    """Build URL to the input image based on Toradex feed properties"""
+
+    # Update documentation with latest changes to the toradex-feed prop:
+    # - major -> version (string, major.minor.patch)
+    # - module -> machine
+    # - release value 'stable' -> 'quarterly'
+    # - build-number (number|string, required) added
+    # - build-date (number|string, required except when quarterly) added
+
+    # ---
+    # Define each part of the URL - store in a dictionary:
+    # ---
+    params = {}
+
+    # NOTE: We use assertions below for tests that should never fail
+    #       since the schema validation should have caught them before
+    #       and we raise exceptions in other cases.
+    release_prop = feed_props.get("release")
+    if release_prop not in RELEASE_TO_PROD_MAP:
+        assert False, "Unhandled release property value"
+
+    distro_prop = feed_props["distro"]
+    rt_flag = "-rt" if distro_prop[-3:] == "-rt" else ""
+
+    params["prod"] = RELEASE_TO_PROD_MAP[release_prop]
+    params["server"] = DEFAULT_SERVER_NAME
+    params["machine_name"] = feed_props["machine"]
+    params["distro"] = distro_prop
+    params["variant"] = feed_props.get("variant")
+    params["rt_flag"] = rt_flag
+
+    if params["machine_name"] in COMMON_TORIZON_TO_SRC:
+        params["src"]  = COMMON_TORIZON_TO_SRC[params["machine_name"]]
+        params["tezi_flag"] = ""
+        params["ext"] = "wic"
+    else:
+        params["src"] = DEFAULT_SRC
+        params["tezi_flag"] = "Tezi_"
+        params["ext"] = "tar"
+
+    version_prop = feed_props["version"]
+    version_major = int(version_prop.split('.')[0])
+    if version_major not in MAJOR_TO_YOCTO_MAP:
+        # Raise a parse error instead to allow a better message (TODO)
+        # Caller should capture parse error and set file name.
+        raise InvalidDataError(
+            f"Don't know how to handle a major version of {version_major}")
+
+    if params["variant"] is None:
+        if MAJOR_TO_YOCTO_MAP[version_major] in ("dunfell-5.x.y", "kirkstone-6.x.y"):
+            params["variant"] = DEFAULT_LEGACY_IMAGE_VARIANT
+        else:
+            params["variant"] = DEFAULT_IMAGE_VARIANT
+
+    params["version"] = feed_props["version"]
+    params["yocto"] = MAJOR_TO_YOCTO_MAP[version_major]
+
+    if release_prop not in RELEASE_TO_BUILD_TYPE_MAP:
+        assert False, "Unhandled release property value"
+    params["build_type"] = RELEASE_TO_BUILD_TYPE_MAP[release_prop]
+
+    # Automatically detect build number and build date based on manifest (TODO)
+    build_number_prop = feed_props["build-number"]
+    params["build_number"] = build_number_prop
+
+    if release_prop == "quarterly":
+        params["build_date"] = ""
+    else:
+        build_date_prop = feed_props.get("build-date")
+        if build_date_prop is None:
+            raise ParseError("Monthly and nightly images require the 'build-date' field.")
+        params["build_date"] = build_date_prop
+
+    if release_prop not in RELEASE_TO_DEVEL_MAP:
+        assert False, "Unhandled release property value"
+    params["devel"] = RELEASE_TO_DEVEL_MAP[release_prop]
+
+    url_format = (
+        "https://artifacts.toradex.com/artifactory/{src}-{prod}-{server}/{yocto}/"
+        "{build_type}/{build_number}/{machine_name}/{distro}/{variant}/oedeploy/"
+    )
+    name_format = (
+        "{variant}{rt_flag}-{machine_name}-{tezi_flag}{version}"
+        "{devel}{build_date}+build.{build_number}.{ext}"
+    )
+
+    if params["build_type"] == "nightly":
+        log.warning("NOTE: Nightly images are only kept in our servers for a few weeks.")
+        log.warning("The URL may no longer work.")
+
+    if feed_props["machine"] in SYNAIMG_MACHINES:
+        filename = "SYNAIMG-flash.tar.gz"
+    else:
+        filename = name_format.format(**params)
+
+    url = url_format.format(**params) + filename
+
+    log.debug(f"Feed URL: {url}")
+
+    return url, filename

@@ -5,6 +5,72 @@ properties:
   input:
     type: object
     description: "source artifact for customization"
+    definitions:
+      tezi-img-machines:
+        type: string
+        enum:
+          - aquila-am69
+          - aquila-imx95
+          - apalis-imx6
+          - apalis-imx8
+          - apalis-imx8x
+          - colibri-imx6
+          - colibri-imx6ull-emmc
+          - colibri-imx7
+          - colibri-imx7-emmc
+          - colibri-imx8x
+          - colibri-imx8x-v10b
+          - toradex-smarc-imx8mp
+          - toradex-smarc-imx95
+          - verdin-imx8mm
+          - verdin-imx8mp
+          - verdin-imx95
+          - verdin-am62
+          - verdin-am62p
+      raw-img-machines:
+        type: string
+        enum:
+          - am62lxx-evm
+          - am62pxx-evm
+          - am62xx-evm
+          - beagley-ai
+          - intel-corei7-64
+          - luna-sl1680
+          - sl1680
+      toradex-feed-common-props:
+        type: object
+        properties:
+          version:
+            type: string
+            description: "image version (major.minor.patch)"
+            pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            tdxMeta: "build;version"
+          release:
+            type: string
+            enum:
+              - nightly
+              - monthly
+              - quarterly
+            description: "release type"
+          variant:
+            type: string
+            enum:
+              - torizon-core-docker
+              - torizon-core-podman
+              - torizon-docker
+              - torizon-podman
+              - torizon-minimal
+            description: "variant of the image"
+          build-number:
+            type: [number, string]
+            description: "build number as a string or number"
+            pattern: "^[0-9]+$"
+            tdxMeta: "build;number"
+          build-date:
+            type: [number, string]
+            description: "build date as a string or number (e.g. 202105 for a monthly or 20210517 for a nightly)"
+            pattern: "^[0-9]+$"
+            tdxMeta: "build;date"
     oneOf:
       - properties:
           easy-installer:
@@ -30,81 +96,35 @@ properties:
                   toradex-feed:
                     type: object
                     description: "individual image attributes that will be used by the tool to download a standard image from the official feed server"
-                    properties:
-                      version:
-                        type: string
-                        description: "image version (major.minor.patch)"
-                        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
-                        tdxMeta: "build;version"
-                      release:
-                        type: string
-                        enum:
-                          - nightly
-                          - monthly
-                          - quarterly
-                        description: "release type"
-                      machine:
-                        type: string
-                        enum:
-                          - aquila-am69
-                          - aquila-imx95
-                          - apalis-imx6
-                          - apalis-imx8
-                          - apalis-imx8x
-                          - colibri-imx6
-                          - colibri-imx6ull-emmc
-                          - colibri-imx7
-                          - colibri-imx7-emmc
-                          - colibri-imx8x
-                          - colibri-imx8x-v10b
-                          - toradex-smarc-imx8mp
-                          - toradex-smarc-imx95
-                          - verdin-imx8mm
-                          - verdin-imx8mp
-                          - verdin-imx95
-                          - verdin-am62
-                          - verdin-am62p
-                        description: "target module type"
-                      distro:
-                        type: string
-                        enum:
-                          - torizon
-                          - torizon-rt
-                          - torizon-upstream
-                          - torizon-upstream-rt
-                        description: "distribution type"
-                      variant:
-                        type: string
-                        enum:
-                          - torizon-core-docker
-                          - torizon-core-podman
-                          - torizon-docker
-                          - torizon-podman
-                          - torizon-minimal
-                        description: "variant of the image"
-                      build-number:
-                        type: [number, string]
-                        description: "build number as a string or number"
-                        pattern: "^[0-9]+$"
-                        tdxMeta: "build;number"
-                      build-date:
-                        type: [number, string]
-                        description: "build date as a string or number (e.g. 202105 for a monthly or 20210517 for a nightly)"
-                        pattern: "^[0-9]+$"
-                        tdxMeta: "build;date"
-                    required:
-                      - version
-                      - release
-                      - machine
-                      - distro
-                      - build-number
-                    if:
-                      properties:
-                        release:
-                          const: quarterly
-                    else:
-                      required:
-                        - build-date
+                    allOf:
+                      - $ref: '#/properties/input/definitions/toradex-feed-common-props'
+                      - properties:
+                          machine:
+                            allOf:
+                              - $ref: '#/properties/input/definitions/tezi-img-machines'
+                            description: "target module type"
+                          distro:
+                            type: string
+                            enum:
+                              - torizon
+                              - torizon-rt
+                              - torizon-upstream
+                              - torizon-upstream-rt
+                            description: "distribution type"
+                        required:
+                          - version
+                          - release
+                          - machine
+                          - distro
+                          - build-number
+                        if:
+                          properties:
+                            release:
+                              const: quarterly
+                        then: {}
+                        else:
+                          required:
+                            - build-date
                 additionalProperties: false
                 required:
                   - toradex-feed
@@ -144,21 +164,61 @@ properties:
           raw-image:
             type: object
             description: "specify a WIC/raw Torizon OS image as the source for customization"
-            properties:
-              local:
-                type: string
-                description: "local .wic or .img file"
-                tdxMeta: "file;wic,img"
-              rootfs-label:
-                type: string
-                description: "label of the filesystem where rootfs is located"
-            additionalProperties: false
-            required:
-              - local
+            oneOf:
+              - properties:
+                  local:
+                    type: string
+                    description: "local .wic or .img file"
+                    tdxMeta: "file;wic,img"
+                  rootfs-label:
+                    type: string
+                    description: "label of the filesystem where rootfs is located"
+                additionalProperties: false
+                required:
+                  - local
+              - properties:
+                  remote:
+                    type: string
+                    description: "URL used to download the image (integrity check supported)"
+                additionalProperties: false
+                required:
+                  - remote
+              - properties:
+                  toradex-feed:
+                    type: object
+                    description: "individual image attributes that will be used by the tool to download a standard image from the official feed server"
+                    allOf:
+                      - $ref: '#/properties/input/definitions/toradex-feed-common-props'
+                      - properties:
+                          machine:
+                            allOf:
+                              - $ref: '#/properties/input/definitions/raw-img-machines'
+                            description: "target module type"
+                          distro:
+                            type: string
+                            enum:
+                              - common-torizon
+                            description: "distribution type"
+                        required:
+                          - version
+                          - release
+                          - machine
+                          - distro
+                          - build-number
+                        if:
+                          properties:
+                            release:
+                              const: quarterly
+                        then: {}
+                        else:
+                          required:
+                            - build-date
+                additionalProperties: false
+                required:
+                  - toradex-feed
         additionalProperties: false
         required:
           - raw-image
-
   customization:
     type: object
     description: "modifications to be applied to the input to produce the desired output"

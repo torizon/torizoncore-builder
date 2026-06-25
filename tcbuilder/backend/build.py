@@ -6,45 +6,18 @@ import os
 import copy
 import logging
 import re
-import shutil
-import tempfile
 
 from urllib.parse import urlparse, unquote
-from urllib.request import urlretrieve
 
 import jsonschema
 import yaml
 
-from tcbuilder.backend.common import download_progress, get_file_sha256sum
+from tcbuilder.backend.common import sanitize_fname
 from tcbuilder.backend.expandvars import expand
-from tcbuilder.errors import (PathNotExistError, InvalidDataError,
-                              InvalidAssignmentError, OperationFailureError,
-                              IntegrityCheckFailed, ParseError, ParseErrors)
+from tcbuilder.errors import (PathNotExistError, InvalidDataError, InvalidAssignmentError,
+                              ParseError, ParseErrors)
 
 DEFAULT_SCHEMA_FILE = "tcbuild.schema.yaml"
-
-RELEASE_TO_PROD_MAP = {
-    "nightly": "torizoncore-oe-prerelease-frankfurt",
-    "monthly": "torizoncore-oe-prerelease-frankfurt",
-    "quarterly": "torizoncore-oe-prod-frankfurt"
-}
-RELEASE_TO_DEVEL_MAP = {
-    "nightly": "-devel-",
-    "monthly": "-devel-",
-    "quarterly": ""
-}
-RELEASE_TO_BUILD_TYPE_MAP = {
-    "nightly": "nightly",
-    "monthly": "monthly",
-    "quarterly": "release"
-}
-MAJOR_TO_YOCTO_MAP = {
-    5: "dunfell-5.x.y",
-    6: "kirkstone-6.x.y",
-    7: "scarthgap-7.x.y"
-}
-DEFAULT_LEGACY_IMAGE_VARIANT = "torizon-core-docker"
-DEFAULT_IMAGE_VARIANT = "torizon-docker"
 
 # Assignment regex pre-compiled.
 ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
@@ -80,11 +53,6 @@ def parse_assignments(assignments):
         var_mapping[var_key] = var_val
 
     return var_mapping
-
-
-def sanitize_fname(fname, repl="_"):
-    """Replace disallowed characters in file names"""
-    return re.sub(r"[^\w\.\-\+]", repl, fname)
 
 
 def parse_remote(remote_str, infer_fname=True):
@@ -132,97 +100,6 @@ def parse_remote(remote_str, infer_fname=True):
             fname = None
 
     return url, fname, cksum
-
-
-def fetch_remote(url, fname=None, cksum=None, download_dir=None):
-    """Fetch a remote file
-
-    :param url: Source URL for the file.
-    :param fname: Base name of the file to download (currently required).
-    :param cksum: Expected SHA-256 checksum of the file. If the downloaded
-                  file checksum does not match it an `IntegrityCheckFailed`
-                  exception will be raised.
-    :param download_dir: Directory where file should be downloaded to or
-                         obtained from if it already exists (TODO).
-    """
-
-    # No path allowed: paths should be passed through download_dir.
-    if fname:
-        assert os.path.basename(fname) == fname, \
-            "fetch_remote: file name cannot contain a path"
-
-    if None not in [fname, cksum, download_dir]:
-        # If a file in the download directory with correct checksum exists then
-        # do not download it again (TODO).
-        pass
-
-    elif None not in [fname, download_dir]:
-        # If a file in the download directory exists and its checksum matches
-        # the one provided by the server then do not download it again.
-        # Note that Artifactory provides a header named X-Checksum-Sha256
-        # that we could use for that (TODO).
-        pass
-
-    # Inner helper function.
-    def make_download_fname(fname):
-        """Make full name of file to download"""
-        des_fname = None
-        is_temp = False
-        if download_dir and fname:
-            # Download directory and file name known: use them.
-            des_fname = os.path.join(download_dir, fname)
-        elif fname:
-            # Only file name is known: place file into temp directory.
-            des_fname = os.path.join(tempfile.gettempdir(), fname)
-            is_temp = True
-        return des_fname, is_temp
-
-    in_fname, is_temp = make_download_fname(fname)
-
-    try:
-        log.info(f"Fetching URL '{url}' into '{in_fname}'")
-
-        # Do actual download.
-        with download_progress() as reporthook:
-            out_fname, headers = urlretrieve(url, filename=in_fname, reporthook=reporthook)
-
-        log.info("Download Complete!")
-        # log.debug(f"Downloaded {out_fname}, headers: {headers}")
-
-        # If we still haven't decided the name of the file, try to determine
-        # one from the Content-Disposition header.
-        if in_fname is None and "Content-Disposition" in headers:
-            new_fname = parse_disposition_header(headers["Content-Disposition"])
-            new_fname = sanitize_fname(new_fname)
-            new_fname, is_temp = make_download_fname(new_fname)
-            log.debug(f"Moving '{out_fname}' to '{new_fname}'")
-            shutil.move(out_fname, new_fname)
-            out_fname = new_fname
-
-        elif in_fname is None:
-            # Currently a temporary name is useless to the program because the
-            # file name is used to determine its type. This should be reviewed
-            # if the logic in 'images unpack' changes (TODO).
-            os.unlink(out_fname)
-            raise InvalidDataError(
-                "Cannot determine appropriate file name after download!")
-    except Exception as exc:
-        raise OperationFailureError(f"Could not fetch URL '{url}'") from exc
-
-    log.info(f"Downloaded file name: '{out_fname}'")
-
-    # Ensure checksum matches expected one:
-    if cksum is not None:
-        file_cksum = get_file_sha256sum(out_fname)
-        if cksum != file_cksum:
-            raise IntegrityCheckFailed(
-                f"Downloaded file sha256sum of '{file_cksum}' does not match "
-                f"expected checksum of '{cksum}'")
-        log.info("Integrity check was successful!")
-    else:
-        log.info("No integrity check performed because checksum was not specified.")
-
-    return out_fname, is_temp
 
 
 def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None):
@@ -274,94 +151,6 @@ def parse_config_file(config_path, schema_path=DEFAULT_SCHEMA_FILE, substs=None)
     return config
 
 
-def make_feed_url(feed_props):
-    """Build URL to the input image based on Toradex feed properties"""
-
-    # Update documentation with latest changes to the toradex-feed prop:
-    # - major -> version (string, major.minor.patch)
-    # - module -> machine
-    # - release value 'stable' -> 'quarterly'
-    # - build-number (number|string, required) added
-    # - build-date (number|string, required except when quarterly) added
-
-    # ---
-    # Define each part of the URL - store in a dictionary:
-    # ---
-    params = {}
-
-    # NOTE: We use assertions below for tests that should never fail
-    #       since the schema validation should have caught them before
-    #       and we raise exceptions in other cases.
-    release_prop = feed_props.get("release")
-    if release_prop not in RELEASE_TO_PROD_MAP:
-        assert False, "Unhandled release property value"
-
-    distro_prop = feed_props["distro"]
-    rt_flag = "-rt" if distro_prop[-3:] == "-rt" else ""
-
-    params["prod"] = RELEASE_TO_PROD_MAP[release_prop]
-    params["machine_name"] = feed_props["machine"]
-    params["distro"] = distro_prop
-    params["variant"] = feed_props.get("variant")
-    params["rt_flag"] = rt_flag
-
-    version_prop = feed_props["version"]
-    version_major = int(version_prop.split('.')[0])
-    if version_major not in MAJOR_TO_YOCTO_MAP:
-        # Raise a parse error instead to allow a better message (TODO)
-        # Caller should capture parse error and set file name.
-        raise InvalidDataError(
-            f"Don't know how to handle a major version of {version_major}")
-
-    if params["variant"] is None:
-        if MAJOR_TO_YOCTO_MAP[version_major] in ("dunfell-5.x.y", "kirkstone-6.x.y"):
-            params["variant"] = DEFAULT_LEGACY_IMAGE_VARIANT
-        else:
-            params["variant"] = DEFAULT_IMAGE_VARIANT
-
-    params["version"] = feed_props["version"]
-    params["yocto"] = MAJOR_TO_YOCTO_MAP[version_major]
-
-    if release_prop not in RELEASE_TO_BUILD_TYPE_MAP:
-        assert False, "Unhandled release property value"
-    params["build_type"] = RELEASE_TO_BUILD_TYPE_MAP[release_prop]
-
-    # Automatically detect build number and build date based on manifest (TODO)
-    build_number_prop = feed_props["build-number"]
-    params["build_number"] = build_number_prop
-
-    if release_prop == "quarterly":
-        params["build_date"] = ""
-    else:
-        build_date_prop = feed_props.get("build-date")
-        if build_date_prop is None:
-            # Raise a parse error instead to allow a better message (TODO)
-            raise InvalidDataError("'build-date' must be specified")
-        params["build_date"] = build_date_prop
-
-    if release_prop not in RELEASE_TO_DEVEL_MAP:
-        assert False, "Unhandled release property value"
-    params["devel"] = RELEASE_TO_DEVEL_MAP[release_prop]
-
-    url_format = (
-        "https://artifacts.toradex.com/artifactory/{prod}/{yocto}/"
-        "{build_type}/{build_number}/{machine_name}/{distro}/{variant}/"
-        "oedeploy/{variant}{rt_flag}-{machine_name}-Tezi_{version}"
-        "{devel}{build_date}+build.{build_number}.tar"
-    )
-    name_format = (
-        "{variant}{rt_flag}-{machine_name}-Tezi_{version}"
-        "{devel}{build_date}+build.{build_number}.tar"
-    )
-
-    url = url_format.format(**params)
-    filename = name_format.format(**params)
-
-    log.debug(f"Feed URL: {url}")
-
-    return url, filename
-
-
 def transform_leaves(dct, handler, max_depth=10):
     """Traverse a dictionary invoking 'handler' on all leaf nodes"""
 
@@ -404,15 +193,3 @@ def subst_variables(config, variables):
     config = copy.deepcopy(config)
     transform_leaves(config, _replacer)
     return config
-
-
-# From https://stackoverflow.com/questions/37060344/
-# how-to-determine-the-filename-of-content-downloaded-with-http-in-python
-#
-def parse_disposition_header(header):
-    """Simplified parser of Content-Disposition header (RF6266)"""
-    # Review this if a full-blown parser is required (TODO).
-    # See https://tools.ietf.org/html/rfc6266
-    fname = re.findall(r"filename\*?=([^;]+)", header, flags=re.IGNORECASE)
-    assert len(fname) == 1, "Failed parsing Content-Disposition header"
-    return fname[0].strip().strip('"')

@@ -16,7 +16,7 @@ from tcbuilder.backend.registryops import RegistryOperations
 from tcbuilder.errors import \
     (FeatureNotImplementedError, FileContentMissing, InvalidArgumentError, InvalidDataError,
      InvalidStateError, LicenceAcceptanceError, ParseError, ParseErrors, PathNotExistError,
-     TorizonCoreBuilderError)
+     UnsupportedImageFeature, TorizonCoreBuilderError)
 
 from tcbuilder.backend import common
 from tcbuilder.backend import build as bb
@@ -95,8 +95,10 @@ def handle_input_section(props, **kwargs):
     :param props: Dictionary holding the data of the section.
     :param kwargs: Keyword arguments that are forwarded to the handling
                    functions of the subsections.
+    :returns: Input image path in case of a disk image, None if TEZI image
     """
 
+    base_raw_image = None
     if props:
         log.info(l1_pref("Handling input section"))
 
@@ -105,10 +107,11 @@ def handle_input_section(props, **kwargs):
     elif "ostree" in props:
         handle_ostree_input(props["ostree"], **kwargs)
     elif "raw-image" in props:
-        handle_raw_image_input(props["raw-image"], **kwargs)
+        base_raw_image = handle_raw_image_input(props["raw-image"], **kwargs)
     else:
         raise FileContentMissing(
             "No kind of input specified in configuration file")
+    return base_raw_image
 
 
 def handle_easy_installer_input(props, download_dir=None):
@@ -125,7 +128,7 @@ def handle_easy_installer_input(props, download_dir=None):
     elif ("remote" in props) or ("toradex-feed" in props):
         if "toradex-feed" in props:
             # Evaluate if it makes sense to supply a checksum here too (TODO).
-            remote_url, remote_fname = bb.make_feed_url(props["toradex-feed"])
+            remote_url, remote_fname = common.make_feed_url(props["toradex-feed"])
             cksum = None
         else:
             # Parse remote which may contain integrity checking information.
@@ -133,9 +136,9 @@ def handle_easy_installer_input(props, download_dir=None):
             log.debug(f"Remote URL: {remote_url}, name: {remote_fname}, "
                       f"expected sha256: {cksum}")
 
-        # Next call will download the file if necessary (TODO).
+        # Next call will download the file if necessary.
         local_file, is_temp = \
-            bb.fetch_remote(remote_url, remote_fname, cksum, download_dir)
+            common.fetch_remote(remote_url, remote_fname, cksum, download_dir)
 
         try:
             images_cli.images_unpack(local_file, remove_storage=True)
@@ -159,9 +162,42 @@ def handle_raw_image_input(props):
             props["local"],
             raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
             remove_storage=True)
+        base_raw_image = props["local"]
+
+    elif ("remote" in props) or ("toradex-feed" in props):
+        if "toradex-feed" in props:
+            # Evaluate if it makes sense to supply a checksum here too (TODO).
+            remote_url, remote_fname = common.make_feed_url(props["toradex-feed"])
+            cksum = None
+            if props["toradex-feed"]["machine"] in common.SYNAIMG_MACHINES:
+                log.warning("Image for %s is in SYNAIMG format.", props["toradex-feed"]["machine"])
+                log.warning("TorizonCore Builder cannot handle SYNAIMG directly.")
+                log.warning("URL: %s", remote_url)
+                raise UnsupportedImageFeature(
+                    "Please manually download the image then convert it to a .img file with "
+                    "the included syna2img.pyz program. Pass the result to TorizonCore Builder in "
+                    "the 'local' field in the input section.")
+
+        else:
+            # Parse remote which may contain integrity checking information.
+            remote_url, remote_fname, cksum = bb.parse_remote(props["remote"])
+            log.debug(f"Remote URL: {remote_url}, name: {remote_fname}, "
+                      f"expected sha256: {cksum}")
+
+        # Next call will download the file if necessary.
+        local_file, _ = common.fetch_remote(
+            remote_url, fname=remote_fname, cksum=cksum, download_dir=None)
+
+        images_cli.images_unpack(
+            local_file,
+            raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
+            remove_storage=True)
+        base_raw_image = local_file
+
     else:
         raise FileContentMissing(
             "No known input type specified in configuration file")
+    return base_raw_image
 
 def handle_ostree_input(props, **kwargs):
     """Handle the input/easy-installer subsection of the configuration file"""
@@ -905,19 +941,17 @@ def build(config_fname, *, substs=None, enable_subst=True, force=False):
     # ---
 
     # Input section (required):
-    handle_input_section(config["input"])
+    base_raw_image = handle_input_section(config["input"])
 
     # Customization section (currently optional).
     fs_changes = handle_customization_section(config.get("customization", {}))
 
-    default_base_raw_image = (
-        config["input"]["raw-image"]["local"] if "raw-image" in config["input"] else None)
     # Output section (required):
     try:
         handle_output_section(
             config["output"],
             changes_dirs=fs_changes,
-            default_base_raw_image=default_base_raw_image)
+            default_base_raw_image=base_raw_image)
 
     except Exception as exc:
         # Avoid leaving a damaged output around:
