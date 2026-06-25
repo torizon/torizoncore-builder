@@ -12,13 +12,17 @@ import re
 
 from tcbuilder.errors import (InvalidDataError, InvalidStateError)
 from tcbuilder.backend.kernel import get_kernel_changes_dir
-from tcbuilder.backend.common import get_storage_dir, is_file_type_dtb, unpacked_image_type
+from tcbuilder.backend.common import (get_storage_dir, is_file_type_dtb, unpacked_image_type,
+                                      get_src_sysroot_dir)
+from tcbuilder.backend.deploy import get_image_bootloader
 
 log = logging.getLogger("torizon." + __name__)
 
 DTB_PREFIX_RE = re.compile(r'bootm[^#]*#conf-([^$]*)\$')
 
 BACKSLASH_SPC_RE = re.compile(r"\\\s*$")
+
+DT_SUPPORTED_BOOTLOADERS = ["U-Boot"]
 
 
 def get_dt_changes_dir():
@@ -206,6 +210,9 @@ def query_variable_in_config_file(name, path):
 
 def get_current_dtb_basename():
     """Query the base name of the currently applied device tree blob."""
+
+    if get_image_bootloader(get_src_sysroot_dir()) not in DT_SUPPORTED_BOOTLOADERS:
+        return None
 
     # Find the value of fdtfile in uEnv.txt
     dtb_basename = query_variable_in_config_file("fdtfile", get_current_uenv_txt_path())

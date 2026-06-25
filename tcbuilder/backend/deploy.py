@@ -81,7 +81,7 @@ def get_image_bootloader(sysroot_dir):
             if "grub.cfg" in files:
                 return "GRUB2"
 
-    return "UNSUPPORTED"
+    return "unknown"
 
 
 def deploy_rootfs(sysroot, src_sysroot_dir, ref, refspec, kargs):
