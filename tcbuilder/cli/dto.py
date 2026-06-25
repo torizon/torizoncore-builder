@@ -24,6 +24,12 @@ log = logging.getLogger("torizon." + __name__)
 
 MAX_DTBO_FILE_SIZE = 1*1024*1024
 
+BUILD_COMMAND_URL = (
+    "https://developer.toradex.com/"
+    "torizon/os-customization/torizoncore-builder-tool-commands-manual"
+    "#the-build-command"
+)
+
 
 def _test_apply_overlay_nonfit(*, dtob_path, dtob_name, dtb_name, overlay_names):
     """Try to apply an overlay on top of a device-tree (non-FIT case).
@@ -698,6 +704,9 @@ def do_dto_deploy(args):
     and less error-prone to the user.
     """
 
+    log.warning("\n\n[DEPRECATED] Use the 'build' command instead.\n"
+                f"See: {BUILD_COMMAND_URL}\n\n")
+
     # Download TEZI image and checkout Device Tree files.
     args.remove_storage = True
     setattr(args, 'update', False)
@@ -802,8 +811,15 @@ def init_parser(subparsers):
     # dto deploy
     subparser = subparsers.add_parser(
         "deploy",
-        description="Deploy a device tree overlay in the device",
-        help="Deploy a device tree overlay in the device",
+        description=(
+            "[DEPRECATED] Deploy a device tree overlay in the device. "
+            "This command is deprecated. Use the 'build' command instead. "
+            f"For more information: {BUILD_COMMAND_URL}"
+        ),
+        help=(
+            "[DEPRECATED] Deploy a device tree overlay in the device. "
+            "Use the 'build' command instead."
+        ),
         allow_abbrev=False)
     subparser.add_argument(
         "--remote-host",
