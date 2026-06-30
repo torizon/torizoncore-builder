@@ -102,12 +102,19 @@ def handle_input_section(props, **kwargs):
     if props:
         log.info(l1_pref("Handling input section"))
 
+    download_dir = None
+    if "image-download-dir" in props:
+        if not os.path.isdir(props["image-download-dir"]):
+            os.makedirs(props["image-download-dir"])
+            common.set_output_ownership(props["image-download-dir"], set_parents=True)
+        download_dir = props["image-download-dir"]
+
     if "easy-installer" in props:
-        handle_easy_installer_input(props["easy-installer"], **kwargs)
+        handle_easy_installer_input(props["easy-installer"], download_dir, **kwargs)
     elif "ostree" in props:
         handle_ostree_input(props["ostree"], **kwargs)
     elif "raw-image" in props:
-        base_raw_image = handle_raw_image_input(props["raw-image"], **kwargs)
+        base_raw_image = handle_raw_image_input(props["raw-image"], download_dir, **kwargs)
     else:
         raise FileContentMissing(
             "No kind of input specified in configuration file")
@@ -119,7 +126,7 @@ def handle_easy_installer_input(props, download_dir=None):
 
     :param props: Dictionary holding the data of the subsection.
     :param download_dir: Directory where files should be downloaded to or
-                         obtained from if they already exist (TODO).
+                         obtained from if they already exist.
     """
 
     if "local" in props:
@@ -151,10 +158,12 @@ def handle_easy_installer_input(props, download_dir=None):
         raise FileContentMissing(
             "No known input type specified in configuration file")
 
-def handle_raw_image_input(props):
+def handle_raw_image_input(props, download_dir=None):
     """Handle the input/raw-image subsection of the configuration file
 
     :param props: Dictionary holding the data of the subsection.
+    :param download_dir: Directory where files should be downloaded to or
+                         obtained from if they already exist.
     """
 
     if "local" in props:
@@ -186,7 +195,7 @@ def handle_raw_image_input(props):
 
         # Next call will download the file if necessary.
         local_file, _ = common.fetch_remote(
-            remote_url, fname=remote_fname, cksum=cksum, download_dir=None)
+            remote_url, fname=remote_fname, cksum=cksum, download_dir=download_dir)
 
         images_cli.images_unpack(
             local_file,

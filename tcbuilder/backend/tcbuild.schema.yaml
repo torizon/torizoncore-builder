@@ -6,6 +6,9 @@ properties:
     type: object
     description: "source artifact for customization"
     definitions:
+      image-download-dir:
+        type: string
+        description: "directory where downloaded OS images are saved"
       tezi-img-machines:
         type: string
         enum:
@@ -73,6 +76,8 @@ properties:
             tdxMeta: "build;date"
     oneOf:
       - properties:
+          image-download-dir:
+            $ref: '#/properties/input/definitions/image-download-dir'
           easy-installer:
             type: object
             description: "specify a Toradex Easy Installer image as the source for customization"
@@ -161,6 +166,8 @@ properties:
         required:
           - ostree
       - properties:
+          image-download-dir:
+            $ref: '#/properties/input/definitions/image-download-dir'
           raw-image:
             type: object
             description: "specify a WIC/raw Torizon OS image as the source for customization"

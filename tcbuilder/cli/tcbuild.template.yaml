@@ -13,6 +13,9 @@
 # >> The input section specifies the image to be taken as the base for the
 # >> customization.
 input:
+  # >> (OPTIONAL) Path to save the OS image if downloading it with 'remote' or 'toradex-feed'.
+  # >> If not set the image is downloaded to a temporary directory and not saved.
+  # image-download-dir: ./
   easy-installer:
     # >> Choose one of the options (REQUIRED):
     # >> (1) Image as local folder or tarball.
@@ -28,6 +31,7 @@ input:
     #   distro: torizon
     #   variant: torizon-docker
     #   build-number: "19"
+    #   >> Build date is not required for quarterly images.
     #   # build-date: "202605"
   # >> If using a Torizon OS image in .wic or .img format, like found in some Common Torizon images,
   # >> use the option below:
@@ -48,6 +52,7 @@ input:
     #   distro: common-torizon
     #   variant: torizon-docker
     #   build-number: "8"
+    #   >> Build date is not required for quarterly images.
     #   # build-date: ""
 
 # >> The customization section defines the modifications to be applied to get
