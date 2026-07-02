@@ -30,7 +30,7 @@ load 'lib/common.bash'
                                             --remote-port $DEVICE_PORT
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
-    IMAGE=$(echo $output | sed -n "s#\(.*/\)\(.*tar\)\(.*\)#\2#p")
+    IMAGE=$(echo $output | sed -n "s#\(.*/\)\(.*tar\)\s\(.*\)#\2#p")
 
     run torizoncore-builder-shell "ls /storage/"
     assert_success

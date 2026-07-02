@@ -38,6 +38,7 @@ WIC_TESTCASES="\
 $TESTCASES_DIR/torizoncore-builder.bats \
 $TESTCASES_DIR/wic/images.bats \
 $TESTCASES_DIR/wic/images-unpack.bats \
+$TESTCASES_DIR/wic/images-download.bats \
 $TESTCASES_DIR/wic/union.bats \
 $TESTCASES_DIR/wic/deploy.bats \
 $TESTCASES_DIR/wic/splash.bats \
