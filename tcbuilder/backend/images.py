@@ -14,7 +14,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.request
 import uuid
 
 from zipfile import ZipFile
@@ -24,12 +23,17 @@ import fabric
 
 from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_program_options,
                                       set_output_ownership, run_with_loading_animation,
-                                      get_tezi_image_version, open_disk_image, RAW_PROP_TO_ARGNAME,
-                                      DEFAULT_RAW_ROOTFS_LABEL, SECBOOT_ARTIFACTS_DIR,
-                                      TAR_EXT_TO_PROGRAM, OSTREE_SOTA_DIR_PATH)
+                                      get_tezi_image_version, open_disk_image, make_feed_url,
+                                      fetch_remote, RAW_PROP_TO_ARGNAME, DEFAULT_RAW_ROOTFS_LABEL,
+                                      SECBOOT_ARTIFACTS_DIR, REMOTE_CMD_TIMEOUT, TAR_EXT_TO_PROGRAM,
+                                      OSTREE_SOTA_DIR_PATH, LEGACY_VARIANT_PREFIX, VARIANT_PREFIX,
+                                      SYNAIMG_MACHINES)
+
 from tcbuilder.backend import ostree
 from tcbuilder.backend.secboot import DEFAULT_TCB_SIGNING_FILES_TARNAME, BOOTLOADER_CONTAINER_NAME
-from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, InvalidStateError)
+from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, FileContentMissing,
+                              InvalidStateError, OperationFailureError, PathNotExistError,
+                              UnsupportedImageFeature)
 from tezi.image import ImageConfig, DEFAULT_IMAGE_JSON_FILENAME
 from tezi.errors import TeziError
 
@@ -119,134 +123,126 @@ def serve(images_directory):
             avahi.terminate()
             avahi.wait()
 
-
-def get_device_info(r_host, r_username, r_password, r_port):
+def get_device_img_info(r_host, r_username, r_password, r_port):
     """
-    Access a "live" TorizonCore device and get some information about it.
+    Access a "live" Torizon OS device and get some information about it.
 
-    :param r_host: TorizonCore hostname.
-    :param r_username: TorizonCore remote username.
-    :param r_password: TorizonCore remote password.
-    :returns:
-        version: TorizonCore version.
-        hostname: TorizonCore hostname
-        container: Container runtime engine.
+    :param r_host: Torizon OS machine name.
+    :param r_username: Torizon OS remote username.
+    :param r_password: Torizon OS remote password.
+    :returns: Dictionary with information about its installed image (version, variant, etc.).
     """
 
-    conn = fabric.Connection(host=r_host,
-                             user=r_username,
-                             port=r_port,
-                             connect_kwargs={'password': r_password})
-    conn.open()
+    connection_args = {
+        "host": r_host,
+        "user": r_username,
+        "port": r_port,
+        "connect_kwargs": {"password": r_password}
+    }
+    with fabric.Connection(**connection_args) as conn:
+        # Check if OSTree is present on the device
+        result = conn.run(
+            r"ostree admin status | sed -ne 's/^ *\* .* \([0-9a-f]\+\)\.[0-9]\+/\1/p'",
+            hide=True, timeout=REMOTE_CMD_TIMEOUT
+        )
+        hash_stdout = result.stdout.strip()
+        if result.failed or not hash_stdout:
+            raise InvalidStateError("OSTree not present on host device. Aborting.")
 
-    # Gather module and version information remotely from device
-    sftp = conn.sftp()
-    if sftp is not None:
+        result = conn.run(
+            f"ostree show {hash_stdout} --print-metadata-key oe.machine",
+            hide=True, timeout=REMOTE_CMD_TIMEOUT
+        )
+        machine = result.stdout.strip("\"'\n ")
+
+        result = conn.run("test -f /etc/os-release",
+                          warn=True, hide=True, timeout=REMOTE_CMD_TIMEOUT)
+        if result.failed:
+            raise PathNotExistError("/etc/os-release not found in remote device. Aborting.")
+        # Gather information from device /etc/os-release.
+        sftp = conn.sftp()
+        if sftp is None:
+            raise OperationFailureError("Unable to create SSH connection.")
         release_file = sftp.file("/etc/os-release")
-        for line in release_file:
-            if "PRETTY_NAME" in line:
-                version = line
-        host_file = sftp.file("/etc/hostname")
-        hostname = host_file.readline()
-        try:
-            sftp.stat("/usr/bin/podman")
-            container = "podman"
-        except IOError:
-            container = "docker"
-        sftp.close()
+        file_contents = release_file.read().decode("utf-8")
+
+    img_info = {
+        "version": None,
+        "release": None,
+        "machine": machine,
+        "distro": None,
+        "variant": None,
+        "build-number": None,
+        "build-date": None
+    }
+    result = re.search(r'^VARIANT="?(\w.*)$', file_contents, re.MULTILINE)
+    if result is not None:
+        img_info["variant"] = result.group(1).strip("\"' ").lower()
     else:
-        conn.close()
-        raise TorizonCoreBuilderError("Unable to create SSH connection")
+        raise FileContentMissing("Unable to parse image variant from /etc/os-release. Aborting.")
 
-    conn.close()
-
-    return version, hostname, container
-
-
-# pylint: disable-next=too-many-locals
-def download_tezi(r_host, r_username, r_password, r_port, *,
-                  tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
-    """
-    Download appropriate Tezi Image based on target device.
-    """
-
-    version, hostname, container = get_device_info(r_host,
-                                                   r_username,
-                                                   r_password,
-                                                   r_port)
-
-    # Create correct artifactory link based on device information
-    if "devel" in version:
-        prod = "torizoncore-oe-prerelease-frankfurt"
-        devel = "-devel-"
+    # Yocto builds based on Poky store the distro on the os-release ID field
+    result = re.search(r'^ID="?(\w.*)$', file_contents, re.MULTILINE)
+    if result is not None:
+        img_info["distro"] = result.group(1).strip("\"' ")
     else:
-        prod = "torizoncore-oe-prod-frankfurt"
-        devel = ""
+        raise FileContentMissing("Unable to parse image distro from /etc/os-release. Aborting.")
 
-    # pylint: disable-next=consider-using-dict-items
-    for key in VERSION_TO_YOCTO_MAP:
-        if key in version:
-            if key in ("dunfell", "kirkstone"):
-                yocto_img_name = "torizon-core"
+    result = re.search(
+        r'^VERSION_ID="?(\d+\.\d+\.\d+)(-devel-\d+)?-build\.(\d+)', file_contents, re.MULTILINE)
+    if result is not None:
+        img_info["version"] = result.group(1)
+        major = int(img_info["version"].split(".")[0])
+        if major < 7:
+            img_info["variant"] = LEGACY_VARIANT_PREFIX + img_info["variant"]
+        else:
+            img_info["variant"] = VARIANT_PREFIX + img_info["variant"]
+
+        img_info["build-number"] = result.group(3)
+        if result.group(2) is None:
+            # No -devel-* field, quarterly release
+            img_info["release"] = "quarterly"
+        else:
+            img_info["build-date"] = result.group(2)[7:]
+            if len(img_info["build-date"]) == 6:
+                # Monthly has date in yyyymm format (6 digits)
+                img_info["release"] = "monthly"
             else:
-                yocto_img_name = "torizon"
-
-            yocto = VERSION_TO_YOCTO_MAP[key]
-            break
+                # Nightly has date in yyyymmdd format (8 digits)
+                img_info["release"] = "nightly"
     else:
-        assert False, "Missing the Yocto reference"
+        raise FileContentMissing("Unable to parse image version from /etc/os-release. Aborting.")
 
-    date = re.findall(r'.*-(.*?)\+', version)
-    if not date:
-        build_type = "release"
-        date = ""
-    elif len(date[0]) == 6:
-        build_type = "monthly"
-        date = date[0]
-    elif len(date[0]) == 8:
-        build_type = "nightly"
-        date = date[0]
-    else:
-        assert False, \
-            f"Cannot determine build type for version {version}."
+    return img_info
 
-    build_number = re.findall(r'.*build.(.*?)\ ', version)[0]
 
-    if "Upstream" in version:
-        kernel_type = "-upstream"
-    else:
-        kernel_type = ""
+def download_tos_image(r_host, r_username, r_password, r_port, *,
+                       download_dir, tezi_dir, src_sysroot_dir, src_ostree_archive_dir):
+    """
+    Download appropriate Torizon OS image based on target device.
+    """
 
-    if "PREEMPT" in version:
-        rt_flag = "-rt"
-    else:
-        rt_flag = ""
+    img_info = get_device_img_info(r_host, r_username, r_password, r_port)
+    url, filename = make_feed_url(img_info)
 
-    sem_ver = re.findall(r'.*([0-9]+\.[0-9]+\.[0-9]+)\.*', version)[0]
+    if img_info["machine"] in SYNAIMG_MACHINES:
+        log.warning("Image for %s is in SYNAIMG format.", img_info["machine"])
+        log.warning("TorizonCore Builder cannot handle SYNAIMG directly.")
+        log.warning("URL: %s", url)
+        raise UnsupportedImageFeature(
+            "Please manually download the image then convert it to a .img file with the included "
+            "syna2img.pyz program. Pass the result to the 'images unpack' command.")
 
-    module_name = hostname[:-10]
+    if download_dir is not None and not os.path.isdir(download_dir):
+        os.makedirs(download_dir)
+        set_output_ownership(download_dir, set_parents=True)
 
-    url = "https://artifacts.toradex.com/artifactory/{0}/{1}/{2}/{3}/{4}/" \
-          "torizon{5}{6}/{7}-{8}/oedeploy/" \
-          "{7}-{8}{6}-{4}-Tezi_{9}{10}{11}+build.{3}.tar".format(
-              prod, yocto, build_type, build_number, module_name, kernel_type,
-              rt_flag, yocto_img_name, container, sem_ver, devel, date)
-
-    # Download and unpack tezi image
+    # Download and unpack image
     log.info(f"Downloading image from: {url}\n")
     log.info("The download may take some time. Please wait...")
-    download_file = os.path.basename(url)
-    download_file_cwd = os.path.abspath(download_file)
-    try:
-        urllib.request.urlretrieve(url, download_file_cwd)
-        log.info("Download Complete!\n")
-    except:
-        # pylint: disable-next=raise-missing-from
-        raise TorizonCoreBuilderError(
-            "The requested image could not be found in the Toradex Artifactory.")
-    set_output_ownership(download_file_cwd)
-    import_local_image(download_file, tezi_dir,
-                       src_sysroot_dir, src_ostree_archive_dir)
+    filename, _ = fetch_remote(url, filename, download_dir=download_dir)
+    set_output_ownership(filename)
+    import_local_image(filename, tezi_dir, src_sysroot_dir, src_ostree_archive_dir)
 
 
 def unpack_tezi_rootfs_tarball(image_dir, sysroot_dir):

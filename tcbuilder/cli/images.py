@@ -83,8 +83,9 @@ def do_images_download(args):
 
     r_ip = common.resolve_remote_host(args.remote_host, args.mdns_source)
     dir_list = prepare_storage(args.remove_storage)
-    images.download_tezi(
+    images.download_tos_image(
         r_ip, args.remote_username, args.remote_password, args.remote_port,
+        download_dir=args.download_dir,
         tezi_dir=dir_list[0],
         src_sysroot_dir=dir_list[1],
         src_ostree_archive_dir=dir_list[2])
@@ -188,6 +189,10 @@ def init_parser(subparsers):
         help=("Use the given IP address as mDNS source. This is useful when "
               "multiple interfaces are used, and mDNS multicast requests are "
               "sent out the wrong network interface."))
+    subparser.add_argument(
+        "--download-dir", dest="download_dir",
+        help="Directory path to save the image file. If not provided, the image will "
+             "be downloaded to a temporary directory and won't be saved.")
     subparser.set_defaults(func=do_images_download)
 
     # images provision

@@ -38,8 +38,10 @@ WIC_TESTCASES="\
 $TESTCASES_DIR/torizoncore-builder.bats \
 $TESTCASES_DIR/wic/images.bats \
 $TESTCASES_DIR/wic/images-unpack.bats \
+$TESTCASES_DIR/wic/images-download.bats \
 $TESTCASES_DIR/wic/union.bats \
 $TESTCASES_DIR/wic/deploy.bats \
+$TESTCASES_DIR/wic/dto.bats \
 $TESTCASES_DIR/wic/splash.bats \
 $TESTCASES_DIR/wic/splashconfig.bats \
 $TESTCASES_DIR/wic/combine.bats \
@@ -53,7 +55,8 @@ export SAMPLES_DIR=samples
 export DEVICE_ADDR=$TCB_DEVICE
 export DEVICE_USER="torizon"
 
-export WIC_MACHINES="intel-corei7-64 qemux86-64 raspberrypi4-64"
+export WIC_MACHINES="intel-corei7-64 qemux86-64 raspberrypi4-64 \
+                     am62xx-evm am62pxx-evm am62lxx-evm beagley-ai"
 
 # DEVICE_PORT defines the default SSH port used in test cases
 if [ ! -z "$TCB_PORT" ]; then
