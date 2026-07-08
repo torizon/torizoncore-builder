@@ -14,7 +14,8 @@ from tcbuilder.errors import \
     (FileContentMissing, InvalidDataError, PathNotExistError, UnsupportedImageFeature)
 from tcbuilder.backend.common import \
     (fail_on_raw_image, is_file_type_fit, get_branch_and_major_from_metadata,
-     get_storage_dir, get_tar_compress_program_options, images_unpack_executed)
+     get_storage_dir, get_tar_compress_program_options, images_unpack_executed,
+     get_arch_from_ostree)
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.cli import dto as dto_cli
@@ -124,7 +125,11 @@ def kernel_build_module(source_dir, autoload):
     """"Main handler of the 'kernel build_module' subcommand"""
 
     images_unpack_executed()
-    fail_on_raw_image(MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+    img_arch = get_arch_from_ostree()
+    if img_arch not in ("arm", "aarch64"):
+        raise UnsupportedImageFeature(
+            "Building kernel modules are not supported for Torizon OS images that target "
+            f"{img_arch} devices. Aborting.")
 
     # Check for valid Makefile
     if not os.path.isdir(source_dir):
