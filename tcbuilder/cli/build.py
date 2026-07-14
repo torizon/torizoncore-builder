@@ -170,6 +170,7 @@ def handle_raw_image_input(props, download_dir=None):
         images_cli.images_unpack(
             props["local"],
             raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
+            raw_sector_size=props.get("sector-size", common.DEFAULT_RAW_SECTOR_SIZE),
             remove_storage=True)
         base_raw_image = props["local"]
 
@@ -200,6 +201,7 @@ def handle_raw_image_input(props, download_dir=None):
         images_cli.images_unpack(
             local_file,
             raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
+            raw_sector_size=props.get("sector-size", common.DEFAULT_RAW_SECTOR_SIZE),
             remove_storage=True)
         base_raw_image = local_file
 
@@ -643,6 +645,7 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
 
     base_raw_img = props.get("base-image", default_base_raw_image)
     base_rootfs_label = props.get("base-rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL)
+    base_sector_size = props.get("base-sector-size", common.DEFAULT_RAW_SECTOR_SIZE)
 
     deploy_raw_image_params = {
         "ostree_ref": union_params["union_branch"],
@@ -650,6 +653,7 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
         "output_raw_img": output_raw_img,
         "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
         "rootfs_label": base_rootfs_label,
+        "sector_size": base_sector_size,
     }
 
     deploy_cli.deploy_raw_image(**deploy_raw_image_params)
@@ -813,7 +817,11 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
                 "rootfs-label",
                 common.DEFAULT_RAW_ROOTFS_LABEL
             ),
-            "force": True
+            "force": True,
+            "sector_size": raw_props.get(
+                "base-sector-size",
+                common.DEFAULT_RAW_SECTOR_SIZE
+            )
         }
         comb_be.combine_raw_image(**combine_params)
 

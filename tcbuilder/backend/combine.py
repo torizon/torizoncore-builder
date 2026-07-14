@@ -15,7 +15,7 @@ from tezi.image import ImageConfig
 from tcbuilder.backend.common import \
     (set_output_ownership, check_licence_acceptance, run_with_loading_animation, open_disk_image,
      get_tar_compress_program_options, DOCKER_BUNDLE_TARNAME, TAR_EXT_TO_PROGRAM,
-     OSTREE_SOTA_DIR_PATH)
+     OSTREE_SOTA_DIR_PATH, DEFAULT_RAW_SECTOR_SIZE)
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -290,7 +290,9 @@ def combine_tezi_image(image_dir, bundle_dir, output_directory, tezi_props, forc
     combine_single_tezi_image(**combine_params)
 
 
-def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
+# pylint: disable-next=too-many-positional-arguments,too-many-locals
+def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force,
+                      sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """
     Combine a container bundle to a raw disk image by copying its contents to the image root
     filesystem. If the size of the container bundle exceeds the available space in root,
@@ -301,6 +303,7 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
     :param output_path: Path where the resulting raw disk image will be created.
     :param rootfs_label: Filesystem label of the root partition.
     :param force: Overwrite output file if it already exists.
+    :param sector_size: Logical sector size of the image, in bytes.
     """
 
     delete_on_error = True
@@ -335,7 +338,8 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
 
     req_space_kb = get_bundle_size_kb(files_to_add, bundle_dir)
 
-    with open_disk_image(output_path, delete_on_error=delete_on_error) as gfs:
+    with open_disk_image(output_path, delete_on_error=delete_on_error,
+                         sector_size=sector_size) as gfs:
         root_partition = gfs.findfs_label(rootfs_label)
         gfs.mount(root_partition, "/")
         statvfs_dict = gfs.statvfs("/")
@@ -374,7 +378,8 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force):
             log.debug("Deleting '%s'", tmp_image)
             os.remove(tmp_image)
 
-    with open_disk_image(output_path, delete_on_error=delete_on_error) as gfs:
+    with open_disk_image(output_path, delete_on_error=delete_on_error,
+                         sector_size=sector_size) as gfs:
         gfs.mount(root_partition, "/")
         copy_to_mounted_root(gfs, files_to_add, bundle_dir)
 

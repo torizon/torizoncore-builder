@@ -65,7 +65,8 @@ def deploy_tezi_image(*, ostree_ref, output_dir, deploy_sysroot_dir, tezi_props=
 
 
 def deploy_raw_image(*, ostree_ref, base_raw_img,
-                     output_raw_img, deploy_sysroot_dir, rootfs_label):
+                     output_raw_img, deploy_sysroot_dir, rootfs_label,
+                     sector_size=common.DEFAULT_RAW_SECTOR_SIZE):
 
     common.images_unpack_executed()
     if common.unpacked_image_type() != "raw":
@@ -99,7 +100,7 @@ def deploy_raw_image(*, ostree_ref, base_raw_img,
 
     dbe.deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
                          output_raw_img_, dst_sysroot_dir_, rootfs_label,
-                         ref=ostree_ref)
+                         ref=ostree_ref, sector_size=sector_size)
 
 
 def do_deploy_tezi_image(args):
@@ -116,6 +117,7 @@ def do_deploy_tezi_image(args):
 
     raw_props_args = {
         "raw_rootfs_label" : args.raw_rootfs_label,
+        "raw_sector_size" : args.raw_sector_size,
         "output_raw_image" : args.output_raw_image
     }
 
@@ -149,7 +151,8 @@ def do_deploy_raw_image(args):
     }
 
     common_raw_props_args = {
-        "raw_rootfs_label" : args.raw_rootfs_label
+        "raw_rootfs_label" : args.raw_rootfs_label,
+        "raw_sector_size" : args.raw_sector_size
     }
 
     # Check for tezi-specific args being set:
@@ -170,7 +173,8 @@ def do_deploy_raw_image(args):
         base_raw_img=args.base_raw_image,
         output_raw_img=args.output_raw_image,
         deploy_sysroot_dir=args.deploy_sysroot_directory,
-        rootfs_label=common_raw_props_args["raw_rootfs_label"])
+        rootfs_label=common_raw_props_args["raw_rootfs_label"],
+        sector_size=common_raw_props_args["raw_sector_size"])
 
 
 def deploy_ostree_remote(*, remote_host, remote_port,

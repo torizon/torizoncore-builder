@@ -52,6 +52,9 @@ DEFAULT_DOCKER_PLATFORM = "linux/arm/v7"
 
 DEFAULT_RAW_ROOTFS_LABEL = "otaroot"
 
+DEFAULT_RAW_SECTOR_SIZE = 512
+SUPPORTED_RAW_SECTOR_SIZES = (512, 4096)
+
 TEZI_PROP_TO_ARGNAME = {
     "name": "--image-name",
     "description": "--image-description",
@@ -63,11 +66,13 @@ TEZI_PROP_TO_ARGNAME = {
 }
 
 RAW_PROP_TO_ARGNAME = {
-    "raw_rootfs_label": "--raw-rootfs-label"
+    "raw_rootfs_label": "--raw-rootfs-label",
+    "raw_sector_size": "--raw-sector-size"
 }
 
 RAW_PROP_DEFAULTS = {
-    "raw_rootfs_label" : DEFAULT_RAW_ROOTFS_LABEL
+    "raw_rootfs_label" : DEFAULT_RAW_ROOTFS_LABEL,
+    "raw_sector_size" : DEFAULT_RAW_SECTOR_SIZE
 }
 
 TAR_EXT_TO_PROGRAM = {
@@ -305,6 +310,12 @@ def add_common_raw_image_arguments(subparser):
                            default=None) # Default is in RAW_PROP_DEFAULTS. Default should only be
                                          # set if arg is used in a raw image.
                                          # Arg value should remain None if a tezi image is used.
+    subparser.add_argument(RAW_PROP_TO_ARGNAME["raw_sector_size"], dest="raw_sector_size",
+                           metavar="BYTES", type=int, choices=SUPPORTED_RAW_SECTOR_SIZES,
+                           help="(raw images only) logical sector size of the source WIC/raw "
+                                "image, in bytes. Use 4096 for 4Kn media (e.g. some UFS "
+                                f"targets). (default: {DEFAULT_RAW_SECTOR_SIZE})",
+                           default=None) # Default is in RAW_PROP_DEFAULTS; see raw_rootfs_label.
 
 
 def add_ssh_arguments(subparser):
@@ -1058,12 +1069,19 @@ def is_file_type_fit(file_path):
 
 
 @contextmanager
-def open_disk_image(image_path, *, delete_on_error=False, readonly=False, loading_msg=None):
-    """Create a context manager to open and manipulate raw disk images."""
+def open_disk_image(image_path, *, delete_on_error=False, readonly=False, loading_msg=None,
+                    sector_size=DEFAULT_RAW_SECTOR_SIZE):
+    """Create a context manager to open and manipulate raw disk images.
+
+    :param sector_size: Logical sector size of the image, in bytes. Must be
+                        passed for 4Kn media so libguestfs can read the GPT.
+    """
 
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
-        gfs.add_drive_opts(image_path, format="raw", readonly=readonly)
+        # blocksize optarg needs libguestfs >= 1.44; omit it on the default path.
+        extra = {"blocksize": sector_size} if sector_size != DEFAULT_RAW_SECTOR_SIZE else {}
+        gfs.add_drive_opts(image_path, format="raw", readonly=readonly, **extra)
         run_with_loading_animation(
             func=gfs.launch,
             loading_msg=loading_msg or "Initializing image...")

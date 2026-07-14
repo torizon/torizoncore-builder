@@ -25,6 +25,7 @@ from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_progr
                                       set_output_ownership, run_with_loading_animation,
                                       get_tezi_image_version, open_disk_image, make_feed_url,
                                       fetch_remote, RAW_PROP_TO_ARGNAME, DEFAULT_RAW_ROOTFS_LABEL,
+                                      DEFAULT_RAW_SECTOR_SIZE,
                                       SECBOOT_ARTIFACTS_DIR, REMOTE_CMD_TIMEOUT, TAR_EXT_TO_PROGRAM,
                                       OSTREE_SOTA_DIR_PATH, LEGACY_VARIANT_PREFIX, VARIANT_PREFIX,
                                       SYNAIMG_MACHINES)
@@ -312,13 +313,14 @@ def unpack_local_tezi_image(image_dir_or_file, tezi_dir):
         raise TorizonCoreBuilderError(f"Image does not exist: {image_dir_or_file}")
 
 
-def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label):
+def unpack_local_raw_image(image_dir, sysroot_dir, raw_rootfs_label,
+                           sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Extract the root fs from the image into the sysroot directory"""
 
     if raw_rootfs_label is None:
         raw_rootfs_label = DEFAULT_RAW_ROOTFS_LABEL
 
-    with open_disk_image(image_dir, readonly=True) as gfs:
+    with open_disk_image(image_dir, readonly=True, sector_size=sector_size) as gfs:
         # Get partition number from ext4 fs called raw_rootfs_label in disk image (.wic/.img)
         rootfs_partition = gfs.findfs_label(raw_rootfs_label)
         log.info(f"'{raw_rootfs_label}' partition found: {rootfs_partition}")
@@ -338,8 +340,9 @@ def _make_tezi_extract_dir(tezi_dir):
     return extract_dir
 
 
+# pylint: disable-next=too-many-positional-arguments,too-many-locals
 def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
-                       raw_rootfs_label=None):
+                       raw_rootfs_label=None, raw_sector_size=None):
     """Import local raw/WIC or Toradex Easy Installer image.
 
     Import local raw/WIC or Toradex Easy installer image (archive file or unpacked
@@ -350,12 +353,14 @@ def import_local_image(image_dir_or_file, tezi_dir, src_sysroot_dir, src_ostree_
 
     if ((image_dir_or_file.lower().endswith(".wic") or
          image_dir_or_file.lower().endswith(".img")) and os.path.isfile(image_dir_or_file)):
-        unpack_local_raw_image(image_dir_or_file, src_sysroot_dir, raw_rootfs_label)
+        unpack_local_raw_image(image_dir_or_file, src_sysroot_dir, raw_rootfs_label,
+                               raw_sector_size or DEFAULT_RAW_SECTOR_SIZE)
     else:
         unpack_local_tezi_image(image_dir_or_file, tezi_dir)
 
         common_raw_props_args = {
-            "raw_rootfs_label": raw_rootfs_label
+            "raw_rootfs_label": raw_rootfs_label,
+            "raw_sector_size": raw_sector_size
         }
         # pylint: disable-next=consider-using-dict-items
         for prop in common_raw_props_args:
@@ -425,7 +430,8 @@ def check_provdata_presence_in_raw_image(gfs):
     return True
 
 
-def _prov_get_image_version_raw_image(disk_img, rootfs_label):
+def _prov_get_image_version_raw_image(disk_img, rootfs_label,
+                                      sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Check disk image for any existing provisioning data, also returning the img version.
 
     :param disk_img: path to disk image.
@@ -437,7 +443,7 @@ def _prov_get_image_version_raw_image(disk_img, rootfs_label):
         the tuple entry will be 'None'.
     """
 
-    with open_disk_image(disk_img, readonly=True) as gfs:
+    with open_disk_image(disk_img, readonly=True, sector_size=sector_size) as gfs:
         rootfs_partition = gfs.findfs_label(rootfs_label)
         log.info(f"'{rootfs_label}' partition found: {rootfs_partition}")
         gfs.mount_ro(rootfs_partition, "/")
@@ -577,7 +583,8 @@ def prov_check_supported_img_features(img_version, online_data, hibernated, flee
     log.debug("Found image version: %d.%d", img_major, img_minor)
 
 
-def prov_check_input(input_path, output_path, rootfs_label):
+def prov_check_input(input_path, output_path, rootfs_label,
+                     sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Check provisioning inputs passed by the user."""
 
     is_tezi_img = False
@@ -594,7 +601,7 @@ def prov_check_input(input_path, output_path, rootfs_label):
         if rootfs_label is None:
             rootfs_label = DEFAULT_RAW_ROOTFS_LABEL
 
-        img_version = _prov_get_image_version_raw_image(input_path, rootfs_label)
+        img_version = _prov_get_image_version_raw_image(input_path, rootfs_label, sector_size)
 
     # If TEZI image
     else:
@@ -616,7 +623,8 @@ def prov_check_input(input_path, output_path, rootfs_label):
 
 
 def provision(input_path, output_path, rootfs_label, prov_data, *,
-              hibernated=False, fleets=None, force=False):
+              hibernated=False, fleets=None, force=False,
+              sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Generate OS image with added provisioning data
 
     :param input_path: Path containing Easy Installer directory or disk image.
@@ -633,7 +641,8 @@ def provision(input_path, output_path, rootfs_label, prov_data, *,
     """
 
     # Basic validations:
-    img_version, is_tezi_img, rootfs_label = prov_check_input(input_path, output_path, rootfs_label)
+    img_version, is_tezi_img, rootfs_label = prov_check_input(
+        input_path, output_path, rootfs_label, sector_size)
 
     prov_check_supported_img_features(img_version, prov_data['online'], hibernated, fleets)
 
@@ -665,7 +674,7 @@ def provision(input_path, output_path, rootfs_label, prov_data, *,
         if is_tezi_img:
             prov_tezi_img(output_path, prov_data, hibernated, fleets)
         else:
-            prov_raw_img(rootfs_label, output_path, prov_data, hibernated, fleets)
+            prov_raw_img(rootfs_label, output_path, prov_data, hibernated, fleets, sector_size)
 
         log.info("Image successfully provisioned.")
 
@@ -692,11 +701,13 @@ def prov_tezi_img(output_path, prov_data, hibernated, fleets):
     set_output_ownership(output_path)
 
 
-def prov_raw_img(rootfs_label, output_path, prov_data, hibernated, fleets):
+# pylint: disable-next=too-many-positional-arguments
+def prov_raw_img(rootfs_label, output_path, prov_data, hibernated, fleets,
+                 sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Create provisioning data and add it to the root filesystem of the disk image."""
 
     msg = f"Initializing {output_path}..."
-    with (open_disk_image(output_path, loading_msg=msg) as gfs,
+    with (open_disk_image(output_path, loading_msg=msg, sector_size=sector_size) as gfs,
           tempfile.TemporaryDirectory() as tmpdir):
         rootfs_partition = gfs.findfs_label(rootfs_label)
         gfs.mount(rootfs_partition, "/")
