@@ -26,8 +26,43 @@ setup_file() {
 
 setup() {
   if [ "${UNSUPPORTED_MACHINE}" = "1" ]; then
-    skip "DT/DTO customization is not supported for ${IMG_MACHINE}"
+    skip "Kernel customization is not supported for ${IMG_MACHINE}"
   fi
+}
+
+# Local helpers:
+find_uenv_txt_in_sysroot() {
+    # Get path:
+    run torizoncore-builder-shell "find /storage/sysroot/ostree/deploy/ -name uEnv.txt"
+    assert_success
+    local uenv_path="${output}"
+    # Sanity check:
+    run torizoncore-builder-shell "[ -f '${uenv_path}' ]"
+    assert_success
+    echo "${uenv_path}"
+}
+
+find_uenv_txt_in_chgsdir() {
+    # Get path:
+    run torizoncore-builder-shell \
+        "{ [ -d /storage/dt ] && find /storage/dt/ -name uEnv.txt; } ||" \
+        "{ [ -d /storage/kernel ] && find /storage/kernel/ -name uEnv.txt; }"
+    assert_success
+    local uenv_path="${output}"
+    # Sanity check:
+    run torizoncore-builder-shell "[ -f '${uenv_path}' ]"
+    assert_success
+    echo "${uenv_path}"
+}
+
+is_ovl_kargs_passing_supported() {
+    local uenv_path="${1?uEnv.txt path required}"
+    torizoncore-builder-shell "grep -q '^set_bootargs_custom=' ${uenv_path}"
+}
+
+is_uenv_kargs_passing_supported() {
+    local uenv_path="${1?uEnv.txt path required}"
+    torizoncore-builder-shell "grep -q '^set_bootargs_custom2=' ${uenv_path}"
 }
 
 @test "kernel: run without parameters" {
@@ -158,4 +193,171 @@ setup() {
         "[ \"\$(cat /storage/kernel/${moddirrel}/vmlinuz)\" = 'DUMMY_KERNEL' ] && " \
         "[ \"\$(cat /storage/kernel/${moddirrel}/dtb/overlays.txt)\" = 'DUMMY_OVERLAYS' ]"
     assert_success
+}
+
+@test "kernel {set,get,clear}_custom_args: check basic errors" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder kernel set_custom_args "arg1=val1" "arg2=val2"
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
+
+    run torizoncore-builder kernel get_custom_args
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
+
+    run torizoncore-builder kernel clear_custom_args
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+    assert_output --partial "Please use the 'images' command to unpack an image before running this command"
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_WIC_IMAGE}"
+
+    run torizoncore-builder kernel set_custom_args ""
+    assert_failure
+    assert_output --partial "Error: please pass a valid string for the custom kernel arguments"
+}
+
+@test "kernel {set,get,clear}_custom_args: check success cases" {
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_WIC_IMAGE}"
+
+    local uenv_path
+    local ovl_kargs_supported
+    local uenv_kargs_supported
+
+    # Find uEnv.txt in storage:
+    uenv_path=$(find_uenv_txt_in_sysroot)
+    # Determine the supported bootargs passing methods:
+    ovl_kargs_supported=$(is_ovl_kargs_passing_supported "${uenv_path}" \
+                          && echo "1" || echo "0")
+    uenv_kargs_supported=$(is_uenv_kargs_passing_supported "${uenv_path}" \
+                           && echo "1" || echo "0")
+    # Show result (for debug):
+    echo "ovl_kargs_supported=${ovl_kargs_supported}"
+    echo "uenv_kargs_supported=${uenv_kargs_supported}"
+
+    # ---
+    # Test the "set" command:
+    # ---
+    echo "Try setting custom bootargs."
+    run torizoncore-builder --log-level debug kernel set_custom_args "arg1=val1" "arg2=val2"
+
+    if [ "${uenv_kargs_supported}" = "1" ]; then
+        echo "Checking output of setting custom kernel arguments via uenv method."
+        assert_success
+        assert_output --partial 'Kernel custom arguments successfully configured with "arg1=val1 arg2=val2"'
+        assert_output --partial "Setting bootargs (uenv method)"
+        assert_output --partial "Clearing bootargs (overlay method)"
+
+        # Check uEnv.txt to see if the arguments were actually set.
+        local uenv_path_chgsdir check_append
+        uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
+        check_append="1"
+
+        if [ "${check_append}" = "1" ]; then
+            echo "Ensure new bootargs were appended to the existing ones."
+            if ! torizoncore-builder-shell \
+                 "grep -e '^torizon_bootargs_r=arg1=val1 arg2=val2' ${uenv_path_chgsdir}"; then
+                fail "New bootargs aren't present in 'torizon_bootargs_r'."
+            fi
+            if torizoncore-builder-shell \
+                   "grep -e '^torizon_bootargs_l=' ${uenv_path_chgsdir}"; then
+                fail "Variable 'torizon_bootargs_l' shouldn't be present in uEnv.txt."
+            fi
+        else
+            echo "Ensure new bootargs were prepended to the existing ones."
+            if ! torizoncore-builder-shell \
+                 "grep -e '^torizon_bootargs_l=arg1=val1 arg2=val2' ${uenv_path_chgsdir}"; then
+                fail "New bootargs aren't present in 'torizon_bootargs_l'."
+            fi
+            if torizoncore-builder-shell \
+                   "grep -e '^torizon_bootargs_r=' ${uenv_path_chgsdir}"; then
+                fail "Variable 'torizon_bootargs_r' shouldn't be present in uEnv.txt."
+            fi
+        fi
+
+    elif [ "${ovl_kargs_supported}" = "1" ]; then
+        echo "Checking output of setting custom kernel arguments via overlay method."
+        assert_success
+        assert_output --partial 'Kernel custom arguments successfully configured with "arg1=val1 arg2=val2"'
+        assert_output --partial "Setting bootargs (overlay method)"
+        assert_output --partial "Overlay custom-kargs_overlay.dtbo successfully applied"
+    else
+        # Images without support for custom bootargs should no longer be available;
+        # but handle them anyway.
+        assert_failure
+        assert_output --partial "Error: the Torizon OS image you are customizing does not support custom kernel arguments"
+        return
+    fi
+
+    # ---
+    # Test the "get" command:
+    # ---
+    echo "Try getting custom bootargs."
+    run torizoncore-builder --log-level debug kernel get_custom_args
+    echo "Checking output of getting custom kernel arguments."
+    assert_success
+    assert_output --partial 'Currently configured custom kernel arguments: "arg1=val1 arg2=val2"'
+
+    # ---
+    # Test the "clear" command:
+    # ---
+    echo "Try clearing custom bootargs."
+    run torizoncore-builder --log-level debug kernel clear_custom_args
+
+    if [ "${uenv_kargs_supported}" = "1" ]; then
+        echo "Checking output of clearing custom kernel arguments via uenv method."
+        assert_success
+        assert_output --partial 'Custom kernel arguments successfully cleared'
+        assert_output --partial "Clearing bootargs (uenv method)"
+
+        # Check uEnv.txt to see if the arguments variables are gone.
+        local uenv_path_chgsdir
+        uenv_path_chgsdir=$(find_uenv_txt_in_chgsdir)
+        echo "Ensure bootargs variables are not present in '${uenv_path_chgsdir}'."
+        if torizoncore-builder-shell "grep -e '^torizon_bootargs_l=' ${uenv_path_chgsdir}"; then
+            fail "Variable 'torizon_bootargs_l' is present in uEnv.txt after clearing."
+        fi
+        if torizoncore-builder-shell "grep -e '^torizon_bootargs_r=' ${uenv_path_chgsdir}"; then
+            fail "Variable 'torizon_bootargs_r' is present in uEnv.txt after clearing."
+        fi
+
+    elif [ "${ovl_kargs_supported}" = "1" ]; then
+        echo "Checking output of clearing custom kernel arguments via overlay method."
+        assert_success
+        assert_output --partial 'Custom kernel arguments successfully cleared'
+        assert_output --partial "Clearing bootargs (overlay method)"
+    else
+        # Images without support for custom bootargs should no longer be available;
+        # but handle them anyway.
+        assert_failure
+        assert_output --partial "Error: the Torizon OS image you are customizing does not support custom kernel arguments"
+        return
+    fi
+
+    # ---
+    # Check the "get" command after clearing:
+    # ---
+    echo "Try getting custom bootargs after clearing."
+    run torizoncore-builder --log-level debug kernel get_custom_args
+    echo "Checking output of getting custom kernel arguments after clearing."
+    assert_success
+    assert_output --partial 'No custom kernel arguments configured'
+
+    # ---
+    # Test the "clear" command again after clearing:
+    # ---
+    echo "Try clearing custom bootargs after clearing."
+    run torizoncore-builder --log-level debug kernel clear_custom_args
+    echo "Checking output of clearing custom kernel arguments after clearing."
+    assert_success
+    assert_output --partial 'No custom kernel arguments configured'
+
+    if [ "${uenv_kargs_supported}" = "1" ]; then
+        echo "Checking output of clearing custom kernel arguments again."
+        assert_success
+        assert_output --partial "Clearing bootargs (uenv method)"
+    fi
 }
