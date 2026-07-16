@@ -13,9 +13,11 @@ import libfdt
 from tcbuilder.errors import \
     (FileContentMissing, InvalidDataError, PathNotExistError, UnsupportedImageFeature)
 from tcbuilder.backend.common import \
-    (fail_on_raw_image, is_file_type_fit, get_branch_and_major_from_metadata,
-     get_storage_dir, get_tar_compress_program_options, images_unpack_executed,
-     get_arch_from_ostree)
+    (is_file_type_fit, get_branch_and_major_from_metadata, get_storage_dir,
+     get_tar_compress_program_options, images_unpack_executed,
+     get_arch_from_ostree, get_src_sysroot_dir)
+from tcbuilder.backend.deploy import get_image_bootloader
+
 from tcbuilder.backend import kernel, dt, dto
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.cli import dto as dto_cli
@@ -365,7 +367,12 @@ def kernel_set_custom_args(kernel_args):
     """
 
     images_unpack_executed()
-    fail_on_raw_image(MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+    img_bootld = get_image_bootloader(get_src_sysroot_dir())
+    if img_bootld not in kernel.KARGS_SUPPORTED_BOOTLOADERS:
+        log.warning(f"Detected bootloader in unpacked image: {img_bootld}")
+        raise UnsupportedImageFeature(
+            f"Kernel argument customization is not supported for {img_bootld} "
+            "bootloader. Aborting.")
 
     kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
@@ -492,7 +499,12 @@ def kernel_get_custom_args():
     """Run 'kernel get_custom_args" subcommand"""
 
     images_unpack_executed()
-    fail_on_raw_image(MSG_COMMAND_NOT_SUPPORTED_FOR_WIC)
+    img_bootld = get_image_bootloader(get_src_sysroot_dir())
+    if img_bootld not in kernel.KARGS_SUPPORTED_BOOTLOADERS:
+        log.warning(f"Detected bootloader in unpacked image: {img_bootld}")
+        raise UnsupportedImageFeature(
+            f"Kernel argument customization is not supported for {img_bootld} "
+            "bootloader. Aborting.")
 
     kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
@@ -571,7 +583,12 @@ def kernel_clear_custom_args():
     """Run 'kernel clear_custom_args" subcommand"""
 
     images_unpack_executed()
-    fail_on_raw_image(MSG_CUSTOMIZATION_NOT_SUPPORTED_FOR_WIC)
+    img_bootld = get_image_bootloader(get_src_sysroot_dir())
+    if img_bootld not in kernel.KARGS_SUPPORTED_BOOTLOADERS:
+        log.warning(f"Detected bootloader in unpacked image: {img_bootld}")
+        raise UnsupportedImageFeature(
+            f"Kernel argument customization is not supported for {img_bootld} "
+            "bootloader. Aborting.")
 
     kernel_path = kernel.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(kernel_path)
