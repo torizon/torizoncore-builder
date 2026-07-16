@@ -15,7 +15,7 @@ from tcbuilder.backend import dto as dto_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, images_unpack_executed, is_file_type_fit, set_output_ownership,
-     unpacked_image_type, update_dt_git_repo, get_src_sysroot_dir)
+     update_dt_git_repo, get_src_sysroot_dir)
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.backend.deploy import get_image_bootloader
 from tcbuilder.errors import \
@@ -37,9 +37,6 @@ def do_dt_status(_args):
         raise UnsupportedImageFeature(
             f"Device Tree and Device Tree Overlay customization is not supported for {img_bootld} "
             "bootloader. Aborting.")
-
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError("Command not supported for WIC/raw images. Aborting.")
 
     dtb_basename = dt_be.get_current_dtb_basename()
     if not dtb_basename:
@@ -151,11 +148,6 @@ def dt_apply(dts_path, *, include_dirs=None):
         raise UnsupportedImageFeature(
             f"Device Tree and Device Tree Overlay customization is not supported for {img_bootld} "
             "bootloader. Aborting.")
-
-    if unpacked_image_type() == "raw":
-        raise InvalidDataError(
-            "Device tree customization is not supported for WIC/raw images. "
-            "Aborting.")
 
     unpacked_kernel_path = kernel_be.find_kernel_in_sysroot()
     kernel_is_fit = is_file_type_fit(unpacked_kernel_path)
