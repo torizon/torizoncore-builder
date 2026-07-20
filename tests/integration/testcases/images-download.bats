@@ -27,7 +27,8 @@ load 'lib/common.bash'
     run torizoncore-builder images download --remote-host $DEVICE_ADDR \
                                             --remote-username $DEVICE_USER \
                                             --remote-password $DEVICE_PASSWORD \
-                                            --remote-port $DEVICE_PORT
+                                            --remote-port $DEVICE_PORT \
+                                            --download-dir ./
     assert_success
     assert_output --partial "Unpacked OSTree from Toradex Easy Installer image"
     IMAGE=$(echo $output | sed -n "s#\(.*/\)\(.*tar\)\s\(.*\)#\2#p")
