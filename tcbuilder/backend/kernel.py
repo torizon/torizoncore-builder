@@ -147,7 +147,7 @@ def _get_toolchain(image_major_version, linux_src):
 
     # Download toolchain if needed
     if not os.path.exists(toolchain):
-        download_toolchain(c_c, toolchain_path, version_gcc)
+        download_toolchain(toolchain_path, version_gcc, host_arch, target_triple)
 
     return (toolchain, target_arch, c_c)
 
@@ -266,28 +266,62 @@ def autoload_module(module, kernel_changes_dir):
         cnfh.writelines(conf_lines)
 
 
-def download_toolchain(toolchain, toolchain_path, version_gcc):
+def _try_download(url, dest):
+    """Attempt to download *url* to *dest*.
+
+    Returns True on success, False when the server is unreachable or returns
+    an error.
+    """
+    log.info(f"Downloading toolchain from {url}.")
+    log.info("Please wait this could take a while...")
+    try:
+        with download_progress() as reporthook:
+            urllib.request.urlretrieve(url, filename=dest, reporthook=reporthook)
+        return True
+    # pylint: disable-next=broad-exception-caught
+    except Exception as exc:
+        log.debug("Download from %s failed: %s", url, exc)
+        return False
+
+
+def _toolchain_fallback_url(version_gcc, tarball):
+    """Return the developer.arm.com URL for a given toolchain build.
+
+    Only "arm-gnu-toolchain-*" releases are mirrored there; the legacy
+    "gcc-arm-*" releases have no equivalent fallback.
+    """
+    if not version_gcc.startswith("arm-gnu-toolchain-"):
+        return None
+
+    ver_suffix = version_gcc[len("arm-gnu-toolchain-"):]
+    return (f"https://developer.arm.com/-/media/Files/downloads/gnu"
+            f"/{ver_suffix}/binrel/{tarball}")
+
+
+def download_toolchain(toolchain_path, version_gcc, host_arch, target_triple):
     """Download toolchain from online if it doesn't already exist"""
 
     url_prefix = "https://sources.toradex.com/tcb/toolchains/"
-    if toolchain == "arm-none-linux-gnueabihf-":
-        tarball = f"{version_gcc}-x86_64-arm-none-linux-gnueabihf.tar.xz"
-    elif toolchain == "aarch64-none-linux-gnu-":
-        tarball = f"{version_gcc}-x86_64-aarch64-none-linux-gnu.tar.xz"
-    else:
-        assert False, f"download_toolchain: unhandled toolchain {toolchain}"
-    url = url_prefix + tarball
+
+    if target_triple not in TARGET_TRIPLES.values():
+        assert False, f"download_toolchain: unhandled toolchain {target_triple}"
+    tarball = f"{version_gcc}-{host_arch}-{target_triple}.tar.xz"
+
+    primary_url = url_prefix + tarball
+    fallback_url = _toolchain_fallback_url(version_gcc, tarball)
 
     log.info("A toolchain is required to build the module.")
-    log.info(f"Downloading toolchain from {url}.")
-    log.info("Please wait this could take a while...")
 
-    try:
-        with download_progress() as reporthook:
-            urllib.request.urlretrieve(url, filename=tarball, reporthook=reporthook)
-    except Exception as exc:
+    downloaded = _try_download(primary_url, tarball)
+    if not downloaded and fallback_url is not None:
+        log.info("Primary download failed; trying fallback source.")
+        downloaded = _try_download(fallback_url, tarball)
+
+    if not downloaded:
+        tried = primary_url if fallback_url is None \
+                                 else f"{primary_url} and {fallback_url}"
         raise TorizonCoreBuilderError(
-            "The requested toolchain could not be downloaded") from exc
+            f"The requested toolchain could not be downloaded. URLs tried: {tried}")
 
     log.info("Download Complete!")
 
