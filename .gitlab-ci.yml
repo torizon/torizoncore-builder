@@ -735,6 +735,7 @@ deploy-official-arm64-manual:
   extends: .deploy-dh-base
   stage: deploy
   needs: [build-multiarch-manual]
+  allow_failure: true
   rules:
     # Following condition is needed to avoid the execution of merge-request pipelines.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
