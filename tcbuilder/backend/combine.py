@@ -296,7 +296,8 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force,
     """
     Combine a container bundle to a raw disk image by copying its contents to the image root
     filesystem. If the size of the container bundle exceeds the available space in root,
-    then the disk image will be resized beforehand.
+    then the disk image will be resized beforehand: via virt-resize at the default 512-byte
+    sector size, or via grow_last_partition() directly for a non-512 sector_size.
 
     :param image_path: Path of the input raw disk image.
     :param bundle_dir: Path of the container bundle directory.
@@ -360,23 +361,32 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force,
         extra_disk_size_kb += int((req_space_kb - root_avail_kb) * DISK_INCREASE_FACTOR)
 
     log.info(f"Output disk will be increased by {extra_disk_size_kb/1024:.2f} MiB")
-    subprocess.check_output(["truncate", "-s", f"+{extra_disk_size_kb}K", output_path])
 
-    tmp_image = None
-    if output_path == image_path:
-        # The build command uses in-place modification.
-        # virt-resize doesn't support that, so we need to create a temporary copy.
-        tmp_image = output_path + ".not_bundled"
-        log.debug("Copying '%s' -> '%s' for virt-resize.", output_path, tmp_image)
-        shutil.copyfile(output_path, tmp_image)
-        image_path = tmp_image
+    if sector_size == DEFAULT_RAW_SECTOR_SIZE:
+        subprocess.check_output(["truncate", "-s", f"+{extra_disk_size_kb}K", output_path])
 
-    try:
-        expand_disk_partition(image_path, root_partition, output_path)
-    finally:
-        if tmp_image and os.path.isfile(tmp_image):
-            log.debug("Deleting '%s'", tmp_image)
-            os.remove(tmp_image)
+        tmp_image = None
+        if output_path == image_path:
+            # The build command uses in-place modification.
+            # virt-resize doesn't support that, so we need to create a temporary copy.
+            tmp_image = output_path + ".not_bundled"
+            log.debug("Copying '%s' -> '%s' for virt-resize.", output_path, tmp_image)
+            shutil.copyfile(output_path, tmp_image)
+            image_path = tmp_image
+
+        try:
+            expand_disk_partition(image_path, root_partition, output_path)
+        finally:
+            if tmp_image and os.path.isfile(tmp_image):
+                log.debug("Deleting '%s'", tmp_image)
+                os.remove(tmp_image)
+    else:
+        # virt-resize can't open 4Kn disks; grow directly via libguestfs instead.
+        # Local import: a module-level one re-enters kernel.py's import cycle
+        # before cli/build.py's own import order finishes resolving it.
+        # pylint: disable-next=import-outside-toplevel
+        from tcbuilder.backend.deploy import grow_last_partition
+        grow_last_partition(output_path, extra_disk_size_kb, sector_size, root_partition)
 
     with open_disk_image(output_path, delete_on_error=delete_on_error,
                          sector_size=sector_size) as gfs:
