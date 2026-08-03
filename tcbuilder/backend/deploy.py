@@ -330,7 +330,8 @@ def grow_last_partition(raw_img, added_size_kb, sector_size, rootfs_partition):
 
     For 4Kn images, where virt-resize cannot operate. Preserves the partition's
     GPT identity (name, type, GUID, attributes) so it still boots; the rootfs
-    must be the last partition, which is checked.
+    must be the last partition, which is checked. The partition's filesystem
+    is grown to match.
     """
     # Round up to a whole sector; a non-sector-multiple size can be rejected at 4Kn.
     new_size = os.path.getsize(raw_img) + int(added_size_kb) * 1024
@@ -361,6 +362,9 @@ def grow_last_partition(raw_img, added_size_kb, sector_size, rootfs_partition):
         gfs.part_set_gpt_type(dev, partnum, gpt_type)
         gfs.part_set_gpt_guid(dev, partnum, gpt_guid)
         gfs.part_set_gpt_attributes(dev, partnum, gpt_attributes)
+
+        # Growing only the partition would leave the fs at its old size.
+        gfs.resize2fs(rootfs_partition)
 
 
 # pylint: disable-next=too-many-positional-arguments
