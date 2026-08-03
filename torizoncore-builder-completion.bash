@@ -95,6 +95,7 @@ _TCBCOMP_ARGS_DEPLOY="
     --image-autoreboot
     --no-image-autoinstall
     --no-image-autoreboot
+    --raw-sector-size
 "
 
 _TCBCOMP_ARGS_DT="
@@ -187,6 +188,7 @@ _TCBCOMP_ARGS_IMAGES_PROVISION="
     --shared-data
     --online-data
     --fleet
+    --raw-sector-size
 "
 
 _TCBCOMP_ARGS_IMAGES_PROVISION_MODES="
@@ -194,8 +196,14 @@ _TCBCOMP_ARGS_IMAGES_PROVISION_MODES="
     online
 "
 
+_TCBCOMP_ARGS_RAW_SECTOR_SIZES="
+    512
+    4096
+"
+
 _TCBCOMP_ARGS_IMAGES_UNPACK="
     --help
+    --raw-sector-size
 "
 
 _TCBCOMP_ARGS_IMAGES_SERVE="
@@ -655,6 +663,9 @@ _tcbcomp_deploy() {
         --image-licence|--image-release-notes)
             _tcbcomp_helper_filter_files_and_dirs "*"
             ;;
+        --raw-sector-size)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_RAW_SECTOR_SIZES}"
+            ;;
         *)
             if [ -n "${cur}" ]; then
                 _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEPLOY}"
@@ -913,6 +924,9 @@ _tcbcomp_images_provision() {
             ;;
         --fleet)
             _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_FLEET_UUID}"
+            ;;
+        --raw-sector-size)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_RAW_SECTOR_SIZES}"
             ;;
         *)
             if [ -n "${cur}" ]; then
