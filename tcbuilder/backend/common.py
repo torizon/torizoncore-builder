@@ -1079,7 +1079,7 @@ def open_disk_image(image_path, *, delete_on_error=False, readonly=False, loadin
 
     try:
         gfs = guestfs.GuestFS(python_return_dict=True)
-        # blocksize optarg needs libguestfs >= 1.44; omit it on the default path.
+        # blocksize optarg needs libguestfs >= 1.42; omit it on the default path.
         extra = {"blocksize": sector_size} if sector_size != DEFAULT_RAW_SECTOR_SIZE else {}
         gfs.add_drive_opts(image_path, format="raw", readonly=readonly, **extra)
         run_with_loading_animation(
