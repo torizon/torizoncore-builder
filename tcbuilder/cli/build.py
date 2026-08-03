@@ -663,7 +663,8 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
     common.set_output_ownership(output_raw_img)
 
     if "provisioning" in props:
-        handle_provisioning(output_raw_img, props.get("provisioning"), base_rootfs_label)
+        handle_provisioning(output_raw_img, props.get("provisioning"), base_rootfs_label,
+                             base_sector_size)
 
 
 def handle_easy_installer_output(props, union_params):
@@ -837,7 +838,7 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
                     shutil.rmtree(docker_storage_dir_path)
 
 
-def handle_provisioning(output_dir, prov_props, rootfs_label=None):
+def handle_provisioning(output_dir, prov_props, rootfs_label=None, sector_size=None):
     """Handle the provisioning step of the output generation."""
 
     prov_data = {
@@ -850,6 +851,7 @@ def handle_provisioning(output_dir, prov_props, rootfs_label=None):
         "output_path": None,
         "prov_data": prov_data,
         "rootfs_label": rootfs_label,
+        "sector_size": sector_size or common.DEFAULT_RAW_SECTOR_SIZE,
         "hibernated": prov_props.get("hibernated", False),
         "fleets": prov_props.get("fleets")
     }
