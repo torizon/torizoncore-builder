@@ -414,6 +414,7 @@ RUN apt-get -q -y update && \
     && \
     rm -rf /var/lib/apt/lists/*
 
+# hadolint ignore=DL3064
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID

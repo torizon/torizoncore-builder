@@ -14,7 +14,7 @@ variables:
 
   DEBIAN_RELEASE: "trixie-slim"
   # This Docker version should be bumped to latest Docker version at the end of the release process
-  DOCKER_VERSION: "29.3.1"
+  DOCKER_VERSION: "29.7.0"
   # Pipeline Settings
   GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_CONCURRENT_ID/$CI_PROJECT_PATH
   GET_SOURCES_ATTEMPTS: 3

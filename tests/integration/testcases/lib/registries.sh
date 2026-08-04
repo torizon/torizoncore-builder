@@ -16,7 +16,7 @@ export DIND_CONTAINER="dind-for-registries"
 
 export REGISTRIES_NETWORK="registry-network"
 
-export DOCKER_VERSION="29.3.1"
+export DOCKER_VERSION="29.7.0"
 
 
 _start-registries() {
