@@ -482,6 +482,36 @@ test-torizoncore:
     - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE="$TCB_HOST_TESTS" ${T} ./run.sh
     - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
 
+.test-base-arm64:
+  extends: .test-base
+  tags:
+    - arm64
+  variables:
+    IMAGE_NAME: torizoncore-builder-arm64
+    # List of all tests suites specific for arm64 test jobs
+    TCB_ARCH_SENSITIVE_TESTS: "kernel"
+  needs: ["build-arm64"]
+
+test-host-arm64-tc6-64bit-release:
+  extends: .test-base-arm64
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    TCB_MACHINE: "apalis-imx8"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_ARCH_SENSITIVE_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
+test-host-arm64-tos7-64bit-nightly:
+  extends: .test-base-arm64
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    TCB_MACHINE: "verdin-imx8mp"
+  script:
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_ARCH_SENSITIVE_TESTS"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
 .aggregate-reports:
   stage: report
   image:
