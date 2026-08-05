@@ -2,6 +2,32 @@ bats_load_library 'bats/bats-support/load.bash'
 bats_load_library 'bats/bats-assert/load.bash'
 bats_load_library 'bats/bats-file/load.bash'
 load '../lib/common.bash'
+load '../lib/raw-sector-size.bash'
+
+setup_file() {
+    raw-sector-size-setup-synth-images "$RSS_SYNTH_4K" 4096 "$RSS_SLACK_4K_KB"
+}
+
+teardown_file() {
+    rm -f "$RSS_SYNTH_4K"
+}
+
+teardown() {
+    rm -f rss_deploy_out.img
+}
+
+@test "deploy: deploy changes to a 4Kn raw image" {
+    rm -rf rss_deploy_out.img
+
+    torizoncore-builder-clean-storage
+    torizoncore-builder images --remove-storage unpack --raw-sector-size 4096 $RSS_SYNTH_4K
+    torizoncore-builder union --changes-directory $SAMPLES_DIR/changes branch1
+
+    run torizoncore-builder deploy --base-raw $RSS_SYNTH_4K --raw-sector-size 4096 \
+                                   --output-raw rss_deploy_out.img branch1
+    assert_success
+    assert_output --partial "created successfully!"
+}
 
 @test "deploy: run without parameters" {
     run torizoncore-builder deploy

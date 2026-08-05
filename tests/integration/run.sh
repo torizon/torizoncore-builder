@@ -46,7 +46,6 @@ $TESTCASES_DIR/wic/dto.bats \
 $TESTCASES_DIR/wic/splash.bats \
 $TESTCASES_DIR/wic/splashconfig.bats \
 $TESTCASES_DIR/wic/combine.bats \
-$TESTCASES_DIR/wic/raw-sector-size.bats \
 $TESTCASES_DIR/wic/kernel.bats \
 $TESTCASES_DIR/wic/build.bats \
 "
