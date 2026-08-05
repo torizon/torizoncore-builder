@@ -170,6 +170,7 @@ def handle_raw_image_input(props, download_dir=None):
         images_cli.images_unpack(
             props["local"],
             raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
+            raw_sector_size=props.get("sector-size", common.DEFAULT_RAW_SECTOR_SIZE),
             remove_storage=True)
         base_raw_image = props["local"]
 
@@ -200,6 +201,7 @@ def handle_raw_image_input(props, download_dir=None):
         images_cli.images_unpack(
             local_file,
             raw_rootfs_label=props.get("rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL),
+            raw_sector_size=props.get("sector-size", common.DEFAULT_RAW_SECTOR_SIZE),
             remove_storage=True)
         base_raw_image = local_file
 
@@ -643,6 +645,7 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
 
     base_raw_img = props.get("base-image", default_base_raw_image)
     base_rootfs_label = props.get("base-rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL)
+    base_sector_size = props.get("base-sector-size", common.DEFAULT_RAW_SECTOR_SIZE)
 
     deploy_raw_image_params = {
         "ostree_ref": union_params["union_branch"],
@@ -650,6 +653,7 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
         "output_raw_img": output_raw_img,
         "deploy_sysroot_dir": deploy_cli.DEFAULT_DEPLOY_DIR,
         "rootfs_label": base_rootfs_label,
+        "sector_size": base_sector_size,
     }
 
     deploy_cli.deploy_raw_image(**deploy_raw_image_params)
@@ -659,7 +663,8 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
     common.set_output_ownership(output_raw_img)
 
     if "provisioning" in props:
-        handle_provisioning(output_raw_img, props.get("provisioning"), base_rootfs_label)
+        handle_provisioning(output_raw_img, props.get("provisioning"), base_rootfs_label,
+                             base_sector_size)
 
 
 def handle_easy_installer_output(props, union_params):
@@ -813,7 +818,11 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
                 "rootfs-label",
                 common.DEFAULT_RAW_ROOTFS_LABEL
             ),
-            "force": True
+            "force": True,
+            "sector_size": raw_props.get(
+                "base-sector-size",
+                common.DEFAULT_RAW_SECTOR_SIZE
+            )
         }
         comb_be.combine_raw_image(**combine_params)
 
@@ -829,7 +838,7 @@ def handle_raw_image_bundle_output(image_dir, raw_image_path, bundle_props, raw_
                     shutil.rmtree(docker_storage_dir_path)
 
 
-def handle_provisioning(output_dir, prov_props, rootfs_label=None):
+def handle_provisioning(output_dir, prov_props, rootfs_label=None, sector_size=None):
     """Handle the provisioning step of the output generation."""
 
     prov_data = {
@@ -842,6 +851,7 @@ def handle_provisioning(output_dir, prov_props, rootfs_label=None):
         "output_path": None,
         "prov_data": prov_data,
         "rootfs_label": rootfs_label,
+        "sector_size": sector_size or common.DEFAULT_RAW_SECTOR_SIZE,
         "hibernated": prov_props.get("hibernated", False),
         "fleets": prov_props.get("fleets")
     }

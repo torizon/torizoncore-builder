@@ -1,6 +1,33 @@
 bats_load_library 'bats/bats-support/load.bash'
 bats_load_library 'bats/bats-assert/load.bash'
 bats_load_library 'bats/bats-file/load.bash'
+load '../lib/raw-sector-size.bash'
+
+setup_file() {
+    raw-sector-size-setup-synth-images \
+        "$RSS_SYNTH_4K" 4096 "$RSS_SLACK_4K_KB" \
+        "$RSS_SYNTH_512" 512 "$RSS_SLACK_512_KB"
+}
+
+teardown_file() {
+    rm -f "$RSS_SYNTH_4K" "$RSS_SYNTH_512"
+}
+
+@test "images unpack: unpack image from a 4Kn raw image" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder images --remove-storage unpack --raw-sector-size 4096 $RSS_SYNTH_4K
+    assert_success
+    assert_output --partial "Unpacked OSTree from WIC/raw image"
+}
+
+@test "images unpack: unpack image from a 512 raw image (regression guard on the new synthesis helper)" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder images --remove-storage unpack $RSS_SYNTH_512
+    assert_success
+    assert_output --partial "Unpacked OSTree from WIC/raw image"
+}
 
 @test "images unpack: run without parameters" {
     run torizoncore-builder images unpack

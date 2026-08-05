@@ -20,7 +20,8 @@ from gi.repository import Gio, OSTree
 from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
                                       run_with_loading_animation, open_disk_image,
-                                      REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR)
+                                      REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR,
+                                      DEFAULT_RAW_SECTOR_SIZE)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.backend.secboot import FUSE_CMD_TXT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
@@ -324,8 +325,52 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
         copy_signed_artifacts(commit_dir, output_dir)
 
 
+def grow_last_partition(raw_img, added_size_kb, sector_size, rootfs_partition):
+    """Enlarge a raw image and extend its last partition to fill the new space.
+
+    For 4Kn images, where virt-resize cannot operate. Preserves the partition's
+    GPT identity (name, type, GUID, attributes) so it still boots; the rootfs
+    must be the last partition, which is checked. The partition's filesystem
+    is grown to match.
+    """
+    # Round up to a whole sector; a non-sector-multiple size can be rejected at 4Kn.
+    new_size = os.path.getsize(raw_img) + int(added_size_kb) * 1024
+    new_size = (new_size + sector_size - 1) // sector_size * sector_size
+    subprocess.check_output(["truncate", "-s", str(new_size), raw_img])
+
+    with open_disk_image(raw_img, sector_size=sector_size) as gfs:
+        dev = "/dev/sda"
+        gfs.part_expand_gpt(dev)  # relocate the GPT backup header to the new end
+        partnum = len(gfs.list_partitions())
+        if gfs.part_to_partnum(rootfs_partition) != partnum:
+            raise TorizonCoreBuilderError(
+                "the rootfs must be the last partition to grow a 4Kn raw image.")
+        start_sector = gfs.part_list(dev)[-1]["part_start"] // sector_size
+
+        name = gfs.part_get_name(dev, partnum)
+        gpt_type = gfs.part_get_gpt_type(dev, partnum)
+        gpt_guid = gfs.part_get_gpt_guid(dev, partnum)
+        gpt_attributes = gfs.part_get_gpt_attributes(dev, partnum)
+
+        # Stop short of the disk end to clear the GPT backup (33 LBAs of 512 B).
+        gpt_tail = (33 * 512 + sector_size - 1) // sector_size
+        end_sector = os.path.getsize(raw_img) // sector_size - 1 - gpt_tail
+        gfs.part_del(dev, partnum)
+        gfs.part_add(dev, "primary", start_sector, end_sector)
+
+        gfs.part_set_name(dev, partnum, name)
+        gfs.part_set_gpt_type(dev, partnum, gpt_type)
+        gfs.part_set_gpt_guid(dev, partnum, gpt_guid)
+        gfs.part_set_gpt_attributes(dev, partnum, gpt_attributes)
+
+        # Growing only the partition would leave the fs at its old size.
+        gfs.resize2fs(rootfs_partition)
+
+
+# pylint: disable-next=too-many-positional-arguments
 def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
-                            other_partitions_size_kb, rootfs_size_kb):
+                            other_partitions_size_kb, rootfs_size_kb,
+                            sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Create a new raw disk image based on an existing one.
 
     The result is a copy of the base disk image with all partitions except
@@ -336,6 +381,21 @@ def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
     out_size_kb = max(base_img_size_kb,
                       IMAGE_OVERHEAD_FACTOR*(rootfs_size_kb + other_partitions_size_kb))
     out_size_kb += EXTRA_ROOTFS_SIZE_KB
+
+    if sector_size != DEFAULT_RAW_SECTOR_SIZE:
+        # virt-resize drives libguestfs at the default 512-byte sector size and
+        # cannot open a 4Kn disk, so grow the image with libguestfs directly and
+        # let write_rootfs_to_raw_image() reformat the enlarged last partition.
+        shutil.copy2(base_raw_img, output_raw_img)
+        if out_size_kb > base_img_size_kb:
+            added_size_kb = out_size_kb - base_img_size_kb
+            log.info(f"Adding {added_size_kb/1024:.2f} MiB to output image.")
+            log.info(f"Size of output image will be: {out_size_kb/1024/1024:.2f} GiB")
+            grow_last_partition(output_raw_img, added_size_kb, sector_size,
+                                base_rootfs_partition)
+        else:
+            log.info("Output image will have the same size as the base one.")
+        return
 
     # Copy of the base disk will be the starting point of the output disk
     shutil.copy2(base_raw_img, output_raw_img)
@@ -361,7 +421,8 @@ def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
     print("------------------------------------------------------------")
 
 
-def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_partition, rootfs_dir):
+def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_partition, rootfs_dir,
+                              sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Writes unpacked rootfs contents to a raw disk image
 
     Creates a new rootfs ext4 partition with a given label on the last partition
@@ -369,7 +430,7 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_partition, root
     """
 
     loading_msg="Initializing output image..."
-    with open_disk_image(raw_disk_img, loading_msg=loading_msg) as gfs:
+    with open_disk_image(raw_disk_img, loading_msg=loading_msg, sector_size=sector_size) as gfs:
         # virt-resize expanded the root partition without moving any of the others, so
         # the partition numbering of the input disk should be valid for the output one.
         log.info("Formatting '%s' at %s.", rootfs_label, rootfs_partition)
@@ -392,7 +453,8 @@ def write_rootfs_to_raw_image(raw_disk_img, rootfs_label, rootfs_partition, root
 
 # pylint: disable-next=too-many-positional-arguments
 def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
-                     output_raw_img, dst_sysroot_dir, rootfs_label, *, ref=None):
+                     output_raw_img, dst_sysroot_dir, rootfs_label, *, ref=None,
+                     sector_size=DEFAULT_RAW_SECTOR_SIZE):
     """Deploys a WIC image with given OSTree reference
 
     Creates a new WIC image with an OSTree deployment of the
@@ -401,7 +463,8 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
     deploy_ostree_local(src_sysroot_dir, src_ostree_archive_dir, dst_sysroot_dir, ref)
 
     loading_msg="Initializing base WIC/raw image..."
-    with open_disk_image(base_raw_img, readonly=True, loading_msg=loading_msg) as gfs:
+    with open_disk_image(base_raw_img, readonly=True, loading_msg=loading_msg,
+                         sector_size=sector_size) as gfs:
         # Get partition number from ext4 fs called rootfs_label in disk image (.wic/.img)
         rootfs_partition = gfs.findfs_label(rootfs_label)
         log.info(f"  '{rootfs_label}' partition found: {rootfs_partition}")
@@ -421,9 +484,10 @@ def deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
     log.info(f"Unpacked rootfs size: {rootfs_size_kb/1024/1024:.2f} GiB")
 
     create_output_raw_image(base_raw_img, output_raw_img, rootfs_partition,
-                            other_partitions_size_kb, rootfs_size_kb)
+                            other_partitions_size_kb, rootfs_size_kb, sector_size)
 
-    write_rootfs_to_raw_image(output_raw_img, rootfs_label, rootfs_partition, dst_sysroot_dir)
+    write_rootfs_to_raw_image(output_raw_img, rootfs_label, rootfs_partition, dst_sysroot_dir,
+                              sector_size)
 
     log.info(f"Image {os.path.basename(output_raw_img)} created successfully!")
 

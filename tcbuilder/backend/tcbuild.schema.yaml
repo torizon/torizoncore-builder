@@ -180,6 +180,10 @@ properties:
                   rootfs-label:
                     type: string
                     description: "label of the filesystem where rootfs is located"
+                  sector-size:
+                    type: integer
+                    enum: [512, 4096]
+                    description: "logical sector size of the image in bytes (use 4096 for 4Kn media)"
                 additionalProperties: false
                 required:
                   - local
@@ -571,6 +575,10 @@ properties:
               base-rootfs-label:
                 type: string
                 description: "filesystem label where rootfs is located in base image"
+              base-sector-size:
+                type: integer
+                enum: [512, 4096]
+                description: "logical sector size of the base image in bytes (use 4096 for 4Kn media)"
               base-image:
                 type: string
                 description: "base image used for the output raw image"

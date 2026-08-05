@@ -131,7 +131,8 @@ def do_images_provision(args):
             prov_data=prov_data,
             hibernated=args.hibernated,
             fleets=args.fleets,
-            force=args.force)
+            force=args.force,
+            sector_size=args.raw_sector_size or common.DEFAULT_RAW_SECTOR_SIZE)
 
     except (TorizonCoreBuilderError, TeziError) as exc:
         log.error(f"Error: {str(exc)}")
@@ -145,13 +146,14 @@ def do_images_serve(args):
     images.serve(args.images_directory)
 
 
-def images_unpack(image_dir, *, raw_rootfs_label=None, remove_storage=False):
+def images_unpack(image_dir, *, raw_rootfs_label=None, raw_sector_size=None,
+                  remove_storage=False):
     """Main handler for the 'images unpack' subcommand"""
 
     image_dir = os.path.abspath(image_dir)
     dir_list = prepare_storage(remove_storage)
     images.import_local_image(image_dir, dir_list[0], dir_list[1],
-                              dir_list[2], raw_rootfs_label)
+                              dir_list[2], raw_rootfs_label, raw_sector_size)
 
 
 def do_images_unpack(args):
@@ -159,6 +161,7 @@ def do_images_unpack(args):
     images_unpack(
         args.image_directory,
         raw_rootfs_label=args.raw_rootfs_label,
+        raw_sector_size=args.raw_sector_size,
         remove_storage=args.remove_storage)
 
 

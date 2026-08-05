@@ -79,7 +79,8 @@ def do_combine(args):
     }
 
     raw_props_args = {
-        "raw_rootfs_label" : args.raw_rootfs_label
+        "raw_rootfs_label" : args.raw_rootfs_label,
+        "raw_sector_size" : args.raw_sector_size
     }
 
     # If raw image:
@@ -106,7 +107,8 @@ def do_combine(args):
 
         try:
             combine.combine_raw_image(image_path, dir_containers, output_path,
-                                      raw_props_args["raw_rootfs_label"], args.force)
+                                      raw_props_args["raw_rootfs_label"], args.force,
+                                      raw_props_args["raw_sector_size"])
         finally:
             docker_storage_dir_path = os.path.join(dir_containers, combine.DOCKER_STORAGE_DIRNAME)
             if os.path.isdir(docker_storage_dir_path):

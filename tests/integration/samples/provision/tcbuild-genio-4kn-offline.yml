@@ -1,0 +1,12 @@
+input:
+  raw-image:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+    sector-size: 4096
+
+output:
+  raw-image:
+    local: "${OUTPUT_FILE:?Please specify output file}"
+    base-sector-size: 4096
+    provisioning:
+      mode: "offline"
+      shared-data: "${SHARED_DATA_TARBALL:?Please specify shared data tarball}"
