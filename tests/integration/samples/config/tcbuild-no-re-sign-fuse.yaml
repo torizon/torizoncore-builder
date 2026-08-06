@@ -1,0 +1,15 @@
+
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+output:
+  ostree:
+    branch: failed-fuse
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    name: "image with re-signed kernel FIT and bootloader"
+    description: "HAB image with both the kernel FIT and the bootloader re-signed"
+    fusing:
+      auto-programming: true
+      close-device: false
