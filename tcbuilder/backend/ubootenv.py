@@ -6,11 +6,13 @@ import os
 import logging
 import re
 import shutil
+import tempfile
 
 from tcbuilder.backend.common import \
-    (set_output_ownership, get_tezi_image_version)
+    (set_output_ownership, get_tezi_image_version, FUSE_CMD_TXT_NAME)
 from tcbuilder.backend.platform import \
-    (validate_fuse_file, FUSE_HARDWAREIDS, restore_hex)
+    (validate_fuse_file, FUSE_HARDWAREIDS, restore_hex,
+     SECBOOT_TECH_PER_MACHINE, fuse_count_for_tech)
 from tcbuilder.errors import \
     (FileContentMissing, TorizonCoreBuilderError, InvalidStateError,
      PathNotExistError)
@@ -40,22 +42,7 @@ def env_fuses(input_dir, output_dir, fuse_file, force=False):
                     "OS before 7.2.0. Proceeding anyways, but this will most likely not "
                     "do anything.")
 
-    initial_env_filename = get_env_filename(input_dir)
-    initial_env = os.path.join(input_dir, initial_env_filename)
-
-    with open(initial_env, "r", encoding="utf-8") as file:
-        env = file.read()
-
-    # Check to see if initial u-boot env already contains fuse variables
-    if any(fuse_var in env for fuse_var in FUSE_VARIABLES):
-        raise InvalidStateError(
-            "Input image already contains fuse related u-boot variables")
-
-    board = find_board(env)
-    hwid = board + "-fuses"
-    if hwid not in FUSE_HARDWAREIDS:
-        raise InvalidStateError(
-            f"Hardware type \"{board}\" is not supported by this command.")
+    hwid, _ = _detect_fuse_hwid(input_dir)
 
     # Validate and check fuse file before proceeding
     fuse_file_data = validate_fuse_file(fuse_file, [hwid])
@@ -63,10 +50,11 @@ def env_fuses(input_dir, output_dir, fuse_file, force=False):
     var_list = get_fuse_vars(fuse_file_data)
 
     inplace = False
+    initial_env_filename = get_env_filename(input_dir)
     if os.path.normpath(output_dir) == os.path.normpath(input_dir):
         log.debug("Updating Torizon OS image in place.")
         output_dir = input_dir
-        output_env = initial_env
+        output_env = os.path.join(input_dir, initial_env_filename)
         inplace = True
     else:
         if os.path.exists(output_dir) and force:
@@ -80,6 +68,9 @@ def env_fuses(input_dir, output_dir, fuse_file, force=False):
         write_uboot_vars(output_env, var_list)
         set_output_ownership(output_dir)
         log.info("Fuse U-Boot variables successfully added to image.")
+        log.info("WARNING: Any device flashed with this image will perform "
+                 "automatic fusing for secure-boot. This is an irreversible "
+                 "operation. Take care to check before flashing this image.")
     except:
         if not inplace:
             log.debug("Removing output directory due to error.")
@@ -173,3 +164,81 @@ def write_uboot_vars(env_file, var_list):
 
     with open(env_file, "a", encoding="utf-8") as file:
         file.writelines(var + '\n' for var in var_list)
+
+
+def _detect_fuse_hwid(image_dir):
+    """Determine the hardware-id based on the input image
+
+    :param image_dir: Path to directory containing input image
+    :returns: A tuple containing the detected hardware-id and board
+    """
+
+    initial_env_filename = get_env_filename(image_dir)
+    initial_env = os.path.join(image_dir, initial_env_filename)
+
+    with open(initial_env, "r", encoding="utf-8") as file:
+        env = file.read()
+
+    # Check to see if initial u-boot env already contains fuse variables
+    if any(fuse_var in env for fuse_var in FUSE_VARIABLES):
+        raise InvalidStateError(
+            "Input image already contains fuse related u-boot variables")
+
+    board = find_board(env)
+    hwid = board + "-fuses"
+    if hwid not in FUSE_HARDWAREIDS:
+        raise InvalidStateError(
+            f"Hardware type \"{board}\" is not supported by this command.")
+
+    return hwid, board
+
+
+# pylint: disable-next=too-many-locals
+def generate_fuse_file(close, image_dir):
+    """Generate valid fuse.yaml file based on re-signing information
+
+    :params close: Boolean on whether closing should be set in the yaml
+    :params image_dir: Path to image directory containing the signed image
+    :returns: Path to generated yaml file
+    """
+
+    fuse_instructions = os.path.join(image_dir, FUSE_CMD_TXT_NAME)
+    if not os.path.isfile(fuse_instructions):
+        raise PathNotExistError("Unable to find fusing instructions file: "
+                                f"{FUSE_CMD_TXT_NAME}. Is the image signed?")
+
+    # Figure out what machine this is for
+    hwid, board = _detect_fuse_hwid(image_dir)
+
+    _tech = SECBOOT_TECH_PER_MACHINE.get(board)
+    fuse_num = fuse_count_for_tech(_tech)
+
+    # Parse fusing values from fusing instruction file created by re-signing
+    hex_regex = re.compile(r"\b(?:0[xX])[0-9a-fA-F]+\b")
+
+    fuse_values = []
+    with open(fuse_instructions, 'r', encoding="utf-8") as file:
+        for line in file:
+            fuse_value = hex_regex.findall(line)
+            if fuse_value:
+                fuse_values.append(fuse_value[0])
+
+            if len(fuse_values) == fuse_num:
+                break
+
+    # Create temporary fuse yaml file to be used later
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp_fuse_file:
+        tmp_fuse_file.write("fuses:\n")
+        _index = 1
+        for value in fuse_values:
+            tmp_fuse_file.write(f"  fuse-val{_index}: {value}\n")
+            _index += 1
+
+        tmp_fuse_file.write(f"  fuse-close: {close}\n")
+
+    tmp_fuse_path = tmp_fuse_file.name
+
+    # Quick sanity check on generated file
+    validate_fuse_file(tmp_fuse_path, [hwid])
+
+    return tmp_fuse_path

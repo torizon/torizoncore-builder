@@ -263,3 +263,17 @@ output:
       # >> Replace example UUID with your actual fleet UUID.
       # fleets:
         # - 0dfab76b-5b71-4435-ab6f-c6cdc62690c6
+    # >> Fusing configuration:
+    # >> Only valid for easy-installer based images
+    # fusing:
+      # >> Enable/disable automatic fusing (REQUIRED)
+      # >> WARNING: Setting the below to true will cause the resulting image to perform
+      # >> automatic fusing. This fusing is an irreversible operation.
+      # auto-programming: true
+      # >> Automatically close device during fusing (REQUIRED)
+      # >> WARNING: Setting the below to true along with auto-programming will cause the
+      # >> resulting image to close the device for secure-boot. This is an irreversible operation.
+      # close-device: false
+      # >> Output a file containing the fusing information that can be used
+      # >> with Torizon Cloud (OPTIONAL)
+      # fuse-file: fuse.yaml

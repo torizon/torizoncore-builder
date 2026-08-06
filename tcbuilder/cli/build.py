@@ -26,6 +26,7 @@ from tcbuilder.backend import images as images_be
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend import ostree as ostree_be
 from tcbuilder.backend import secboot as secboot_be
+from tcbuilder.backend import ubootenv as ubootenv_be
 from tcbuilder.cli import deploy as deploy_cli
 from tcbuilder.cli import dt as dt_cli
 from tcbuilder.cli import dto as dto_cli
@@ -554,7 +555,8 @@ def _union_parse_ostree_key(ostree_key_dir, ostree_key_props, *,
     return ostree_key_obj
 
 
-def handle_output_section(props, changes_dirs=None, default_base_raw_image=None):
+def handle_output_section(props, changes_dirs=None, default_base_raw_image=None,
+                          sign_type=None):
     """Handle the output section of the configuration file
 
     :param props: Dictionary holding the data of the section.
@@ -562,6 +564,7 @@ def handle_output_section(props, changes_dirs=None, default_base_raw_image=None)
     :param default_base_raw_image: Default base raw image. Should always be the
                                    input raw image. If dealing with tezi images,
                                    this value is equal to 'None'.
+    :param sign_type: Secure-boot signing technology being used.
     """
 
     if props:
@@ -616,7 +619,7 @@ def handle_output_section(props, changes_dirs=None, default_base_raw_image=None)
 
     if common.unpacked_image_type() == "tezi":
         tezi_props = props.get("easy-installer", {})
-        handle_easy_installer_output(tezi_props, union_params)
+        handle_easy_installer_output(tezi_props, union_params, sign_type)
     else:
         raw_props = props.get("raw-image", {})
         handle_raw_image_output(raw_props, union_params, default_base_raw_image)
@@ -667,11 +670,12 @@ def handle_raw_image_output(props, union_params, default_base_raw_image):
                              base_sector_size)
 
 
-def handle_easy_installer_output(props, union_params):
+def handle_easy_installer_output(props, union_params, sign_type=None):
     """Handle the output/easy-installer section of the configuration file
 
     :param props: Dictionary holding the data of the section.
     :param union_params: Parameters related to union(). This is a required arg.
+    :param sign_type: Secure-boot technology being used.
     """
 
     # Note that the following test should never fail (due to schema validation).
@@ -696,6 +700,9 @@ def handle_easy_installer_output(props, union_params):
 
     if "provisioning" in props:
         handle_provisioning(output_dir, props.get("provisioning"))
+
+    if "fusing" in props:
+        handle_fusing(output_dir, props.get("fusing"), sign_type)
 
 
 def handle_bundle_common(bundle_props, compress_tar=True):
@@ -878,6 +885,51 @@ def handle_provisioning(output_dir, prov_props, rootfs_label=None, sector_size=N
     images_be.provision(**prov_params)
 
 
+def handle_fusing(output_dir, fuse_props, sign_type=None):
+    """Handle the fusing step of the output generation."""
+
+    # Check to make sure re-signing of bootloader was done earlier
+    if sign_type is None:
+        raise InvalidStateError("To do 'fusing', 'sign-bootloader-hab' must be defined "
+                                "at the same time.")
+
+    _do_fuse = fuse_props.get("auto-programming", False)
+    _do_file = fuse_props.get("fuse-file")
+
+    if not _do_fuse and not _do_file:
+        log.info(l2_pref("Neither 'auto-programming' or 'fuse-file' specified "
+                         "skipping 'fusing' section"))
+        return
+
+    fuse_file = None
+    try:
+        fuse_file = ubootenv_be.generate_fuse_file(fuse_props.get("close-device"), output_dir)
+
+        if _do_fuse:
+            log.info(l2_pref("Adding automatic secure fuse programming to image."))
+            ubootenv_params = {
+                "input_dir": output_dir,
+                "output_dir": output_dir,
+                "fuse_file": fuse_file,
+                "force": True,
+            }
+            ubootenv_be.env_fuses(**ubootenv_params)
+
+        if _do_file:
+            log.info(l2_pref(f"Creating fuse-file '{fuse_props['fuse-file']}'."))
+            output_root = os.path.realpath(output_dir)
+            fuse_output = os.path.realpath(os.path.join(output_root, _do_file))
+            if (fuse_output == output_root or
+                    os.path.commonpath((output_root, fuse_output)) != output_root):
+                raise InvalidDataError("'fuse-file' must be inside the output directory.")
+            shutil.copy(fuse_file, fuse_output)
+            os.chmod(fuse_output, 0o644)
+            common.set_output_ownership(fuse_output)
+    finally:
+        if fuse_file and os.path.exists(fuse_file):
+            os.remove(fuse_file)
+
+
 def _build_setup(config, force):
     """Do some sanity checks and prepare for handling the build operations."""
 
@@ -955,6 +1007,17 @@ def build(config_fname, *, substs=None, enable_subst=True, force=False):
     except KeyError as _exc:
         pass
 
+    # Track whether bootloader re-signing is being done for auto-fusing
+    _sign_type = None
+    try:
+        if "sign-bootloader-hab" in config["customization"]["secboot"]:
+            _sign_type = "hab"
+        # TODO: Once ahab devices are supported with re-signing
+        #elif "sign-bootloader-ahab" in config["customization"]["secboot"]:
+        #    _sign_type = "ahab"
+    except KeyError as _exc:
+        pass
+
     # ---
     # Handle each section.
     # ---
@@ -970,7 +1033,8 @@ def build(config_fname, *, substs=None, enable_subst=True, force=False):
         handle_output_section(
             config["output"],
             changes_dirs=fs_changes,
-            default_base_raw_image=base_raw_image)
+            default_base_raw_image=base_raw_image,
+            sign_type=_sign_type)
 
     except Exception as exc:
         # Avoid leaving a damaged output around:
