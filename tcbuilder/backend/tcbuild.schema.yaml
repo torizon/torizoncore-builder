@@ -23,6 +23,8 @@ properties:
           - colibri-imx7-emmc
           - colibri-imx8x
           - colibri-imx8x-v10b
+          - lino-imx93
+          - toradex-osm-imx93
           - toradex-smarc-imx8mp
           - toradex-smarc-imx95
           - verdin-imx8mm
