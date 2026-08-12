@@ -135,13 +135,16 @@ def get_fuse_vars(fuse_data):
     restore_hex(fuse_data)
 
     val_list = ""
-    for key in sorted(fuse_data['fuses'].keys()):
-        if "fuse-val" in key:
-            num = fuse_data["fuses"].get(key)
-            if not val_list:
-                val_list = num
-            else:
-                val_list = val_list + " " + num
+    # Subtract one to account for 'fuse-close'
+    fuse_num = len(fuse_data['fuses']) - 1
+    # Parse fuse values in order
+    for index in range(fuse_num):
+        # Add 1 cause range starts at 0
+        num = fuse_data["fuses"].get(f"fuse-val{index + 1}")
+        if not val_list:
+            val_list = num
+        else:
+            val_list = val_list + " " + num
 
     fuse_close = fuse_data["fuses"].get("fuse-close")
     if fuse_close:
