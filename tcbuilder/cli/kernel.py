@@ -18,7 +18,7 @@ from tcbuilder.backend.common import \
      get_arch_from_ostree, get_src_sysroot_dir)
 from tcbuilder.backend.deploy import get_image_bootloader
 
-from tcbuilder.backend import kernel, dt, dto
+from tcbuilder.backend import kernel, dt, dto, uenv
 from tcbuilder.backend.kernelfit import KernelFit
 from tcbuilder.cli import dto as dto_cli
 
@@ -214,15 +214,15 @@ def _set_custom_kargs_uenv(kargs, changes_dir, *, prepend=False):
     log.debug("Setting bootargs (uenv method).")
     if prepend:
         log.debug("Passed string will be prepended to the original bootargs.")
-        dt.set_uenv_txt_variable(
+        uenv.set_uenv_txt_variable(
             UENV_CUSTOM_BOOTARGS_L_VAR, kargs, changes_dir=changes_dir)
-        dt.set_uenv_txt_variable(
+        uenv.set_uenv_txt_variable(
             UENV_CUSTOM_BOOTARGS_R_VAR, None, changes_dir=changes_dir)
     else:
         log.debug("Passed string will be appended to the original bootargs.")
-        dt.set_uenv_txt_variable(
+        uenv.set_uenv_txt_variable(
             UENV_CUSTOM_BOOTARGS_L_VAR, None, changes_dir=changes_dir)
-        dt.set_uenv_txt_variable(
+        uenv.set_uenv_txt_variable(
             UENV_CUSTOM_BOOTARGS_R_VAR, kargs, changes_dir=changes_dir)
 
 
@@ -461,8 +461,8 @@ def _get_custom_kargs_uenv():
     """Get the custom bootargs using the (new) uenv method."""
 
     log.debug("Getting bootargs (uenv method).")
-    kargs_l = dt.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_L_VAR)
-    kargs_r = dt.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_R_VAR)
+    kargs_l = uenv.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_L_VAR)
+    kargs_r = uenv.get_uenv_txt_variable(UENV_CUSTOM_BOOTARGS_R_VAR)
     if kargs_l and kargs_r:
         raise InvalidDataError(
             "Error: the Torizon OS image you are customizing has both "
@@ -572,9 +572,9 @@ def _clr_custom_kargs_uenv(changes_dir):
     """Clear the custom bootargs set using the new method (variables in uEnv.txt)."""
 
     log.debug("Clearing bootargs (uenv method).")
-    status_l = dt.set_uenv_txt_variable(
+    status_l = uenv.set_uenv_txt_variable(
         UENV_CUSTOM_BOOTARGS_L_VAR, None, changes_dir=changes_dir)
-    status_r = dt.set_uenv_txt_variable(
+    status_r = uenv.set_uenv_txt_variable(
         UENV_CUSTOM_BOOTARGS_R_VAR, None, changes_dir=changes_dir)
     return status_l or status_r
 

@@ -21,7 +21,8 @@ from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
                                       run_with_loading_animation, open_disk_image,
                                       REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR,
-                                      DEFAULT_RAW_SECTOR_SIZE, FUSE_CMD_TXT_NAME)
+                                      DEFAULT_RAW_SECTOR_SIZE, FUSE_CMD_TXT_NAME,
+                                      get_image_bootloader)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
@@ -50,38 +51,6 @@ def create_sysroot(deploy_sysroot_dir):
         raise TorizonCoreBuilderError("Error loading OSTree sysroot.")
 
     return sysroot
-
-
-def get_image_bootloader(sysroot_dir):
-    """
-    Get bootloader being used in a given unpacked sysroot
-
-    :param sysroot_dir: sysroot path
-
-    Based on:
-    - https://github.com/ostreedev/ostree/blob/v2024.4/src/libostree/ostree-bootloader-uboot.c#L47
-    - https://github.com/ostreedev/ostree/blob/v2024.4/src/libostree/ostree-bootloader-grub2.c#L73
-    """
-    tentative_uenv_path = os.path.join(sysroot_dir, "boot/loader/uEnv.txt")
-
-    if os.path.exists(tentative_uenv_path):
-        return "U-Boot"
-
-    tentative_grubcfg_path1 = os.path.join(sysroot_dir, "boot/grub/grub.cfg")
-    tentative_grubcfg_path2 = os.path.join(sysroot_dir, "boot/grub2/grub.cfg")
-
-    if (os.path.exists(tentative_grubcfg_path1) or
-            os.path.exists(tentative_grubcfg_path2)):
-        return "GRUB2"
-
-    tentative_efi_dir_path = os.path.join(sysroot_dir, "boot/efi/EFI")
-    if (os.path.exists(tentative_efi_dir_path) and
-            os.path.isdir(tentative_efi_dir_path)):
-        for _, _, files in os.walk(tentative_efi_dir_path):
-            if "grub.cfg" in files:
-                return "GRUB2"
-
-    return "unknown"
 
 
 def deploy_rootfs(sysroot, src_sysroot_dir, ref, refspec, kargs):
