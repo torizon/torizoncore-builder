@@ -27,8 +27,8 @@ build-synth-raw-image() {
     local total_bytes=$(( size_kb * 1024 ))
     total_bytes=$(( (total_bytes + sector - 1) / sector * sector ))
     local total_sectors=$(( total_bytes / sector ))
-    # 33 LBAs reserved for the GPT backup header, converted to this disk's
-    # sector size - grow_last_partition's own calculation.
+    # 33 512-byte LBAs reserved for the GPT backup header (default 128-entry
+    # table), converted to this disk's sector size.
     local gpt_tail=$(( (33 * 512 + sector - 1) / sector ))
     local end_sector=$(( total_sectors - 1 - gpt_tail ))
     local blocksize_opt=""

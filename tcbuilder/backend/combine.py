@@ -383,7 +383,8 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force,
                 os.remove(tmp_image)
     else:
         # virt-resize can't open 4Kn disks; grow directly via libguestfs instead.
-        grow_last_partition(output_path, extra_disk_size_kb, sector_size, root_partition)
+        grow_last_partition(output_path, extra_disk_size_kb, sector_size, root_partition,
+                            delete_on_error=delete_on_error)
 
     with open_disk_image(output_path, delete_on_error=delete_on_error,
                          sector_size=sector_size) as gfs:
