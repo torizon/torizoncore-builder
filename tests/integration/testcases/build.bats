@@ -142,6 +142,9 @@ teardown_file() {
     local CST_SRK_FUSE_NAME="SRK_1_2_3_4_fuse.bin"
     local CST_SRK_NO_CA_FLAG="1"
 
+    # fusing related variables
+    local FUSE_FILE="fuse.yaml"
+
     # Prepare tcbuild file:
     cp "${SAMPLES_DIR}/config/tcbuild-hab-re-signing-components.yaml" \
        "tcbuild-hab-re-signing-components.yaml"
@@ -188,6 +191,7 @@ teardown_file() {
         --set CST_SRK_TABLE_NAME="$CST_SRK_TABLE_NAME" \
         --set CST_SRK_FUSE_NAME="$CST_SRK_FUSE_NAME" \
         --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
+        --set FUSE_FILE="$FUSE_FILE" \
         --set OUTPUT_DIR="$OUTDIR" --force
 
     assert_success
@@ -272,6 +276,21 @@ teardown_file() {
 
     run test "${FOUND_KEY_NAME}" == "${KERNEL_KEY_NAME}"
     assert_success
+
+    # Check fusing output
+    # Check fusing u-boot variables
+    run grep -r "fuse_status" "$OUTDIR"
+    assert_success
+    assert_output --partial 'fuse_status=pending'
+
+    run grep -r "fuse_prog_list" "$OUTDIR"
+    assert_success
+    assert_output --partial 'fuse_prog_list=0x3dca7649 0xb65e96b 0x2d813c2f 0x63d99878 0x29562ca4 0xc1f8b14a 0xfa337048 0xc8e7d657'
+
+    # Check fusing file output
+    run grep "fuse-close" "$OUTDIR/$FUSE_FILE"
+    assert_success
+    assert_output --partial 'fuse-close: False'
 
     # delete copied CST binaries as they're no longer needed
     rm -rf "${CST_DIR}/linux32"
@@ -705,4 +724,102 @@ teardown_file() {
     run [ -e "${OUTDIR}/docker-storage.tar.xz" -a -e "${OUTDIR}/docker-compose.yml" ]
     assert_success
     rm -fr "$OUTDIR"
+}
+
+@test "build: fusing without re-signing failure case" {
+    cp "${SAMPLES_DIR}/config/tcbuild-no-re-sign-fuse.yaml" \
+       "tcbuild-no-re-sign-fuse.yaml"
+    local TCBUILD_YAML="tcbuild-no-re-sign-fuse.yaml"
+
+    local OUTDIR='failed_image'
+
+    run torizoncore-builder build \
+	--file "${TCBUILD_YAML}" \
+	--set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_failure
+    assert_output --partial "Error: To do 'fusing', 'sign-bootloader-hab' must be defined at the same time."
+}
+
+@test "build: fusing file outside of output directory failure case" {
+    requires-supported-kernel-signing-machine
+    requires-supported-hab-signing-machine
+    requires-signed-image
+
+    # sign-kernel related variables
+    local SIGNING_KEYS_DIR="${SAMPLES_DIR}/signing_keys"
+    local KERNEL_KEY_DIR="${SIGNING_KEYS_DIR}/kernel_fitimage"
+    local KERNEL_KEY_NAME="test"
+    local KERNEL_KEY_ALGO="sha256,rsa2048"
+
+    # sign-bootloader-hab related variables
+    local CST_DIRS="cst_dirs"
+    local CST_TARBALL="${SIGNING_KEYS_DIR}/${CST_DIRS}.tar.gz"
+    local CST_BINARIES_DIR="${CST_DIRS}/cst-3.4.1"
+    local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_1024_no_ca"
+
+    local CST_CRYPTO="rsa"
+    local CST_KEY_SIZE="1024"
+    local CST_KEY_EXP="65537"
+    local CST_DIGEST_ALGO="sha256"
+    local CST_SRK_INDEX="3"
+    local CST_SRK_TABLE_NAME="SRK_1_2_3_4_table.bin"
+    local CST_SRK_FUSE_NAME="SRK_1_2_3_4_fuse.bin"
+    local CST_SRK_NO_CA_FLAG="1"
+
+    # fusing related variables
+    local FUSE_FILE="../fuse.yaml"
+
+    # Prepare tcbuild file:
+    cp "${SAMPLES_DIR}/config/tcbuild-hab-re-signing-components.yaml" \
+       "fuse-file-escape-failure.yaml"
+    local TCBUILD_YAML="fuse-file-escape-failure.yaml"
+
+    if [ "$CST_SRK_NO_CA_FLAG" == "1" ]; then
+        # Enable `srk-no-ca-flag`
+        cat "${TCBUILD_YAML}" | \
+                sed -Ee 's/## srk-no-ca-flag/srk-no-ca-flag/' > \
+                "${TCBUILD_YAML}-no-ca.yaml"
+        TCBUILD_YAML="${TCBUILD_YAML}-no-ca.yaml"
+
+        CST_SRK_NO_CA_FLAG="YES"
+    else
+        CST_SRK_NO_CA_FLAG="NO"
+    fi
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "${TCBUILD_YAML}" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+
+    unpack-image "${CST_TARBALL}"
+
+    # copy CST binaries to CST_DIR before running tests
+    cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
+    cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
+
+    local OUTDIR='failed_image'
+
+    run torizoncore-builder build \
+        --file "${TCBUILD_YAML}" \
+        --set KERNEL_KEY_DIR="$KERNEL_KEY_DIR" \
+        --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
+        --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
+        --set CST_DIR="$CST_DIR" \
+        --set CST_CRYPTO="$CST_CRYPTO" \
+        --set CST_KEY_SIZE="$CST_KEY_SIZE" \
+        --set CST_KEY_EXP="$CST_KEY_EXP" \
+        --set CST_DIGEST_ALGO="$CST_DIGEST_ALGO" \
+        --set CST_SRK_INDEX="$CST_SRK_INDEX" \
+        --set CST_SRK_TABLE_NAME="$CST_SRK_TABLE_NAME" \
+        --set CST_SRK_FUSE_NAME="$CST_SRK_FUSE_NAME" \
+        --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
+        --set FUSE_FILE="$FUSE_FILE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_failure
+    assert_output --partial "Error: 'fuse-file' must be inside the output directory."
 }

@@ -21,9 +21,8 @@ from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
                                       run_with_loading_animation, open_disk_image,
                                       REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR,
-                                      DEFAULT_RAW_SECTOR_SIZE)
+                                      DEFAULT_RAW_SECTOR_SIZE, FUSE_CMD_TXT_NAME)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
-from tcbuilder.backend.secboot import FUSE_CMD_TXT_NAME
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
 # pylint: enable=wrong-import-position

@@ -1881,6 +1881,23 @@ def push_fuse(credentials, target, version, fuse_file, hardwareids, *,
         update_description(description, target, version, credentials)
 
 
+def fuse_count_for_tech(tech):
+    """Determine the number of fuses based on the secure-boot technology
+
+    :param tech: The secure-boot technology being used.
+    :returns: An int with the number of fuses
+    """
+
+    if tech == "hab":
+        fuse_num = 8
+    elif tech == "ahab":
+        fuse_num = 16
+    else:
+        assert False, f"Unhandled Secure Boot technology '{tech}'."
+
+    return fuse_num
+
+
 def fuse_hwid_to_machine(hwid):
     """Translate a fuse hwid to a machine name."""
     if not hwid.endswith(FUSE_HWID_SUFFIX):
@@ -1915,12 +1932,7 @@ def validate_fuse_file(fuse_file, hardwareids):
             f"Provided hardware ids: {hardwareids} are associated with different"
             " Secure Boot technologies which is not possible in one fuse type package.")
 
-    if "hab" in secboot_techs:
-        fuse_num = 8
-    elif "ahab" in secboot_techs:
-        fuse_num = 16
-    else:
-        assert False, f"Unhandled Secure Boot technology '{secboot_techs}'."
+    fuse_num = fuse_count_for_tech(next(iter(secboot_techs)))
 
     # Next check overall layout against schema
     parsed_file = parse_config_file(fuse_file, schema_path=FUSE_SCHEMA_FILE)

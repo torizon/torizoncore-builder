@@ -140,6 +140,8 @@ OSTREE_ROOT_DEPLOY_PATH = "ostree/deploy/torizon/deploy/{csum}"
 
 OSTREE_SOTA_DIR_PATH = "/ostree/deploy/torizon/var/sota"
 
+FUSE_CMD_TXT_NAME = "fuse-cmds.txt"
+
 
 def get_storage_dir():
     """Get the absolute path of the "storage" directory."""

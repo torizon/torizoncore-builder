@@ -631,6 +631,24 @@ properties:
                 $ref: '#/properties/output/definitions/provisioning'
               bundle:
                 $ref: '#/properties/output/definitions/bundle'
+              fusing:
+                type: object
+                description: "Automatic fusing configuration"
+                properties:
+                  auto-programming:
+                    type: boolean
+                    description: "Whether to enable auto-fusing or not"
+                  close-device:
+                    type: boolean
+                    description: "Whether to set closing fuse during auto-fusing"
+                  fuse-file:
+                    type: string
+                    description: "Name of file to create containing fusing information for Torizon Cloud"
+                    pattern: '\.ya?ml$'
+                required:
+                  - auto-programming
+                  - close-device
+                additionalProperties: false
             required: [local]
             # No extra props inside 'easy-installer'
             additionalProperties: false

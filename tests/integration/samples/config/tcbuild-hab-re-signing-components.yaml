@@ -39,3 +39,7 @@ output:
     local: "${OUTPUT_DIR:?Please specify output directory}"
     name: "image with re-signed kernel FIT and bootloader"
     description: "HAB image with both the kernel FIT and the bootloader re-signed"
+    fusing:
+      auto-programming: true
+      close-device: false
+      fuse-file: "${FUSE_FILE:?Please specify fuse filename}"

@@ -13,7 +13,7 @@ from tcbuilder.backend import kernel
 from tcbuilder.backend.common import \
     (check_if_file_exists, get_tar_compress_program_options, get_storage_dir,
      get_tezi_image_version, is_file_type_fit, is_tcb_container_64bit,
-     set_output_ownership)
+     set_output_ownership, FUSE_CMD_TXT_NAME)
 from tcbuilder.backend.initramfs import UnpackedInitramfs
 from tcbuilder.backend.ubootenv import get_env_filename, find_board
 from tcbuilder.backend.platform import SECBOOT_TECH_PER_MACHINE
@@ -63,8 +63,6 @@ HAB_SIGNING_SUPPORTED_MACHINES = {
 SECURE_BOOT_FILES_DIR = "/builder/tcbuilder/secure_boot_files"
 COPY_SIG_NODE_SCRIPT = "copy_signature_node_to_fdts.sh"
 UPDATE_FIT_CONFIGS_KEYNAME_SCRIPT = "update_fit_configs_keyname.sh"
-
-FUSE_CMD_TXT_NAME = "fuse-cmds.txt"
 
 # Path to the OSTree root binding inside the initramfs (ramdisk).
 OSTREE_ROOT_BINDING_KEY_PATH = "etc/ostree/initramfs-root-binding.key"

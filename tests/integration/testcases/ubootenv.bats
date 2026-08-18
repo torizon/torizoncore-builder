@@ -18,9 +18,11 @@ bats_load_library 'bats/bats-file/load.bash'
     case "$INPUT_IMAGE_DIR" in
         *apalis-imx8*|*colibri-imx8x*)
             FUSE_FILE="$FUSE_DIR/fuse-non-canon-16.yaml"
+	    EXPECTED_FUSE_LIST="0x1a 0x2b 0x3c 0x4d 0x5e 0x6f 0x7a 0x8b 0x9 0x10 0x11 0x12 0x13 0x14 0x15 0x16"
             ;;
         *imx6*|*imx7*|*imx6ull*|*imx8mm*|*imx8mp*)
             FUSE_FILE="$FUSE_DIR/fuse-non-canon-8.yaml"
+	    EXPECTED_FUSE_LIST="0x1a 0x2b 0x3c 0x4d 0x5e 0x6f 0x7a 0x8b"
             ;;
         *)
             # Just use whatever fuse file here 
@@ -62,9 +64,9 @@ bats_load_library 'bats/bats-file/load.bash'
         assert_success
         assert_output --partial 'variables successfully added to image'
 
-        run grep -r "fuse_status" "$OUTPUT_IMAGE_DIR"
+        run grep -r "fuse_prog_list" "$OUTPUT_IMAGE_DIR"
         assert_success
-        assert_output --partial 'fuse_status=pending'
+        assert_output --partial "fuse_prog_list=$EXPECTED_FUSE_LIST"
 
         # image already containing fuse data
         run torizoncore-builder ubootenv fuses "$OUTPUT_IMAGE_DIR" "temp" \
