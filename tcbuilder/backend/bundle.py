@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.parse
 
 from contextlib import closing
 from datetime import datetime
@@ -394,11 +395,46 @@ class DindManager(DockerManager):
             if self.network is not None:
                 self.network.remove()
 
+    def _wait_api_ready(self, retries=10, delay=1):
+        # Certificate presence (_wait_certs) doesn't mean the daemon is
+        # accepting connections yet; a bare TCP probe can't misread a TLS failure as that.
+        assert retries >= 1, "_wait_api_ready: retries must be a positive integer"
+        parsed = urllib.parse.urlparse(self.docker_host)
+        try:
+            if parsed.scheme != "tcp" or not parsed.hostname or parsed.port is None:
+                raise ValueError("expected a tcp://host:port address")
+            host, port = parsed.hostname, parsed.port
+        except (TypeError, ValueError) as exc:
+            raise OperationFailureError(
+                f"Docker Daemon host \"{self.docker_host}\" is not a valid "
+                f"host:port address: {exc}") from exc
+        for attempt in range(retries):
+            try:
+                with socket.create_connection((host, port), timeout=delay):
+                    return
+            except (ConnectionRefusedError, TimeoutError) as exc:
+                if attempt == retries - 1:
+                    raise OperationFailureError(
+                        f"Docker Daemon at \"{self.docker_host}\" did not "
+                        f"start accepting connections: {exc}") from exc
+                log.debug(
+                    "Docker Daemon not accepting connections yet "
+                    f"(attempt {attempt + 1}/{retries}): {exc}")
+                time.sleep(delay)
+            except OSError as exc:
+                raise OperationFailureError(
+                    f"Docker Daemon at \"{self.docker_host}\" is not "
+                    f"reachable: {exc}") from exc
+
     def get_client(self):
         """Create a client object associated to the DinD instance"""
 
         # Wait until certificates are generated.
         self._wait_certs()
+
+        # Wait until the daemon's API is actually accepting connections —
+        # certificate presence does not imply this (see _wait_api_ready).
+        self._wait_api_ready()
 
         # Use TLS to authenticate
         tls_config = docker.tls.TLSConfig(
