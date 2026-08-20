@@ -16,6 +16,7 @@ from tcbuilder.backend.common import \
     (set_output_ownership, check_licence_acceptance, run_with_loading_animation, open_disk_image,
      get_tar_compress_program_options, DOCKER_BUNDLE_TARNAME, TAR_EXT_TO_PROGRAM,
      OSTREE_SOTA_DIR_PATH, DEFAULT_RAW_SECTOR_SIZE)
+from tcbuilder.backend.deploy import grow_last_partition
 from tcbuilder.errors import InvalidStateError, InvalidDataError, TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
@@ -382,11 +383,8 @@ def combine_raw_image(image_path, bundle_dir, output_path, rootfs_label, force,
                 os.remove(tmp_image)
     else:
         # virt-resize can't open 4Kn disks; grow directly via libguestfs instead.
-        # Local import: a module-level one re-enters kernel.py's import cycle
-        # before cli/build.py's own import order finishes resolving it.
-        # pylint: disable-next=import-outside-toplevel
-        from tcbuilder.backend.deploy import grow_last_partition
-        grow_last_partition(output_path, extra_disk_size_kb, sector_size, root_partition)
+        grow_last_partition(output_path, extra_disk_size_kb, sector_size, root_partition,
+                            delete_on_error=delete_on_error)
 
     with open_disk_image(output_path, delete_on_error=delete_on_error,
                          sector_size=sector_size) as gfs:

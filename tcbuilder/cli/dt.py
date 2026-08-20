@@ -13,6 +13,7 @@ import traceback
 from tcbuilder.backend import dt as dt_be
 from tcbuilder.backend import dto as dto_be
 from tcbuilder.backend import kernel as kernel_be
+from tcbuilder.backend import uenv as uenv_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, images_unpack_executed, is_file_type_fit, set_output_ownership,
      update_dt_git_repo, get_src_sysroot_dir)
@@ -129,7 +130,7 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir):
 
 
 def _deploy_updated_uenv_txt(*, fdtfile, changes_dir):
-    dt_be.set_uenv_txt_variable("fdtfile", fdtfile, changes_dir=changes_dir)
+    uenv_be.set_uenv_txt_variable("fdtfile", fdtfile, changes_dir=changes_dir)
 
 
 def _deploy_empty_overlays_txt(*, changes_dir):

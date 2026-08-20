@@ -6,7 +6,9 @@ import json
 import logging
 import os
 import shutil
+import struct
 import subprocess
+import tempfile
 import threading
 import shlex
 
@@ -21,7 +23,8 @@ from tcbuilder.backend import ostree
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
                                       run_with_loading_animation, open_disk_image,
                                       REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR,
-                                      DEFAULT_RAW_SECTOR_SIZE, FUSE_CMD_TXT_NAME)
+                                      DEFAULT_RAW_SECTOR_SIZE, FUSE_CMD_TXT_NAME,
+                                      get_image_bootloader)
 from tcbuilder.backend.rforward import reverse_forward_tunnel, request_port_forward
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidDataError
 from tezi.utils import find_rootfs_content
@@ -50,38 +53,6 @@ def create_sysroot(deploy_sysroot_dir):
         raise TorizonCoreBuilderError("Error loading OSTree sysroot.")
 
     return sysroot
-
-
-def get_image_bootloader(sysroot_dir):
-    """
-    Get bootloader being used in a given unpacked sysroot
-
-    :param sysroot_dir: sysroot path
-
-    Based on:
-    - https://github.com/ostreedev/ostree/blob/v2024.4/src/libostree/ostree-bootloader-uboot.c#L47
-    - https://github.com/ostreedev/ostree/blob/v2024.4/src/libostree/ostree-bootloader-grub2.c#L73
-    """
-    tentative_uenv_path = os.path.join(sysroot_dir, "boot/loader/uEnv.txt")
-
-    if os.path.exists(tentative_uenv_path):
-        return "U-Boot"
-
-    tentative_grubcfg_path1 = os.path.join(sysroot_dir, "boot/grub/grub.cfg")
-    tentative_grubcfg_path2 = os.path.join(sysroot_dir, "boot/grub2/grub.cfg")
-
-    if (os.path.exists(tentative_grubcfg_path1) or
-            os.path.exists(tentative_grubcfg_path2)):
-        return "GRUB2"
-
-    tentative_efi_dir_path = os.path.join(sysroot_dir, "boot/efi/EFI")
-    if (os.path.exists(tentative_efi_dir_path) and
-            os.path.isdir(tentative_efi_dir_path)):
-        for _, _, files in os.walk(tentative_efi_dir_path):
-            if "grub.cfg" in files:
-                return "GRUB2"
-
-    return "unknown"
 
 
 def deploy_rootfs(sysroot, src_sysroot_dir, ref, refspec, kargs):
@@ -324,46 +295,102 @@ def deploy_tezi_image(tezi_dir, src_sysroot_dir, src_ostree_archive_dir,
         copy_signed_artifacts(commit_dir, output_dir)
 
 
-def grow_last_partition(raw_img, added_size_kb, sector_size, rootfs_partition):
+# pylint: disable-next=too-many-locals
+def grow_last_partition(raw_img, added_size_kb, sector_size, rootfs_partition, *,
+                        delete_on_error=False):
     """Enlarge a raw image and extend its last partition to fill the new space.
 
-    For 4Kn images, where virt-resize cannot operate. Preserves the partition's
-    GPT identity (name, type, GUID, attributes) so it still boots; the rootfs
-    must be the last partition, which is checked. The partition's filesystem
-    is grown to match.
+    For 4Kn images, where virt-resize cannot operate. delete_on_error=True
+    mutates raw_img directly and deletes it on failure; otherwise raw_img is
+    the caller's only copy, so every mutation runs against a temporary
+    sibling copy instead, swapped into place only on full success.
     """
-    # Round up to a whole sector; a non-sector-multiple size can be rejected at 4Kn.
-    new_size = os.path.getsize(raw_img) + int(added_size_kb) * 1024
-    new_size = (new_size + sector_size - 1) // sector_size * sector_size
-    subprocess.check_output(["truncate", "-s", str(new_size), raw_img])
+    work_img = raw_img
+    tmp_img = None
 
-    with open_disk_image(raw_img, sector_size=sector_size) as gfs:
-        dev = "/dev/sda"
-        gfs.part_expand_gpt(dev)  # relocate the GPT backup header to the new end
-        partnum = len(gfs.list_partitions())
-        if gfs.part_to_partnum(rootfs_partition) != partnum:
-            raise TorizonCoreBuilderError(
-                "the rootfs must be the last partition to grow a 4Kn raw image.")
-        start_sector = gfs.part_list(dev)[-1]["part_start"] // sector_size
+    try:
+        if not delete_on_error:
+            tmp_fd, tmp_img = tempfile.mkstemp(
+                prefix=f"{os.path.basename(raw_img)}.",
+                suffix=".grow.tmp",
+                dir=os.path.dirname(os.path.abspath(raw_img)))
+            os.close(tmp_fd)
+            shutil.copy2(raw_img, tmp_img)
+            work_img = tmp_img
 
-        name = gfs.part_get_name(dev, partnum)
-        gpt_type = gfs.part_get_gpt_type(dev, partnum)
-        gpt_guid = gfs.part_get_gpt_guid(dev, partnum)
-        gpt_attributes = gfs.part_get_gpt_attributes(dev, partnum)
+        orig_size = os.path.getsize(work_img)
+        # Round up to a whole sector; a non-sector-multiple size can be rejected at 4Kn.
+        new_size = orig_size + int(added_size_kb) * 1024
+        new_size = (new_size + sector_size - 1) // sector_size * sector_size
+        subprocess.check_output(["truncate", "-s", str(new_size), work_img])
 
-        # Stop short of the disk end to clear the GPT backup (33 LBAs of 512 B).
-        gpt_tail = (33 * 512 + sector_size - 1) // sector_size
-        end_sector = os.path.getsize(raw_img) // sector_size - 1 - gpt_tail
-        gfs.part_del(dev, partnum)
-        gfs.part_add(dev, "primary", start_sector, end_sector)
+        with open_disk_image(work_img, delete_on_error=True,
+                             sector_size=sector_size) as gfs:
+            dev = "/dev/sda"
+            last_partition = max(
+                gfs.part_list(dev), key=lambda partition: partition["part_start"])
+            partnum = last_partition["part_num"]
+            if gfs.part_to_partnum(rootfs_partition) != partnum:
+                raise TorizonCoreBuilderError(
+                    "the rootfs must be the last partition to grow a 4Kn raw image.")
+            start_sector = last_partition["part_start"] // sector_size
 
-        gfs.part_set_name(dev, partnum, name)
-        gfs.part_set_gpt_type(dev, partnum, gpt_type)
-        gfs.part_set_gpt_guid(dev, partnum, gpt_guid)
-        gfs.part_set_gpt_attributes(dev, partnum, gpt_attributes)
+            gfs.part_expand_gpt(dev)  # relocate the GPT backup header to the new end
 
-        # Growing only the partition would leave the fs at its old size.
-        gfs.resize2fs(rootfs_partition)
+            # LastUsableLBA (offset 48, 8-byte LE) already reflects the real
+            # backup reservation post-expand; read it instead of re-deriving it.
+            header = gfs.pread_device(dev, 56, sector_size)
+            if len(header) != 56 or header[:8] != b"EFI PART":
+                raise TorizonCoreBuilderError(
+                    f"could not read the GPT header at LBA 1 for a "
+                    f"{sector_size}-byte sector size after expanding the "
+                    "partition table.")
+            end_sector = struct.unpack("<Q", header[48:56])[0]
+            if end_sector <= start_sector:
+                raise TorizonCoreBuilderError(
+                    "not enough room to grow the last partition of a 4Kn raw image.")
+
+            name = gfs.part_get_name(dev, partnum)
+            gpt_type = gfs.part_get_gpt_type(dev, partnum)
+            gpt_guid = gfs.part_get_gpt_guid(dev, partnum)
+            gpt_attributes = gfs.part_get_gpt_attributes(dev, partnum)
+
+            gfs.part_del(dev, partnum)
+            gfs.part_add(dev, "primary", start_sector, end_sector)
+
+            # part_add() may reuse a different free slot than the one just deleted
+            # if a lower gap exists; re-derive the number from the start sector.
+            try:
+                new_partnum = next(p["part_num"] for p in gfs.part_list(dev)
+                                   if p["part_start"] // sector_size == start_sector)
+            except StopIteration:
+                raise TorizonCoreBuilderError(
+                    "could not locate the regrown partition after part_add().") from None
+            new_rootfs_partition = f"{dev}{new_partnum}"
+            gfs.part_set_name(dev, new_partnum, name)
+            gfs.part_set_gpt_type(dev, new_partnum, gpt_type)
+            gfs.part_set_gpt_guid(dev, new_partnum, gpt_guid)
+            gfs.part_set_gpt_attributes(dev, new_partnum, gpt_attributes)
+
+            # Growing only the partition would leave the fs at its old size; the
+            # original rootfs_partition may no longer exist if renumbered above.
+            gfs.resize2fs(new_rootfs_partition)
+
+        if tmp_img:
+            os.replace(tmp_img, raw_img)
+    except BaseException:  # always re-raises; must also clean up on KeyboardInterrupt/SystemExit
+        # Clean up the disposable file only: tmp_img if it exists (even a
+        # failed copy or swap can leave one), else raw_img when
+        # delete_on_error.
+        cleanup_target = tmp_img if tmp_img else (raw_img if delete_on_error else None)
+        try:
+            # open_disk_image may have removed it already.
+            if cleanup_target and os.path.isfile(cleanup_target):
+                os.remove(cleanup_target)
+        except OSError as cleanup_exc:
+            log.error("Failed to clean up '%s' after a grow failure: %s",
+                     cleanup_target, cleanup_exc)
+        raise
 
 
 # pylint: disable-next=too-many-positional-arguments
@@ -391,7 +418,7 @@ def create_output_raw_image(base_raw_img, output_raw_img, base_rootfs_partition,
             log.info(f"Adding {added_size_kb/1024:.2f} MiB to output image.")
             log.info(f"Size of output image will be: {out_size_kb/1024/1024:.2f} GiB")
             grow_last_partition(output_raw_img, added_size_kb, sector_size,
-                                base_rootfs_partition)
+                                base_rootfs_partition, delete_on_error=True)
         else:
             log.info("Output image will have the same size as the base one.")
         return
