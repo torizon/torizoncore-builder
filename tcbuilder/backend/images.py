@@ -55,6 +55,12 @@ LAST_DEPRECATED_IMAGE_NAME = "TorizonCore"
 LAST_DEPRECATED_IMAGE_VERSION = "5.7.2"
 LAST_TCB_VERSION_SUPPORTING_DEPRECATED = "3.10.0"
 
+HIBERNATION_MODE_URL = (
+    "https://developer.toradex.com/"
+    "torizon/torizon-platform/devices-fleet-management"
+    "#hibernation-mode"
+)
+
 def serve(images_directory):
     """
     Serve TorizonCore TEZI images via HTTP so they can be installed directly
@@ -639,6 +645,11 @@ def provision(input_path, output_path, rootfs_label, prov_data, *,
     :param force: Boolean indicating whether to remove output directory if it
                   already exists.
     """
+
+    if hibernated:
+        log.warning("Warning: Hibernation Mode is deprecated and may be removed in a "
+                    "future release; please do not use it in new projects.\n"
+                    f"See: {HIBERNATION_MODE_URL}")
 
     # Basic validations:
     img_version, is_tezi_img, rootfs_label = prov_check_input(
