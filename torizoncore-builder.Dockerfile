@@ -280,6 +280,7 @@ RUN apt-get -q -y update && \
             python3-git \
             python3-guestfs \
             python3-ifaddr \
+            python3-libfdt \
             python3-paramiko \
             python3-pip \
             python3-setuptools \
@@ -340,32 +341,15 @@ RUN --mount=type=bind,from=skopeo-builder,source=/root,target=/build/skopeo \
 RUN --mount=type=bind,from=uboot-builder,source=/root,target=/build/uboot \
     tar xvf /build/uboot/u-boot-tools.tar.bz2 -C /
 
-# Install Python requirements via pip.
-#
-# For this to succeed we need to install build-essential and some dev packages,
-# but those can be uninstalled after the installation is done.
+# Install Python requirements via pip; all of them are available as wheels, so no
+# compiler or Python development files are needed here.
 #
 # TODO: Consider using a virtual environment to avoid system-wide installations.
 #
 COPY requirements_debian.txt /tmp
-RUN echo "Installing build requirements..." && \
-    apt-get -q -y update && \
-    apt-get -q -y --no-install-recommends install \
-            build-essential \
-            python3-dev \
-    && \
-    \
-    echo "Installing Debian requirements (Python code dependencies)..." && \
+RUN echo "Installing Debian requirements (Python code dependencies)..." && \
     pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements_debian.txt && \
-    rm -rf /tmp/requirements_debian.txt && \
-    \
-    echo "Uninstalling build requirements..." && \
-    apt-get -q -y --no-install-recommends remove \
-            build-essential \
-            python3-dev \
-    && \
-    apt-get -q -y --no-install-recommends autoremove && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /tmp/requirements_debian.txt
 
 # Install extra development dependencies related to "kernel build_module"; notice
 # that these are not dependencies of TorizonCore Builder itself but are needed
