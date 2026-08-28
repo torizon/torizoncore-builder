@@ -10,6 +10,3 @@ python-dateutil==2.9.0.post0
 pyyaml==6.0.3
 debugpy==1.8.19
 fabric==3.2.2
-
-# pylibfdt requires GCC and python3-dev.
-pylibfdt==1.7.2.post1
