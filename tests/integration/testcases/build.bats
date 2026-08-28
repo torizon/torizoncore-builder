@@ -733,6 +733,13 @@ teardown_file() {
 
     local OUTDIR='failed_image'
 
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "${TCBUILD_YAML}" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+
     run torizoncore-builder build \
 	--file "${TCBUILD_YAML}" \
 	--set INPUT_IMAGE="$DEFAULT_TEZI_IMAGE" \
