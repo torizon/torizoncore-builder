@@ -19,10 +19,27 @@ from tcbuilder.errors import \
 
 log = logging.getLogger("torizon." + __name__)
 
-IMAGE_MAJOR_TO_GCC_MAP = {
-    5: "gcc-arm-9.2-2019.12",
-    6: "arm-gnu-toolchain-11.3.rel1",
-    7: "arm-gnu-toolchain-13.3.rel1"
+
+TARGET_TRIPLES = {
+    "arm": "arm-none-linux-gnueabihf",
+    "arm64": "aarch64-none-linux-gnu",
+}
+
+# ("<host-arch>", "<target-arch>", "<image-major-version>") : "<gcc_version>"
+CROSS_COMPILERS = {
+    # x86_64
+    ("x86_64", "arm", 5): "gcc-arm-9.2-2019.12",
+    ("x86_64", "arm64", 5): "gcc-arm-9.2-2019.12",
+    ("x86_64", "arm", 6): "arm-gnu-toolchain-11.3.rel1",
+    ("x86_64", "arm64", 6): "arm-gnu-toolchain-11.3.rel1",
+    ("x86_64", "arm", 7): "arm-gnu-toolchain-13.3.rel1",
+    ("x86_64", "arm64", 7): "arm-gnu-toolchain-13.3.rel1",
+    # aarch64
+    ("aarch64", "arm", 6): "arm-gnu-toolchain-11.3.rel1",
+    ("aarch64", "arm64", 6): "arm-gnu-toolchain-14.2.rel1",
+    ("aarch64", "arm", 7): "arm-gnu-toolchain-13.3.rel1",
+    ("aarch64", "arm64", 7): "arm-gnu-toolchain-14.2.rel1",
+
 }
 
 OSTREE_KERNEL_SUBDIR_PATH = "usr/lib/modules/{kver}/"
@@ -43,6 +60,16 @@ SET_BOOTARGS_CUSTOM2_RE = r'^\s*set_bootargs_custom2='
 # copied from sysroot to the changes directory when preparing the latter for
 # building modules.
 MOD_DIR_COPY_EXCLUDE_SET = {"dtb"}
+
+
+def _host_arch():
+    """Return the host architecture prefix for toolchain names."""
+    machine = os.uname().machine
+    if machine == "x86_64":
+        return "x86_64"
+    if machine in ("aarch64", "arm64"):
+        return "aarch64"
+    raise TorizonCoreBuilderError(f"Unsupported host architecture: {machine}")
 
 
 def get_kernel_changes_dir():
@@ -99,28 +126,30 @@ def _amend_makefile(linux_src):
 
 
 def _get_toolchain(image_major_version, linux_src):
-    arch = _kernel_arch_from_source(linux_src)
-    version_gcc = IMAGE_MAJOR_TO_GCC_MAP.get(image_major_version)
-    assert version_gcc, "Unable to determine the GCC toolchain version"
-
     # Set CROSS_COMPILE and toolchain based on ARCH
     toolchain_path = os.path.join(os.path.dirname(linux_src), "toolchain")
-    if arch == "arm":
-        c_c = "arm-none-linux-gnueabihf-"
-        toolchain = os.path.join(
-            toolchain_path, f"{version_gcc}-x86_64-arm-none-linux-gnueabihf/bin")
-    elif arch == "arm64":
-        c_c = "aarch64-none-linux-gnu-"
-        toolchain = os.path.join(
-            toolchain_path, f"{version_gcc}-x86_64-aarch64-none-linux-gnu/bin")
-    else:
-        assert False, "build_module: Unhandled architecture"
+    target_arch = _kernel_arch_from_source(linux_src)
+    host_arch = _host_arch()
+
+    version_gcc = CROSS_COMPILERS.get((host_arch, target_arch, image_major_version))
+    assert version_gcc, (
+        "Unable to determine the GCC toolchain version for "
+        f"values ({host_arch}, {target_arch}, {image_major_version})"
+    )
+
+    target_triple = TARGET_TRIPLES.get(target_arch)
+    assert target_triple, \
+        f"{target_arch} is not supported as a target architecture"
+
+    c_c = f"{target_triple}-"
+    toolchain = os.path.join(
+        toolchain_path, f"{version_gcc}-{host_arch}-{target_triple}/bin")
 
     # Download toolchain if needed
     if not os.path.exists(toolchain):
-        download_toolchain(c_c, toolchain_path, version_gcc)
+        download_toolchain(toolchain_path, version_gcc, host_arch, target_triple)
 
-    return (toolchain, arch, c_c)
+    return (toolchain, target_arch, c_c)
 
 
 def _prep_linux_src_for_modules_install(src_ostree_archive_dir, linux_src):
@@ -237,28 +266,62 @@ def autoload_module(module, kernel_changes_dir):
         cnfh.writelines(conf_lines)
 
 
-def download_toolchain(toolchain, toolchain_path, version_gcc):
+def _try_download(url, dest):
+    """Attempt to download *url* to *dest*.
+
+    Returns True on success, False when the server is unreachable or returns
+    an error.
+    """
+    log.info(f"Downloading toolchain from {url}.")
+    log.info("Please wait this could take a while...")
+    try:
+        with download_progress() as reporthook:
+            urllib.request.urlretrieve(url, filename=dest, reporthook=reporthook)
+        return True
+    # pylint: disable-next=broad-exception-caught
+    except Exception as exc:
+        log.debug("Download from %s failed: %s", url, exc)
+        return False
+
+
+def _toolchain_fallback_url(version_gcc, tarball):
+    """Return the developer.arm.com URL for a given toolchain build.
+
+    Only "arm-gnu-toolchain-*" releases are mirrored there; the legacy
+    "gcc-arm-*" releases have no equivalent fallback.
+    """
+    if not version_gcc.startswith("arm-gnu-toolchain-"):
+        return None
+
+    ver_suffix = version_gcc[len("arm-gnu-toolchain-"):]
+    return (f"https://developer.arm.com/-/media/Files/downloads/gnu"
+            f"/{ver_suffix}/binrel/{tarball}")
+
+
+def download_toolchain(toolchain_path, version_gcc, host_arch, target_triple):
     """Download toolchain from online if it doesn't already exist"""
 
     url_prefix = "https://sources.toradex.com/tcb/toolchains/"
-    if toolchain == "arm-none-linux-gnueabihf-":
-        tarball = f"{version_gcc}-x86_64-arm-none-linux-gnueabihf.tar.xz"
-    elif toolchain == "aarch64-none-linux-gnu-":
-        tarball = f"{version_gcc}-x86_64-aarch64-none-linux-gnu.tar.xz"
-    else:
-        assert False, f"download_toolchain: unhandled toolchain {toolchain}"
-    url = url_prefix + tarball
+
+    if target_triple not in TARGET_TRIPLES.values():
+        assert False, f"download_toolchain: unhandled toolchain {target_triple}"
+    tarball = f"{version_gcc}-{host_arch}-{target_triple}.tar.xz"
+
+    primary_url = url_prefix + tarball
+    fallback_url = _toolchain_fallback_url(version_gcc, tarball)
 
     log.info("A toolchain is required to build the module.")
-    log.info(f"Downloading toolchain from {url}.")
-    log.info("Please wait this could take a while...")
 
-    try:
-        with download_progress() as reporthook:
-            urllib.request.urlretrieve(url, filename=tarball, reporthook=reporthook)
-    except Exception as exc:
+    downloaded = _try_download(primary_url, tarball)
+    if not downloaded and fallback_url is not None:
+        log.info("Primary download failed; trying fallback source.")
+        downloaded = _try_download(fallback_url, tarball)
+
+    if not downloaded:
+        tried = primary_url if fallback_url is None \
+                                 else f"{primary_url} and {fallback_url}"
         raise TorizonCoreBuilderError(
-            "The requested toolchain could not be downloaded") from exc
+            f"The requested toolchain could not be downloaded. URLs tried: {tried}")
 
     log.info("Download Complete!")
 

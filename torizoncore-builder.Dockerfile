@@ -1,3 +1,4 @@
+# For arm64 use: --build-arg IMAGE_ARCH=linux/arm64/v8
 ARG IMAGE_ARCH=linux/amd64
 ARG IMAGE_TAG=trixie-slim
 ARG UPTANE_SIGN_VER=3.2.6
@@ -159,11 +160,17 @@ FROM builder-base AS skopeo-builder
 
 WORKDIR /root
 
+ARG IMAGE_ARCH 
+
 RUN echo "Installing Go..." && \
-    wget https://go.dev/dl/go1.24.3.linux-amd64.tar.gz && \
+    case "${IMAGE_ARCH}" in \
+      linux/arm64*) GO_ARCH="arm64" ;; \
+      *)            GO_ARCH="amd64" ;; \
+    esac && \
+    wget "https://go.dev/dl/go1.24.3.linux-${GO_ARCH}.tar.gz" && \
     rm -rf /usr/local/go && \
-    tar -C /usr/local -xzf go1.24.3.linux-amd64.tar.gz && \
-    rm go1.24.3.linux-amd64.tar.gz
+    tar -C /usr/local -xzf "go1.24.3.linux-${GO_ARCH}.tar.gz" && \
+    rm "go1.24.3.linux-${GO_ARCH}.tar.gz"
 
 ENV PATH=/usr/local/go/bin:$PATH
 ENV GOPATH=/root/go
