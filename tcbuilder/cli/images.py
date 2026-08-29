@@ -231,9 +231,10 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--hibernated", dest="hibernated",
         default=False, action="store_true",
-        help=("(Torizon OS 6.8+) Add flag to auto-provision in hibernated mode. Hibernated "
-              "devices are registered, but cannot receive updates from Torizon Cloud nor "
-              "send data to it."))
+        help=("[DEPRECATED] Add flag to auto-provision in hibernated mode. Hibernated "
+              "devices are registered, but cannot receive updates from Torizon Cloud "
+              "nor send data to it. Hibernation Mode is deprecated; do not use it in "
+              "new projects."))
     subparser.add_argument(
         "--fleet", dest="fleets", action="append",
         help=("(Torizon OS 7.7+) Add fleet UUID to the provisioning. Devices that provision "

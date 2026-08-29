@@ -67,6 +67,7 @@ bats_load_library 'bats/bats-file/load.bash'
         --mode=offline "$INPUT_IMAGE" "$OUTPUT_IMAGE"
     assert_success
     assert_output --partial "--hibernated is specific to online provisioning. Ignoring."
+    assert_output --partial 'Hibernation Mode is deprecated'
     assert_output --partial 'Image successfully provisioned'
 
     # case: success, with --fleet option ignored
@@ -187,6 +188,7 @@ bats_load_library 'bats/bats-file/load.bash'
         --hibernated \
         --mode=online "$INPUT_IMAGE" "$OUTPUT_IMAGE"
     assert_success
+    assert_output --partial 'Hibernation Mode is deprecated'
     assert_output --partial 'Adding hibernated mode flag'
     assert_output --partial 'Image successfully provisioned'
 

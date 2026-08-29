@@ -8,6 +8,12 @@ bats_load_library 'bats/bats-file/load.bash'
     assert_output --partial ' {download,provision,serve,unpack}'
 }
 
+@test "images provision: --hibernated is flagged as deprecated" {
+    run torizoncore-builder images provision --help
+    assert_success
+    assert_output --partial '[DEPRECATED]'
+}
+
 @test "images provision: basic offline-provisioning (standalone)" {
     unpack-image "$DEFAULT_TEZI_IMAGE"
     local INPUT_IMAGE_DIR=$(echo $DEFAULT_TEZI_IMAGE | sed 's/\.tar$//g')
@@ -62,6 +68,7 @@ bats_load_library 'bats/bats-file/load.bash'
         --mode=offline "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
     assert_success
     assert_output --partial "--hibernated is specific to online provisioning. Ignoring."
+    assert_output --partial 'Hibernation Mode is deprecated'
     assert_output --partial 'Image successfully provisioned'
 
     # case: success, with --fleet option ignored
@@ -211,6 +218,7 @@ bats_load_library 'bats/bats-file/load.bash'
         --hibernated \
         --mode=online "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
     assert_success
+    assert_output --partial 'Hibernation Mode is deprecated'
     assert_output --partial 'Adding hibernated mode flag'
     assert_output --partial 'Image successfully provisioned'
 

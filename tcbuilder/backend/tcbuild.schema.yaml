@@ -500,7 +500,7 @@ properties:
             description: "string containing provisioning data specific to the online mode"
           hibernated:
             type: boolean
-            description: "provision in hibernated mode"
+            description: "[DEPRECATED] provision in hibernated mode"
           fleets:
             type: array
             description: "list of UUID(s) to provision to"
