@@ -159,9 +159,16 @@ def _prep_linux_src_for_modules_install(src_ostree_archive_dir, linux_src):
     # Get kernel version for future operations
     repo = ostree.open_ostree(src_ostree_archive_dir)
     kernel_version = ostree.get_kernel_version(repo, ostree.OSTREE_BASE_REF)
-    shutil.copyfile(
-        os.path.join(linux_src, f"System.map-{kernel_version}"),
-        os.path.join(linux_src, "System.map"))
+    system_map_src = os.path.join(linux_src, f"System.map-{kernel_version}")
+    system_map_dst = os.path.join(linux_src, "System.map")
+    if os.path.lexists(system_map_dst) and not (
+            os.path.exists(system_map_dst) and os.path.samefile(system_map_src, system_map_dst)):
+        # Unlink first: copyfile() would otherwise write through a symlink into an
+        # unrelated path, or truncate a hardlinked System.map-* in place.
+        os.remove(system_map_dst)
+    if not os.path.lexists(system_map_dst):
+        shutil.copyfile(system_map_src, system_map_dst)
+
     release_file = os.path.join(linux_src, "include/config/kernel.release")
     with open(release_file, "w", encoding="utf-8") as file:
         file.write(kernel_version)
