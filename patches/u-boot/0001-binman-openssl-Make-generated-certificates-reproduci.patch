@@ -1,0 +1,257 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rogerio Guerra Borin <rogerio.borin@toradex.com>
+Date: Tue, 11 Aug 2026 16:55:25 -0300
+Subject: [PATCH] binman: openssl: Make generated certificates reproducible
+
+All four certificate helpers in the openssl bintool run 'openssl req
+-new -x509' without setting a serial number or a validity period, so
+openssl invents both: a random 159-bit serial number, and a validity
+period starting at the current time. Every signature over those fields
+differs accordingly, so two builds of the same source never produce the
+same tiboot3.bin, tispl.bin or u-boot.img on TI K3 platforms.
+
+That defeats the simplest check available to anyone re-signing a boot
+chain with their own keys: sign, then compare byte for byte against the
+original. It also leaves these images out of the reproducible builds
+support described in doc/build/reproducible.rst, even though the FIT
+wrappers around them already honour SOURCE_DATE_EPOCH.
+
+Derive the serial number from the hash of the data being signed, so
+that it is deterministic while remaining distinct for each certificate
+in an image, and keep it to 159 bits so that the encoded certificate
+does not change size. Set the validity period when SOURCE_DATE_EPOCH is
+present, running from that epoch to 20491231235959Z. Nothing which
+consumes these certificates checks the validity period: the ROM and the
+system firmware read the TI extensions carried in the certificate, and
+TI's own shipped firmware certificates have long expired.
+
+That end date is the latest which RFC 5280 section 4.1.2.5 allows to be
+encoded as UTCTime, and is deliberately not the 99991231235959Z which
+the same section offers for a certificate with no well-defined
+expiration date. The K3 boot ROM cannot parse a validity encoded as
+GeneralizedTime, which is what a date in 2050 or later requires, and
+rejects such an image outright: a Verdin AM62 (HS-FS) signed with
+99991231235959Z, or with any 2050 date, does not boot and prints
+nothing at all, while the same image signed with a 2048 or 2049 date
+boots normally. TI reports the same limitation for AM64x [1].
+
+The arguments which set the validity period require OpenSSL 3.4 or
+later, so pass them only when the available openssl is new enough and
+warn otherwise. Such a build keeps a wall-clock validity period and so
+is not reproducible, exactly as it is today. The serial number needs no
+such gate, as -set_serial has always been available.
+
+The four argument lists were byte-identical, which is how one defect
+came to be repeated four times, so factor them into a single place.
+
+[1] https://e2e.ti.com/support/processors-group/processors/f/processors-forum/1491915/am6412-ti-supports-for-tiboot3-certificates-with-validity-beyond-2049
+
+Upstream-Status: Pending
+Signed-off-by: Rogerio Guerra Borin <rogerio.borin@toradex.com>
+---
+ tools/binman/btool/openssl.py | 96 ++++++++++++++++++++++++++++++-----
+ tools/binman/ftest.py         | 32 ++++++++++++
+ 2 files changed, 116 insertions(+), 12 deletions(-)
+
+diff --git a/tools/binman/btool/openssl.py b/tools/binman/btool/openssl.py
+index c6df64c5..4ccf1fde 100644
+--- a/tools/binman/btool/openssl.py
++++ b/tools/binman/btool/openssl.py
+@@ -11,9 +11,12 @@ Source code is at https://www.openssl.org/
+ """
+ 
+ import hashlib
++import os
++import time
+ 
+ from binman import bintool
+ from u_boot_pylib import tools
++from u_boot_pylib import tout
+ 
+ 
+ VALID_SHAS = [256, 384, 512, 224]
+@@ -22,6 +25,18 @@ SHA_OIDS = {256:'2.16.840.1.101.3.4.2.1',
+             512:'2.16.840.1.101.3.4.2.3',
+             224:'2.16.840.1.101.3.4.2.4'}
+ 
++# Certificates are given the latest expiration date which RFC 5280 section
++# 4.1.2.5 allows to be encoded as UTCTime. Nothing in the boot flow which
++# consumes these certificates checks the validity period, but the boot ROM of
++# the TI K3 SoCs cannot parse a certificate whose validity is encoded as
++# GeneralizedTime, which is what a date in 2050 or later requires. Such a
++# certificate is rejected and the device does not boot at all, so do not raise
++# this date, however far away it may seem.
++NO_EXPIRY = '20491231235959Z'
++
++# 'openssl req' learned -not_before and -not_after in OpenSSL 3.4
++MIN_VALIDITY_VERSION = (3, 4)
++
+ class Bintoolopenssl(bintool.Bintool):
+     """openssl tool
+ 
+@@ -35,6 +50,71 @@ class Bintoolopenssl(bintool.Bintool):
+         super().__init__(
+             name, 'openssl cryptography toolkit',
+             version_regex=r'OpenSSL (.*) \(', version_args='version')
++        self._version_tuple = None
++
++    def version_tuple(self):
++        """Get the openssl version as a tuple of ints, for comparison
++
++        Returns:
++            tuple of int: (major, minor), or () if the version cannot be parsed
++        """
++        if self._version_tuple is None:
++            # version() returns something like '3.4.1 11 Feb 2025'
++            text = self.version().split()[0]
++            try:
++                self._version_tuple = tuple(
++                    int(part) for part in text.split('.')[:2])
++            except ValueError:
++                self._version_tuple = ()
++        return self._version_tuple
++
++    def _req_args(self, cert_fname, key_fname, config_fname, hashval):
++        """Get the 'openssl req' arguments for creating a certificate
++
++        All of the certificate types below share these arguments. The serial
++        number and the validity period are set explicitly rather than left to
++        openssl, which would otherwise invent a random serial number and a
++        validity period starting at the current time, so that two builds of the
++        same source never produce the same certificate.
++
++        The serial number is derived from the hash of the data being signed, so
++        that it is deterministic while remaining distinct for each certificate
++        in an image.
++
++        The validity period is only set when SOURCE_DATE_EPOCH is present, as
++        described in doc/build/reproducible.rst, and requires an openssl new
++        enough to accept the arguments which set it.
++
++        Args:
++            cert_fname (str): Filename of certificate to create
++            key_fname (str): Filename of .pem file
++            config_fname (str): Filename of the openssl config to use
++            hashval (str): Hash of the data being signed, as a hex string
++
++        Returns:
++            list of str: Arguments to pass to openssl
++        """
++        # Keep the serial number to 159 bits, matching the width and the sign
++        # of the one openssl generates, so that the encoded certificate does
++        # not change size
++        serial = int(hashval[:40], 16) & ((1 << 159) - 1)
++        args = ['req', '-new', '-x509', '-key', key_fname, '-nodes',
++                '-outform', 'DER', '-out', cert_fname, '-config', config_fname,
++                '-sha512', '-set_serial', str(serial)]
++
++        epoch = os.environ.get('SOURCE_DATE_EPOCH')
++        if epoch is not None:
++            if self.version_tuple() >= MIN_VALIDITY_VERSION:
++                not_before = time.strftime('%Y%m%d%H%M%SZ',
++                                           time.gmtime(int(epoch)))
++                args += ['-not_before', not_before, '-not_after', NO_EXPIRY]
++            else:
++                tout.warning(
++                    f"openssl '{self.version()}' cannot set a certificate "
++                    f'validity period, which needs '
++                    f"{'.'.join(str(v) for v in MIN_VALIDITY_VERSION)} or "
++                    f'later; certificates will not be reproducible')
++        return args
+ 
+     def x509_cert(self, cert_fname, input_fname, key_fname, cn, revision,
+                   config_fname):
+@@ -76,9 +156,7 @@ shaType                = OID:2.16.840.1.101.3.4.2.3
+ shaValue               = FORMAT:HEX,OCT:{hashval}
+ imageSize              = INTEGER:{len(indata)}
+ ''', file=outf)
+-        args = ['req', '-new', '-x509', '-key', key_fname, '-nodes',
+-                '-outform', 'DER', '-out', cert_fname, '-config', config_fname,
+-                '-sha512']
++        args = self._req_args(cert_fname, key_fname, config_fname, hashval)
+         return self.run_cmd(*args)
+ 
+     def x509_cert_sysfw(self, cert_fname, input_fname, key_fname, sw_rev,
+@@ -146,9 +224,7 @@ authInPlace = INTEGER:{hex(firewall_cert_data['auth_in_place'])}
+ numFirewallRegions = INTEGER:{firewall_cert_data['num_firewalls']}
+ {firewall_cert_data['certificate']}
+ ''', file=outf)
+-        args = ['req', '-new', '-x509', '-key', key_fname, '-nodes',
+-                '-outform', 'DER', '-out', cert_fname, '-config', config_fname,
+-                '-sha512']
++        args = self._req_args(cert_fname, key_fname, config_fname, hashval)
+         return self.run_cmd(*args)
+ 
+     def x509_cert_rom(self, cert_fname, input_fname, key_fname, sw_rev,
+@@ -227,9 +303,7 @@ emailAddress           = {req_dist_name_dict['emailAddress']}
+  coreDbgEn = INTEGER:0
+  coreDbgSecEn = INTEGER:0
+ ''', file=outf)
+-        args = ['req', '-new', '-x509', '-key', key_fname, '-nodes',
+-                '-outform', 'DER', '-out', cert_fname, '-config', config_fname,
+-                '-sha512']
++        args = self._req_args(cert_fname, key_fname, config_fname, hashval)
+         return self.run_cmd(*args)
+ 
+     def x509_cert_rom_combined(self, cert_fname, input_fname, key_fname, sw_rev,
+@@ -334,9 +408,7 @@ coreDbgSecEn = INTEGER:0
+ 
+ {dm_data_ext_boot_block}
+         ''', file=outf)
+-        args = ['req', '-new', '-x509', '-key', key_fname, '-nodes',
+-                '-outform', 'DER', '-out', cert_fname, '-config', config_fname,
+-                '-sha512']
++        args = self._req_args(cert_fname, key_fname, config_fname, hashval)
+         return self.run_cmd(*args)
+ 
+     def fetch(self, method):
+diff --git a/tools/binman/ftest.py b/tools/binman/ftest.py
+index 8a44bc05..bd61a994 100644
+--- a/tools/binman/ftest.py
++++ b/tools/binman/ftest.py
+@@ -31,6 +31,7 @@ from binman import fmap_util
+ from binman import state
+ from dtoc import fdt
+ from dtoc import fdt_util
++from binman.btool import openssl as openssl_btool
+ from binman.etype import fdtmap
+ from binman.etype import image_header
+ from binman.image import Image
+@@ -7121,6 +7122,37 @@ fdt         fdtmap                Extract the devicetree blob from the fdtmap
+                                 entry_args=entry_args)[0]
+         self.assertGreater(len(data), len(TI_UNSECURE_DATA))
+ 
++    def testPackTiSecureReproducible(self):
++        """Test that TI secured binaries are reproducible
++
++        With SOURCE_DATE_EPOCH set, building the same image twice must produce
++        the same certificate, and therefore the same image. This covers all
++        three of the certificate types which sign a payload.
++        """
++        openssl = bintool.Bintool.create('openssl')
++        if not openssl.is_present():
++            self.skipTest('openssl not available')
++        if openssl.version_tuple() < openssl_btool.MIN_VALIDITY_VERSION:
++            self.skipTest('openssl cannot set a certificate validity period')
++
++        keyfile = self.TestFile('key.key')
++        entry_args = {
++            'keyfile': keyfile,
++        }
++        old_epoch = os.environ.get('SOURCE_DATE_EPOCH')
++        os.environ['SOURCE_DATE_EPOCH'] = '1234567890'
++        try:
++            for dts in ['296_ti_secure.dts', '297_ti_secure_rom.dts',
++                        '298_ti_secure_rom_combined.dts']:
++                first = self._DoReadFileDtb(dts, entry_args=entry_args)[0]
++                second = self._DoReadFileDtb(dts, entry_args=entry_args)[0]
++                self.assertEqual(first, second, f'{dts} is not reproducible')
++        finally:
++            if old_epoch is None:
++                del os.environ['SOURCE_DATE_EPOCH']
++            else:
++                os.environ['SOURCE_DATE_EPOCH'] = old_epoch
++
+     def testEncryptedNoAlgo(self):
+         """Test encrypted node with missing required properties"""
+         with self.assertRaises(ValueError) as e:
