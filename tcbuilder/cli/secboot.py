@@ -111,7 +111,7 @@ def do_sign_bootloader_hab(args):
 
 def sign_bootloader_k3(
         *,
-        k3_key, k3_degenerate_key=None, kernel_key, kernel_key_dir=None,
+        k3_key, k3_degenerate_key=None, kernel_key=None, kernel_key_dir=None,
         target_device=None):
     """Execute the work of the "sign-bootloader-k3" command."""
 
@@ -126,12 +126,18 @@ def sign_bootloader_k3(
         raise InvalidArgumentError(
             f"Key file \"{k3_degenerate_key}\" does not exist. Aborting.")
 
-    if kernel_key_dir is not None and not os.path.isdir(kernel_key_dir):
+    if kernel_key_dir and not kernel_key:
         raise InvalidArgumentError(
-            f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
+            "Error: --kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
 
-    kernel_key_dir = kernel_key_dir or "."
-    kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
+    kernel_key_name = None
+    kernel_key_algo = None
+    if kernel_key is not None:
+        if kernel_key_dir is not None and not os.path.isdir(kernel_key_dir):
+            raise InvalidArgumentError(
+                f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
+        kernel_key_dir = kernel_key_dir or "."
+        kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
     secboot_k3.sign_bootloader_k3(
         k3_key=k3_key,
@@ -141,8 +147,9 @@ def sign_bootloader_k3(
         kernel_key_algo=kernel_key_algo,
         target_device=target_device)
 
-    log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
-             "the bootloader to verify the kernel signature.\n")
+    if kernel_key_name:
+        log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
+                 "the bootloader to verify the kernel signature.\n")
 
     log.info("Bootloader in Torizon OS image signed successfully!")
 
@@ -410,8 +417,8 @@ def init_parser(subparsers):
               "'name=<NAME>;algo=<ALGO>' where <NAME> is the key name and <ALGO> is a "
               "comma-separated pair of the hashing and crypto algorithms used to sign the "
               "kernel (e.g. 'name=prod;algo=sha256,rsa2048'). If <ALGO> is not provided, it "
-              f"defaults to '{KERNEL_KEY_DEFAULT_ALGO}'."),
-        required=True)
+              f"defaults to '{KERNEL_KEY_DEFAULT_ALGO}'. If the switch itself is not "
+              "provided, the key already present in the image being signed is carried over."))
 
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",

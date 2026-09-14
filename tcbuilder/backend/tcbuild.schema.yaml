@@ -417,7 +417,6 @@ properties:
                   - hs-se
             required:
               - k3-key
-              - kernel-key
             # No extra props inside 'sign-bootloader-k3'
             additionalProperties: false
           sign-kernel:

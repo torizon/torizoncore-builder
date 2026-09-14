@@ -433,21 +433,23 @@ def _handle_secboot_sign_bootloader_k3(sign_k3_props):
     """Handle the secboot.sign-bootloader-k3 section."""
 
     kernel_key_list = sign_k3_props.get("kernel-key", [])
+    kernel_key_arg = None
 
     if len(kernel_key_list) > 1:
         raise InvalidArgumentError(
             "TorizonCore Builder only supports updating one public key. Aborting.")
 
-    kernel_key = kernel_key_list[0]
-    assert "name" in kernel_key, "'kernel-key' requires 'name' property"
+    if kernel_key_list:
+        kernel_key = kernel_key_list[0]
+        assert "name" in kernel_key, "'kernel-key' requires 'name' property"
 
-    if "algo" not in kernel_key:
-        log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
-                 f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
+        if "algo" not in kernel_key:
+            log.info(f"Could not find value of 'algo' for key '{kernel_key['name']}'; "
+                     f"defaulting to {secboot_cli.KERNEL_KEY_DEFAULT_ALGO}.")
 
-    kernel_key_arg = f"name={kernel_key['name']}"
-    if "algo" in kernel_key:
-        kernel_key_arg += f";algo={kernel_key['algo']}"
+        kernel_key_arg = f"name={kernel_key['name']}"
+        if "algo" in kernel_key:
+            kernel_key_arg += f";algo={kernel_key['algo']}"
 
     secboot_cli.sign_bootloader_k3(
         k3_key=sign_k3_props["k3-key"],

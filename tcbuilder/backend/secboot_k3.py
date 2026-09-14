@@ -2,6 +2,7 @@
 Backend handling for the secboot subcommand on TI K3 based machines
 """
 
+import base64
 import glob
 import json
 import logging
@@ -10,6 +11,10 @@ import re
 import shutil
 import shlex
 import subprocess
+import tempfile
+
+import libfdt
+from libfdt import QUIET_NOTFOUND
 
 from tcbuilder.backend.common import \
     (check_if_file_exists, get_storage_dir, get_tar_compress_program_options)
@@ -391,7 +396,256 @@ def add_kernel_pubkey_to_dtb(uboot_dtb_path, key_dir, key_name, key_algo):
             f"image into {os.path.basename(uboot_dtb_path)}. Aborting.")
 
 
-def prepare_k3_uboot_dtb(root_dir, key_dir, key_name, key_algo):
+# Where the key that verifies the kernel is found when the user does not supply one: in the
+# device tree the bootloader FIT carries, reached through /configurations so that node names,
+# which binman numbers per device tree, never have to be guessed.
+FIT_CONFIGS_PATH = "/configurations"
+FIT_IMAGES_PATH = "/images"
+FIT_DEFAULT_PROP = "default"
+FIT_FDT_PROP = "fdt"
+FIT_DATA_PROP = "data"
+FIT_SIGNATURE_PATH = "/signature"
+
+DTB_MAGIC = b"\xd0\x0d\xfe\xed"
+
+# Certificate minted around a recovered key. Its subject and validity are never looked at:
+# see mint_certificate_for_pubkey().
+RECOVERED_KEY_SUBJECT = "/CN=key recovered from the image being signed"
+RECOVERED_KEY_DAYS = "1"
+
+
+def _der_sequence_length(data):
+    """Total length of the DER SEQUENCE starting a buffer, or None if there is not one
+
+    :param data: Buffer starting with the DER structure
+    :returns: Length of the structure including its header, or None
+    """
+
+    if len(data) < 2 or data[0] != 0x30:
+        return None
+
+    length = data[1]
+    if length < 0x80:
+        return 2 + length
+
+    count = length & 0x7f
+    if count == 0 or count > 4 or len(data) < 2 + count:
+        return None
+
+    return 2 + count + int.from_bytes(data[2:2 + count], "big")
+
+
+def _dtb_of_signed_payload(data):
+    """The device tree in a payload a K3 image prefixes with a certificate
+
+    The certificate's length is taken from its own DER header and the device tree magic at the
+    resulting offset confirms it. Searching for the magic instead could find one inside the
+    certificate.
+
+    :param data: Payload as stored in the FIT
+    :returns: The device tree blob, or None if the payload does not hold one
+    """
+
+    if data.startswith(DTB_MAGIC):
+        return data
+
+    offset = _der_sequence_length(data)
+    if offset is None or data[offset:offset + len(DTB_MAGIC)] != DTB_MAGIC:
+        return None
+
+    return data[offset:]
+
+
+def _fit_default_device_tree(path):
+    """The device tree of a FIT image's default configuration
+
+    :param path: Path to the file, which does not have to be a FIT image
+    :returns: The device tree blob, or None if the file has none to offer
+    """
+
+    with open(path, "rb") as fit_file:
+        data = fit_file.read()
+
+    try:
+        fit = libfdt.Fdt(data)
+        configs = fit.path_offset(FIT_CONFIGS_PATH)
+        default = fit.getprop(configs, FIT_DEFAULT_PROP).as_str()
+        config = fit.subnode_offset(configs, default)
+        image = fit.subnode_offset(fit.path_offset(FIT_IMAGES_PATH),
+                                   fit.getprop(config, FIT_FDT_PROP).as_str())
+        payload = bytes(fit.getprop(image, FIT_DATA_PROP))
+    except (libfdt.FdtException, ValueError):
+        return None
+
+    return _dtb_of_signed_payload(payload)
+
+
+def _read_verification_key(dtb):
+    """Read the key a device tree's /signature node holds
+
+    :param dtb: Device tree blob
+    :returns: Dictionary describing the key, or None if the device tree carries none
+    """
+
+    try:
+        fdt = libfdt.Fdt(dtb)
+        signature = fdt.path_offset(FIT_SIGNATURE_PATH)
+    except (libfdt.FdtException, ValueError):
+        return None
+
+    node = fdt.first_subnode(signature, QUIET_NOTFOUND)
+    if node < 0:
+        return None
+
+    def prop(name):
+        value = fdt.getprop(node, name, QUIET_NOTFOUND)
+        return value if isinstance(value, libfdt.Property) else None
+
+    for name in ("key-name-hint", "algo", "required", "rsa,modulus", "rsa,exponent"):
+        if prop(name) is None:
+            log.debug(f"Key node '{fdt.get_name(node)}' has no '{name}' property.")
+            return None
+
+    return {
+        "name": prop("key-name-hint").as_str(),
+        "algo": prop("algo").as_str(),
+        "required": prop("required").as_str(),
+        "modulus": bytes(prop("rsa,modulus")),
+        "exponent": bytes(prop("rsa,exponent")),
+    }
+
+
+def _public_key_pem(modulus, exponent):
+    """Assemble an RSA public key in PEM form out of its two numbers
+
+    U-Boot stores both as big-endian 32-bit cells, most significant first, which is the same
+    order a DER integer wants.
+
+    :param modulus: Modulus as stored in the device tree
+    :param exponent: Exponent as stored in the device tree
+    :returns: The key, PEM encoded
+    """
+
+    def der(tag, payload):
+        if len(payload) < 0x80:
+            header = bytes([len(payload)])
+        else:
+            length = len(payload).to_bytes((len(payload).bit_length() + 7) // 8, "big")
+            header = bytes([0x80 | len(length)]) + length
+        return bytes([tag]) + header + payload
+
+    def der_integer(value):
+        value = value.lstrip(b"\0") or b"\0"
+        # A leading bit set would make the integer negative.
+        return der(0x02, b"\0" + value if value[0] & 0x80 else value)
+
+    rsa_encryption = bytes([0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01])
+    algorithm = der(0x30, der(0x06, rsa_encryption) + der(0x05, b""))
+    key = der(0x03, b"\0" + der(0x30, der_integer(modulus) + der_integer(exponent)))
+
+    encoded = base64.b64encode(der(0x30, algorithm + key)).decode()
+    body = "\n".join(encoded[pos:pos + 64] for pos in range(0, len(encoded), 64))
+
+    return f"-----BEGIN PUBLIC KEY-----\n{body}\n-----END PUBLIC KEY-----\n"
+
+
+def mint_certificate_for_pubkey(pubkey_path, cert_path):
+    """Wrap a public key in a certificate signed by a key thrown away immediately after
+
+    This is not the shortcut it looks like. The tool that embeds the key reads the certificate
+    only to take its SubjectPublicKeyInfo out: rsa_pem_get_pub_key() calls PEM_read_X509() and
+    then X509_get_pubkey(), and never verifies the signature. A certificate is simply the
+    container the tool accepts, and the issuer of this one is nobody.
+
+    :param pubkey_path: Path to the public key to wrap
+    :param cert_path: Path of the certificate to write
+    """
+
+    with tempfile.TemporaryDirectory(dir=SECURE_BOOT_WORKDIR) as tmpdir:
+        issuer_key = os.path.join(tmpdir, "throwaway.key")
+        try:
+            subprocess.check_output(["openssl", "genrsa", "-out", issuer_key, "2048"],
+                                    stderr=subprocess.STDOUT)
+            subprocess.check_output(
+                ["openssl", "x509", "-new", "-key", issuer_key,
+                 "-force_pubkey", pubkey_path, "-subj", RECOVERED_KEY_SUBJECT,
+                 "-days", RECOVERED_KEY_DAYS, "-out", cert_path],
+                stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as exc:
+            raise TorizonCoreBuilderError(exc.output.strip()) from exc
+
+
+def recover_kernel_key(tezi_dir, image_config, keys_dir):
+    """Recover the key that verifies the kernel from the bootloader of the image being signed
+
+    Used when the user passes no key of their own. The image installs a bootloader that already
+    carries one, which is all that is needed: only its public half is ever embedded.
+
+    :param tezi_dir: Path to the unpacked Toradex Easy Installer image
+    :param image_config: `ImageConfig` object of that image
+    :param keys_dir: Path to the directory to write the recovered key to
+    :returns: Dictionary describing the key, with the certificate written to keys_dir
+    """
+
+    key = None
+    for rawfile in _iter_image_rawfiles(image_config):
+        path = os.path.join(tezi_dir, rawfile["filename"])
+        if not os.path.isfile(path):
+            continue
+        device_tree = _fit_default_device_tree(path)
+        if device_tree is None:
+            continue
+        key = _read_verification_key(device_tree)
+        if key:
+            log.debug(f"Found a kernel verification key in {rawfile['filename']}.")
+            break
+
+    if not key:
+        raise InvalidArgumentError(
+            "Could not find the key that the bootloader of this image verifies the kernel "
+            "with, so there is nothing to carry over to the signed bootloader. Aborting.\n"
+            "Please pass --kernel-key (and --kernel-key-dir) to say which key to use.")
+
+    pubkey_path = os.path.join(keys_dir, f"{key['name']}.pub.pem")
+    with open(pubkey_path, "w", encoding="utf-8") as pubkey_file:
+        pubkey_file.write(_public_key_pem(key["modulus"], key["exponent"]))
+
+    mint_certificate_for_pubkey(pubkey_path, os.path.join(keys_dir, f"{key['name']}.crt"))
+
+    log.warning(f"Warning: no kernel key was passed, so the public key '{key['name']}' already "
+                "in this image is being carried over to the signed bootloader.")
+    log.warning("This is the key of whoever built the image, not yours: on a Toradex image it "
+                "is an engineering key meant for development and testing. Pass --kernel-key to "
+                "have the bootloader verify the kernel with a key of your own.")
+
+    return key
+
+
+def add_recovered_pubkey_to_dtb(uboot_dtb_path, key, keys_dir):
+    """Embed a recovered public key into a U-Boot DTB
+
+    Done with U-Boot's own fdt_add_pubkey, which calls the same code mkimage does when it is
+    handed a private key, so the node is written by U-Boot rather than assembled here.
+
+    :param uboot_dtb_path: Path to the DTB to be updated
+    :param key: Dictionary describing the key, from `recover_kernel_key`
+    :param keys_dir: Path to the directory holding the recovered certificate
+    """
+
+    add_pubkey_cmd = [f"{UBOOT_TOOLS_DIR}/fdt_add_pubkey", "-a", key["algo"], "-k", keys_dir,
+                      "-n", key["name"], "-r", key["required"], uboot_dtb_path]
+
+    log.info(f"Adding public key '{key['name']}' from the image to "
+             f"{os.path.basename(uboot_dtb_path)}")
+    log.info(shlex.join(add_pubkey_cmd))
+
+    try:
+        subprocess.check_output(add_pubkey_cmd, text=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(exc.output.strip()) from exc
+
+
+def prepare_k3_uboot_dtb(root_dir, key_dir, key_name, key_algo, recovered_key=None):
     """Build the binman descriptor of a root from the pristine one shipped by the image
 
     Only the root producing the binaries that verify the kernel has a descriptor to prepare:
@@ -402,6 +656,8 @@ def prepare_k3_uboot_dtb(root_dir, key_dir, key_name, key_algo):
     :param key_dir: Path to the directory holding the kernel key
     :param key_name: Name of the kernel key
     :param key_algo: Pair of hashing and crypto algorithms used to sign the kernel
+    :param recovered_key: Key recovered from the image, from `recover_kernel_key`, when the
+                          user passed none of their own; key_name and key_algo are then unset
     :returns: Whether this root had a descriptor to prepare
     """
 
@@ -412,7 +668,10 @@ def prepare_k3_uboot_dtb(root_dir, key_dir, key_name, key_algo):
     uboot_dtb = os.path.join(root_dir, UBOOT_DTB)
     shutil.copy2(nokeys_dtb, uboot_dtb)
 
-    add_kernel_pubkey_to_dtb(uboot_dtb, key_dir, key_name, key_algo)
+    if recovered_key:
+        add_recovered_pubkey_to_dtb(uboot_dtb, recovered_key, key_dir)
+    else:
+        add_kernel_pubkey_to_dtb(uboot_dtb, key_dir, key_name, key_algo)
 
     return True
 
@@ -813,14 +1072,15 @@ def apply_k3_target_device(tezi_dir):
 
 
 # pylint: disable-next=too-many-locals
-def sign_bootloader_k3(*, k3_key, degenerate_key, kernel_key_dir, kernel_key_name,
-                       kernel_key_algo, target_device=None):
+def sign_bootloader_k3(*, k3_key, degenerate_key, kernel_key_dir=None, kernel_key_name=None,
+                       kernel_key_algo=None, target_device=None):
     """Sign the bootloader binaries of an unpacked image for a TI K3 based machine
 
     :param k3_key: Path to the customer key that every boot container is signed with
     :param degenerate_key: Path to TI's degenerate key, which signs the GP artifacts
     :param kernel_key_dir: Path to the directory holding the kernel key
-    :param kernel_key_name: Name of the kernel key
+    :param kernel_key_name: Name of the kernel key, or None to carry over the key already in
+                            the image being signed
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param target_device: Device state the deployed image should target, or None to leave the
                           image targeting what it already targets
@@ -843,6 +1103,12 @@ def sign_bootloader_k3(*, k3_key, degenerate_key, kernel_key_dir, kernel_key_nam
 
         original_entries = _list_signing_files(signing_dir)
 
+        recovered_key = None
+        if kernel_key_name is None:
+            kernel_key_dir = os.path.join(SECURE_BOOT_WORKDIR, "recovered_key")
+            os.makedirs(kernel_key_dir, exist_ok=True)
+            recovered_key = recover_kernel_key(tezi_dir, image_config, kernel_key_dir)
+
         # Preparing every root first means the check below is reached before any assembly
         # rather than after all of it, and the user gets this message instead of whatever
         # binman says about a descriptor that was never written.
@@ -852,7 +1118,7 @@ def sign_bootloader_k3(*, k3_key, degenerate_key, kernel_key_dir, kernel_key_nam
 
             stage_k3_signing_keys(root_dir, k3_key, degenerate_key)
             prepared |= prepare_k3_uboot_dtb(root_dir, kernel_key_dir, kernel_key_name,
-                                             kernel_key_algo)
+                                             kernel_key_algo, recovered_key)
 
         if not prepared:
             raise InvalidDataError(

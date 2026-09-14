@@ -136,8 +136,9 @@ input:
       # k3-degenerate-key: ./k3_keys/ti-degenerate-key.pem
       # >> (OPTIONAL) directory path with the key named below
       # kernel-key-dir: ./kernel_keys/
-      # >> (REQUIRED) public key to embed in the bootloader, which the bootloader verifies
-      # >> the kernel FIT with
+      # >> (OPTIONAL) public key to embed in the bootloader, which the bootloader verifies
+      # >> the kernel FIT with. If not set, the key already in the image being signed is
+      # >> carried over.
       # kernel-key:
          # >> 'algo' corresponds to the hashing and crypto algorithms used to verify and sign the
          # >> kernel, respectively. If not set it defaults to the value given below.
