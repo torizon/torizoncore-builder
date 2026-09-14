@@ -242,6 +242,10 @@ RUN echo "Fetching U-Boot tools repository..." && \
     cd - && \
     echo "Prepare output tarball..." && \
     mkdir u-boot && \
+    \
+    # Record which U-Boot the tools come from: the signing commands log it beside the
+    # revision the image being signed was built with.
+    git -C u-boot-repo describe --tags --always > u-boot/uboot-release && \
     mv u-boot-repo/tools u-boot/ && \
     mv u-boot-repo/scripts u-boot/ && \
     find u-boot/ -type f -regex ".*\\.\([cho]\|cmd\)" -exec rm -f '{}' \; && \
