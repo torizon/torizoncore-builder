@@ -20,6 +20,7 @@ gi.require_version("OSTree", "1.0")
 from gi.repository import Gio, OSTree
 
 from tcbuilder.backend import ostree
+from tcbuilder.backend import secboot_k3
 from tcbuilder.backend.common import (get_rootfs_tarball, resolve_remote_host,
                                       run_with_loading_animation, open_disk_image,
                                       REMOTE_CMD_TIMEOUT, SECBOOT_ARTIFACTS_DIR,
@@ -695,6 +696,11 @@ def copy_signed_artifacts(src_commit_dir, tezi_dir):
 
     # Add the signed artifacts to the tezi image, overwriting existing files
     shutil.copytree(src_commit_dir, tezi_dir, dirs_exist_ok=True)
+
+    # Apply the device state requested when the bootloader was signed, if any. This edits
+    # image.json in place instead of overwriting it, since the file has just been updated
+    # with the size of the root file system packed above.
+    secboot_k3.apply_k3_target_device(tezi_dir)
 
     fuse_cmd_txt = os.path.join(tezi_dir, FUSE_CMD_TXT_NAME)
     if os.path.isfile(fuse_cmd_txt):
