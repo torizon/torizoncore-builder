@@ -377,6 +377,49 @@ properties:
               - cst-dir
             # No extra props inside 'sign-bootloader-hab'
             additionalProperties: false
+          sign-bootloader-k3:
+            type: object
+            description: "bootloader signing configuration for TI K3 based SoCs"
+            properties:
+              k3-key:
+                type: string
+                description: "path to the private key the bootloader components are signed with"
+                tdxMeta: "file;pem"
+              k3-degenerate-key:
+                type: string
+                description: "path to the degenerate key signing the components running on GP silicon"
+                tdxMeta: "file;pem"
+              kernel-key-dir:
+                type: string
+                description: "path to kernel key directory"
+                tdxMeta: "path"
+              kernel-key:
+                type: array
+                description: "list of keys to be used to verify the kernel FIT"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "name of the key, which correponds to its filename without the file extension"
+                    algo:
+                      type: string
+                      description: "comma-separated pair of the hashing the crypto algorithms used to verify and sign the kernel"
+                  required:
+                    - name
+                  # No extra props inside 'kernel-key'
+                  additionalProperties: false
+              target-device:
+                type: string
+                description: "kind of device the image should be installable on: 'hs-fs' for an unfused module, 'hs-se' for a fused one"
+                enum:
+                  - hs-fs
+                  - hs-se
+            required:
+              - k3-key
+              - kernel-key
+            # No extra props inside 'sign-bootloader-k3'
+            additionalProperties: false
           sign-kernel:
             type: object
             description: "kernel signing configuration"
