@@ -19,10 +19,34 @@ setup_file() {
         IS_HAB_SIGNING_SUPPORTED="0"
     fi
 
+    K3_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-bootloader-k3 --help \
+                                    | grep '^Currently supported machines:')
+    if echo "${K3_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+        IS_K3_SIGNING_SUPPORTED="1"
+    else
+        IS_K3_SIGNING_SUPPORTED="0"
+    fi
+
     SIGNING_KEYS_DIR="${SAMPLES_DIR}/signing_keys"
     KERNEL_KEY_DIR="${SIGNING_KEYS_DIR}/kernel_fitimage"
     KERNEL_KEY_NAME="test"
     KERNEL_KEY_ALGO="sha256,rsa2048"
+
+    # Key the K3 boot containers are signed with in the tests. Generated here rather than
+    # committed: it is a plain RSA key like the one a customer would fuse the hash of, and
+    # nothing outside these tests needs to hold it.
+    K3_KEY="k3_test_key.pem"
+    if [ ! -f "${K3_KEY}" ]; then
+        torizoncore-builder-shell "openssl genrsa -out /workdir/${K3_KEY} 4096" 2>/dev/null
+    fi
+
+    # Directories in the container's storage the tests look into.
+    SIGNED_DIR="/storage/signed_bootloader_artifacts"
+    FIRST_RUN_DIR="/storage/first_run_artifacts"
+
+    # Set TCB_K3_REFERENCE_KEY to the key that signed the image under test to enable the
+    # byte-for-byte comparison against it; see the test that requires it.
+    K3_REFERENCE_KEY="${TCB_K3_REFERENCE_KEY:-}"
 
     CST_DIRS="cst_dirs"
     CST_TARBALL="${SIGNING_KEYS_DIR}/${CST_DIRS}.tar.gz"
@@ -31,6 +55,12 @@ setup_file() {
 
     export IS_KERNEL_SIGNING_SUPPORTED
     export IS_HAB_SIGNING_SUPPORTED
+    export IS_K3_SIGNING_SUPPORTED
+    export SIGNING_KEYS_DIR
+    export K3_KEY
+    export K3_REFERENCE_KEY
+    export SIGNED_DIR
+    export FIRST_RUN_DIR
     export KERNEL_KEY_DIR
     export KERNEL_KEY_NAME
     export KERNEL_KEY_ALGO
@@ -41,7 +71,7 @@ setup_file() {
 @test "secboot: check help output" {
     run torizoncore-builder secboot --help
     assert_success
-    assert_output --partial '{sign-bootloader-hab,sign-kernel}'
+    assert_output --partial '{sign-bootloader-hab,sign-bootloader-k3,sign-kernel}'
 }
 
 @test "secboot sign-bootloader-hab: check help output" {
@@ -354,6 +384,356 @@ setup_file() {
     # delete copied CST binaries as they're no longer needed
     rm -rf "${CST_DIR}/linux32"
     rm -rf "${CST_DIR}/linux64"
+}
+
+@test "secboot sign-bootloader-k3: check help output" {
+    run torizoncore-builder secboot sign-bootloader-k3 --help
+    assert_success
+    assert_output --partial "usage: torizoncore-builder secboot sign-bootloader-k3"
+    assert_output --partial "Currently supported machines:"
+}
+
+@test "secboot sign-bootloader-k3: run without parameters" {
+    run torizoncore-builder secboot sign-bootloader-k3
+    assert_failure
+    assert_output --partial "the following arguments are required: --k3-key"
+}
+
+@test "secboot sign-bootloader-k3: attempt to sign without images unpack" {
+    torizoncore-builder-clean-storage
+
+    run torizoncore-builder secboot sign-bootloader-k3 --k3-key "${K3_KEY}"
+    assert_failure
+    assert_output --partial "Error: could not find an Easy Installer or WIC image in the storage"
+}
+
+@test "secboot sign-bootloader-k3: invalid parameters" {
+    # Unpack an image just so the initial 'images unpack' check is passed
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    # non-existent signing key
+    run torizoncore-builder secboot sign-bootloader-k3 --k3-key "foo.pem"
+    assert_failure
+    assert_output --partial 'does not exist'
+
+    # non-existent degenerate key
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" --k3-degenerate-key "foo.pem"
+    assert_failure
+    assert_output --partial 'does not exist'
+
+    # --kernel-key-dir without --kernel-key
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" --kernel-key-dir "${KERNEL_KEY_DIR}"
+    assert_failure
+    assert_output --partial '--kernel-key-dir was passed but --kernel-key was not'
+
+    # unknown kind of device
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" --target-device "fused"
+    assert_failure
+    assert_output --partial 'argument --target-device: invalid choice:'
+}
+
+@test "secboot sign-bootloader-k3: machine without K3 signing support" {
+    unpack-image "${DEFAULT_TEZI_IMAGE}"
+    local INPUT_IMAGE_DIR=$(echo ${DEFAULT_TEZI_IMAGE} | sed 's/\.tar$//g')
+
+    # change the U-Boot environment file to change the machine name to an invalid one
+    UBOOT_ENV_FILE=$(cat "${INPUT_IMAGE_DIR}/image.json" \
+                         | grep u_boot_env \
+                         | sed 's/.*"u_boot_env": "\(.*\)",/\1/')
+    sed -i 's/^board=/board=dummy-/' "${INPUT_IMAGE_DIR}/${UBOOT_ENV_FILE}"
+
+    torizoncore-builder images --remove-storage unpack "${INPUT_IMAGE_DIR}"
+
+    run torizoncore-builder secboot sign-bootloader-k3 --k3-key "${K3_KEY}"
+    assert_failure
+    assert_output --partial "doesn't support signing the TI K3 bootloader"
+    rm -rf "${INPUT_IMAGE_DIR}"
+}
+
+@test "secboot sign-bootloader-k3: sign the bootloader binaries" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_success
+    assert_output --partial "Signed bootloader binaries:"
+    assert_output --partial "Bootloader in Torizon OS image signed successfully!"
+
+    # Every bootloader binary the image installs must have been signed, and no key material
+    # may be left behind: not in the repacked signing files, and not in the storage volume,
+    # where signing stages copies of the key while it runs.
+    run torizoncore-builder-shell "
+        set -e
+        for f in /storage/tezi/tiboot3*.bin /storage/tezi/tispl.bin /storage/tezi/u-boot.img; do
+            [ -f \"\$f\" ] || continue
+            [ -f \"${SIGNED_DIR}/\$(basename \$f)\" ]
+        done
+        [ -f ${SIGNED_DIR}/tcb_signing_files.tar.gz ]
+        ! tar -tzf ${SIGNED_DIR}/tcb_signing_files.tar.gz | grep -q -e '\.pem$' -e '\.crt$'
+        [ ! -e /storage/secure_boot_workdir ]"
+    assert_success
+}
+
+@test "secboot sign-bootloader-k3: signing twice produces the same bytes" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    torizoncore-builder-shell "rm -rf ${FIRST_RUN_DIR} && cp -a ${SIGNED_DIR} ${FIRST_RUN_DIR}"
+
+    torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+
+    # Identical, whatever the image being signed was built with: the certificates TorizonCore
+    # Builder generates are pinned even when the ones in the image are not. The tarball counts:
+    # it travels in the image, so if its bytes moved between two runs the images would differ
+    # even with every binary inside them identical.
+    run torizoncore-builder-shell "
+        set -e
+        for f in ${SIGNED_DIR}/*.bin ${SIGNED_DIR}/*.img ${SIGNED_DIR}/*.tar.gz; do
+            cmp \"\$f\" \"${FIRST_RUN_DIR}/\$(basename \$f)\"
+        done"
+    assert_success
+
+    # The fixed validity is what says the reproducibility patch is in this container; this
+    # fails if it ever falls out of it, whatever the cause.
+    run torizoncore-builder-shell \
+        "openssl x509 -inform DER -in ${SIGNED_DIR}/tiboot3-*-gp-*.bin -noout -enddate"
+    assert_success
+    assert_output --partial "notAfter=Dec 31 23:59:59 2049 GMT"
+
+    torizoncore-builder-shell "rm -rf ${FIRST_RUN_DIR}"
+}
+
+@test "secboot sign-bootloader-k3: binaries match the ones in the image under the certificate" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+
+    # What a signing key cannot change is the payload the certificate is prepended to. Compare
+    # that against the image's own containers, and check the certificate is one made with the
+    # key that was passed. This holds for any image, whether or not its certificates are
+    # reproducible, and it is the check that stays available when they are not.
+    run torizoncore-builder-shell "
+        set -e
+        for f in /storage/tezi/tiboot3*.bin; do
+            base=\$(basename \$f)
+            python3 -c \"
+import sys
+def payload(path):
+    data = open(path, 'rb').read()
+    assert data[0] == 0x30, path
+    count = data[1] & 0x7f if data[1] >= 0x80 else 0
+    length = data[1] if not count else int.from_bytes(data[2:2 + count], 'big')
+    return data[2 + count + length:]
+assert payload(sys.argv[1]) == payload(sys.argv[2]), sys.argv[2]
+\" \"\$f\" \"${SIGNED_DIR}/\$base\"
+            openssl x509 -inform DER -in \"${SIGNED_DIR}/\$base\" -outform PEM -out /tmp/cert.pem
+            openssl verify -CAfile /tmp/cert.pem /tmp/cert.pem >/dev/null
+
+            # The container for GP silicon is signed with the degenerate key TorizonCore
+            # Builder ships, as a Torizon OS build signs it, so it is the one binary here
+            # whose certificate does not carry the key that was passed.
+            key=/workdir/${K3_KEY}
+            case \"\$base\" in
+                *-gp-*) key=/builder/tcbuilder/secure_boot_files/ti-degenerate-key.pem ;;
+            esac
+            diff <(openssl x509 -in /tmp/cert.pem -noout -pubkey) \
+                 <(openssl pkey -in \"\$key\" -pubout)
+        done"
+    assert_success
+}
+
+@test "secboot sign-bootloader-k3: binaries reproduce the ones in the image" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+    requires-k3-reference-key
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+    requires-pinned-certificates
+
+    # Signed with the key the image was signed with, and with no --kernel-key so that the key
+    # the image already carries is the one embedded, a re-sign has to give the image's own
+    # binaries back. The container built for fused devices is not shipped in the image, so it
+    # has no reference here; the determinism test covers that one.
+    torizoncore-builder secboot sign-bootloader-k3 --k3-key "${K3_REFERENCE_KEY}"
+
+    run torizoncore-builder-shell "
+        set -e
+        for f in /storage/tezi/tiboot3*.bin /storage/tezi/tispl.bin /storage/tezi/u-boot.img; do
+            [ -f \"\$f\" ] || continue
+            cmp \"\$f\" \"${SIGNED_DIR}/\$(basename \$f)\"
+        done"
+    assert_success
+
+    # And so does the tarball they are repacked into, which is what lets a customer compare a
+    # whole re-signed image with the one they downloaded rather than only the binaries in it.
+    # It holds because the repack uses the tar options of the recipe that produced it.
+    run torizoncore-builder-shell \
+        "cmp /storage/tezi/tcb_signing_files.tar.gz ${SIGNED_DIR}/tcb_signing_files.tar.gz"
+    assert_success
+}
+
+@test "secboot sign-bootloader-k3: say when the image's certificates are not reproducible" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+    requires-unpinned-certificates
+
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_success
+    assert_output --partial "were not generated reproducibly"
+}
+
+@test "secboot sign-bootloader-k3: carry the key of the image over" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-bootloader-k3 --k3-key "${K3_KEY}"
+    assert_success
+    assert_output --regexp "the public key '.*' already in this image is being carried over"
+    assert_output --partial "Bootloader in Torizon OS image signed successfully!"
+
+    # The key the image names must be the one the signed bootloader carries. This is the test
+    # that fails if a U-Boot update changes the shape of the artifact it is read from.
+    run torizoncore-builder-shell "
+        python3 -c \"
+import sys, libfdt
+def key_name(path):
+    fit = libfdt.Fdt(open(path, 'rb').read())
+    configs = fit.path_offset('/configurations')
+    config = fit.subnode_offset(configs, fit.getprop(configs, 'default').as_str())
+    image = fit.subnode_offset(fit.path_offset('/images'),
+                               fit.getprop(config, 'fdt').as_str())
+    data = bytes(fit.getprop(image, 'data'))
+    dtb = libfdt.Fdt(data[data.index(bytes.fromhex('d00dfeed')):])
+    node = dtb.first_subnode(dtb.path_offset('/signature'))
+    return dtb.getprop(node, 'key-name-hint').as_str()
+original, signed = (key_name(p) for p in sys.argv[1:3])
+assert original == signed, f'{original} != {signed}'
+print(signed)
+\" /storage/tezi/u-boot.img ${SIGNED_DIR}/u-boot.img"
+    assert_success
+}
+
+@test "secboot sign-bootloader-k3: choose the kind of device the image targets" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    local CURRENT_TARGET=$(torizoncore-builder-shell "
+        grep -q -- '-hs-fs-' /storage/tezi/image.json && echo hs-fs || echo hs-se" | tr -d '\r')
+
+    # Asking for what the image already targets leaves it alone.
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" --target-device "${CURRENT_TARGET}"
+    assert_success
+    assert_output --partial "already targets a ${CURRENT_TARGET^^} device"
+    run torizoncore-builder-shell "[ ! -f ${SIGNED_DIR}/tcb_k3_target_device.json ]"
+    assert_success
+
+    # Asking for the other one records the request, with a warning either way about the module
+    # the image will then boot on.
+    local OTHER_TARGET="hs-se"
+    [ "${CURRENT_TARGET}" = "hs-se" ] && OTHER_TARGET="hs-fs"
+
+    run torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" --target-device "${OTHER_TARGET}"
+    assert_success
+    assert_output --partial "will be set to target a ${OTHER_TARGET^^} device"
+    assert_output --partial "Warning:"
+    run torizoncore-builder-shell "[ -f ${SIGNED_DIR}/tcb_k3_target_device.json ]"
+    assert_success
+}
+
+@test "secboot sign-bootloader-k3: deploy an image targeting the other kind of device" {
+    requires-supported-k3-signing-machine
+    requires-signed-image
+
+    local OUTPUT_DIR="k3_retargeted_image"
+    rm -rf "${OUTPUT_DIR}"
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    local CURRENT_VARIANT=$(torizoncore-builder-shell "
+        grep -q -- '-hs-fs-' /storage/tezi/image.json && echo hs-fs || echo hs" | tr -d '\r')
+    local OTHER_TARGET="hs-se" OTHER_VARIANT="hs"
+    if [ "${CURRENT_VARIANT}" = "hs" ]; then
+        OTHER_TARGET="hs-fs"
+        OTHER_VARIANT="hs-fs"
+    fi
+
+    torizoncore-builder secboot sign-bootloader-k3 \
+        --k3-key "${K3_KEY}" --target-device "${OTHER_TARGET}"
+    torizoncore-builder union k3-retarget-branch
+    run torizoncore-builder deploy --output-directory "${OUTPUT_DIR}" k3-retarget-branch
+    assert_success
+    assert_output --partial "Image set to target a ${OTHER_TARGET^^} device"
+
+    # Every entry that named a container now names the one for the requested kind of device,
+    # the file it names is in the image, and the request itself was consumed rather than
+    # installed on the device.
+    run grep -q -- "-${OTHER_VARIANT}-verdin" "${OUTPUT_DIR}/image.json"
+    assert_success
+    run grep -q -- "-${CURRENT_VARIANT}-verdin" "${OUTPUT_DIR}/image.json"
+    assert_failure
+    assert_file_not_exist "${OUTPUT_DIR}/tcb_k3_target_device.json"
+
+    # The size deploy computed for the root file system survived the rewrite, and the images
+    # the entries name are in the output.
+    run torizoncore-builder-shell "
+        python3 -c \"
+import json, os
+config = json.load(open('/workdir/${OUTPUT_DIR}/image.json'))
+sizes, names = [], []
+def walk(node):
+    if isinstance(node, dict):
+        for rawfile in node.get('rawfiles') or []:
+            names.append(rawfile['filename'])
+        if 'uncompressed_size' in node:
+            sizes.append(node['uncompressed_size'])
+        for value in node.values():
+            walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            walk(value)
+walk(config)
+assert sizes and all(size > 0 for size in sizes), sizes
+for name in names:
+    assert os.path.isfile(os.path.join('/workdir/${OUTPUT_DIR}', name)), name
+print('ok')
+\""
+    assert_success
+
+    rm -rf "${OUTPUT_DIR}"
 }
 
 @test "secboot sign-kernel: check help output" {
