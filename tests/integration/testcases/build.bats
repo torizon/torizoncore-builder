@@ -125,8 +125,9 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
-@test "build: re-signing of bootloader (K3)" {
+@test "build: re-signing of bootloader (K3) and kernel FIT image" {
     requires-supported-k3-signing-machine
+    requires-supported-kernel-signing-machine
     requires-signed-image
 
     local SIGNING_KEYS_DIR="${SAMPLES_DIR}/signing_keys"
@@ -166,6 +167,13 @@ teardown_file() {
     assert_output --partial "Bootloader in Torizon OS image signed successfully!"
     assert_output --partial "will be set to target a ${TARGET_DEVICE^^} device"
     assert_output --partial "Image set to target a ${TARGET_DEVICE^^} device"
+
+    # The kernel has to be signed with the key the bootloader was told to verify it with, or
+    # the image this produces does not boot.
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+
     assert_output --partial 'Deploying commit ref: k3-re-signed-branch'
 
     # The output image installs the signed binaries, and the ones the tool built are the ones
