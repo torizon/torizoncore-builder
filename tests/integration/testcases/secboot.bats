@@ -44,10 +44,6 @@ setup_file() {
     SIGNED_DIR="/storage/signed_bootloader_artifacts"
     FIRST_RUN_DIR="/storage/first_run_artifacts"
 
-    # Set TCB_K3_REFERENCE_KEY to the key that signed the image under test to enable the
-    # byte-for-byte comparison against it; see the test that requires it.
-    K3_REFERENCE_KEY="${TCB_K3_REFERENCE_KEY:-}"
-
     CST_DIRS="cst_dirs"
     CST_TARBALL="${SIGNING_KEYS_DIR}/${CST_DIRS}.tar.gz"
     CST_BINARIES_DIR="${CST_DIRS}/cst-3.4.1"
@@ -58,7 +54,6 @@ setup_file() {
     export IS_K3_SIGNING_SUPPORTED
     export SIGNING_KEYS_DIR
     export K3_KEY
-    export K3_REFERENCE_KEY
     export SIGNED_DIR
     export FIRST_RUN_DIR
     export KERNEL_KEY_DIR
@@ -577,7 +572,7 @@ assert payload(sys.argv[1]) == payload(sys.argv[2]), sys.argv[2]
     # the image already carries is the one embedded, a re-sign has to give the image's own
     # binaries back. The container built for fused devices is not shipped in the image, so it
     # has no reference here; the determinism test covers that one.
-    torizoncore-builder secboot sign-bootloader-k3 --k3-key "${K3_REFERENCE_KEY}"
+    torizoncore-builder secboot sign-bootloader-k3 --k3-key "${TCB_K3_REFERENCE_KEY}"
 
     run torizoncore-builder-shell "
         set -e

@@ -306,7 +306,7 @@ export -f unpacked-image-pinned-certificates-value
 # can a re-signed binary be compared with the original byte for byte: same sources and same
 # binman give the same bytes, but only when signed by the same key.
 requires-k3-reference-key() {
-    if [ -z "${K3_REFERENCE_KEY}" ]; then
+    if [ -z "${TCB_K3_REFERENCE_KEY:-}" ]; then
         skip "no reference key for this image (set TCB_K3_REFERENCE_KEY)"
     fi
 }
