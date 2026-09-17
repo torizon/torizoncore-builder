@@ -268,8 +268,20 @@ def read_k3_signing_manifest(signing_dir, board):
             f"The signing files declare no directories to build from in \"{K3_MANIFEST_NAME}\". "
             "Aborting.")
 
+    # The manifest arrives inside the image being signed, so the roots are that image's word
+    # for where the signing keys get staged. One resolving outside the extracted signing files
+    # would put a copy of the key passed with --k3-key where the cleanup at the end of signing
+    # never looks, which is the one thing that cleanup exists to prevent. Resolve before
+    # comparing, so that an absolute path, a "..", and a symlinked root are all caught.
+    signing_dir_real = os.path.realpath(signing_dir)
     for root in roots:
-        if not os.path.isdir(os.path.join(signing_dir, root)):
+        root_dir = os.path.realpath(os.path.join(signing_dir, root))
+        if root_dir != signing_dir_real and not root_dir.startswith(signing_dir_real + os.sep):
+            raise InvalidDataError(
+                f"The signing files declare a \"{root}\" directory that resolves outside the "
+                "signing files themselves. Refusing to sign with them. Aborting.")
+
+        if not os.path.isdir(root_dir):
             raise FileContentMissing(
                 f"The signing files declare a \"{root}\" directory which is not there: the "
                 "tarball is truncated. Aborting.")
