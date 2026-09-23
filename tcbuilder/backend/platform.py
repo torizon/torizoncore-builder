@@ -91,6 +91,7 @@ BOOTLOADER_DD_OPTIONS_PER_MACHINE = {
     "colibri-imx6": "seek=2",
     "colibri-imx6ull-emmc": "seek=2",
     "colibri-imx7-emmc": "seek=2",
+    "imx6sx-blaze": "seek=2",
 }
 
 BOOTLOADER_HWID_SUFFIX = "-bootloader"
