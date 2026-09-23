@@ -50,9 +50,13 @@ BOOTLOADER_CONTAINER_NAME = {
     "verdin-imx8mp": "imx-boot",
 }
 
+# Machines whose kernel FIT image can be signed, mapped to the family whose handling they need.
+# The family is only consulted on the HAB bootloader path, which has DTBs to copy the signature
+# node into; signing the kernel itself is the same work on every machine.
 KERNEL_SIGNING_SUPPORTED_MACHINES = {
     "verdin-imx8mm": "imx8m",
     "verdin-imx8mp": "imx8m",
+    "verdin-am62": "k3",
 }
 
 HAB_SIGNING_SUPPORTED_MACHINES = {

@@ -1,0 +1,27 @@
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  secboot:
+    sign-bootloader-k3:
+      k3-key: "${K3_KEY:?Please specify the K3 signing key}"
+      kernel-key-dir: "${KERNEL_KEY_DIR:?Please specify kernel key directory}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME:?Please specify kernel key name}"
+           algo: "${KERNEL_KEY_ALGO:?Please specify kernel key algo}"
+      target-device: "${TARGET_DEVICE:?Please specify the kind of device to target}"
+    sign-kernel:
+      kernel-key-dir: "${KERNEL_KEY_DIR:?Please specify kernel key directory}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME:?Please specify kernel key name}"
+           algo: "${KERNEL_KEY_ALGO:?Please specify kernel key algo}"
+output:
+  ostree:
+    branch: k3-re-signed-branch
+    commit-subject: "K3 re-signed image subject"
+    commit-body: "K3 re-signed image body"
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    name: "image with re-signed K3 bootloader"
+    description: "image whose TI K3 bootloader binaries were re-signed"

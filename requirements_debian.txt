@@ -10,3 +10,9 @@ python-dateutil==2.9.0.post0
 pyyaml==6.0.3
 debugpy==1.8.19
 fabric==3.2.2
+
+# Used by binman when assembling the boot binaries of TI K3 based machines: yamllint by its
+# ti-board-config entry type, which regenerates the board configuration blobs, and pyelftools
+# to read the symbols it writes into the SPL binaries.
+yamllint==1.38.0
+pyelftools==0.33

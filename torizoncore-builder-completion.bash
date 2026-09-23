@@ -318,6 +318,7 @@ _TCBCOMP_ARGS_PLATFORM_PUSH_BOOTLOADER="
 _TCBCOMP_ARGS_SECBOOT="
     --help
     sign-bootloader-hab
+    sign-bootloader-k3
     sign-kernel
 "
 
@@ -334,6 +335,20 @@ _TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_HAB="
     --cst-srk-no-ca
     --kernel-key
     --kernel-key-dir
+"
+
+_TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_K3="
+    --help
+    --k3-key
+    --k3-degenerate-key
+    --kernel-key
+    --kernel-key-dir
+    --target-device
+"
+
+_TCBCOMP_ARGS_SECBOOT_TARGET_DEVICE="
+    hs-fs
+    hs-se
 "
 
 _TCBCOMP_ARGS_SECBOOT_CST_CRYPTO="
@@ -1358,6 +1373,29 @@ _tcbcomp_secboot_sign_bootloader_hab() {
     esac
 }
 
+# 'secboot sign-bootloader-k3' command
+_tcbcomp_secboot_sign_bootloader_k3() {
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "${prev}" in
+        --k3-key|--k3-degenerate-key)
+            _tcbcomp_helper_filter_files_and_dirs "*.pem"
+            ;;
+        --kernel-key)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_DEF_KERNEL_KEY}"
+            ;;
+        --kernel-key-dir)
+            _tcbcomp_helper_filter_dirs
+            ;;
+        --target-device)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_TARGET_DEVICE}"
+            ;;
+        *)
+            _tcbcomp_helper_static_options "${_TCBCOMP_ARGS_SECBOOT_SIGN_BOOTLOADER_K3}"
+            ;;
+    esac
+}
+
 # 'secboot sign-kernel' command
 _tcbcomp_secboot_sign_kernel() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -1388,6 +1426,9 @@ _tcbcomp_secboot() {
     case "${cmd}" in
         sign-bootloader-hab)
             _tcbcomp_secboot_sign_bootloader_hab
+            ;;
+        sign-bootloader-k3)
+            _tcbcomp_secboot_sign_bootloader_k3
             ;;
         sign-kernel)
             _tcbcomp_secboot_sign_kernel

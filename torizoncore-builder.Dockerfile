@@ -218,9 +218,15 @@ RUN apt-get -q -y update && \
     && \
     rm -rf /var/lib/apt/lists/*
 
+# Patches applied to the U-Boot checkout below; see patches/u-boot/README.md.
+COPY patches/u-boot/ /root/patches/
+
 RUN echo "Fetching U-Boot tools repository..." && \
     git clone https://github.com/u-boot/u-boot.git -b v2024.07 u-boot-repo && \
     cd u-boot-repo && \
+    \
+    echo "Applying U-Boot patches..." && \
+    git apply -v /root/patches/*.patch && \
     \
     echo "Patching libfdt.i_shipped (workaround for newer SWIG)..." && \
     sed -e "s/SWIG_Python_AppendOutput/SWIG_AppendOutput/g" \
@@ -236,6 +242,10 @@ RUN echo "Fetching U-Boot tools repository..." && \
     cd - && \
     echo "Prepare output tarball..." && \
     mkdir u-boot && \
+    \
+    # Record which U-Boot the tools come from: the signing commands log it beside the
+    # revision the image being signed was built with.
+    git -C u-boot-repo describe --tags --always > u-boot/uboot-release && \
     mv u-boot-repo/tools u-boot/ && \
     mv u-boot-repo/scripts u-boot/ && \
     find u-boot/ -type f -regex ".*\\.\([cho]\|cmd\)" -exec rm -f '{}' \; && \
@@ -260,6 +270,9 @@ RUN apt-get -q -y update && \
 # - xxd: needed by imx8m_sign.sh.
 # - libfaketime: needed for reproducible builds of signed flash.bin when running the NXP
 #   Code Signing Tool.
+# - openssl: binman shells out to it to generate the X.509 certificates that sign TI K3
+#   bootloaders. It currently also arrives as a dependency of other packages; declare it, since
+#   signing breaks if those ever stop pulling it in.
 #
 # NOTE: Do not add -dev packages here since they are not supposed to be runtime
 #       dependencies of TorizonCore Builder.
@@ -281,6 +294,7 @@ RUN apt-get -q -y update && \
             libguestfs-tools \
             lz4 \
             lzop \
+            openssl \
             python3 \
             python3-dnspython \
             python3-gi \

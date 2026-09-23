@@ -124,6 +124,30 @@ input:
          # >> kernel, respectively. If not set it defaults to the value given below.
          # - name: "prod"
          #   algo: "sha256,rsa2048"
+    # >> Sign bootloader for modules based on TI K3 SoCs
+    # sign-bootloader-k3:
+      # >> (REQUIRED) path to the PRIVATE key the bootloader components are signed with;
+      # >> this is the customer key, whose public counterpart is hashed into the SoC fuses
+      # >> when the device is closed
+      # k3-key: ./k3_keys/custMpk.pem
+      # >> (OPTIONAL) path to the degenerate key signing the components that run on GP
+      # >> silicon. Set it only if the image was built with a degenerate key other than the
+      # >> one published by TI, which is the one TorizonCore Builder ships.
+      # k3-degenerate-key: ./k3_keys/ti-degenerate-key.pem
+      # >> (OPTIONAL) directory path with the key named below
+      # kernel-key-dir: ./kernel_keys/
+      # >> (OPTIONAL) public key to embed in the bootloader, which the bootloader verifies
+      # >> the kernel FIT with. If not set, the key already in the image being signed is
+      # >> carried over.
+      # kernel-key:
+         # >> 'algo' corresponds to the hashing and crypto algorithms used to verify and sign the
+         # >> kernel, respectively. If not set it defaults to the value given below.
+         # - name: "prod"
+         #   algo: "sha256,rsa2048"
+      # >> (OPTIONAL) kind of device the image should be installable on: 'hs-fs' for a module
+      # >> that is not fused, 'hs-se' for a module whose keys have been fused. If not set, the
+      # >> image keeps whatever it already targets.
+      # target-device: hs-fs
     # >> Sign kernel FIT image
     # sign-kernel:
       # >> (OPTIONAL) directory path with the keys to sign the kernel

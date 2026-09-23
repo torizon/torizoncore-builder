@@ -273,6 +273,65 @@ requires-supported-hab-signing-machine() {
 }
 export -f requires-supported-hab-signing-machine
 
+requires-supported-k3-signing-machine() {
+    if [ "${IS_K3_SIGNING_SUPPORTED}" != "1" ]; then
+        skip "machine not supported"
+    fi
+}
+export -f requires-supported-k3-signing-machine
+
+# Whether the signing files of the unpacked image say its certificates were generated
+# reproducibly. Images built without TDX_K3_SECBOOT_REPRODUCIBLE, which is the default and is
+# what CI builds, carry certificates with a random serial and wall-clock validity, so nothing
+# can reproduce their bytes. Requires an unpacked image in the internal storage.
+unpacked-image-has-pinned-certificates() {
+    unpacked-image-pinned-certificates-value | grep -qx true
+}
+export -f unpacked-image-has-pinned-certificates
+
+# What the manifest says, as 'true', 'false', or nothing at all when there is no readable
+# manifest to ask. The two callers below want to tell those three apart: an image whose
+# signing metadata cannot be read is not an image with unpinned certificates, and running a
+# case against it produces a failure about the manifest rather than the skip it deserves.
+unpacked-image-pinned-certificates-value() {
+    torizoncore-builder-shell "
+        tar -xOzf /storage/tezi/tcb_signing_files.tar.gz tcb-signing/manifest.json 2>/dev/null \
+            | jq -r 'if .signing.certificates_pinned == true then \"true\"
+                     elif .signing.certificates_pinned == false then \"false\"
+                     else empty end' 2>/dev/null"
+}
+export -f unpacked-image-pinned-certificates-value
+
+# The key that signed the image under test, when whoever runs the tests holds it. Only then
+# can a re-signed binary be compared with the original byte for byte: same sources and same
+# binman give the same bytes, but only when signed by the same key.
+requires-k3-reference-key() {
+    if [ -z "${TCB_K3_REFERENCE_KEY:-}" ]; then
+        skip "no reference key for this image (set TCB_K3_REFERENCE_KEY)"
+    fi
+}
+export -f requires-k3-reference-key
+
+requires-pinned-certificates() {
+    if ! unpacked-image-has-pinned-certificates; then
+        skip "image was not built with reproducible certificates"
+    fi
+}
+export -f requires-pinned-certificates
+
+requires-unpinned-certificates() {
+    local pinned=$(unpacked-image-pinned-certificates-value)
+
+    if [ -z "${pinned}" ]; then
+        skip "cannot tell whether this image has reproducible certificates"
+    fi
+
+    if [ "${pinned}" = "true" ]; then
+        skip "image was built with reproducible certificates"
+    fi
+}
+export -f requires-unpinned-certificates
+
 contains-all-words() {
     local haystack=$(echo "$1" | tr '\n' ' ')
     local needle=$(echo "$2" | tr '\n' ' ')

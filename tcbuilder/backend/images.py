@@ -32,6 +32,7 @@ from tcbuilder.backend.common import (get_rootfs_tarball, get_tar_compress_progr
 
 from tcbuilder.backend import ostree
 from tcbuilder.backend.secboot import DEFAULT_TCB_SIGNING_FILES_TARNAME, BOOTLOADER_CONTAINER_NAME
+from tcbuilder.backend.secboot_k3 import K3_SIGNING_SUPPORTED_MACHINES
 from tcbuilder.errors import (TorizonCoreBuilderError, InvalidArgumentError, FileContentMissing,
                               InvalidStateError, OperationFailureError, PathNotExistError,
                               UnsupportedImageFeature)
@@ -776,9 +777,10 @@ def track_tezi_signed_files(tezi_dir, commit_hash, machine):
     tcb_signing_files_tar = os.path.join(tezi_dir, DEFAULT_TCB_SIGNING_FILES_TARNAME)
     if os.path.isfile(tcb_signing_files_tar):
 
-        # Assume the signing feature for the machine is not supported if TCB doesn't have its
-        # entry in BOOTLOADER_CONTAINER_NAME
-        if machine not in BOOTLOADER_CONTAINER_NAME:
+        # Assume the signing feature for the machine is not supported if TCB doesn't know how
+        # to sign its bootloader, with either of the schemes it implements
+        if (machine not in BOOTLOADER_CONTAINER_NAME and
+                machine not in K3_SIGNING_SUPPORTED_MACHINES):
             log.warning("Warning: secboot commands are not supported for this machine.")
             return
 
@@ -787,7 +789,13 @@ def track_tezi_signed_files(tezi_dir, commit_hash, machine):
         os.makedirs(commit_dir, exist_ok=True)
         shutil.copy2(tcb_signing_files_tar, commit_dir)
 
-        log.info(f"Linking bootloader container to {commit_hash}.")
-        shutil.copy2(os.path.join(tezi_dir, BOOTLOADER_CONTAINER_NAME[machine]),
-                     commit_dir)
+        # Besides the tarball, the HAB path also tracks the bootloader container of the
+        # machine, whose filename comes from BOOTLOADER_CONTAINER_NAME. Machines signed with
+        # the K3 scheme have several bootloader binaries and no such table: the signing
+        # command reads their filenames from image.json when it runs, so there is nothing to
+        # track here for them.
+        if machine in BOOTLOADER_CONTAINER_NAME:
+            log.info(f"Linking bootloader container to {commit_hash}.")
+            shutil.copy2(os.path.join(tezi_dir, BOOTLOADER_CONTAINER_NAME[machine]),
+                         commit_dir)
 # EOF

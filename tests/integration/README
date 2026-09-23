@@ -104,6 +104,15 @@ TCB_UNDER_CI:     If set to '1', some tests not appropriate for running
 TCB_TAGS:         Only run tests that match all the tags in the list (&&).
                   Separating the lists by space allows for logical or (||):
                   `a,b x,y` matches tags (a && b) || (x && y)
+TCB_K3_REFERENCE_KEY:
+                  Path to the key that signed the image under test, which
+                  enables the secboot cases that compare a re-signed
+                  bootloader binary with the original one byte for byte.
+                  Only a re-sign with the same key can reproduce those
+                  bytes, so without it those cases skip. The path is
+                  resolved inside the container, where the test working
+                  directory is mounted at /workdir, so give it relative to
+                  that directory rather than as a path on the host.
 
 Following are some examples of running the test cases.
 

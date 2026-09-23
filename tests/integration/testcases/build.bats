@@ -21,8 +21,17 @@ setup_file() {
         IS_HAB_SIGNING_SUPPORTED="0"
     fi
 
+    K3_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-bootloader-k3 --help \
+                                    | grep '^Currently supported machines:')
+    if echo "${K3_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+        IS_K3_SIGNING_SUPPORTED="1"
+    else
+        IS_K3_SIGNING_SUPPORTED="0"
+    fi
+
     export IS_KERNEL_SIGNING_SUPPORTED
     export IS_HAB_SIGNING_SUPPORTED
+    export IS_K3_SIGNING_SUPPORTED
 
     start-registries || true
     check-registries
@@ -114,6 +123,73 @@ teardown_file() {
     refute_output --partial 'is not valid under any of the given schemas'
     assert_output --partial 'Error: Could not fetch URL'
     rm -rf dummy_output_directory
+}
+
+@test "build: re-signing of bootloader (K3) and kernel FIT image" {
+    requires-supported-k3-signing-machine
+    requires-supported-kernel-signing-machine
+    requires-signed-image
+
+    local SIGNING_KEYS_DIR="${SAMPLES_DIR}/signing_keys"
+    local KERNEL_KEY_DIR="${SIGNING_KEYS_DIR}/kernel_fitimage"
+    local KERNEL_KEY_NAME="test"
+    local KERNEL_KEY_ALGO="sha256,rsa2048"
+
+    # The key whose hash a customer fuses into the SoC; generated here for the same reason the
+    # secboot tests generate theirs.
+    local K3_KEY="k3_build_test_key.pem"
+    if [ ! -f "${K3_KEY}" ]; then
+        torizoncore-builder-shell "openssl genrsa -out /workdir/${K3_KEY} 4096" 2>/dev/null
+    fi
+
+    # Ask for the kind of device the image does not already target, so that the run exercises
+    # the rewrite rather than the case where there is nothing to do.
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+    local TARGET_DEVICE=$(torizoncore-builder-shell "
+        grep -q -- '-hs-fs-' /storage/tezi/image.json && echo hs-se || echo hs-fs" | tr -d '\r')
+
+    local OUTDIR='k3_re_signed_image'
+    rm -rf "${OUTDIR}"
+
+    run torizoncore-builder build \
+        --file "${SAMPLES_DIR}/config/tcbuild-k3-re-signing-components.yaml" \
+        --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
+        --set K3_KEY="$K3_KEY" \
+        --set KERNEL_KEY_DIR="$KERNEL_KEY_DIR" \
+        --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
+        --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
+        --set TARGET_DEVICE="$TARGET_DEVICE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_success
+    assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_KEY_DIR}"
+    assert_output --partial "Signed bootloader binaries:"
+    assert_output --partial "Bootloader in Torizon OS image signed successfully!"
+    assert_output --partial "will be set to target a ${TARGET_DEVICE^^} device"
+    assert_output --partial "Image set to target a ${TARGET_DEVICE^^} device"
+
+    # The kernel has to be signed with the key the bootloader was told to verify it with, or
+    # the image this produces does not boot.
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+
+    assert_output --partial 'Deploying commit ref: k3-re-signed-branch'
+
+    # The output image installs the signed binaries, and the ones the tool built are the ones
+    # in it rather than the ones it started from.
+    run torizoncore-builder-shell "
+        set -e
+        for f in /storage/signed_bootloader_artifacts/*.bin \
+                 /storage/signed_bootloader_artifacts/*.img; do
+            cmp \"\$f\" \"/workdir/${OUTDIR}/\$(basename \$f)\"
+        done"
+    assert_success
+
+    run cat "${OUTDIR}/image.json"
+    assert_output --partial '"name": "image with re-signed K3 bootloader"'
+
+    rm -rf "${OUTDIR}"
 }
 
 @test "build: re-signing of bootloader (HAB) and kernel FIT image" {
