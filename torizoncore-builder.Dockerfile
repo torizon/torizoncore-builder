@@ -279,6 +279,8 @@ RUN apt-get -q -y update && \
 # - pcscd, libccid: PC/SC daemon and CCID driver needed to talk to USB smart card tokens such as
 #   the YubiKey from inside the container; the daemon on the host cannot be relied upon, since its
 #   client protocol must match the one of the library in the container.
+# - softhsm2: software PKCS#11 token, allowing signing with PKCS#11 tokens to be tried out (and
+#   tested) without any hardware.
 #
 # NOTE: Do not add -dev packages here since they are not supposed to be runtime
 #       dependencies of TorizonCore Builder.
@@ -315,6 +317,7 @@ RUN apt-get -q -y update && \
             python3-pip \
             python3-setuptools \
             python3-wheel \
+            softhsm2 \
             wget \
             xxd \
             xz-utils \
