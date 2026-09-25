@@ -373,6 +373,72 @@ teardown_file() {
     rm -rf "${CST_DIR}/linux64"
 }
 
+@test "build: signing of kernel FIT image with PKCS#11 token" {
+    requires-supported-kernel-signing-machine
+    requires-signed-image
+
+    local KERNEL_KEY_DIR="${SAMPLES_DIR}/signing_keys/kernel_fitimage"
+    local KERNEL_KEY_NAME="test"
+    local KERNEL_KEY_ALGO="sha256,rsa2048"
+
+    local SOFTHSM_TOKEN_DIR="softhsm_tokens"
+    local TOKEN_LABEL="tcb-test"
+    local KEY_ID="12"
+    local TOKEN_PIN="1234"
+
+    run create-softhsm-token "${SOFTHSM_TOKEN_DIR}" "${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.key" \
+                             "${TOKEN_LABEL}" "${KEY_ID}" "${TOKEN_PIN}"
+    assert_success
+
+    local OUTDIR='pkcs11_signed_image'
+
+    # The token PIN is passed as a variable, so it does not need to be in the tcbuild file.
+    run torizoncore-builder-ex \
+        -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+        build \
+        --file "${SAMPLES_DIR}/config/tcbuild-kernel-pkcs11-signing.yaml" \
+        --set TOKEN_LABEL="$TOKEN_LABEL" \
+        --set KEY_ID="$KEY_ID" \
+        --set PIN="$TOKEN_PIN" \
+        --set PKCS11_MODULE="/usr/lib/softhsm/libsofthsm2.so" \
+        --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
+        --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
+        --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+
+    assert_success
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --regexp "Signing kernel FIT image with .* algorithm: ${KERNEL_KEY_ALGO}"
+    assert_output --partial 'Kernel FIT image signed successfully with key in PKCS#11 token'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+    assert_output --partial 'Deploying commit ref: pkcs11-signed-branch'
+    refute_output --partial "pin-value=${TOKEN_PIN}"
+
+    run cat "$OUTDIR/image.json"
+    assert_output --partial '"name": "image with kernel FIT signed with PKCS#11 token"'
+
+    # Both a key directory and a PKCS#11 URI passed:
+    cat "${SAMPLES_DIR}/config/tcbuild-kernel-pkcs11-signing.yaml" | \
+        sed -Ee "s|^(\s+)kernel-key-pkcs11-uri:|\1kernel-key-dir: \"${KERNEL_KEY_DIR}\"\n&|" > \
+        "tcbuild-kernel-pkcs11-signing-with-dir.yaml"
+
+    run torizoncore-builder build \
+        --file "tcbuild-kernel-pkcs11-signing-with-dir.yaml" \
+        --set TOKEN_LABEL="$TOKEN_LABEL" \
+        --set KEY_ID="$KEY_ID" \
+        --set PIN="$TOKEN_PIN" \
+        --set PKCS11_MODULE="/usr/lib/softhsm/libsofthsm2.so" \
+        --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
+        --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
+        --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
+        --set OUTPUT_DIR="$OUTDIR" --force
+    assert_failure
+    assert_output --partial "'sign-kernel.kernel-key-dir' and 'sign-kernel.kernel-key-pkcs11-uri' cannot be used together"
+
+    rm -f "tcbuild-kernel-pkcs11-signing-with-dir.yaml"
+    torizoncore-builder-shell "rm -rf /workdir/${SOFTHSM_TOKEN_DIR} /workdir/${OUTDIR}"
+}
+
 @test "build: full customization checked on host" {
     requires-image-version "$DEFAULT_TEZI_IMAGE" "5.3.0"
 

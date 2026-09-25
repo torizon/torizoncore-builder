@@ -418,6 +418,31 @@ signing-artifacts-in-unpacked-tezi-image() {
 }
 export -f signing-artifacts-in-unpacked-tezi-image
 
+# Create a software PKCS#11 token (SoftHSM) holding a private key; the token directory is created
+# in the working directory, so that it outlives the container and can be mounted into another one
+# where SoftHSM looks for it by default (/var/lib/softhsm/tokens).
+# $1 = token directory (relative to the working directory)
+# $2 = private key file in PEM format (relative to the working directory)
+# $3 = token label
+# $4 = key id, in hexadecimal
+# $5 = token (user) PIN
+create-softhsm-token() {
+    local token_dir="$1" key_file="$2" token_label="$3" key_id="$4" pin="$5"
+
+    # The token files are created (as root) from within the container, so remove them from there.
+    torizoncore-builder-shell "rm -rf /workdir/${token_dir}"
+    torizoncore-builder-shell \
+        "mkdir /workdir/${token_dir} && \
+         echo 'directories.tokendir = /workdir/${token_dir}' > /tmp/softhsm2.conf && \
+         export SOFTHSM2_CONF=/tmp/softhsm2.conf && \
+         softhsm2-util --init-token --free --label ${token_label} \
+                       --pin ${pin} --so-pin 12345678 && \
+         softhsm2-util --import /workdir/${key_file} \
+                       --token ${token_label} --label $(basename ${key_file} .key) \
+                       --id ${key_id} --pin ${pin}"
+}
+export -f create-softhsm-token
+
 unpacked-ostree-repo-has-composefs-support() {
     local status
     local repo="/storage/sysroot/ostree/repo/"

@@ -841,6 +841,49 @@ print('ok')
     fi
 }
 
+@test "secboot sign-kernel: invalid PKCS#11 parameters" {
+    # Unpack image so the initial 'images unpack' check passes:
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    # Both a key directory and a PKCS#11 URI passed:
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key-pkcs11-uri "pkcs11:token=tcb-test;id=%12" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial '--kernel-key-dir and --kernel-key-pkcs11-uri cannot be used together'
+
+    # PKCS#11 URI without the 'pkcs11:' prefix:
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-pkcs11-uri "token=tcb-test;id=%12" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "must be a PKCS#11 URI starting with 'pkcs11:'"
+
+    # PKCS#11 URI with a 'type' attribute:
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-pkcs11-uri "pkcs11:token=tcb-test;id=%12;type=private" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial "must not have a 'type' attribute"
+
+    # Switch --pkcs11-module passed without --kernel-key-pkcs11-uri being passed:
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --pkcs11-module "/usr/lib/softhsm/libsofthsm2.so" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial '--pkcs11-module was passed but --kernel-key-pkcs11-uri was not provided'
+
+    # Non-existent PKCS#11 module:
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-pkcs11-uri "pkcs11:token=tcb-test;id=%12" \
+        --pkcs11-module "/usr/lib/dummy-pkcs11.so" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial 'PKCS#11 module "/usr/lib/dummy-pkcs11.so" does not exist'
+}
+
 @test "secboot sign-kernel: image with unsupported kernel format" {
     requires-supported-kernel-signing-machine
     requires-non-fit-kernel
@@ -941,4 +984,62 @@ print('ok')
 
     run test "${FOUND_KEY_NAME}" == "${KERNEL_KEY_NAME}"
     assert_success
+}
+
+@test "secboot sign-kernel: sign with test key in a PKCS#11 token" {
+    requires-supported-kernel-signing-machine
+    requires-signed-image
+
+    local SOFTHSM_TOKEN_DIR="softhsm_tokens"
+    local SOFTHSM_MODULE="/usr/lib/softhsm/libsofthsm2.so"
+    local TOKEN_PIN="1234"
+    local KERNEL_FILE_SIGNED="vmlinuz-file-signed"
+
+    # Create a software token (SoftHSM) holding the same test key used for file-based signing.
+    run create-softhsm-token "${SOFTHSM_TOKEN_DIR}" "${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.key" \
+                             "tcb-test" "12" "${TOKEN_PIN}"
+    assert_success
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    # Sign with the key file first, to have a reference to compare against.
+    run torizoncore-builder secboot sign-kernel \
+        --kernel-key-dir "${KERNEL_KEY_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_success
+    torizoncore-builder-shell \
+        "cp /storage/kernel/usr/lib/modules/*/vmlinuz /workdir/${KERNEL_FILE_SIGNED}"
+
+    # The token directory is mounted where SoftHSM looks for it by default.
+    run torizoncore-builder-ex \
+        -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+        secboot sign-kernel \
+        --kernel-key-pkcs11-uri "pkcs11:token=tcb-test;id=%12;pin-value=${TOKEN_PIN}" \
+        --pkcs11-module "${SOFTHSM_MODULE}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_success
+    assert_output --partial "Updating FIT image configurations to be signed with key name \"${KERNEL_KEY_NAME}\""
+    assert_output --partial 'Kernel FIT image signed successfully with key in PKCS#11 token'
+    assert_output --partial 'Kernel in unpacked Torizon OS image signed successfully'
+    assert_output --partial 'pin-value=***'
+    refute_output --partial "pin-value=${TOKEN_PIN}"
+
+    # Signing is deterministic, so the key in the token must give the very same kernel.
+    run torizoncore-builder-shell \
+        "cmp /workdir/${KERNEL_FILE_SIGNED} /storage/kernel/usr/lib/modules/*/vmlinuz"
+    assert_success
+
+    # Wrong PIN:
+    run torizoncore-builder-ex \
+        -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+        secboot sign-kernel \
+        --kernel-key-pkcs11-uri "pkcs11:token=tcb-test;id=%12;pin-value=4321" \
+        --pkcs11-module "${SOFTHSM_MODULE}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
+    assert_failure
+    assert_output --partial 'Could not sign the kernel FIT image with the key in the PKCS#11 token'
+    refute_output --partial 'pin-value=4321'
+
+    torizoncore-builder-shell "rm -rf /workdir/${SOFTHSM_TOKEN_DIR} /workdir/${KERNEL_FILE_SIGNED}"
+    torizoncore-builder-clean-storage
 }
