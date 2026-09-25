@@ -241,14 +241,60 @@ def _check_parse_ostree_key_args(ostree_key_dir, ostree_key, *, check_pubk=True)
     return ostree_key_obj
 
 
-def sign_kernel(kernel_key, *, kernel_key_dir,
-                ostree_key_dir=None, ostree_key=None):
+def check_pkcs11_args(pkcs11_uri, pkcs11_module, *, uri_switch, module_switch):
+    """Validate the PKCS#11 URI of a key and the PKCS#11 module giving access to it.
+
+    :param pkcs11_uri: PKCS#11 URI of the key; if None, signing with a token was not requested.
+    :param pkcs11_module: Path to the PKCS#11 module; if None, the default one is taken.
+    :param uri_switch: Name of the switch/property holding the URI, for error messages.
+    :param module_switch: Name of the switch/property holding the module, for error messages.
+    :returns: Path to the PKCS#11 module or None if signing with a token was not requested.
+    """
+
+    if pkcs11_uri is None:
+        if pkcs11_module is not None:
+            raise InvalidArgumentError(
+                f"Error: {module_switch} was passed but {uri_switch} was not provided. "
+                "Aborting.")
+        return None
+
+    if not pkcs11_uri.startswith(secboot.PKCS11_URI_PREFIX):
+        raise InvalidArgumentError(
+            f"Error: {uri_switch} must be a PKCS#11 URI starting with "
+            f"'{secboot.PKCS11_URI_PREFIX}'. Aborting.")
+
+    if "type=" in pkcs11_uri:
+        raise InvalidArgumentError(
+            f"Error: {uri_switch} must not have a 'type' attribute; it is added as needed. "
+            "Aborting.")
+
+    pkcs11_module = pkcs11_module or secboot.PKCS11_DEFAULT_MODULE
+    if not os.path.isfile(pkcs11_module):
+        raise InvalidArgumentError(
+            f"PKCS#11 module \"{pkcs11_module}\" does not exist. Aborting.")
+
+    return pkcs11_module
+
+
+def sign_kernel(kernel_key, *, kernel_key_dir=None,
+                ostree_key_dir=None, ostree_key=None,
+                kernel_key_pkcs11_uri=None, pkcs11_module=None):
     """Execute the work of the "sign-kernel" command."""
 
     images_unpack_executed()
     fail_on_raw_image("Secboot commands are not supported for WIC/raw images. Aborting.")
 
-    if not os.path.isdir(kernel_key_dir):
+    if kernel_key_dir and kernel_key_pkcs11_uri:
+        raise InvalidArgumentError(
+            "Error: --kernel-key-dir and --kernel-key-pkcs11-uri cannot be used together. "
+            "Aborting.")
+
+    pkcs11_module = check_pkcs11_args(
+        kernel_key_pkcs11_uri, pkcs11_module,
+        uri_switch="--kernel-key-pkcs11-uri", module_switch="--pkcs11-module")
+
+    kernel_key_dir = kernel_key_dir or "."
+    if not kernel_key_pkcs11_uri and not os.path.isdir(kernel_key_dir):
         raise InvalidArgumentError(
             f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
 
@@ -265,7 +311,9 @@ def sign_kernel(kernel_key, *, kernel_key_dir,
         key_dir=kernel_key_dir,
         key_algo=kernel_key_algo,
         key_name=kernel_key_name,
-        ostree_key=ostree_key_obj)
+        ostree_key=ostree_key_obj,
+        pkcs11_uri=kernel_key_pkcs11_uri,
+        pkcs11_module=pkcs11_module)
 
 
 def do_sign_kernel(args):
@@ -275,7 +323,9 @@ def do_sign_kernel(args):
         kernel_key=args.kernel_key,
         kernel_key_dir=args.kernel_key_dir,
         ostree_key=args.ostree_key,
-        ostree_key_dir=args.ostree_key_dir)
+        ostree_key_dir=args.ostree_key_dir,
+        kernel_key_pkcs11_uri=args.kernel_key_pkcs11_uri,
+        pkcs11_module=args.pkcs11_module)
 
 
 def init_parser(subparsers):
@@ -442,7 +492,13 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "sign-kernel",
         help="Sign the kernel FIT image of an unpacked Torizon OS image.",
-        description="Sign the kernel FIT image of an unpacked Torizon OS image.",
+        description=(
+            "Sign the kernel FIT image of an unpacked Torizon OS image. The signing key can be "
+            "taken from a PRIVATE key file (see --kernel-key-dir) or from a PKCS#11 token such "
+            "as a YubiKey (see --kernel-key-pkcs11-uri). To reach a USB token, the container "
+            "needs access to the USB devices of the host, e.g. by passing "
+            "\"-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw'\" to 'docker "
+            "run'; the PC/SC daemon (pcscd) on the host, if any, must be stopped while signing."),
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
 
@@ -457,11 +513,30 @@ def init_parser(subparsers):
 
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",
-        default=".",
         metavar="KERNEL_KEY_DIR",
         help=("Kernel key directory path. This directory must contain a PRIVATE key file named "
               "<NAME>.key in PEM format, where <NAME> is specified through the --kernel-key "
-              "switch. (default: working directory)"))
+              "switch. Cannot be used with --kernel-key-pkcs11-uri. (default: working "
+              "directory)"))
+
+    subparser.add_argument(
+        "--kernel-key-pkcs11-uri", dest="kernel_key_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the PRIVATE key in a token (HSM) to sign the kernel with, instead "
+              "of a key file. The URI must start with 'pkcs11:' and identify the key with its "
+              "'id' attribute (recommended for YubiKeys, which label the private and public "
+              "objects of a key differently) or its 'object' attribute, without a 'type' "
+              "attribute. The token PIN can be given with the 'pin-value' attribute, e.g. "
+              "'pkcs11:token=YubiKey%%20PIV%%20%%2312345678;id=%%12;pin-value=123456'. The "
+              "<NAME> passed through --kernel-key must still match the name of the key the "
+              "bootloader verifies the kernel with. Cannot be used with --kernel-key-dir."))
+
+    subparser.add_argument(
+        "--pkcs11-module", dest="pkcs11_module",
+        metavar="PKCS11_MODULE",
+        help=("Path to the PKCS#11 module giving access to the token specified through "
+              "--kernel-key-pkcs11-uri. "
+              f"(default: {secboot.PKCS11_DEFAULT_MODULE})"))
 
     subparser.add_argument(
         "--ostree-key",

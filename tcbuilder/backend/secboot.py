@@ -8,6 +8,9 @@ import re
 import shutil
 import shlex
 import subprocess
+import sysconfig
+import time
+from contextlib import contextmanager
 
 from tcbuilder.backend import kernel
 from tcbuilder.backend.common import \
@@ -19,7 +22,7 @@ from tcbuilder.backend.ubootenv import get_env_filename, find_board
 from tcbuilder.backend.platform import SECBOOT_TECH_PER_MACHINE
 
 from tcbuilder.errors import \
-    (TorizonCoreBuilderError, InvalidArgumentError,
+    (TorizonCoreBuilderError, InvalidArgumentError, OperationFailureError,
      FileContentMissing, InvalidStateError, InvalidDataError)
 
 log = logging.getLogger("torizon." + __name__)
@@ -39,6 +42,14 @@ FLASH_BIN_SIGNING_DIR = "/storage/flash_bin_signing"
 SIGNED_BOOTLOADER_ARTIFACTS_DIR = "/storage/signed_bootloader_artifacts"
 
 MKIMAGE_DTC_OPT = "-I dts -O dtb -p 2000"
+
+# Constants related to signing with keys held in a PKCS#11 token (HSM):
+PKCS11_ENGINE = "pkcs11"
+PKCS11_URI_PREFIX = "pkcs11:"
+PKCS11_DEFAULT_MODULE = os.path.join(
+    "/usr/lib", sysconfig.get_config_var("MULTIARCH") or "", "libykcs11.so")
+PCSCD_SOCKET = "/run/pcscd/pcscd.comm"
+PCSCD_STARTUP_TIMEOUT = 10
 
 FLASH_BIN = "flash.bin"
 ATF_BIN = "bl31*.bin"
@@ -726,12 +737,61 @@ def update_ostree_key_in_initramfs(fit_path, ostree_key):
     log.info("Public OSTree binding key successfully updated in initramfs.")
 
 
-def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo):
+def redact_pkcs11_uri(text):
+    """Hide the PIN of any PKCS#11 URI (its 'pin-value' attribute) present in a text.
+
+    :param text: Text possibly containing PKCS#11 URIs, such as a command line or tool output
+    :returns: The same text with the value of every 'pin-value' attribute replaced
+    """
+
+    return re.sub(r"(pin-value=)[^;?&'\"\s]*", r"\1***", text)
+
+
+@contextmanager
+def pcscd_running():
+    """Context manager ensuring the PC/SC daemon is running while signing with a token.
+
+    Tokens such as the YubiKey are reached through the PC/SC daemon. If none is listening
+    (i.e. no daemon was started in the container nor had its socket bind-mounted into it), one
+    is started here for the duration of the context and stopped afterwards.
+    """
+
+    if os.path.exists(PCSCD_SOCKET):
+        log.debug("Using the PC/SC daemon listening on '%s'.", PCSCD_SOCKET)
+        yield
+        return
+
+    log.debug("Starting the PC/SC daemon.")
+    # pylint: disable-next=consider-using-with
+    pcscd = subprocess.Popen(["pcscd", "--foreground", "--disable-polkit"],
+                             stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+    try:
+        for _retry in range(PCSCD_STARTUP_TIMEOUT * 10):
+            if os.path.exists(PCSCD_SOCKET) or pcscd.poll() is not None:
+                break
+            time.sleep(.1)
+
+        if not os.path.exists(PCSCD_SOCKET):
+            raise OperationFailureError("Could not start the PC/SC daemon. Aborting.")
+
+        yield
+    finally:
+        pcscd.terminate()
+        pcscd.wait()
+
+
+def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_algo,
+                             *, pkcs11_uri=None, pkcs11_module=None):
     """Sign the kernel FIT image with mkimage.
 
     :param kernel_fitimage_path: Path to the FIT image
     :param kernel_key_dir: Path to directory with the key to sign the kernel
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
+    :param pkcs11_uri: PKCS#11 URI of the key to sign the kernel; if passed, the key is taken
+                       from the token and kernel_key_dir is ignored
+    :param pkcs11_module: Path to the PKCS#11 module giving access to the token
     """
 
     try:
@@ -745,32 +805,53 @@ def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_al
 
         mkimage_env = {"SOURCE_DATE_EPOCH": "0"}
         mkimage_cmd = [f"{UBOOT_TOOLS_DIR}/mkimage", "-D", MKIMAGE_DTC_OPT, "-F",
-                       "-o", kernel_key_algo, "-k", kernel_key_dir, "-r", kernel_fitimage_path]
+                       "-o", kernel_key_algo, "-k", pkcs11_uri or kernel_key_dir,
+                       "-r", kernel_fitimage_path]
+        if pkcs11_uri:
+            mkimage_env["PKCS11_MODULE_PATH"] = pkcs11_module or PKCS11_DEFAULT_MODULE
+            mkimage_cmd += ["-N", PKCS11_ENGINE]
 
         mkimage_print = (" ".join([f"{key}={val}" for key, val in mkimage_env.items()]) + " " +
                          shlex.join(mkimage_cmd))
-        log.info("Execute: %s", mkimage_print)
-        mkimage_output = subprocess.check_output(
-            mkimage_cmd, text=True, env=mkimage_env, stderr=subprocess.STDOUT)
+        log.info("Execute: %s", redact_pkcs11_uri(mkimage_print))
+        if pkcs11_uri:
+            with pcscd_running():
+                mkimage_output = subprocess.check_output(
+                    mkimage_cmd, text=True, env=mkimage_env, stderr=subprocess.STDOUT)
+        else:
+            mkimage_output = subprocess.check_output(
+                mkimage_cmd, text=True, env=mkimage_env, stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as exc:
+        if pkcs11_uri:
+            raise TorizonCoreBuilderError(
+                f"{redact_pkcs11_uri(exc.output.strip())}\n"
+                "Could not sign the kernel FIT image with the key in the PKCS#11 token. Please "
+                "check the PKCS#11 URI and make sure the token is accessible from within the "
+                "container (e.g. by passing "
+                "\"-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw'\" to "
+                "'docker run' for a USB token).") from exc
         raise TorizonCoreBuilderError(exc.output.strip()) from exc
 
     log.debug("---------- OUTPUT FROM MKIMAGE ----------")
-    log.debug(mkimage_output)
+    log.debug(redact_pkcs11_uri(mkimage_output))
     log.debug("--------- END OF MKIMAGE OUTPUT ---------")
 
     sig_match = re.search(r"Signature written to '(.*)'", mkimage_output, re.IGNORECASE)
 
     if sig_match:
         log.info("Signature written to '%s'.", sig_match.group(1))
-        log.info("Kernel FIT image signed successfully with key in '%s'.", kernel_key_dir)
+        if pkcs11_uri:
+            log.info("Kernel FIT image signed successfully with key in PKCS#11 token.")
+        else:
+            log.info("Kernel FIT image signed successfully with key in '%s'.", kernel_key_dir)
     else:
         raise InvalidStateError(
             "Could not confirm if mkimage correctly signed the kernel FIT image. Aborting.")
 
 
-def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=None):
+def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=None,
+                pkcs11_uri=None, pkcs11_module=None):
     """Sign kernel FIT image of unpacked Easy Installer image in storage
 
     :param kernel_changes_dir: Path to directory with all kernel changes to be committed
@@ -778,9 +859,13 @@ def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=N
     :param key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param key_name: Name of the provided key
     :param ostree_key: `OSTreeKey` object or None if no signing key update is required
+    :param pkcs11_uri: PKCS#11 URI of the key to sign the kernel FIT image; if passed, the key
+                       is taken from the token instead of key_dir
+    :param pkcs11_module: Path to the PKCS#11 module giving access to the token
     """
 
-    check_if_file_exists(f"{key_name}.key", key_dir)
+    if not pkcs11_uri:
+        check_if_file_exists(f"{key_name}.key", key_dir)
     check_unpacked_tezi_kernel_signing_support()
 
     # Ensure we have a clean secure boot work directory.
@@ -812,7 +897,8 @@ def sign_kernel(*, kernel_changes_dir, key_dir, key_algo, key_name, ostree_key=N
     else:
         log.info("Skipping initramfs update: OSTree keys not specified.")
 
-    sign_kernel_with_mkimage(kernel_workdir_path, key_dir, key_algo)
+    sign_kernel_with_mkimage(kernel_workdir_path, key_dir, key_algo,
+                             pkcs11_uri=pkcs11_uri, pkcs11_module=pkcs11_module)
 
     # Store finalized kernel into the "changes" directory.
     os.makedirs(kernel_dst_dir, exist_ok=True)
