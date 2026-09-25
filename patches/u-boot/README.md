@@ -26,3 +26,24 @@ re-signed artifact against the original tells you nothing.
 The validity pinning needs OpenSSL 3.4 or later; below that, binman warns and falls back to
 wall-clock dates. Debian trixie ships 3.5.7, so the image is fine, but that is why `openssl` is a
 declared runtime dependency rather than something inherited from another package.
+
+## `0002-lib-rsa-allow-matching-pkcs11-path-by-object-id.patch`
+
+Lets mkimage identify a key on a PKCS#11 token by `id=` in addition to `object=`. Without it, a
+URI passed with `-k` that does not contain `object=` gets `;object=<key name>` appended, so the
+token is asked for an object labelled after the key name, which it does not have.
+
+Matching by label is not enough on a YubiKey: for a key imported into a PIV slot, ykcs11 labels the
+private and public objects differently ("Private key for ...", "Public key for ...") while giving
+them the same id. Signing the kernel only needs the private key, but adding the public key to the
+U-Boot DTB needs the public one, so no single `object=` value serves both.
+
+- Authoritative copy: upstream U-Boot, commit `0707f73a8ba2` ("lib/rsa: allow matching pkcs11 path
+  by object id"); this file is its `git format-patch` output, unmodified.
+- `meta-toradex-security` carries the same change as
+  `recipes-bsp/u-boot/files/0001-lib-rsa-allow-matching-pkcs11-path-by-object-id.patch`, applied
+  to u-boot-tools when `TDX_SIGNED_HSM` is set. That copy is rebased onto an older `rsa-sign.c`
+  and does not apply to `v2024.07`, which is why this one is taken from upstream instead.
+- Upstream status: merged, first released in `v2025.10`. When the Dockerfile clones that tag or a
+  later one, drop the file and this section.
+- Applies cleanly to `v2024.07`, the tag the Dockerfile clones.
