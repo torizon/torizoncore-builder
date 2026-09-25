@@ -426,6 +426,12 @@ properties:
               kernel-key-dir:
                 type: string
                 description: "path to kernel key directory"
+              kernel-key-pkcs11-uri:
+                type: string
+                description: "PKCS#11 URI of the kernel key held in a token, used instead of kernel-key-dir"
+              pkcs11-module:
+                type: string
+                description: "path to the PKCS#11 module giving access to the token"
               kernel-key:
                 type: array
                 description: "list of keys to be used to sign the kernel FIT"

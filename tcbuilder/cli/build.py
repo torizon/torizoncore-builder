@@ -471,10 +471,20 @@ def _handle_secboot_sign_kernel(sign_kernel_props):
     kernel_key = sign_kernel_props["kernel-key"][0]
 
     kernel_key_dir = sign_kernel_props.get("kernel-key-dir")
+    kernel_key_pkcs11_uri = sign_kernel_props.get("kernel-key-pkcs11-uri")
+    if kernel_key_dir and kernel_key_pkcs11_uri:
+        raise InvalidArgumentError(
+            "Error: Properties 'sign-kernel.kernel-key-dir' and "
+            "'sign-kernel.kernel-key-pkcs11-uri' cannot be used together. Aborting.")
     if kernel_key_dir and not os.path.isdir(kernel_key_dir):
         raise InvalidArgumentError(
             f"Directory \"{kernel_key_dir}\" does not exist: aborting.")
     kernel_key_dir = kernel_key_dir or "."
+
+    pkcs11_module = secboot_cli.check_pkcs11_args(
+        kernel_key_pkcs11_uri, sign_kernel_props.get("pkcs11-module"),
+        uri_switch="'sign-kernel.kernel-key-pkcs11-uri'",
+        module_switch="'sign-kernel.pkcs11-module'")
 
     assert "name" in kernel_key, "'kernel-key' requires 'name' property"
 
@@ -508,7 +518,9 @@ def _handle_secboot_sign_kernel(sign_kernel_props):
         key_dir=kernel_key_dir,
         key_algo=kernel_key_algo,
         key_name=kernel_key["name"],
-        ostree_key=ostree_key_obj)
+        ostree_key=ostree_key_obj,
+        pkcs11_uri=kernel_key_pkcs11_uri,
+        pkcs11_module=pkcs11_module)
 
 
 def handle_secboot_customization(props):

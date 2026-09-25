@@ -152,6 +152,12 @@ input:
     # sign-kernel:
       # >> (OPTIONAL) directory path with the keys to sign the kernel
       # kernel-key-dir: ./kernel_keys/
+      # >> (OPTIONAL) PKCS#11 URI of the key in a token (e.g. a YubiKey) to sign the kernel with,
+      # >> instead of a key in kernel-key-dir. The PIN can be kept out of this file by passing it
+      # >> with '--set PIN=<pin>' on the command line.
+      # kernel-key-pkcs11-uri: "pkcs11:token=YubiKey%20PIV%20%2312345678;id=%12;pin-value=${PIN}"
+      # >> (OPTIONAL) PKCS#11 module giving access to the token; defaults to the one for YubiKeys
+      # pkcs11-module: /usr/lib/x86_64-linux-gnu/libykcs11.so
       # >> (REQUIRED) Key details
       # kernel-key:
          # >> 'algo' corresponds to the hashing and crypto algorithms to be used for the signing
