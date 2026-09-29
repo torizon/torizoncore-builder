@@ -369,6 +369,9 @@ properties:
               kernel-key-dir:
                 type: string
                 description: "path to kernel key directory"
+              kernel-key-pkcs11-uri:
+                type: string
+                description: "PKCS#11 URI of the kernel key held in a token, whose certificate is read from it instead of kernel-key-dir"
               kernel-key:
                 type: array
                 description: "list of keys to be used to verify the kernel FIT"

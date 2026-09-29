@@ -129,6 +129,9 @@ input:
       # >> the kernel FIT will be updated. These must be set if signing the kernel FIT
       # >> with a new key. Only the certificate (<name>.crt) is needed in kernel-key-dir.
       # kernel-key-dir: ./kernel_keys/
+      # >> (OPTIONAL) Alternatively to kernel-key-dir, PKCS#11 URI of the kernel key in a token,
+      # >> whose certificate is read from the token (no PIN needed); same as in sign-kernel.
+      # kernel-key-pkcs11-uri: "pkcs11:token=YubiKey%20PIV%20%2312345678;id=%12"
       # kernel-key:
          # >> 'algo' corresponds to the hashing and crypto algorithms used to verify and sign the
          # >> kernel, respectively. If not set it defaults to the value given below.

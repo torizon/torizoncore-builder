@@ -310,12 +310,18 @@ def _handle_secboot_sign_bootloader_hab(sign_hab_props):
     cst_dir = sign_hab_props["cst-dir"]
     cst_dict = sign_hab_props.get("cst-args", {})
     kernel_key_dir = sign_hab_props.get("kernel-key-dir", None)
+    kernel_key_pkcs11_uri = sign_hab_props.get("kernel-key-pkcs11-uri", None)
     kernel_key_list = sign_hab_props.get("kernel-key", [])
     kernel_key = {}
 
     if not os.path.isdir(cst_dir):
         raise InvalidArgumentError(
             f"Directory \"{cst_dir}\" does not exist: aborting.")
+
+    if kernel_key_dir and kernel_key_pkcs11_uri:
+        raise InvalidArgumentError(
+            "Error: Properties 'sign-bootloader-hab.kernel-key-dir' and "
+            "'sign-bootloader-hab.kernel-key-pkcs11-uri' cannot be used together. Aborting.")
 
     if kernel_key_dir:
         if not os.path.isdir(kernel_key_dir):
@@ -326,12 +332,18 @@ def _handle_secboot_sign_bootloader_hab(sign_hab_props):
                 "sign-bootloader-hab: 'kernel-key-dir' was passed but 'kernel-key' was "
                 "not provided. Aborting.")
 
+    if kernel_key_pkcs11_uri and not kernel_key_list:
+        raise InvalidArgumentError(
+            "sign-bootloader-hab: 'kernel-key-pkcs11-uri' was passed but 'kernel-key' was "
+            "not provided. Aborting.")
+
     if kernel_key_list:
         if len(kernel_key_list) > 1:
             raise InvalidArgumentError(
                 "TorizonCore Builder only supports updating one public key. Aborting.")
         kernel_key = kernel_key_list[0]
-        kernel_key_dir = kernel_key_dir or "."
+        if not kernel_key_pkcs11_uri:
+            kernel_key_dir = kernel_key_dir or "."
 
         assert "name" in kernel_key, "'kernel-key' requires 'name' property"
         if "algo" not in kernel_key:
@@ -352,13 +364,15 @@ def _handle_secboot_sign_bootloader_hab(sign_hab_props):
         "img_crt_pkcs11_uri": cst_dict.get("img-cert-pkcs11-uri")
     }
 
-    pkcs11_module = secboot_cli.check_cst_pkcs11_args(
+    pkcs11_module = secboot_cli.check_hab_pkcs11_args(
         cst_args["srk_crt_pkcs11_uri"], cst_args["csf_crt_pkcs11_uri"],
-        cst_args["img_crt_pkcs11_uri"], sign_hab_props.get("pkcs11-module"),
+        cst_args["img_crt_pkcs11_uri"], kernel_key_pkcs11_uri,
+        sign_hab_props.get("pkcs11-module"),
         srk_no_ca=cst_args["srk_no_ca"],
         switches=("'sign-bootloader-hab.cst-args.srk-cert-pkcs11-uri'",
                   "'sign-bootloader-hab.cst-args.csf-cert-pkcs11-uri'",
                   "'sign-bootloader-hab.cst-args.img-cert-pkcs11-uri'",
+                  "'sign-bootloader-hab.kernel-key-pkcs11-uri'",
                   "'sign-bootloader-hab.pkcs11-module'"))
 
     secboot_be.sign_bootloader_hab(
@@ -367,9 +381,13 @@ def _handle_secboot_sign_bootloader_hab(sign_hab_props):
         kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
         cst_dir=cst_dir,
         cst_args=cst_args,
-        pkcs11_module=pkcs11_module)
+        pkcs11_module=pkcs11_module,
+        kernel_key_pkcs11_uri=kernel_key_pkcs11_uri)
 
-    if kernel_key:
+    if kernel_key and kernel_key_pkcs11_uri:
+        log.info(f"Public key '{kernel_key['name']}' in PKCS#11 token will be used by "
+                 "the bootloader to verify the kernel signature.")
+    elif kernel_key:
         log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
                  "the bootloader to verify the kernel signature.")
     else:
