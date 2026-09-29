@@ -32,12 +32,14 @@ K3_TARGET_DEVICES = tuple(secboot_k3.K3_TARGET_DEVICE_VARIANTS)
 KERNEL_KEY_DEFAULT_ALGO = "sha256,rsa2048"
 
 
-# pylint: disable-next=too-many-arguments
+# pylint: disable-next=too-many-arguments,too-many-locals
 def sign_bootloader_hab(
         *,
         cst_dir, cst_crypto, cst_key_size, cst_key_exp, cst_dig_algo,
         cst_srk_index, cst_srk_table, cst_srk_fuse, cst_srk_no_ca,
-        kernel_key, kernel_key_dir=None):
+        kernel_key, kernel_key_dir=None,
+        cst_srk_cert_pkcs11_uri=None, cst_csf_cert_pkcs11_uri=None,
+        cst_img_cert_pkcs11_uri=None, pkcs11_module=None):
     """Execute the work of the "sign-bootloader-hab" command."""
 
     images_unpack_executed()
@@ -46,6 +48,12 @@ def sign_bootloader_hab(
     if not os.path.isdir(cst_dir):
         raise InvalidArgumentError(
             f"Directory \"{cst_dir}\" does not exist: aborting.")
+
+    pkcs11_module = check_cst_pkcs11_args(
+        cst_srk_cert_pkcs11_uri, cst_csf_cert_pkcs11_uri, cst_img_cert_pkcs11_uri,
+        pkcs11_module, srk_no_ca=cst_srk_no_ca,
+        switches=("--cst-srk-cert-pkcs11-uri", "--cst-csf-cert-pkcs11-uri",
+                  "--cst-img-cert-pkcs11-uri", "--pkcs11-module"))
 
     if kernel_key_dir and not kernel_key:
         raise InvalidArgumentError(
@@ -68,7 +76,10 @@ def sign_bootloader_hab(
         "srk_index": cst_srk_index,
         "srk_table": cst_srk_table,
         "srk_fuse": cst_srk_fuse,
-        "srk_no_ca": cst_srk_no_ca
+        "srk_no_ca": cst_srk_no_ca,
+        "srk_crt_pkcs11_uri": cst_srk_cert_pkcs11_uri,
+        "csf_crt_pkcs11_uri": cst_csf_cert_pkcs11_uri,
+        "img_crt_pkcs11_uri": cst_img_cert_pkcs11_uri
     }
 
     secboot.sign_bootloader_hab(
@@ -76,7 +87,8 @@ def sign_bootloader_hab(
         kernel_key_name=kernel_key_name,
         kernel_key_algo=kernel_key_algo,
         cst_dir=cst_dir,
-        cst_args=cst_args
+        cst_args=cst_args,
+        pkcs11_module=pkcs11_module
     )
 
     if kernel_key_dir:
@@ -106,7 +118,11 @@ def do_sign_bootloader_hab(args):
         cst_srk_fuse=args.cst_srk_fuse,
         cst_srk_no_ca=args.cst_srk_no_ca,
         kernel_key=args.kernel_key,
-        kernel_key_dir=args.kernel_key_dir)
+        kernel_key_dir=args.kernel_key_dir,
+        cst_srk_cert_pkcs11_uri=args.cst_srk_cert_pkcs11_uri,
+        cst_csf_cert_pkcs11_uri=args.cst_csf_cert_pkcs11_uri,
+        cst_img_cert_pkcs11_uri=args.cst_img_cert_pkcs11_uri,
+        pkcs11_module=args.pkcs11_module)
 
 
 def sign_bootloader_k3(
@@ -258,15 +274,71 @@ def check_pkcs11_args(pkcs11_uri, pkcs11_module, *, uri_switch, module_switch):
                 "Aborting.")
         return None
 
-    if not pkcs11_uri.startswith(secboot.PKCS11_URI_PREFIX):
-        raise InvalidArgumentError(
-            f"Error: {uri_switch} must be a PKCS#11 URI starting with "
-            f"'{secboot.PKCS11_URI_PREFIX}'. Aborting.")
+    _check_pkcs11_uri(pkcs11_uri, uri_switch)
 
     if "type=" in pkcs11_uri:
         raise InvalidArgumentError(
             f"Error: {uri_switch} must not have a 'type' attribute; it is added as needed. "
             "Aborting.")
+
+    return _check_pkcs11_module(pkcs11_module)
+
+
+# pylint: disable-next=too-many-arguments
+def check_cst_pkcs11_args(srk_uri, csf_uri, img_uri, pkcs11_module, *, srk_no_ca, switches):
+    """Validate the PKCS#11 URIs of the CST certificates and the PKCS#11 module.
+
+    :param srk_uri: PKCS#11 URI of the SRK certificate; if None, signing with a token was not
+                    requested.
+    :param csf_uri: PKCS#11 URI of the CSF certificate or None.
+    :param img_uri: PKCS#11 URI of the IMG certificate or None.
+    :param pkcs11_module: Path to the PKCS#11 module; if None, the default one is taken.
+    :param srk_no_ca: Whether the CA flag was not set when generating the SRK certificates.
+    :param switches: Names of the switches/properties holding the SRK, CSF and IMG URIs and the
+                     module, in this order, for error messages.
+    :returns: Path to the PKCS#11 module or None if signing with a token was not requested.
+    """
+
+    srk_switch, csf_switch, img_switch, module_switch = switches
+
+    if srk_uri is None:
+        for uri, switch in ((csf_uri, csf_switch), (img_uri, img_switch)):
+            if uri is not None:
+                raise InvalidArgumentError(
+                    f"Error: {switch} was passed but {srk_switch} was not provided. Aborting.")
+        if pkcs11_module is not None:
+            raise InvalidArgumentError(
+                f"Error: {module_switch} was passed but {srk_switch} was not provided. "
+                "Aborting.")
+        return None
+
+    for uri, switch in ((srk_uri, srk_switch), (csf_uri, csf_switch), (img_uri, img_switch)):
+        if uri is not None:
+            _check_pkcs11_uri(uri, switch)
+
+    if srk_no_ca:
+        if csf_uri is not None or img_uri is not None:
+            log.warning(f"The CA flag is not set for the SRK certificates, so {csf_switch} and "
+                        f"{img_switch} are not used.")
+    elif csf_uri is None or img_uri is None:
+        raise InvalidArgumentError(
+            f"Error: {csf_switch} and {img_switch} are required with {srk_switch} when the CA "
+            "flag is set for the SRK certificates. Aborting.")
+
+    return _check_pkcs11_module(pkcs11_module)
+
+
+def _check_pkcs11_uri(pkcs11_uri, uri_switch):
+    """Check that a switch/property holds a PKCS#11 URI."""
+
+    if not pkcs11_uri.startswith(secboot.PKCS11_URI_PREFIX):
+        raise InvalidArgumentError(
+            f"Error: {uri_switch} must be a PKCS#11 URI starting with "
+            f"'{secboot.PKCS11_URI_PREFIX}'. Aborting.")
+
+
+def _check_pkcs11_module(pkcs11_module):
+    """Get the path to the PKCS#11 module to be used, checking that it exists."""
 
     pkcs11_module = pkcs11_module or secboot.PKCS11_DEFAULT_MODULE
     if not os.path.isfile(pkcs11_module):
@@ -348,7 +420,13 @@ def init_parser(subparsers):
             "modules compatible with HAB. The signing is performed using the Code Signing Tool "
             "(CST) from NXP. The CST directory is specified with the --cst-dir argument. Keys "
             "and certificates (in PEM format, with the .pem extension), SRK table and E-fuse "
-            "hash binaries have to be generated beforehand by following the NXP documentation."
+            "hash binaries have to be generated beforehand by following the NXP documentation. "
+            "Alternatively, the keys and certificates can be held in a PKCS#11 token such as a "
+            "YubiKey (see --cst-srk-cert-pkcs11-uri); the SRK table and E-fuse hash binaries "
+            "are still taken from the CST directory. To reach a USB token, the container needs "
+            "access to the USB devices of the host, e.g. by passing "
+            "\"-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw'\" to 'docker "
+            "run'; the PC/SC daemon (pcscd) on the host, if any, must be stopped while signing."
         ),
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot.HAB_SIGNING_SUPPORTED_MACHINES)}"))
@@ -408,6 +486,37 @@ def init_parser(subparsers):
         "--cst-srk-no-ca", dest="cst_srk_no_ca",
         default=False, action="store_true",
         help="Enable this if the CA flag was *not* set when generating the SRK certificates.")
+
+    subparser.add_argument(
+        "--cst-srk-cert-pkcs11-uri", dest="cst_srk_cert_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the SRK certificate in a token (HSM), whose key is to be used for "
+              "signing, instead of the certificate file in 'crts' inside the CST directory. The "
+              "URI must start with 'pkcs11:' and the key must share the 'id' (or 'object') "
+              "attribute of the certificate; the token PIN can be given with the 'pin-value' "
+              "attribute, e.g. "
+              "'pkcs11:token=YubiKey%%20PIV%%20%%2312345678;id=%%05;type=cert;pin-value=123456'. "
+              "As the SRK index and CA flag cannot be inferred from a URI, --cst-srk-index and "
+              "--cst-srk-no-ca must match the SRK in the token."))
+
+    subparser.add_argument(
+        "--cst-csf-cert-pkcs11-uri", dest="cst_csf_cert_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the CSF certificate in a token, in the same form as "
+              "--cst-srk-cert-pkcs11-uri; required with it unless --cst-srk-no-ca is passed."))
+
+    subparser.add_argument(
+        "--cst-img-cert-pkcs11-uri", dest="cst_img_cert_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the IMG certificate in a token, in the same form as "
+              "--cst-srk-cert-pkcs11-uri; required with it unless --cst-srk-no-ca is passed."))
+
+    subparser.add_argument(
+        "--pkcs11-module", dest="pkcs11_module",
+        metavar="PKCS11_MODULE",
+        help=("Path to the PKCS#11 module giving access to the token specified through "
+              "--cst-srk-cert-pkcs11-uri. "
+              f"(default: {secboot.PKCS11_DEFAULT_MODULE})"))
 
     subparser.add_argument(
         "--kernel-key", dest="kernel_key",
