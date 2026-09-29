@@ -418,9 +418,10 @@ signing-artifacts-in-unpacked-tezi-image() {
 }
 export -f signing-artifacts-in-unpacked-tezi-image
 
-# Create a software PKCS#11 token (SoftHSM) holding a private key; the token directory is created
-# in the working directory, so that it outlives the container and can be mounted into another one
-# where SoftHSM looks for it by default (/var/lib/softhsm/tokens).
+# Create a software PKCS#11 token (SoftHSM) holding a private key and, if there is a certificate
+# file next to the key file (same name, .crt extension), its certificate; the token directory is
+# created in the working directory, so that it outlives the container and can be mounted into
+# another one where SoftHSM looks for it by default (/var/lib/softhsm/tokens).
 # $1 = token directory (relative to the working directory)
 # $2 = private key file in PEM format (relative to the working directory)
 # $3 = token label
@@ -428,6 +429,9 @@ export -f signing-artifacts-in-unpacked-tezi-image
 # $5 = token (user) PIN
 create-softhsm-token() {
     local token_dir="$1" key_file="$2" token_label="$3" key_id="$4" pin="$5"
+    local label cert_file
+    label="$(basename "${key_file}" .key)"
+    cert_file="${key_file%.key}.crt"
 
     # The token files are created (as root) from within the container, so remove them from there.
     torizoncore-builder-shell "rm -rf /workdir/${token_dir}"
@@ -438,8 +442,14 @@ create-softhsm-token() {
          softhsm2-util --init-token --free --label ${token_label} \
                        --pin ${pin} --so-pin 12345678 && \
          softhsm2-util --import /workdir/${key_file} \
-                       --token ${token_label} --label $(basename ${key_file} .key) \
-                       --id ${key_id} --pin ${pin}"
+                       --token ${token_label} --label ${label} \
+                       --id ${key_id} --pin ${pin} && \
+         if [ -f /workdir/${cert_file} ]; then \
+             openssl x509 -in /workdir/${cert_file} -outform der -out /tmp/cert.der && \
+             pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --login --pin ${pin} \
+                         --token-label ${token_label} --type cert --id ${key_id} \
+                         --label ${label} --write-object /tmp/cert.der; \
+         fi"
 }
 export -f create-softhsm-token
 

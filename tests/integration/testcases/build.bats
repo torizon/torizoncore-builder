@@ -462,18 +462,19 @@ teardown_file() {
     run create-softhsm-cst-token "${SOFTHSM_TOKEN_DIR}" "${CST_DIR}" "${TOKEN_LABEL}" \
                                  "${TOKEN_PIN}" "1" "sha256_2048_65537" "1"
     assert_success
+    # The kernel key comes with its certificate, from which the bootloader takes the public key.
     run torizoncore-builder-shell \
         "echo 'directories.tokendir = /workdir/${SOFTHSM_TOKEN_DIR}' > /tmp/softhsm2.conf && \
-         SOFTHSM2_CONF=/tmp/softhsm2.conf softhsm2-util \
-             --import /workdir/${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.key \
-             --token ${TOKEN_LABEL} --label ${KERNEL_KEY_NAME} --id 04 --pin ${TOKEN_PIN}"
+         export SOFTHSM2_CONF=/tmp/softhsm2.conf && \
+         softhsm2-util --import /workdir/${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.key \
+                       --token ${TOKEN_LABEL} --label ${KERNEL_KEY_NAME} --id 04 \
+                       --pin ${TOKEN_PIN} && \
+         openssl x509 -in /workdir/${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.crt \
+                      -outform der -out /tmp/cert.der && \
+         pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --login --pin ${TOKEN_PIN} \
+                     --token-label ${TOKEN_LABEL} --type cert --id 04 \
+                     --label ${KERNEL_KEY_NAME} --write-object /tmp/cert.der"
     assert_success
-
-    # Only the certificate of the kernel key is needed by the bootloader.
-    local KERNEL_CRT_DIR="kernel_crt_only"
-    rm -rf "${KERNEL_CRT_DIR}"
-    mkdir "${KERNEL_CRT_DIR}"
-    cp "${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.crt" "${KERNEL_CRT_DIR}/"
 
     local OUTDIR='pkcs11_signed_image'
 
@@ -485,7 +486,6 @@ teardown_file() {
         --set TOKEN_LABEL="$TOKEN_LABEL" \
         --set PIN="$TOKEN_PIN" \
         --set PKCS11_MODULE="/usr/lib/softhsm/libsofthsm2.so" \
-        --set KERNEL_CRT_DIR="$KERNEL_CRT_DIR" \
         --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
         --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
         --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
@@ -494,7 +494,9 @@ teardown_file() {
     assert_success
     # sign-bootloader-hab output
     assert_output --partial 'Keys and certificates: in PKCS#11 token'
-    assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_CRT_DIR} to U-Boot DTB"
+    assert_output --partial "Reading certificate of kernel key '${KERNEL_KEY_NAME}' from PKCS#11 token"
+    assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in PKCS#11 token to U-Boot DTB"
+    assert_output --partial "Public key '${KERNEL_KEY_NAME}' in PKCS#11 token will be used by the bootloader"
     assert_output --partial 'Using SRK1 for signing'
     assert_output --partial 'Bootloader container signed successfully'
     assert_output --partial 'Bootloader in Torizon OS image signed successfully'
@@ -518,7 +520,6 @@ teardown_file() {
         --set TOKEN_LABEL="$TOKEN_LABEL" \
         --set PIN="$TOKEN_PIN" \
         --set PKCS11_MODULE="/usr/lib/softhsm/libsofthsm2.so" \
-        --set KERNEL_CRT_DIR="$KERNEL_CRT_DIR" \
         --set KERNEL_KEY_NAME="$KERNEL_KEY_NAME" \
         --set KERNEL_KEY_ALGO="$KERNEL_KEY_ALGO" \
         --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
@@ -526,7 +527,7 @@ teardown_file() {
     assert_failure
     assert_output --partial "are required with 'sign-bootloader-hab.cst-args.srk-cert-pkcs11-uri' when the CA flag is set"
 
-    rm -rf "tcbuild-hab-pkcs11-signing-srk-only.yaml" "${KERNEL_CRT_DIR}"
+    rm -f "tcbuild-hab-pkcs11-signing-srk-only.yaml"
     torizoncore-builder-shell "rm -rf /workdir/${SOFTHSM_TOKEN_DIR} /workdir/${OUTDIR}"
 }
 
