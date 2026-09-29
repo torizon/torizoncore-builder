@@ -115,9 +115,19 @@ input:
         # srk-table: "SRK_1_2_3_4_table.bin"
         # srk-fuse: "SRK_1_2_3_4_fuse.bin"
         # srk-no-ca-flag: false
+        # >> (OPTIONAL) PKCS#11 URIs of the certificates in a token (e.g. a YubiKey), whose
+        # >> keys are to be used for signing instead of the ones in cst-dir (which still holds
+        # >> the SRK table and e-fuse hash binaries). 'csf-cert-pkcs11-uri' and
+        # >> 'img-cert-pkcs11-uri' are not needed if 'srk-no-ca-flag' is set. The PIN can be
+        # >> kept out of this file by passing it with '--set PIN=<pin>' on the command line.
+        # srk-cert-pkcs11-uri: "pkcs11:token=YubiKey%20PIV%20%2312345678;id=%05;type=cert;pin-value=${PIN}"
+        # csf-cert-pkcs11-uri: "pkcs11:token=YubiKey%20PIV%20%2312345678;id=%06;type=cert;pin-value=${PIN}"
+        # img-cert-pkcs11-uri: "pkcs11:token=YubiKey%20PIV%20%2312345678;id=%07;type=cert;pin-value=${PIN}"
+      # >> (OPTIONAL) PKCS#11 module giving access to the token; defaults to the one for YubiKeys
+      # pkcs11-module: /usr/lib/x86_64-linux-gnu/libykcs11.so
       # >> (OPTIONAL) If the options below are provided, the public key used to verify
       # >> the kernel FIT will be updated. These must be set if signing the kernel FIT
-      # >> with a new key.
+      # >> with a new key. Only the certificate (<name>.crt) is needed in kernel-key-dir.
       # kernel-key-dir: ./kernel_keys/
       # kernel-key:
          # >> 'algo' corresponds to the hashing and crypto algorithms used to verify and sign the

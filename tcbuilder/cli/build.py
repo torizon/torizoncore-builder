@@ -346,15 +346,28 @@ def _handle_secboot_sign_bootloader_hab(sign_hab_props):
         "srk_index": cst_dict.get("srk-index", secboot_cli.CST_SRK_INDEXES[0]),
         "srk_table": cst_dict.get("srk-table", secboot_cli.CST_SRK_DEFAULT_TABLE),
         "srk_fuse": cst_dict.get("srk-fuse", secboot_cli.CST_SRK_DEFAULT_FUSE),
-        "srk_no_ca": cst_dict.get("srk-no-ca-flag", False)
+        "srk_no_ca": cst_dict.get("srk-no-ca-flag", False),
+        "srk_crt_pkcs11_uri": cst_dict.get("srk-cert-pkcs11-uri"),
+        "csf_crt_pkcs11_uri": cst_dict.get("csf-cert-pkcs11-uri"),
+        "img_crt_pkcs11_uri": cst_dict.get("img-cert-pkcs11-uri")
     }
+
+    pkcs11_module = secboot_cli.check_cst_pkcs11_args(
+        cst_args["srk_crt_pkcs11_uri"], cst_args["csf_crt_pkcs11_uri"],
+        cst_args["img_crt_pkcs11_uri"], sign_hab_props.get("pkcs11-module"),
+        srk_no_ca=cst_args["srk_no_ca"],
+        switches=("'sign-bootloader-hab.cst-args.srk-cert-pkcs11-uri'",
+                  "'sign-bootloader-hab.cst-args.csf-cert-pkcs11-uri'",
+                  "'sign-bootloader-hab.cst-args.img-cert-pkcs11-uri'",
+                  "'sign-bootloader-hab.pkcs11-module'"))
 
     secboot_be.sign_bootloader_hab(
         kernel_key_dir=kernel_key_dir,
         kernel_key_name=kernel_key.get("name"),
         kernel_key_algo=kernel_key.get("algo", secboot_cli.KERNEL_KEY_DEFAULT_ALGO),
         cst_dir=cst_dir,
-        cst_args=cst_args)
+        cst_args=cst_args,
+        pkcs11_module=pkcs11_module)
 
     if kernel_key:
         log.info(f"Public key '{kernel_key['name']}' in {kernel_key_dir} will be used by "
