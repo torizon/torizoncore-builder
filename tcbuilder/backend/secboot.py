@@ -10,6 +10,7 @@ import shutil
 import shlex
 import subprocess
 import sysconfig
+import tempfile
 import time
 from contextlib import contextmanager
 
@@ -193,9 +194,38 @@ def add_pubkey_to_dtb(dtb_file, key_dir, key_name, key_algo):
     log.info(f"Public key written to '{dtb_file}', node '{key_node}'")
 
 
+def export_pkcs11_cert(pkcs11_uri, pkcs11_module, cert_file):
+    """Export a certificate held in a PKCS#11 token to a file (in PEM format).
+
+    Reading a certificate does not require logging into the token, so no PIN is needed.
+
+    :param pkcs11_uri: PKCS#11 URI of the key whose certificate is to be exported; the 'type'
+                       attribute is added to select the certificate object
+    :param pkcs11_module: Path to the PKCS#11 module giving access to the token
+    :param cert_file: Path to the file the certificate is to be written to
+    """
+
+    export_cmd = ["p11tool", "--provider", pkcs11_module or PKCS11_DEFAULT_MODULE,
+                  "--export", f"{pkcs11_uri};type=cert"]
+
+    log.info(redact_pkcs11_uri(shlex.join(export_cmd)))
+    try:
+        with pcscd_running():
+            cert = subprocess.check_output(export_cmd, text=True, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(
+            f"{redact_pkcs11_uri(exc.stderr.strip())}\n"
+            "Could not read the certificate of the kernel key from the PKCS#11 token. Please "
+            "check the PKCS#11 URI and make sure the token is accessible from within the "
+            "container.") from exc
+
+    with open(cert_file, "w", encoding="utf-8") as file:
+        file.write(cert)
+
+
 # pylint: disable-next=too-many-positional-arguments
 def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
-                          kernel_key_name, kernel_key_algo, board):
+                          kernel_key_name, kernel_key_algo, board, *, key_origin=None):
     """
     Update U-Boot DTB with a new public key (in certificate format). Also remove any previous
     signature nodes in them.
@@ -207,6 +237,7 @@ def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
     :param dt_of_list: List of DTBs in CONFIG_OF_LIST
     :param kernel_key_dir: Path to directory with the certificate of the key used to sign the
                            kernel
+    :param key_origin: Where the key comes from, for messages (default: kernel_key_dir)
     :param kernel_key_name: Name of the provided kernel key
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     :param board: Name of the board compatible with the OS image
@@ -233,7 +264,8 @@ def update_dtb_public_key(dtbs_dir, dt_of_list, kernel_key_dir,
         else:
             log.info(f"Removed previous signature node in {dtb}.")
 
-    log.info(f"Adding public key '{kernel_key_name}' in {kernel_key_dir} to U-Boot DTB")
+    log.info(f"Adding public key '{kernel_key_name}' in {key_origin or kernel_key_dir} "
+             "to U-Boot DTB")
     add_pubkey_to_dtb(uboot_dtb_path, kernel_key_dir, kernel_key_name, kernel_key_algo)
 
     if KERNEL_SIGNING_SUPPORTED_MACHINES[board] == "imx8m":
@@ -617,9 +649,9 @@ def check_cst_dir(abs_cst_dir, cst_args):
     cst_args["srk_fuse"] = check_if_file_exists(cst_args["srk_fuse"], cst_crts_dir)
 
 
-# pylint: disable-next=too-many-positional-arguments
+# pylint: disable-next=too-many-positional-arguments,too-many-locals
 def sign_bootloader_hab(kernel_key_dir, kernel_key_name, kernel_key_algo, cst_dir, cst_args,
-                        pkcs11_module=None):
+                        pkcs11_module=None, kernel_key_pkcs11_uri=None):
     """Sign bootloader container of a HAB-compatible image in input_dir
 
     :param kernel_key_dir: Path to directory with the certificate of the key the kernel FIT
@@ -632,6 +664,8 @@ def sign_bootloader_hab(kernel_key_dir, kernel_key_name, kernel_key_algo, cst_di
                      'csf_crt_pkcs11_uri' and 'img_crt_pkcs11_uri'), the keys and certificates
                      are taken from the token instead of the CST directory
     :param pkcs11_module: Path to the PKCS#11 module giving access to the token
+    :param kernel_key_pkcs11_uri: PKCS#11 URI of the kernel key; if passed, its certificate is
+                                  read from the token instead of kernel_key_dir
     """
 
     if kernel_key_dir:
@@ -688,7 +722,17 @@ def sign_bootloader_hab(kernel_key_dir, kernel_key_name, kernel_key_algo, cst_di
     else:
         raise InvalidStateError("U-Boot config file does not contain CONFIG_OF_LIST. Aborting.")
 
-    if kernel_key_dir:
+    if kernel_key_pkcs11_uri:
+        # The certificate is only needed while the public key is added to the U-Boot DTBs, so
+        # it is kept out of the work directory, whose contents end up in the output image.
+        with tempfile.TemporaryDirectory() as cert_dir:
+            log.info(f"Reading certificate of kernel key '{kernel_key_name}' from PKCS#11 token.")
+            export_pkcs11_cert(kernel_key_pkcs11_uri, pkcs11_module,
+                               os.path.join(cert_dir, f"{kernel_key_name}.crt"))
+            update_dtb_public_key(SECURE_BOOT_WORKDIR, dt_of_list,
+                                  cert_dir, kernel_key_name, kernel_key_algo, board,
+                                  key_origin="PKCS#11 token")
+    elif kernel_key_dir:
         update_dtb_public_key(SECURE_BOOT_WORKDIR, dt_of_list,
                               kernel_key_dir, kernel_key_name, kernel_key_algo, board)
 
