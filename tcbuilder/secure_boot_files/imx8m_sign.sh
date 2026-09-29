@@ -10,6 +10,9 @@ UBOOT_DTB_BINARY="${UBOOT_DTB_BINARY:-u-boot.dtb.out}"
 UBOOT_CONTAINER_BINARY="${UBOOT_CONTAINER_BINARY:-flash.bin}"
 CSF_PREFIX="${CSF_PREFIX:-csf-for-}"
 LIBFAKETIME_PATH="${LIBFAKETIME_PATH}"
+TDX_IMX_HAB_CST_HSM="${TDX_IMX_HAB_CST_HSM:-0}"
+TDX_IMX_HAB_CST_SRK_CA="${TDX_IMX_HAB_CST_SRK_CA:-1}"
+TDX_IMX_HAB_CST_SRK_INDEX="${TDX_IMX_HAB_CST_SRK_INDEX:-1}"
 
 UBOOT_CONFIG_FILE="${UBOOT_CONFIG_FILE:-.config}"
 
@@ -53,6 +56,14 @@ help() {
     echo " Optional environment variables:"
     echo
     echo "    TDX_IMX_HAB_CST_ARGS      Additional parameters to be passed to the CST tool"
+    echo "    TDX_IMX_HAB_CST_HSM       Enable usage of HSM (via PKCS11) when set to 1"
+    echo "                              default: 0"
+    echo "    TDX_IMX_HAB_CST_SRK_CA    Whether or not the SRK certificates have the CA flag"
+    echo "                              Only used when HSM is enabled (TDX_IMX_HAB_CST_HSM=1)"
+    echo "                              default: 1"
+    echo "    TDX_IMX_HAB_CST_SRK_INDEX Index of the SRK to be used for signing (1..4)"
+    echo "                              Only used when HSM is enabled (TDX_IMX_HAB_CST_HSM=1)"
+    echo "                              default: 1"
     echo "    UBOOT_SPL_DDR_BINARY      Name of binary containing SPL plus DDR FW"
     echo "                              default: u-boot-spl-ddr.bin"
     echo "    UBOOT_DTB_BINARY          Name of binary containing U-Boot DTB plus data filled in by BINMAN"
@@ -101,15 +112,28 @@ check_fileref() {
 validate_environ() {
     check_fileref "${TDX_IMX_HAB_CST_BIN}" "TDX_IMX_HAB_CST_BIN"
     check_fileref "${TDX_IMX_HAB_CST_SRK}" "TDX_IMX_HAB_CST_SRK"
-    check_fileref "${TDX_IMX_HAB_CST_SRK_CERT}" "TDX_IMX_HAB_CST_SRK_CERT"
-    if [ "${TDX_IMX_HAB_CST_SRK_CERT##*_ca_}" = "crt.pem" ]; then
-        check_fileref "${TDX_IMX_HAB_CST_CSF_CERT}" "TDX_IMX_HAB_CST_CSF_CERT"
-        check_fileref "${TDX_IMX_HAB_CST_IMG_CERT}" "TDX_IMX_HAB_CST_IMG_CERT"
+
+    # Only check certificates if HSM is disabled (when HSM is used, these
+    # variables are actually PKCS11 URIs)
+    if [ "${TDX_IMX_HAB_CST_HSM}" = 0 ]; then
+        check_fileref "${TDX_IMX_HAB_CST_SRK_CERT}" "TDX_IMX_HAB_CST_SRK_CERT"
+        if [ "${TDX_IMX_HAB_CST_SRK_CERT##*_ca_}" = "crt.pem" ]; then
+            check_fileref "${TDX_IMX_HAB_CST_CSF_CERT}" "TDX_IMX_HAB_CST_CSF_CERT"
+            check_fileref "${TDX_IMX_HAB_CST_IMG_CERT}" "TDX_IMX_HAB_CST_IMG_CERT"
+        fi
     fi
 
     check_fileref "${UBOOT_SPL_DDR_BINARY}" "UBOOT_SPL_DDR_BINARY"
     check_fileref "${UBOOT_DTB_BINARY}" "UBOOT_DTB_BINARY"
     check_fileref "${UBOOT_CONTAINER_BINARY}" "UBOOT_CONTAINER_BINARY"
+
+    # Add "-b pkcs11" if HSM is enabled and it's not already present
+    if [ "${TDX_IMX_HAB_CST_HSM}" = 1 ]; then
+        case " ${TDX_IMX_HAB_CST_ARGS} " in
+            *" -b pkcs11 "*) ;;
+            *) TDX_IMX_HAB_CST_ARGS="${TDX_IMX_HAB_CST_ARGS} -b pkcs11" ;;
+        esac
+    fi
 }
 
 # Generate a CSF text file (to be used as input to the CST tool) based on a
@@ -126,11 +150,16 @@ generate_csf_common() {
     echo "Creating CSF file: ${image_csf}"
     cp "${DIR_SCRIPT}/imx8m_template.csf" "${image_csf}"
 
-    # Determine key index (use file name):
+    # Determine key index
     local kidx
-    kidx=${TDX_IMX_HAB_CST_SRK_CERT##*/}
-    kidx=${kidx##SRK}
-    kidx=${kidx%%_*}
+    if [ "${TDX_IMX_HAB_CST_HSM}" = 1 ]; then
+        kidx=${TDX_IMX_HAB_CST_SRK_INDEX}
+    else
+        kidx=${TDX_IMX_HAB_CST_SRK_CERT##*/}
+        kidx=${kidx##SRK}
+        kidx=${kidx%%_*}
+    fi
+
     if [ "${#kidx}" != 1 ]; then
         echo "Certificate file name (defined by TDX_IMX_HAB_CST_SRK_CERT) does" \
              "not match expected pattern - could not determine SRK key index."
@@ -147,7 +176,9 @@ generate_csf_common() {
 
     # Determine whether or not the CA flag was set:
     local ca
-    if [ "${TDX_IMX_HAB_CST_SRK_CERT##*_ca_}" = "crt.pem" ]; then
+    if [ "${TDX_IMX_HAB_CST_HSM}" = 1 ]; then
+        ca=${TDX_IMX_HAB_CST_SRK_CA}
+    elif [ "${TDX_IMX_HAB_CST_SRK_CERT##*_ca_}" = "crt.pem" ]; then
         ca=1
     elif [ "${TDX_IMX_HAB_CST_SRK_CERT##*_usr_}" = "crt.pem" ]; then
         ca=0
