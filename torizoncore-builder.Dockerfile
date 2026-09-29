@@ -281,6 +281,8 @@ RUN apt-get -q -y update && \
 #   client protocol must match the one of the library in the container.
 # - softhsm2: software PKCS#11 token, allowing signing with PKCS#11 tokens to be tried out (and
 #   tested) without any hardware.
+# - opensc: provides pkcs11-tool, to inspect PKCS#11 tokens (e.g. to find the URIs of the keys
+#   and certificates they hold) and to store certificates in them.
 #
 # NOTE: Do not add -dev packages here since they are not supposed to be runtime
 #       dependencies of TorizonCore Builder.
@@ -304,6 +306,7 @@ RUN apt-get -q -y update && \
             libguestfs-tools \
             lz4 \
             lzop \
+            opensc \
             openssl \
             pcscd \
             python3 \
