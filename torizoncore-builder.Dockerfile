@@ -283,6 +283,8 @@ RUN apt-get -q -y update && \
 #   tested) without any hardware.
 # - opensc: provides pkcs11-tool, to inspect PKCS#11 tokens (e.g. to find the URIs of the keys
 #   and certificates they hold) and to store certificates in them.
+# - gnutls-bin: provides p11tool, used to read certificates from PKCS#11 tokens given their
+#   PKCS#11 URIs.
 #
 # NOTE: Do not add -dev packages here since they are not supposed to be runtime
 #       dependencies of TorizonCore Builder.
@@ -297,6 +299,7 @@ RUN apt-get -q -y update && \
             curl \
             device-tree-compiler \
             file \
+            gnutls-bin \
             gzip \
             imx-code-signing-tool \
             jq \
