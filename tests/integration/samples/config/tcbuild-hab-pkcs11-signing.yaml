@@ -1,0 +1,38 @@
+
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  secboot:
+    sign-bootloader-hab:
+      cst-dir: "${CST_DIR:?Please specify CST directory}"
+      cst-args:
+        crypto: "rsa"
+        key-size: "2048"
+        key-exp: "65537"
+        dig-algo: "sha256"
+        srk-index: "1"
+        srk-cert-pkcs11-uri: "pkcs11:token=${TOKEN_LABEL:?Please specify token label};id=%01;type=cert;pin-value=${PIN:?Please specify token PIN}"
+        csf-cert-pkcs11-uri: "pkcs11:token=${TOKEN_LABEL};id=%02;type=cert;pin-value=${PIN}"
+        img-cert-pkcs11-uri: "pkcs11:token=${TOKEN_LABEL};id=%03;type=cert;pin-value=${PIN}"
+      pkcs11-module: "${PKCS11_MODULE:?Please specify PKCS#11 module}"
+      kernel-key-dir: "${KERNEL_CRT_DIR:?Please specify kernel certificate directory}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME:?Please specify kernel key name}"
+           algo: "${KERNEL_KEY_ALGO:?Please specify kernel key algo}"
+    sign-kernel:
+      kernel-key-pkcs11-uri: "pkcs11:token=${TOKEN_LABEL};id=%04;pin-value=${PIN}"
+      pkcs11-module: "${PKCS11_MODULE}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME}"
+           algo: "${KERNEL_KEY_ALGO}"
+output:
+  ostree:
+    branch: pkcs11-signed-branch
+    commit-subject: "bootloader and kernel signed with PKCS#11 token subject"
+    commit-body: "bootloader and kernel signed with PKCS#11 token body"
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    name: "image with bootloader and kernel FIT signed with PKCS#11 token"
+    description: "HAB image with the bootloader and the kernel FIT signed with keys held in a PKCS#11 token"

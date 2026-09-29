@@ -420,6 +420,182 @@ setup_file() {
     rm -rf "${CST_DIR}/linux64"
 }
 
+@test "secboot sign-bootloader-hab: invalid PKCS#11 parameters" {
+    local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
+    local URI="pkcs11:token=cst-test;type=cert"
+
+    # Unpack image so the initial 'images unpack' check passes:
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_TEZI_IMAGE}"
+
+    # CSF certificate URI without the SRK certificate URI:
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-csf-cert-pkcs11-uri "${URI};id=%02"
+    assert_failure
+    assert_output --partial '--cst-csf-cert-pkcs11-uri was passed but --cst-srk-cert-pkcs11-uri was not provided'
+
+    # SRK certificate URI without the CSF and IMG ones while the CA flag is set:
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-srk-cert-pkcs11-uri "${URI};id=%01"
+    assert_failure
+    assert_output --partial 'are required with --cst-srk-cert-pkcs11-uri when the CA flag is set'
+
+    # Not a PKCS#11 URI:
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-srk-cert-pkcs11-uri "${URI};id=%01" \
+        --cst-csf-cert-pkcs11-uri "crts/CSF1_1_sha256_2048_65537_v3_usr_crt.pem" \
+        --cst-img-cert-pkcs11-uri "${URI};id=%03"
+    assert_failure
+    assert_output --partial "--cst-csf-cert-pkcs11-uri must be a PKCS#11 URI starting with 'pkcs11:'"
+
+    # Switch --pkcs11-module passed without --cst-srk-cert-pkcs11-uri being passed:
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --pkcs11-module "/usr/lib/softhsm/libsofthsm2.so"
+    assert_failure
+    assert_output --partial '--pkcs11-module was passed but --cst-srk-cert-pkcs11-uri was not provided'
+
+    # Non-existent PKCS#11 module:
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" --cst-srk-no-ca \
+        --cst-srk-cert-pkcs11-uri "${URI};id=%01" \
+        --pkcs11-module "/usr/lib/dummy-pkcs11.so"
+    assert_failure
+    assert_output --partial 'PKCS#11 module "/usr/lib/dummy-pkcs11.so" does not exist'
+}
+
+@test "secboot sign-bootloader-hab: sign HAB image with keys in a PKCS#11 token" {
+    requires-supported-hab-signing-machine
+    requires-signed-image
+
+    local SOFTHSM_TOKEN_DIR="softhsm_tokens"
+    local SOFTHSM_MODULE="/usr/lib/softhsm/libsofthsm2.so"
+    local TOKEN_PIN="1234"
+    local URI="pkcs11:token=cst-test;type=cert;pin-value=${TOKEN_PIN}"
+    local BOOTLOADER_FILE_SIGNED="imx-boot-file-signed"
+
+    # The CST binaries are not copied to the CST directories, so that the built-in CST is used
+    # both with the keys in files and in the token, and the results can be compared.
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    # RSA keys, CA flag set: RSA signatures are deterministic, so the bootloader signed with the
+    # keys in the token must be the very same as the one signed with the keys in files.
+    local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
+    for i in 1 4; do
+        run create-softhsm-cst-token "${SOFTHSM_TOKEN_DIR}" "${CST_DIR}" "cst-test" \
+                                     "${TOKEN_PIN}" "${i}" "sha256_2048_65537" "1"
+        assert_success
+
+        run torizoncore-builder secboot sign-bootloader-hab \
+            --cst-dir "${CST_DIR}" \
+            --cst-crypto rsa --cst-key-size 2048 \
+            --cst-key-exp 65537 --cst-dig-algo sha256 \
+            --cst-srk-index ${i}
+        assert_success
+        torizoncore-builder-shell "cp ${SIGNED_DIR}/imx-boot /workdir/${BOOTLOADER_FILE_SIGNED}"
+
+        run torizoncore-builder-ex \
+            -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+            secboot sign-bootloader-hab \
+            --cst-dir "${CST_DIR}" \
+            --cst-crypto rsa --cst-key-size 2048 \
+            --cst-key-exp 65537 --cst-dig-algo sha256 \
+            --cst-srk-index ${i} \
+            --cst-srk-cert-pkcs11-uri "${URI};id=%01" \
+            --cst-csf-cert-pkcs11-uri "${URI};id=%02" \
+            --cst-img-cert-pkcs11-uri "${URI};id=%03" \
+            --pkcs11-module "${SOFTHSM_MODULE}"
+        assert_success
+        assert_output --partial 'Keys and certificates: in PKCS#11 token'
+        assert_output --partial 'Using the built-in CST binary to sign with keys in a PKCS#11 token'
+        assert_output --partial "Using SRK${i} for signing"
+        assert_output --partial 'Bootloader container signed successfully'
+        assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+        assert_output --partial 'pin-value=***'
+        refute_output --partial "pin-value=${TOKEN_PIN}"
+
+        run torizoncore-builder-shell \
+            "cmp /workdir/${BOOTLOADER_FILE_SIGNED} ${SIGNED_DIR}/imx-boot"
+        assert_success
+    done
+
+    # The PIN must not be left behind anywhere in the storage (e.g. in the CSF files).
+    run torizoncore-builder-shell "grep -rl 'pin-value=${TOKEN_PIN}' /storage"
+    assert_failure
+
+    # RSA keys, CA flag not set: only the SRK is needed.
+    CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_1024_no_ca"
+    run create-softhsm-cst-token "${SOFTHSM_TOKEN_DIR}" "${CST_DIR}" "cst-test" \
+                                 "${TOKEN_PIN}" "2" "sha256_1024_65537" "0"
+    assert_success
+
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-crypto rsa --cst-key-size 1024 \
+        --cst-key-exp 65537 --cst-dig-algo sha256 \
+        --cst-srk-index 2 --cst-srk-no-ca
+    assert_success
+    torizoncore-builder-shell "cp ${SIGNED_DIR}/imx-boot /workdir/${BOOTLOADER_FILE_SIGNED}"
+
+    run torizoncore-builder-ex \
+        -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+        secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-crypto rsa --cst-key-size 1024 \
+        --cst-key-exp 65537 --cst-dig-algo sha256 \
+        --cst-srk-index 2 --cst-srk-no-ca \
+        --cst-srk-cert-pkcs11-uri "${URI};id=%01" \
+        --pkcs11-module "${SOFTHSM_MODULE}"
+    assert_success
+    assert_output --partial 'Using SRK2 for signing'
+    assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+
+    run torizoncore-builder-shell \
+        "cmp /workdir/${BOOTLOADER_FILE_SIGNED} ${SIGNED_DIR}/imx-boot"
+    assert_success
+
+    # ECDSA keys: signatures are not deterministic, so only check that signing succeeds.
+    CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_ecdsa_p384"
+    run create-softhsm-cst-token "${SOFTHSM_TOKEN_DIR}" "${CST_DIR}" "cst-test" \
+                                 "${TOKEN_PIN}" "1" "sha256_secp384r1" "1"
+    assert_success
+
+    run torizoncore-builder-ex \
+        -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+        secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-crypto ecdsa --cst-key-size secp384r1 \
+        --cst-dig-algo sha256 --cst-srk-index 1 \
+        --cst-srk-cert-pkcs11-uri "${URI};id=%01" \
+        --cst-csf-cert-pkcs11-uri "${URI};id=%02" \
+        --cst-img-cert-pkcs11-uri "${URI};id=%03" \
+        --pkcs11-module "${SOFTHSM_MODULE}"
+    assert_success
+    assert_output --partial 'Using SRK1 for signing'
+    assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+
+    # Wrong PIN:
+    run torizoncore-builder-ex \
+        -v "$(pwd)/${SOFTHSM_TOKEN_DIR}:/var/lib/softhsm/tokens" -- \
+        secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --cst-crypto ecdsa --cst-key-size secp384r1 \
+        --cst-dig-algo sha256 --cst-srk-index 1 \
+        --cst-srk-cert-pkcs11-uri "pkcs11:token=cst-test;id=%01;type=cert;pin-value=4321" \
+        --cst-csf-cert-pkcs11-uri "pkcs11:token=cst-test;id=%02;type=cert;pin-value=4321" \
+        --cst-img-cert-pkcs11-uri "pkcs11:token=cst-test;id=%03;type=cert;pin-value=4321" \
+        --pkcs11-module "${SOFTHSM_MODULE}"
+    assert_failure
+    assert_output --partial 'Could not sign the bootloader container with the keys in the PKCS#11 token'
+    refute_output --partial 'pin-value=4321'
+
+    torizoncore-builder-shell \
+        "rm -rf /workdir/${SOFTHSM_TOKEN_DIR} /workdir/${BOOTLOADER_FILE_SIGNED}"
+    torizoncore-builder-clean-storage
+}
+
 @test "secboot sign-bootloader-k3: check help output" {
     run torizoncore-builder secboot sign-bootloader-k3 --help
     assert_success
