@@ -422,9 +422,9 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",
         help=("Kernel key directory path. This directory must contain a certificate key file named "
-              "<NAME>.crt holding the PUBLIC key, and a PRIVATE key file named <NAME>.key (both "
-              "in PEM format), where <NAME> is specified through the --kernel-key switch. "
-              "(default: working directory)"))
+              "<NAME>.crt (in PEM format) holding the PUBLIC key, where <NAME> is specified "
+              "through the --kernel-key switch; the PRIVATE key is not needed, so it may be kept "
+              "elsewhere, e.g. in a PKCS#11 token. (default: working directory)"))
 
     subparser.set_defaults(func=do_sign_bootloader_hab)
 

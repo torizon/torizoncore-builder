@@ -115,14 +115,14 @@ setup_file() {
     assert_failure
     assert_output --partial 'does not exist'
 
-    # non-existent kernel key file in working directory
+    # non-existent kernel key certificate in working directory
     run torizoncore-builder secboot sign-bootloader-hab \
         --cst-dir "${CST_DIR}" \
         --cst-crypto rsa \
         --cst-dig-algo sha256 --cst-srk-index 1 \
         --kernel-key "name=bad${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}"
     assert_failure
-    assert_output --regexp 'Could not find.*\.key.*Aborting'
+    assert_output --regexp 'Could not find.*\.crt.*Aborting'
 
     # non-existent key with provided name
     run torizoncore-builder secboot sign-bootloader-hab \
@@ -274,6 +274,45 @@ setup_file() {
         assert_output --partial 'Bootloader container signed successfully'
         assert_output --partial 'Bootloader in Torizon OS image signed successfully'
     done
+
+    # delete copied CST binaries as they're no longer needed
+    rm -rf "${CST_DIR}/linux32"
+    rm -rf "${CST_DIR}/linux64"
+}
+
+@test "secboot sign-bootloader-hab: add kernel public key from its certificate only" {
+    requires-supported-hab-signing-machine
+    requires-signed-image
+
+    local CST_DIR="${CST_DIRS}/hab/cst-3.4.1_tcb_test_rsa_2048"
+
+    # The private key is not needed to add the public key to the U-Boot DTB, so provide a key
+    # directory holding only the certificate (as when the private key is in a PKCS#11 token).
+    local KERNEL_CRT_DIR="kernel_crt_only"
+    rm -rf "${KERNEL_CRT_DIR}"
+    mkdir "${KERNEL_CRT_DIR}"
+    cp "${KERNEL_KEY_DIR}/${KERNEL_KEY_NAME}.crt" "${KERNEL_CRT_DIR}/"
+
+    # copy CST binaries to CST_DIR before running tests
+    cp -r "${CST_BINARIES_DIR}/linux32" "${CST_DIR}"
+    cp -r "${CST_BINARIES_DIR}/linux64" "${CST_DIR}"
+
+    torizoncore-builder images --remove-storage unpack "${DEFAULT_SIGNED_TEZI_IMAGE}"
+
+    run torizoncore-builder secboot sign-bootloader-hab \
+        --cst-dir "${CST_DIR}" \
+        --kernel-key-dir "${KERNEL_CRT_DIR}" \
+        --kernel-key "name=${KERNEL_KEY_NAME};algo=${KERNEL_KEY_ALGO}" \
+        --cst-crypto rsa --cst-key-size 2048 \
+        --cst-key-exp 65537 --cst-dig-algo sha256 \
+        --cst-srk-index 1
+    assert_success
+    assert_output --partial "Adding public key '${KERNEL_KEY_NAME}' in ${KERNEL_CRT_DIR} to U-Boot DTB"
+    assert_output --partial "node '/signature/key-${KERNEL_KEY_NAME}'"
+    assert_output --partial 'Bootloader container signed successfully'
+    assert_output --partial 'Bootloader in Torizon OS image signed successfully'
+
+    rm -rf "${KERNEL_CRT_DIR}"
 
     # delete copied CST binaries as they're no longer needed
     rm -rf "${CST_DIR}/linux32"
