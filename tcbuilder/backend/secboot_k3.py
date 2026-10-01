@@ -34,11 +34,12 @@ log = logging.getLogger("torizon." + __name__)
 
 
 # Machines whose bootloader can be signed with the K3 scheme, mapped to the SoC family they
-# are based on. Only the keys are ever read: the family is recorded for the next machine to be
-# added rather than consulted, because everything the signing needs is derived from the signing
-# files the image itself carries.
+# are based on. Only the keys are ever read: the family is recorded rather than consulted,
+# because everything the signing needs is derived from the signing files the image itself
+# carries.
 K3_SIGNING_SUPPORTED_MACHINES = {
     "verdin-am62": "am62x",
+    "verdin-am62p": "am62px",
 }
 
 # Top-level directory inside the signing files tarball.
