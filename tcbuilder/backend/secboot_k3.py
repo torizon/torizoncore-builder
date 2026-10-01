@@ -714,7 +714,10 @@ def run_binman_for_k3_root(root_dir, source_date_epoch):
     # cores; the other root gets empty values for them, as the U-Boot build does.
     atf_path = _k3_root_relpath(root_dir, "firmware/bl31.bin", required=False)
     tee_path = _k3_root_relpath(root_dir, "usr/lib/firmware/bl32.bin", required=False)
-    ti_dm_path = _k3_root_relpath(root_dir, "usr/lib/firmware/ti-dm/*/*", required=False)
+    # Required wherever TF-A is: some descriptors mark the DM blob optional, and binman then
+    # builds tispl.bin with an empty DM image instead of failing.
+    ti_dm_path = _k3_root_relpath(root_dir, "usr/lib/firmware/ti-dm/*/*",
+                                  required=bool(atf_path))
 
     binman_cmd = [f"{UBOOT_TOOLS_DIR}/binman/binman", "--toolpath", UBOOT_TOOLS_DIR, "build",
                   "-u", "-d", UBOOT_DTB, "-O", ".", "-m", "--allow-missing"]
