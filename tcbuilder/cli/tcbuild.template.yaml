@@ -130,9 +130,10 @@ input:
       # >> this is the customer key, whose public counterpart is hashed into the SoC fuses
       # >> when the device is closed
       # k3-key: ./k3_keys/custMpk.pem
-      # >> (OPTIONAL) path to the degenerate key signing the components that run on GP
-      # >> silicon. Set it only if the image was built with a degenerate key other than the
-      # >> one published by TI, which is the one TorizonCore Builder ships.
+      # >> (OPTIONAL) path to TI's degenerate key, which signs the components that run on GP
+      # >> silicon on SoCs that have a GP variant. Set it only if the image was built with a
+      # >> degenerate key other than the one published by TI, which is the one TorizonCore
+      # >> Builder ships.
       # k3-degenerate-key: ./k3_keys/ti-degenerate-key.pem
       # >> (OPTIONAL) directory path with the key named below
       # kernel-key-dir: ./kernel_keys/

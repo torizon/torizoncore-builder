@@ -387,7 +387,7 @@ properties:
                 tdxMeta: "file;pem"
               k3-degenerate-key:
                 type: string
-                description: "path to the degenerate key signing the components running on GP silicon"
+                description: "path to TI's degenerate key, which signs the components running on GP silicon on SoCs that have a GP variant"
                 tdxMeta: "file;pem"
               kernel-key-dir:
                 type: string

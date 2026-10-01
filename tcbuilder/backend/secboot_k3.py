@@ -83,8 +83,8 @@ K3_TARGET_DEVICE_FILENAME = "tcb_k3_target_device.json"
 K3_CONTAINER_EXT = ".bin"
 
 # Matches the variant infix of a boot container filename, the '-hs-fs-' in
-# tiboot3-am62x-hs-fs-verdin.bin for instance. Names without it, the GP container and the
-# binaries common to every variant, are the same whatever the image targets.
+# tiboot3-am62x-hs-fs-verdin.bin for instance. Names without it, such as the binaries common
+# to every variant or a GP container, are the same whatever the image targets.
 K3_HS_VARIANT_RE = re.compile(r"-(hs(?:-fs)?)-")
 
 
@@ -345,7 +345,8 @@ def stage_k3_signing_keys(root_dir, k3_key, degenerate_key):
 
     :param root_dir: Path to the signing root
     :param k3_key: Path to the customer key every boot container is signed with
-    :param degenerate_key: Path to TI's degenerate key, which signs the GP artifacts
+    :param degenerate_key: Path to TI's degenerate key, which binman needs on every K3 SoC
+                           and which signs the GP artifacts of the SoCs that have them
     """
 
     keys_dir = os.path.join(root_dir, K3_KEYS_SUBDIR)
@@ -1092,7 +1093,8 @@ def sign_bootloader_k3(*, k3_key, degenerate_key, kernel_key_dir=None, kernel_ke
     """Sign the bootloader binaries of an unpacked image for a TI K3 based machine
 
     :param k3_key: Path to the customer key that every boot container is signed with
-    :param degenerate_key: Path to TI's degenerate key, which signs the GP artifacts
+    :param degenerate_key: Path to TI's degenerate key, which binman needs on every K3 SoC
+                           and which signs the GP artifacts of the SoCs that have them
     :param kernel_key_dir: Path to the directory holding the kernel key
     :param kernel_key_name: Name of the kernel key, or None to carry over the key already in
                             the image being signed
