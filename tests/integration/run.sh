@@ -207,7 +207,7 @@ if [ ! -z "$DEVICE_ADDR" ]; then
 fi
 
 # copy image that will be used in the tests
-export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.tar 2>&-) 2>&-)"
+export DEFAULT_TEZI_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}-Tezi*.tar 2>&-) 2>&-)"
 export DEFAULT_SIGNED_TEZI_IMAGE=""
 export DEFAULT_WIC_IMAGE="$(basename $(ls $IMAGES_DIR/*-${MACHINE}*.wic 2>&-) 2>&-)"
 
