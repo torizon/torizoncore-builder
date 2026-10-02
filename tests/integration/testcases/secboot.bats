@@ -4,24 +4,24 @@ bats_load_library 'bats/bats-file/load.bash'
 
 setup_file() {
     KERNEL_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-kernel --help \
-                                        | grep '^Currently supported machines:')
-    if echo "${KERNEL_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+                                        | sed -n '/^Currently supported machines:/,$p' | tr -d '\n')
+    if echo "${KERNEL_SIGNING_SUPPORTED_MACHINES}" | grep -qw "${MACHINE}"; then
         IS_KERNEL_SIGNING_SUPPORTED="1"
     else
         IS_KERNEL_SIGNING_SUPPORTED="0"
     fi
 
     HAB_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-bootloader-hab --help \
-                                     | grep '^Currently supported machines:')
-    if echo "${HAB_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+                                     | sed -n '/^Currently supported machines:/,$p' | tr -d '\n')
+    if echo "${HAB_SIGNING_SUPPORTED_MACHINES}" | grep -qw "${MACHINE}"; then
         IS_HAB_SIGNING_SUPPORTED="1"
     else
         IS_HAB_SIGNING_SUPPORTED="0"
     fi
 
     K3_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-bootloader-k3 --help \
-                                    | grep '^Currently supported machines:')
-    if echo "${K3_SIGNING_SUPPORTED_MACHINES}" | grep -q "${MACHINE}"; then
+                                    | sed -n '/^Currently supported machines:/,$p' | tr -d '\n')
+    if echo "${K3_SIGNING_SUPPORTED_MACHINES}" | grep -qw "${MACHINE}"; then
         IS_K3_SIGNING_SUPPORTED="1"
     else
         IS_K3_SIGNING_SUPPORTED="0"
