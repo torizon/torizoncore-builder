@@ -508,7 +508,7 @@ setup_file() {
     # The fixed validity is what says the reproducibility patch is in this container; this
     # fails if it ever falls out of it, whatever the cause.
     run torizoncore-builder-shell \
-        "openssl x509 -inform DER -in ${SIGNED_DIR}/tiboot3-*-gp-*.bin -noout -enddate"
+        "openssl x509 -inform DER -in ${SIGNED_DIR}/tiboot3-*-hs-fs-*.bin -noout -enddate"
     assert_success
     assert_output --partial "notAfter=Dec 31 23:59:59 2049 GMT"
 
@@ -547,9 +547,9 @@ assert payload(sys.argv[1]) == payload(sys.argv[2]), sys.argv[2]
             openssl x509 -inform DER -in \"${SIGNED_DIR}/\$base\" -outform PEM -out /tmp/cert.pem
             openssl verify -CAfile /tmp/cert.pem /tmp/cert.pem >/dev/null
 
-            # The container for GP silicon is signed with the degenerate key TorizonCore
-            # Builder ships, as a Torizon OS build signs it, so it is the one binary here
-            # whose certificate does not carry the key that was passed.
+            # On SoCs with a GP variant, the container for GP silicon is signed with the
+            # degenerate key TorizonCore Builder ships, as a Torizon OS build signs it, so it
+            # is the one binary here whose certificate does not carry the key that was passed.
             key=/workdir/${K3_KEY}
             case \"\$base\" in
                 *-gp-*) key=/builder/tcbuilder/secure_boot_files/ti-degenerate-key.pem ;;
