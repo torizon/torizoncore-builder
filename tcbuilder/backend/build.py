@@ -24,7 +24,7 @@ ASSGN_REGEX = re.compile(r"^([a-zA-Z_][a-zA-Z_0-9]*)=(.*)$")
 
 # Possible file name extensions for which parse_remote() will consider the
 # inferred file name valid.
-ALLOWED_SLUG_EXTS = [".tar", ".zip"]
+ALLOWED_SLUG_EXTS = [".tar", ".zip", ".wic", ".img"]
 
 # Minimum base file name length for which parse_remote() will consider the
 # inferred file name valid.
