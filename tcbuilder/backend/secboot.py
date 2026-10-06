@@ -57,6 +57,7 @@ KERNEL_SIGNING_SUPPORTED_MACHINES = {
     "verdin-imx8mm": "imx8m",
     "verdin-imx8mp": "imx8m",
     "verdin-am62": "k3",
+    "verdin-am62p": "k3",
 }
 
 HAB_SIGNING_SUPPORTED_MACHINES = {

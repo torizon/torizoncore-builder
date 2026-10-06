@@ -386,8 +386,8 @@ def init_parser(subparsers):
             "Sign the bootloader components (tiboot3, tispl.bin and u-boot.img) of an image "
             "for a module based on a TI K3 SoC. The binaries are assembled and signed with "
             "the customer key given with --k3-key, which is the key whose hash is fused into "
-            "the SoC when the device is closed. The container built for GP silicon is signed "
-            "with TI's degenerate key, as a Torizon OS build also does."
+            "the SoC when the device is closed. On SoCs with a GP variant, the components built "
+            "for GP silicon are signed with TI's degenerate key, as a Torizon OS build also does."
         ),
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot_k3.K3_SIGNING_SUPPORTED_MACHINES)}"))
@@ -403,11 +403,12 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--k3-degenerate-key", dest="k3_degenerate_key",
         metavar="K3_DEGENERATE_KEY",
-        help=("Path to the degenerate key (in PEM format) used to sign the components that "
-              "run on GP silicon, which verifies nothing. The key carries no security property, "
-              "so this switch only matters to reproduce, byte for byte, the binaries of an image "
-              "whose build replaced the key published by TI; nothing about booting depends on it. "
-              "(default: the key shipped with TorizonCore Builder)"))
+        help=("Path to TI's degenerate key (in PEM format). On SoCs with a GP variant it signs "
+              "the components that run on GP silicon, which verifies nothing; on the others it "
+              "signs nothing, but the bootloader build still needs the file. The key carries no "
+              "security property, so this switch only matters to reproduce, byte for byte, the "
+              "binaries of an image whose build replaced the key published by TI; nothing about "
+              "booting depends on it. (default: the key shipped with TorizonCore Builder)"))
 
     subparser.add_argument(
         "--kernel-key", dest="kernel_key",
@@ -432,9 +433,9 @@ def init_parser(subparsers):
         "--target-device", dest="target_device", choices=K3_TARGET_DEVICES,
         help=("Kind of device the deployed image should be installable on: 'hs-fs' for a "
               "module that is not fused, 'hs-se' for a module whose keys have been fused. "
-              "The image installs the boot container matching this choice; the other ones "
-              "remain in the image, signed with the same key. (default: whatever the image "
-              "being signed already targets)"))
+              "The image installs the boot container matching this choice; the one for the "
+              "other kind of device remains in the image, signed with the same key. "
+              "(default: whatever the image being signed already targets)"))
 
     subparser.set_defaults(func=do_sign_bootloader_k3)
 
