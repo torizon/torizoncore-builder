@@ -415,7 +415,11 @@ def kernel_set_custom_args(kernel_args):
                 "kernel arguments will be prepended rather than appended to the "
                 "original ones from the base image.")
         _set_custom_kargs_uenv(kargs, changes_dir, prepend=sb_kargs_ovl_pres)
-        _clr_custom_kargs_ovl()
+        # FIT images always use the uenv method, so there is no legacy kargs overlay
+        # to clear; this also avoids requiring the kernel device tree directory,
+        # which FIT images may not have.
+        if not kernel_is_fit:
+            _clr_custom_kargs_ovl()
     elif "overlay" in kargs_methods:
         _set_custom_kargs_ovl(kargs)
     else:
