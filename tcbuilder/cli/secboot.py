@@ -32,12 +32,14 @@ K3_TARGET_DEVICES = tuple(secboot_k3.K3_TARGET_DEVICE_VARIANTS)
 KERNEL_KEY_DEFAULT_ALGO = "sha256,rsa2048"
 
 
-# pylint: disable-next=too-many-arguments
+# pylint: disable-next=too-many-arguments,too-many-locals
 def sign_bootloader_hab(
         *,
         cst_dir, cst_crypto, cst_key_size, cst_key_exp, cst_dig_algo,
         cst_srk_index, cst_srk_table, cst_srk_fuse, cst_srk_no_ca,
-        kernel_key, kernel_key_dir=None):
+        kernel_key, kernel_key_dir=None,
+        cst_srk_cert_pkcs11_uri=None, cst_csf_cert_pkcs11_uri=None,
+        cst_img_cert_pkcs11_uri=None, kernel_key_pkcs11_uri=None, pkcs11_module=None):
     """Execute the work of the "sign-bootloader-hab" command."""
 
     images_unpack_executed()
@@ -47,9 +49,21 @@ def sign_bootloader_hab(
         raise InvalidArgumentError(
             f"Directory \"{cst_dir}\" does not exist: aborting.")
 
-    if kernel_key_dir and not kernel_key:
+    pkcs11_module = check_hab_pkcs11_args(
+        cst_srk_cert_pkcs11_uri, cst_csf_cert_pkcs11_uri, cst_img_cert_pkcs11_uri,
+        kernel_key_pkcs11_uri, pkcs11_module, srk_no_ca=cst_srk_no_ca,
+        switches=("--cst-srk-cert-pkcs11-uri", "--cst-csf-cert-pkcs11-uri",
+                  "--cst-img-cert-pkcs11-uri", "--kernel-key-pkcs11-uri", "--pkcs11-module"))
+
+    if kernel_key_dir and kernel_key_pkcs11_uri:
         raise InvalidArgumentError(
-            "Error: --kernel-key-dir was passed but --kernel-key was not provided. Aborting.")
+            "Error: --kernel-key-dir and --kernel-key-pkcs11-uri cannot be used together. "
+            "Aborting.")
+
+    if (kernel_key_dir or kernel_key_pkcs11_uri) and not kernel_key:
+        raise InvalidArgumentError(
+            f"Error: {'--kernel-key-dir' if kernel_key_dir else '--kernel-key-pkcs11-uri'} "
+            "was passed but --kernel-key was not provided. Aborting.")
 
     kernel_key_name = None
     kernel_key_algo = None
@@ -57,7 +71,8 @@ def sign_bootloader_hab(
         if kernel_key_dir is not None and not os.path.isdir(kernel_key_dir):
             raise InvalidArgumentError(
                 f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
-        kernel_key_dir = kernel_key_dir or "."
+        if not kernel_key_pkcs11_uri:
+            kernel_key_dir = kernel_key_dir or "."
         kernel_key_name, kernel_key_algo = _parse_kernel_key_arg(kernel_key)
 
     cst_args = {
@@ -68,7 +83,10 @@ def sign_bootloader_hab(
         "srk_index": cst_srk_index,
         "srk_table": cst_srk_table,
         "srk_fuse": cst_srk_fuse,
-        "srk_no_ca": cst_srk_no_ca
+        "srk_no_ca": cst_srk_no_ca,
+        "srk_crt_pkcs11_uri": cst_srk_cert_pkcs11_uri,
+        "csf_crt_pkcs11_uri": cst_csf_cert_pkcs11_uri,
+        "img_crt_pkcs11_uri": cst_img_cert_pkcs11_uri
     }
 
     secboot.sign_bootloader_hab(
@@ -76,10 +94,15 @@ def sign_bootloader_hab(
         kernel_key_name=kernel_key_name,
         kernel_key_algo=kernel_key_algo,
         cst_dir=cst_dir,
-        cst_args=cst_args
+        cst_args=cst_args,
+        pkcs11_module=pkcs11_module,
+        kernel_key_pkcs11_uri=kernel_key_pkcs11_uri
     )
 
-    if kernel_key_dir:
+    if kernel_key_pkcs11_uri:
+        log.info(f"Public key '{kernel_key_name}' in PKCS#11 token will be used by "
+                 "the bootloader to verify the kernel signature.\n")
+    elif kernel_key_dir:
         log.info(f"Public key '{kernel_key_name}' in {kernel_key_dir} will be used by "
                  "the bootloader to verify the kernel signature.\n")
     else:
@@ -106,7 +129,12 @@ def do_sign_bootloader_hab(args):
         cst_srk_fuse=args.cst_srk_fuse,
         cst_srk_no_ca=args.cst_srk_no_ca,
         kernel_key=args.kernel_key,
-        kernel_key_dir=args.kernel_key_dir)
+        kernel_key_dir=args.kernel_key_dir,
+        cst_srk_cert_pkcs11_uri=args.cst_srk_cert_pkcs11_uri,
+        cst_csf_cert_pkcs11_uri=args.cst_csf_cert_pkcs11_uri,
+        cst_img_cert_pkcs11_uri=args.cst_img_cert_pkcs11_uri,
+        kernel_key_pkcs11_uri=args.kernel_key_pkcs11_uri,
+        pkcs11_module=args.pkcs11_module)
 
 
 def sign_bootloader_k3(
@@ -241,14 +269,129 @@ def _check_parse_ostree_key_args(ostree_key_dir, ostree_key, *, check_pubk=True)
     return ostree_key_obj
 
 
-def sign_kernel(kernel_key, *, kernel_key_dir,
-                ostree_key_dir=None, ostree_key=None):
+def check_pkcs11_args(pkcs11_uri, pkcs11_module, *, uri_switch, module_switch):
+    """Validate the PKCS#11 URI of a key and the PKCS#11 module giving access to it.
+
+    :param pkcs11_uri: PKCS#11 URI of the key; if None, signing with a token was not requested.
+    :param pkcs11_module: Path to the PKCS#11 module; if None, the default one is taken.
+    :param uri_switch: Name of the switch/property holding the URI, for error messages.
+    :param module_switch: Name of the switch/property holding the module, for error messages.
+    :returns: Path to the PKCS#11 module or None if signing with a token was not requested.
+    """
+
+    if pkcs11_uri is None:
+        if pkcs11_module is not None:
+            raise InvalidArgumentError(
+                f"Error: {module_switch} was passed but {uri_switch} was not provided. "
+                "Aborting.")
+        return None
+
+    _check_pkcs11_uri(pkcs11_uri, uri_switch)
+
+    if "type=" in pkcs11_uri:
+        raise InvalidArgumentError(
+            f"Error: {uri_switch} must not have a 'type' attribute; it is added as needed. "
+            "Aborting.")
+
+    return _check_pkcs11_module(pkcs11_module)
+
+
+# pylint: disable-next=too-many-arguments
+def check_hab_pkcs11_args(srk_uri, csf_uri, img_uri, kernel_key_uri, pkcs11_module, *,
+                          srk_no_ca, switches):
+    """Validate the PKCS#11 URIs used when signing the bootloader and the PKCS#11 module.
+
+    :param srk_uri: PKCS#11 URI of the SRK certificate; if None, signing with a token was not
+                    requested.
+    :param csf_uri: PKCS#11 URI of the CSF certificate or None.
+    :param img_uri: PKCS#11 URI of the IMG certificate or None.
+    :param kernel_key_uri: PKCS#11 URI of the kernel key whose public key is to be added to the
+                           U-Boot DTBs or None.
+    :param pkcs11_module: Path to the PKCS#11 module; if None, the default one is taken.
+    :param srk_no_ca: Whether the CA flag was not set when generating the SRK certificates.
+    :param switches: Names of the switches/properties holding the SRK, CSF, IMG and kernel key
+                     URIs and the module, in this order, for error messages.
+    :returns: Path to the PKCS#11 module or None if no token is to be used.
+    """
+
+    srk_switch, csf_switch, img_switch, kernel_switch, module_switch = switches
+
+    if srk_uri is None:
+        for uri, switch in ((csf_uri, csf_switch), (img_uri, img_switch)):
+            if uri is not None:
+                raise InvalidArgumentError(
+                    f"Error: {switch} was passed but {srk_switch} was not provided. Aborting.")
+    else:
+        for uri, switch in ((srk_uri, srk_switch), (csf_uri, csf_switch),
+                            (img_uri, img_switch)):
+            if uri is not None:
+                _check_pkcs11_uri(uri, switch)
+
+        if srk_no_ca:
+            if csf_uri is not None or img_uri is not None:
+                log.warning(f"The CA flag is not set for the SRK certificates, so {csf_switch} "
+                            f"and {img_switch} are not used.")
+        elif csf_uri is None or img_uri is None:
+            raise InvalidArgumentError(
+                f"Error: {csf_switch} and {img_switch} are required with {srk_switch} when the "
+                "CA flag is set for the SRK certificates. Aborting.")
+
+    if kernel_key_uri is not None:
+        _check_pkcs11_uri(kernel_key_uri, kernel_switch)
+        if "type=" in kernel_key_uri:
+            raise InvalidArgumentError(
+                f"Error: {kernel_switch} must not have a 'type' attribute; it is added as "
+                "needed. Aborting.")
+
+    if srk_uri is None and kernel_key_uri is None:
+        if pkcs11_module is not None:
+            raise InvalidArgumentError(
+                f"Error: {module_switch} was passed but neither {srk_switch} nor "
+                f"{kernel_switch} was provided. Aborting.")
+        return None
+
+    return _check_pkcs11_module(pkcs11_module)
+
+
+def _check_pkcs11_uri(pkcs11_uri, uri_switch):
+    """Check that a switch/property holds a PKCS#11 URI."""
+
+    if not pkcs11_uri.startswith(secboot.PKCS11_URI_PREFIX):
+        raise InvalidArgumentError(
+            f"Error: {uri_switch} must be a PKCS#11 URI starting with "
+            f"'{secboot.PKCS11_URI_PREFIX}'. Aborting.")
+
+
+def _check_pkcs11_module(pkcs11_module):
+    """Get the path to the PKCS#11 module to be used, checking that it exists."""
+
+    pkcs11_module = pkcs11_module or secboot.PKCS11_DEFAULT_MODULE
+    if not os.path.isfile(pkcs11_module):
+        raise InvalidArgumentError(
+            f"PKCS#11 module \"{pkcs11_module}\" does not exist. Aborting.")
+
+    return pkcs11_module
+
+
+def sign_kernel(kernel_key, *, kernel_key_dir=None,
+                ostree_key_dir=None, ostree_key=None,
+                kernel_key_pkcs11_uri=None, pkcs11_module=None):
     """Execute the work of the "sign-kernel" command."""
 
     images_unpack_executed()
     fail_on_raw_image("Secboot commands are not supported for WIC/raw images. Aborting.")
 
-    if not os.path.isdir(kernel_key_dir):
+    if kernel_key_dir and kernel_key_pkcs11_uri:
+        raise InvalidArgumentError(
+            "Error: --kernel-key-dir and --kernel-key-pkcs11-uri cannot be used together. "
+            "Aborting.")
+
+    pkcs11_module = check_pkcs11_args(
+        kernel_key_pkcs11_uri, pkcs11_module,
+        uri_switch="--kernel-key-pkcs11-uri", module_switch="--pkcs11-module")
+
+    kernel_key_dir = kernel_key_dir or "."
+    if not kernel_key_pkcs11_uri and not os.path.isdir(kernel_key_dir):
         raise InvalidArgumentError(
             f"Directory \"{kernel_key_dir}\" does not exist. Aborting.")
 
@@ -265,7 +408,9 @@ def sign_kernel(kernel_key, *, kernel_key_dir,
         key_dir=kernel_key_dir,
         key_algo=kernel_key_algo,
         key_name=kernel_key_name,
-        ostree_key=ostree_key_obj)
+        ostree_key=ostree_key_obj,
+        pkcs11_uri=kernel_key_pkcs11_uri,
+        pkcs11_module=pkcs11_module)
 
 
 def do_sign_kernel(args):
@@ -275,7 +420,9 @@ def do_sign_kernel(args):
         kernel_key=args.kernel_key,
         kernel_key_dir=args.kernel_key_dir,
         ostree_key=args.ostree_key,
-        ostree_key_dir=args.ostree_key_dir)
+        ostree_key_dir=args.ostree_key_dir,
+        kernel_key_pkcs11_uri=args.kernel_key_pkcs11_uri,
+        pkcs11_module=args.pkcs11_module)
 
 
 def init_parser(subparsers):
@@ -298,7 +445,13 @@ def init_parser(subparsers):
             "modules compatible with HAB. The signing is performed using the Code Signing Tool "
             "(CST) from NXP. The CST directory is specified with the --cst-dir argument. Keys "
             "and certificates (in PEM format, with the .pem extension), SRK table and E-fuse "
-            "hash binaries have to be generated beforehand by following the NXP documentation."
+            "hash binaries have to be generated beforehand by following the NXP documentation. "
+            "Alternatively, the keys and certificates can be held in a PKCS#11 token such as a "
+            "YubiKey (see --cst-srk-cert-pkcs11-uri); the SRK table and E-fuse hash binaries "
+            "are still taken from the CST directory. To reach a USB token, the container needs "
+            "access to the USB devices of the host, e.g. by passing "
+            "\"-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw'\" to 'docker "
+            "run'; the PC/SC daemon (pcscd) on the host, if any, must be stopped while signing."
         ),
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot.HAB_SIGNING_SUPPORTED_MACHINES)}"))
@@ -360,6 +513,37 @@ def init_parser(subparsers):
         help="Enable this if the CA flag was *not* set when generating the SRK certificates.")
 
     subparser.add_argument(
+        "--cst-srk-cert-pkcs11-uri", dest="cst_srk_cert_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the SRK certificate in a token (HSM), whose key is to be used for "
+              "signing, instead of the certificate file in 'crts' inside the CST directory. The "
+              "URI must start with 'pkcs11:' and the key must share the 'id' (or 'object') "
+              "attribute of the certificate; the token PIN can be given with the 'pin-value' "
+              "attribute, e.g. "
+              "'pkcs11:token=YubiKey%%20PIV%%20%%2312345678;id=%%05;type=cert;pin-value=123456'. "
+              "As the SRK index and CA flag cannot be inferred from a URI, --cst-srk-index and "
+              "--cst-srk-no-ca must match the SRK in the token."))
+
+    subparser.add_argument(
+        "--cst-csf-cert-pkcs11-uri", dest="cst_csf_cert_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the CSF certificate in a token, in the same form as "
+              "--cst-srk-cert-pkcs11-uri; required with it unless --cst-srk-no-ca is passed."))
+
+    subparser.add_argument(
+        "--cst-img-cert-pkcs11-uri", dest="cst_img_cert_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the IMG certificate in a token, in the same form as "
+              "--cst-srk-cert-pkcs11-uri; required with it unless --cst-srk-no-ca is passed."))
+
+    subparser.add_argument(
+        "--pkcs11-module", dest="pkcs11_module",
+        metavar="PKCS11_MODULE",
+        help=("Path to the PKCS#11 module giving access to the token specified through "
+              "--cst-srk-cert-pkcs11-uri and/or --kernel-key-pkcs11-uri. "
+              f"(default: {secboot.PKCS11_DEFAULT_MODULE})"))
+
+    subparser.add_argument(
         "--kernel-key", dest="kernel_key",
         help=("If specified, this switch causes the U-Boot DTB and its Control DTBs to be "
               "updated with the specified (PUBLIC) key before signing the bootloader. The "
@@ -372,9 +556,19 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",
         help=("Kernel key directory path. This directory must contain a certificate key file named "
-              "<NAME>.crt holding the PUBLIC key, and a PRIVATE key file named <NAME>.key (both "
-              "in PEM format), where <NAME> is specified through the --kernel-key switch. "
+              "<NAME>.crt (in PEM format) holding the PUBLIC key, where <NAME> is specified "
+              "through the --kernel-key switch; the PRIVATE key is not needed, so it may be kept "
+              "elsewhere, e.g. in a PKCS#11 token. Cannot be used with --kernel-key-pkcs11-uri. "
               "(default: working directory)"))
+
+    subparser.add_argument(
+        "--kernel-key-pkcs11-uri", dest="kernel_key_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the kernel key in a token (HSM), whose certificate (holding the "
+              "PUBLIC key) is to be read from the token instead of from --kernel-key-dir; this "
+              "is the same URI passed to 'secboot sign-kernel' through the switch of the same "
+              "name, e.g. 'pkcs11:token=YubiKey%%20PIV%%20%%2312345678;id=%%12'. The token PIN "
+              "is not needed to read the certificate. Cannot be used with --kernel-key-dir."))
 
     subparser.set_defaults(func=do_sign_bootloader_hab)
 
@@ -443,7 +637,13 @@ def init_parser(subparsers):
     subparser = subparsers.add_parser(
         "sign-kernel",
         help="Sign the kernel FIT image of an unpacked Torizon OS image.",
-        description="Sign the kernel FIT image of an unpacked Torizon OS image.",
+        description=(
+            "Sign the kernel FIT image of an unpacked Torizon OS image. The signing key can be "
+            "taken from a PRIVATE key file (see --kernel-key-dir) or from a PKCS#11 token such "
+            "as a YubiKey (see --kernel-key-pkcs11-uri). To reach a USB token, the container "
+            "needs access to the USB devices of the host, e.g. by passing "
+            "\"-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw'\" to 'docker "
+            "run'; the PC/SC daemon (pcscd) on the host, if any, must be stopped while signing."),
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot.KERNEL_SIGNING_SUPPORTED_MACHINES)}"))
 
@@ -458,11 +658,30 @@ def init_parser(subparsers):
 
     subparser.add_argument(
         "--kernel-key-dir", dest="kernel_key_dir",
-        default=".",
         metavar="KERNEL_KEY_DIR",
         help=("Kernel key directory path. This directory must contain a PRIVATE key file named "
               "<NAME>.key in PEM format, where <NAME> is specified through the --kernel-key "
-              "switch. (default: working directory)"))
+              "switch. Cannot be used with --kernel-key-pkcs11-uri. (default: working "
+              "directory)"))
+
+    subparser.add_argument(
+        "--kernel-key-pkcs11-uri", dest="kernel_key_pkcs11_uri",
+        metavar="PKCS11_URI",
+        help=("PKCS#11 URI of the PRIVATE key in a token (HSM) to sign the kernel with, instead "
+              "of a key file. The URI must start with 'pkcs11:' and identify the key with its "
+              "'id' attribute (recommended for YubiKeys, which label the private and public "
+              "objects of a key differently) or its 'object' attribute, without a 'type' "
+              "attribute. The token PIN can be given with the 'pin-value' attribute, e.g. "
+              "'pkcs11:token=YubiKey%%20PIV%%20%%2312345678;id=%%12;pin-value=123456'. The "
+              "<NAME> passed through --kernel-key must still match the name of the key the "
+              "bootloader verifies the kernel with. Cannot be used with --kernel-key-dir."))
+
+    subparser.add_argument(
+        "--pkcs11-module", dest="pkcs11_module",
+        metavar="PKCS11_MODULE",
+        help=("Path to the PKCS#11 module giving access to the token specified through "
+              "--kernel-key-pkcs11-uri. "
+              f"(default: {secboot.PKCS11_DEFAULT_MODULE})"))
 
     subparser.add_argument(
         "--ostree-key",

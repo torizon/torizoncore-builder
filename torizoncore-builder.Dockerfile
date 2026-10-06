@@ -273,6 +273,18 @@ RUN apt-get -q -y update && \
 # - openssl: binman shells out to it to generate the X.509 certificates that sign TI K3
 #   bootloaders. It currently also arrives as a dependency of other packages; declare it, since
 #   signing breaks if those ever stop pulling it in.
+# - libengine-pkcs11-openssl: OpenSSL engine used by mkimage (-N pkcs11) to sign with keys held
+#   in a PKCS#11 token (HSM).
+# - ykcs11: PKCS#11 module for YubiKey tokens.
+# - pcscd, libccid: PC/SC daemon and CCID driver needed to talk to USB smart card tokens such as
+#   the YubiKey from inside the container; the daemon on the host cannot be relied upon, since its
+#   client protocol must match the one of the library in the container.
+# - softhsm2: software PKCS#11 token, allowing signing with PKCS#11 tokens to be tried out (and
+#   tested) without any hardware.
+# - opensc: provides pkcs11-tool, to inspect PKCS#11 tokens (e.g. to find the URIs of the keys
+#   and certificates they hold) and to store certificates in them.
+# - gnutls-bin: provides p11tool, used to read certificates from PKCS#11 tokens given their
+#   PKCS#11 URIs.
 #
 # NOTE: Do not add -dev packages here since they are not supposed to be runtime
 #       dependencies of TorizonCore Builder.
@@ -287,14 +299,19 @@ RUN apt-get -q -y update && \
             curl \
             device-tree-compiler \
             file \
+            gnutls-bin \
             gzip \
             imx-code-signing-tool \
             jq \
+            libccid \
+            libengine-pkcs11-openssl \
             libfaketime \
             libguestfs-tools \
             lz4 \
             lzop \
+            opensc \
             openssl \
+            pcscd \
             python3 \
             python3-dnspython \
             python3-gi \
@@ -306,9 +323,11 @@ RUN apt-get -q -y update && \
             python3-pip \
             python3-setuptools \
             python3-wheel \
+            softhsm2 \
             wget \
             xxd \
             xz-utils \
+            ykcs11 \
             zstd \
     && \
     rm -rf /var/lib/apt/lists/*
