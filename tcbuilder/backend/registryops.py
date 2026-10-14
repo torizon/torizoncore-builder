@@ -427,9 +427,11 @@ class RegistryOperations:
             auth_url, params=auth_parms, auth=auth_login,
             timeout=(REGISTRY_CONNECT_TIMEOUT, REGISTRY_READ_TIMEOUT))
         res_json = res.json()
+        # The token spec allows "token" or "access_token"; ACR sends only the latter.
+        token = res_json.get("token") or res_json.get("access_token")
         for scope in scopes:
-            if "token" in res_json:
-                self.token_cache[scope] = res_json["token"]
+            if token:
+                self.token_cache[scope] = token
                 continue
             log.debug(
                 f"Could not get token for scope {scope}, registry {self.registry or 'default'}.")
