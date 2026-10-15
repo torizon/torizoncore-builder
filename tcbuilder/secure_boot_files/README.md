@@ -21,15 +21,18 @@ on the SoC:
 
 Everything else is signed with the customer key passed to `--k3-key`.
 
-- Origin: `core-secdev-k3` from TI,
-  `git://git.ti.com/git/security-development-tools/core-secdev-k3.git`, packaged by `meta-ti` as
-  `ti-k3-secdev-native` at SRCREV `ed6951fd3877c6cac7f1237311f7278ac21634f3`.  Licence BSD-3-Clause.
-- This copy is byte-identical to the one that package installs at
-  `usr/share/ti/ti-k3-secdev/keys/ti-degenerate-key.pem`, sha256
-  `ba232085efab23c6a926879dbfdbc1e7054894eff50f19ae60cbd5c38264a976`.
-- Upstream U-Boot does not carry it; a Torizon OS build reaches it through
-  `TDX_K3_SECBOOT_KEY_DIR`. On an SoC with a GP variant, a build that replaced the key there
-  produces GP artifacts this copy cannot reproduce, which is what `--k3-degenerate-key` is for.
+- Origin: `keys/ti-degenerate-key.pem` in `core-secdev-k3` from TI,
+  `git://git.ti.com/git/security-development-tools/core-secdev-k3.git`, at commit
+  `ed6951fd3877c6cac7f1237311f7278ac21634f3` (the SRCREV `meta-ti` uses for `ti-k3-secdev-native`).
+  Licence BSD-3-Clause, as declared by `meta-ti`'s recipe (the repository has no licence file).
+  Upstream U-Boot carries the same file as
+  `arch/arm/mach-k3/keys/ti-degenerate-key.pem`.
+- RSA 1024-bit, PKCS#1 PEM, sha256
+  `99768f6042bc3f8198f9aa8291bed2716b4ebfc5a3513189570a1e8bbe39d98a`. Do not take the file from a
+  Torizon OS build's `ti-k3-secdev-native` sysroot: `meta-toradex-security` replaces that package's
+  `keys` directory with `TDX_K3_SECBOOT_KEY_DIR`, so the sysroot holds the build's own key set.
+- A build whose key directory holds a different degenerate key produces GP artifacts this copy
+  cannot reproduce, which is what `--k3-degenerate-key` is for.
 
 Do not add customer or test signing keys to this directory. Test key material belongs under
 `tests/integration/samples/signing_keys`.
