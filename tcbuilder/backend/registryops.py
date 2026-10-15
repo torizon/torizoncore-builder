@@ -371,7 +371,7 @@ class RegistryOperations:
         """Get the OAuth2 token required for accessing some resources"""
 
         # --
-        # Expected format (https://docs.docker.com/registry/spec/auth/token/):
+        # Expected format (https://distribution.github.io/distribution/spec/auth/token/):
         # Bearer realm="https://auth.docker.io/token",
         #        service="registry.docker.io",
         #        scope="repository:samalba/my-app:pull,push"
