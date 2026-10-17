@@ -418,6 +418,86 @@ signing-artifacts-in-unpacked-tezi-image() {
 }
 export -f signing-artifacts-in-unpacked-tezi-image
 
+# Create a software PKCS#11 token (SoftHSM) holding a private key and, if there is a certificate
+# file next to the key file (same name, .crt extension), its certificate; the token directory is
+# created in the working directory, so that it outlives the container and can be mounted into
+# another one where SoftHSM looks for it by default (/var/lib/softhsm/tokens).
+# $1 = token directory (relative to the working directory)
+# $2 = private key file in PEM format (relative to the working directory)
+# $3 = token label
+# $4 = key id, in hexadecimal
+# $5 = token (user) PIN
+create-softhsm-token() {
+    local token_dir="$1" key_file="$2" token_label="$3" key_id="$4" pin="$5"
+    local label cert_file
+    label="$(basename "${key_file}" .key)"
+    cert_file="${key_file%.key}.crt"
+
+    # The token files are created (as root) from within the container, so remove them from there.
+    torizoncore-builder-shell "rm -rf /workdir/${token_dir}"
+    torizoncore-builder-shell \
+        "mkdir /workdir/${token_dir} && \
+         echo 'directories.tokendir = /workdir/${token_dir}' > /tmp/softhsm2.conf && \
+         export SOFTHSM2_CONF=/tmp/softhsm2.conf && \
+         softhsm2-util --init-token --free --label ${token_label} \
+                       --pin ${pin} --so-pin 12345678 && \
+         softhsm2-util --import /workdir/${key_file} \
+                       --token ${token_label} --label ${label} \
+                       --id ${key_id} --pin ${pin} && \
+         if [ -f /workdir/${cert_file} ]; then \
+             openssl x509 -in /workdir/${cert_file} -outform der -out /tmp/cert.der && \
+             pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --login --pin ${pin} \
+                         --token-label ${token_label} --type cert --id ${key_id} \
+                         --label ${label} --write-object /tmp/cert.der; \
+         fi"
+}
+export -f create-softhsm-token
+
+# Create a software PKCS#11 token (SoftHSM) holding the keys and certificates of a CST directory
+# for a given SRK: the SRK key/certificate gets id 01 and, if the CA flag is set, the CSF and IMG
+# ones get ids 02 and 03; objects are labeled after the certificate file names. The token
+# directory is created in the working directory (see create-softhsm-token).
+# $1 = token directory (relative to the working directory)
+# $2 = CST directory (relative to the working directory)
+# $3 = token label
+# $4 = token (user) PIN
+# $5 = SRK index (1..4)
+# $6 = key description in the certificate file names, e.g. "sha256_2048_65537"
+# $7 = "1" if the CA flag is set for the SRK certificates, "0" otherwise
+create-softhsm-cst-token() {
+    local token_dir="$1" cst_dir="$2" token_label="$3" pin="$4"
+    local srk_index="$5" key_desc="$6" ca="$7"
+
+    local objs="SRK${srk_index}_${key_desc}_v3_usr"
+    if [ "${ca}" = "1" ]; then
+        objs="SRK${srk_index}_${key_desc}_v3_ca"
+        objs="${objs} CSF${srk_index}_1_${key_desc}_v3_usr IMG${srk_index}_1_${key_desc}_v3_usr"
+    fi
+
+    # The token files are created (as root) from within the container, so remove them from there.
+    torizoncore-builder-shell "rm -rf /workdir/${token_dir}"
+    torizoncore-builder-shell \
+        "mkdir /workdir/${token_dir} && \
+         echo 'directories.tokendir = /workdir/${token_dir}' > /tmp/softhsm2.conf && \
+         export SOFTHSM2_CONF=/tmp/softhsm2.conf && \
+         softhsm2-util --init-token --free --label ${token_label} \
+                       --pin ${pin} --so-pin 12345678 && \
+         id=1 && \
+         for obj in ${objs}; do \
+             openssl pkcs8 -topk8 -nocrypt \
+                 -passin file:/workdir/${cst_dir}/keys/key_pass.txt \
+                 -in /workdir/${cst_dir}/keys/\${obj}_key.pem -out /tmp/\${obj}.p8 && \
+             softhsm2-util --import /tmp/\${obj}.p8 --token ${token_label} \
+                           --label \${obj} --id 0\${id} --pin ${pin} && \
+             pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --login --pin ${pin} \
+                         --token-label ${token_label} --type cert --id 0\${id} \
+                         --label \${obj} \
+                         --write-object /workdir/${cst_dir}/crts/\${obj}_crt.der && \
+             id=\$((id + 1)) || exit 1; \
+         done"
+}
+export -f create-softhsm-cst-token
+
 unpacked-ostree-repo-has-composefs-support() {
     local status
     local repo="/storage/sysroot/ostree/repo/"

@@ -1,0 +1,22 @@
+
+input:
+  easy-installer:
+    local: "${INPUT_IMAGE:?Please specify input image}"
+
+customization:
+  secboot:
+    sign-kernel:
+      kernel-key-pkcs11-uri: "pkcs11:token=${TOKEN_LABEL:?Please specify token label};id=%${KEY_ID:?Please specify key id};pin-value=${PIN:?Please specify token PIN}"
+      pkcs11-module: "${PKCS11_MODULE:?Please specify PKCS#11 module}"
+      kernel-key:
+         - name: "${KERNEL_KEY_NAME:?Please specify kernel key name}"
+           algo: "${KERNEL_KEY_ALGO:?Please specify kernel key algo}"
+output:
+  ostree:
+    branch: pkcs11-signed-branch
+    commit-subject: "kernel signed with PKCS#11 token subject"
+    commit-body: "kernel signed with PKCS#11 token body"
+  easy-installer:
+    local: "${OUTPUT_DIR:?Please specify output directory}"
+    name: "image with kernel FIT signed with PKCS#11 token"
+    description: "Image with the kernel FIT signed with a key held in a PKCS#11 token"
