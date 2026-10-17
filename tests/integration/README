@@ -113,6 +113,11 @@ TCB_K3_REFERENCE_KEY:
                   resolved inside the container, where the test working
                   directory is mounted at /workdir, so give it relative to
                   that directory rather than as a path on the host.
+                  On an AM62 image the GP boot containers are signed with
+                  a degenerate key, and the re-sign uses the one
+                  TorizonCore Builder ships. For an image built with
+                  another degenerate key those bytes differ and the
+                  comparison fails, so leave this variable unset for it.
 
 Following are some examples of running the test cases.
 

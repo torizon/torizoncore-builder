@@ -548,8 +548,8 @@ assert payload(sys.argv[1]) == payload(sys.argv[2]), sys.argv[2]
             openssl verify -CAfile /tmp/cert.pem /tmp/cert.pem >/dev/null
 
             # On SoCs with a GP variant, the container for GP silicon is signed with the
-            # degenerate key TorizonCore Builder ships, as a Torizon OS build signs it, so it
-            # is the one binary here whose certificate does not carry the key that was passed.
+            # degenerate key TorizonCore Builder ships, so it is the one binary here whose
+            # certificate does not carry the key that was passed.
             key=/workdir/${K3_KEY}
             case \"\$base\" in
                 *-gp-*) key=/builder/tcbuilder/secure_boot_files/ti-degenerate-key.pem ;;

@@ -346,7 +346,7 @@ def stage_k3_signing_keys(root_dir, k3_key, degenerate_key):
 
     :param root_dir: Path to the signing root
     :param k3_key: Path to the customer key every boot container is signed with
-    :param degenerate_key: Path to TI's degenerate key, which binman needs on every K3 SoC
+    :param degenerate_key: Path to the degenerate key, which binman needs on every K3 SoC
                            and which signs the GP artifacts of the SoCs that have them
     """
 
@@ -1094,7 +1094,7 @@ def sign_bootloader_k3(*, k3_key, degenerate_key, kernel_key_dir=None, kernel_ke
     """Sign the bootloader binaries of an unpacked image for a TI K3 based machine
 
     :param k3_key: Path to the customer key that every boot container is signed with
-    :param degenerate_key: Path to TI's degenerate key, which binman needs on every K3 SoC
+    :param degenerate_key: Path to the degenerate key, which binman needs on every K3 SoC
                            and which signs the GP artifacts of the SoCs that have them
     :param kernel_key_dir: Path to the directory holding the kernel key
     :param kernel_key_name: Name of the kernel key, or None to carry over the key already in

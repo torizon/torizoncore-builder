@@ -387,7 +387,8 @@ def init_parser(subparsers):
             "for a module based on a TI K3 SoC. The binaries are assembled and signed with "
             "the customer key given with --k3-key, which is the key whose hash is fused into "
             "the SoC when the device is closed. On SoCs with a GP variant, the components built "
-            "for GP silicon are signed with TI's degenerate key, as a Torizon OS build also does."
+            "for GP silicon are signed with a degenerate key, by default the one shipped with "
+            "TorizonCore Builder."
         ),
         epilog=("Currently supported machines: "
                 f"{', '.join(secboot_k3.K3_SIGNING_SUPPORTED_MACHINES)}"))
@@ -403,12 +404,13 @@ def init_parser(subparsers):
     subparser.add_argument(
         "--k3-degenerate-key", dest="k3_degenerate_key",
         metavar="K3_DEGENERATE_KEY",
-        help=("Path to TI's degenerate key (in PEM format). On SoCs with a GP variant it signs "
+        help=("Path to the degenerate key (in PEM format). On SoCs with a GP variant it signs "
               "the components that run on GP silicon, which verifies nothing; on the others it "
               "signs nothing, but the bootloader build still needs the file. The key carries no "
               "security property, so this switch only matters to reproduce, byte for byte, the "
-              "binaries of an image whose build replaced the key published by TI; nothing about "
-              "booting depends on it. (default: the key shipped with TorizonCore Builder)"))
+              "binaries of an image built with a different degenerate key, such as one generated "
+              "for the build or TI's; nothing about booting depends on it. (default: the key "
+              "shipped with TorizonCore Builder, which Toradex's own images are built with)"))
 
     subparser.add_argument(
         "--kernel-key", dest="kernel_key",
