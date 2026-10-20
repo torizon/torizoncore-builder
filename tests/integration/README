@@ -160,5 +160,9 @@ $ TCB_TAGS="all" TCB_MACHINE=apalis-imx6 ./run.sh
 The command below will execute untagged tests:
 $ TCB_TAGS="" TCB_MACHINE=apalis-imx6 ./run.sh
 
+The command below will execute the secure boot tests, which are tagged as
+'secboot' and so are left out of a run of untagged tests:
+$ TCB_TAGS="secboot" TCB_TESTCASE="secboot build" TCB_MACHINE=verdin-am62 ./run.sh
+
 The command below will execute tests tagged as 'requires-device':
 $ TCB_TAGS="requires-device" TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh

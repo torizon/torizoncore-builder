@@ -125,6 +125,8 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
+# The secure boot CI jobs run only cases tagged 'secboot'; tag new ones here too.
+# bats test_tags=secboot
 @test "build: re-signing of bootloader (K3) and kernel FIT image" {
     requires-supported-k3-signing-machine
     requires-supported-kernel-signing-machine
@@ -203,6 +205,7 @@ teardown_file() {
     rm -rf "${OUTDIR}"
 }
 
+# bats test_tags=secboot
 @test "build: re-signing of bootloader (HAB) and kernel FIT image" {
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine
@@ -813,6 +816,7 @@ teardown_file() {
     rm -fr "$OUTDIR"
 }
 
+# bats test_tags=secboot
 @test "build: fusing without re-signing failure case" {
     cp "${SAMPLES_DIR}/config/tcbuild-no-re-sign-fuse.yaml" \
        "tcbuild-no-re-sign-fuse.yaml"
@@ -836,6 +840,7 @@ teardown_file() {
     assert_output --partial "Error: To do 'fusing', 'sign-bootloader-hab' must be defined at the same time."
 }
 
+# bats test_tags=secboot
 @test "build: fusing file outside of output directory failure case" {
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine

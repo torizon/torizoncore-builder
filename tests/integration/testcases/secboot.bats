@@ -2,6 +2,8 @@ bats_load_library 'bats/bats-support/load.bash'
 bats_load_library 'bats/bats-assert/load.bash'
 bats_load_library 'bats/bats-file/load.bash'
 
+# bats file_tags=secboot
+
 setup_file() {
     KERNEL_SIGNING_SUPPORTED_MACHINES=$(torizoncore-builder secboot sign-kernel --help \
                                         | sed -n '/^Currently supported machines:/,$p' | tr -d '\n')
