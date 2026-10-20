@@ -403,8 +403,17 @@ test-host-tos7-torizon-signed-nightly:
     - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
     - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] || { echo "SIGIMG_ARTIFACTORY_PRERELEASE_REPO not set"; exit 1; }'
     - export BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"
+    # The variable reaches protected branches only; elsewhere the case needing the key skips.
+    - |
+      if [ -n "${K3_REFERENCE_KEY_FILE}" ] && [ -n "${TCB_K3_REFERENCE_KEY_BASE64}" ]; then
+        mkdir -p workdir
+        (umask 077 && printf '%s' "${TCB_K3_REFERENCE_KEY_BASE64}" | base64 -d > "workdir/${K3_REFERENCE_KEY_FILE}")
+        export TCB_K3_REFERENCE_KEY="${K3_REFERENCE_KEY_FILE}"
+      fi
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "secboot build" --tcb-tags secboot
       --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+  after_script:
+    - '[ -z "${K3_REFERENCE_KEY_FILE}" ] || rm -f "tests/integration/workdir/${K3_REFERENCE_KEY_FILE}"'
 
 test-host-tos7-secboot-verdin-imx8mp-nightly:
   extends: .test-secboot-base
@@ -420,11 +429,15 @@ test-host-tos7-secboot-verdin-am62-nightly:
   extends: .test-secboot-base
   variables:
     TCB_MACHINE: "verdin-am62"
+    # Where the key that signed the image goes, relative to the test working directory.
+    K3_REFERENCE_KEY_FILE: "k3-reference-key.pem"
 
 test-host-tos7-secboot-verdin-am62p-nightly:
   extends: .test-secboot-base
   variables:
     TCB_MACHINE: "verdin-am62p"
+    # Where the key that signed the image goes, relative to the test working directory.
+    K3_REFERENCE_KEY_FILE: "k3-reference-key.pem"
 
 .test-base-common-torizon:
   variables:
