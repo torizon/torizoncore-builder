@@ -104,6 +104,8 @@ TCB_UNDER_CI:     If set to '1', some tests not appropriate for running
 TCB_TAGS:         Only run tests that match all the tags in the list (&&).
                   Separating the lists by space allows for logical or (||):
                   `a,b x,y` matches tags (a && b) || (x && y)
+                  A '!' before a tag negates it: `!secboot` matches tests
+                  without the 'secboot' tag.
 TCB_K3_REFERENCE_KEY:
                   Path to the key that signed the image under test, which
                   enables the secboot cases that compare a re-signed

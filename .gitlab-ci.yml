@@ -379,7 +379,8 @@ test-host-tos7-torizon-signed-nightly:
     - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
     - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
     - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
-    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
+    # test-host-tos7-secboot-verdin-imx8mp-nightly runs the secboot cases on these same images.
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS" --tcb-tags '!secboot'
       --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
 # One job per machine secboot supports: it signs differently on each, so a pass on one machine
