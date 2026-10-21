@@ -151,8 +151,19 @@ teardown_file() {
     local OUTDIR='k3_re_signed_image'
     rm -rf "${OUTDIR}"
 
+    cp "${SAMPLES_DIR}/config/tcbuild-k3-re-signing-components.yaml" \
+       "tcbuild-k3-re-signing-components.yaml"
+    local TCBUILD_YAML="tcbuild-k3-re-signing-components.yaml"
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "${TCBUILD_YAML}" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/config/tcbuild-k3-re-signing-components.yaml" \
+        --file "${TCBUILD_YAML}" \
         --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
         --set K3_KEY="$K3_KEY" \
         --set KERNEL_KEY_DIR="$KERNEL_KEY_DIR" \

@@ -686,9 +686,14 @@ print(signed)
         OTHER_VARIANT="hs-fs"
     fi
 
+    local cfs_support="$(cfs-support-flag)"
+
     torizoncore-builder secboot sign-bootloader-k3 \
         --k3-key "${K3_KEY}" --target-device "${OTHER_TARGET}"
-    torizoncore-builder union k3-retarget-branch
+    torizoncore-builder union k3-retarget-branch \
+        ${cfs_support:+
+          --ostree-key-dir "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+          --ostree-key "name=cfs-dev;algo=ed25519"}
     run torizoncore-builder deploy --output-directory "${OUTPUT_DIR}" k3-retarget-branch
     assert_success
     assert_output --partial "Image set to target a ${OTHER_TARGET^^} device"
