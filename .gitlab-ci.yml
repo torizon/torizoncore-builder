@@ -382,6 +382,47 @@ test-host-tos7-torizon-signed-nightly:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
       --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
 
+# One job per machine secboot supports: it signs differently on each, so a pass on one machine
+# says nothing about the others.
+.test-secboot-base:
+  # TODO: Review once signed images are available publicly.
+  tags:
+    - internal-network-access
+  extends: .test-base
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    # With root filesystem protection, so sign-kernel also updates each machine's initramfs.
+    TARGET_SIGNING_CLASS: "torizon-signed"
+    ACCEPT_VARIANTS: "torizon-minimal"
+  script:
+    # Nightly images only, so the production repository the other signed jobs read is not needed.
+    - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'
+    - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] || { echo "SIGIMG_ARTIFACTORY_PRERELEASE_REPO not set"; exit 1; }'
+    - export BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"
+    - ./run_all.sh --machine $TCB_MACHINE --report --testcase "secboot build" --tcb-tags secboot
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+
+test-host-tos7-secboot-verdin-imx8mp-nightly:
+  extends: .test-secboot-base
+  variables:
+    TCB_MACHINE: "verdin-imx8mp"
+
+test-host-tos7-secboot-verdin-imx8mm-nightly:
+  extends: .test-secboot-base
+  variables:
+    TCB_MACHINE: "verdin-imx8mm"
+
+test-host-tos7-secboot-verdin-am62-nightly:
+  extends: .test-secboot-base
+  variables:
+    TCB_MACHINE: "verdin-am62"
+
+test-host-tos7-secboot-verdin-am62p-nightly:
+  extends: .test-secboot-base
+  variables:
+    TCB_MACHINE: "verdin-am62p"
+
 .test-base-common-torizon:
   variables:
     IS_WIC: 1
