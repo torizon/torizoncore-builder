@@ -395,6 +395,8 @@ test-host-tos7-torizon-signed-nightly:
     # With root filesystem protection, so sign-kernel also updates each machine's initramfs.
     TARGET_SIGNING_CLASS: "torizon-signed"
     ACCEPT_VARIANTS: "torizon-minimal"
+    # An image without signing artifacts would skip every case that needs a signed image, so fail.
+    TCB_REQUIRE_SIGNED_IMAGE: "1"
   script:
     # Nightly images only, so the production repository the other signed jobs read is not needed.
     - '[ -n "${SIGIMG_ARTIFACTORY_URL}" ] || { echo "SIGIMG_ARTIFACTORY_URL not set"; exit 1; }'

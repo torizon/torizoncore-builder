@@ -276,6 +276,13 @@ if [ "$IS_WIC" != "1" ] && [ -n "$DEFAULT_TEZI_IMAGE" ]; then
     _setup_cfs_supp_vars
 fi
 
+# Without signing artifacts every case that needs a signed image skips, and a run that exists to
+# test signing would pass having tested none of it.
+if [ "$TCB_REQUIRE_SIGNED_IMAGE" = "1" ] && [ -z "$DEFAULT_SIGNED_TEZI_IMAGE" ]; then
+    echo "Error: TCB_REQUIRE_SIGNED_IMAGE is set, but the image for machine $MACHINE has no signing artifacts!"
+    exit 6
+fi
+
 # Run tests
 if [ "$TCB_REPORT" = "1" ]; then
     if [ "$TCB_UNDER_CI" = "1" ]; then

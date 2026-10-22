@@ -118,6 +118,11 @@ TCB_K3_REFERENCE_KEY:
                   TorizonCore Builder ships. For an image built with
                   another degenerate key those bytes differ and the
                   comparison fails, so leave this variable unset for it.
+TCB_REQUIRE_SIGNED_IMAGE:
+                  If set to '1', stop with an error before running any
+                  test when the image under test has no signing
+                  artifacts, instead of skipping every case that needs a
+                  signed image.
 
 Following are some examples of running the test cases.
 
