@@ -352,11 +352,26 @@ properties:
                   srk-no-ca-flag:
                     type: boolean
                     description: "boolean indicating if the CA flag was not set when generating the SRK certificates"
+                  srk-cert-pkcs11-uri:
+                    type: string
+                    description: "PKCS#11 URI of the SRK certificate held in a token, used instead of the one in the CST directory"
+                  csf-cert-pkcs11-uri:
+                    type: string
+                    description: "PKCS#11 URI of the CSF certificate held in a token"
+                  img-cert-pkcs11-uri:
+                    type: string
+                    description: "PKCS#11 URI of the IMG certificate held in a token"
                 # No extra props inside 'cst-args'
                 additionalProperties: false
+              pkcs11-module:
+                type: string
+                description: "path to the PKCS#11 module giving access to the token"
               kernel-key-dir:
                 type: string
                 description: "path to kernel key directory"
+              kernel-key-pkcs11-uri:
+                type: string
+                description: "PKCS#11 URI of the kernel key held in a token, whose certificate is read from it instead of kernel-key-dir"
               kernel-key:
                 type: array
                 description: "list of keys to be used to verify the kernel FIT"
@@ -426,6 +441,12 @@ properties:
               kernel-key-dir:
                 type: string
                 description: "path to kernel key directory"
+              kernel-key-pkcs11-uri:
+                type: string
+                description: "PKCS#11 URI of the kernel key held in a token, used instead of kernel-key-dir"
+              pkcs11-module:
+                type: string
+                description: "path to the PKCS#11 module giving access to the token"
               kernel-key:
                 type: array
                 description: "list of keys to be used to sign the kernel FIT"
