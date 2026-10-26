@@ -104,6 +104,8 @@ TCB_UNDER_CI:     If set to '1', some tests not appropriate for running
 TCB_TAGS:         Only run tests that match all the tags in the list (&&).
                   Separating the lists by space allows for logical or (||):
                   `a,b x,y` matches tags (a && b) || (x && y)
+                  A '!' before a tag negates it: `!secboot` matches tests
+                  without the 'secboot' tag.
 TCB_K3_REFERENCE_KEY:
                   Path to the key that signed the image under test, which
                   enables the secboot cases that compare a re-signed
@@ -118,6 +120,11 @@ TCB_K3_REFERENCE_KEY:
                   TorizonCore Builder ships. For an image built with
                   another degenerate key those bytes differ and the
                   comparison fails, so leave this variable unset for it.
+TCB_REQUIRE_SIGNED_IMAGE:
+                  If set to '1', stop with an error before running any
+                  test when the image under test has no signing
+                  artifacts, instead of skipping every case that needs a
+                  signed image.
 
 Following are some examples of running the test cases.
 
@@ -159,6 +166,10 @@ $ TCB_TAGS="all" TCB_MACHINE=apalis-imx6 ./run.sh
 
 The command below will execute untagged tests:
 $ TCB_TAGS="" TCB_MACHINE=apalis-imx6 ./run.sh
+
+The command below will execute the secure boot tests, which are tagged as
+'secboot' and so are left out of a run of untagged tests:
+$ TCB_TAGS="secboot" TCB_TESTCASE="secboot build" TCB_MACHINE=verdin-am62 ./run.sh
 
 The command below will execute tests tagged as 'requires-device':
 $ TCB_TAGS="requires-device" TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh

@@ -125,6 +125,8 @@ teardown_file() {
     rm -rf dummy_output_directory
 }
 
+# The secure boot CI jobs run only cases tagged 'secboot'; tag new ones here too.
+# bats test_tags=secboot
 @test "build: re-signing of bootloader (K3) and kernel FIT image" {
     requires-supported-k3-signing-machine
     requires-supported-kernel-signing-machine
@@ -151,8 +153,19 @@ teardown_file() {
     local OUTDIR='k3_re_signed_image'
     rm -rf "${OUTDIR}"
 
+    cp "${SAMPLES_DIR}/config/tcbuild-k3-re-signing-components.yaml" \
+       "tcbuild-k3-re-signing-components.yaml"
+    local TCBUILD_YAML="tcbuild-k3-re-signing-components.yaml"
+
+    if [ "${DEFAULT_TEZI_IMAGE_HAS_CFS_SUPPORT}" = "1" ]; then
+        set-ostree-key-in-tcbuild \
+            "${TCBUILD_YAML}" \
+            "name=cfs-dev;algo=ed25519" \
+            "${SAMPLES_DIR}/signing_keys/ostree-good1/"
+    fi
+
     run torizoncore-builder build \
-        --file "${SAMPLES_DIR}/config/tcbuild-k3-re-signing-components.yaml" \
+        --file "${TCBUILD_YAML}" \
         --set INPUT_IMAGE="$DEFAULT_SIGNED_TEZI_IMAGE" \
         --set K3_KEY="$K3_KEY" \
         --set KERNEL_KEY_DIR="$KERNEL_KEY_DIR" \
@@ -192,6 +205,7 @@ teardown_file() {
     rm -rf "${OUTDIR}"
 }
 
+# bats test_tags=secboot
 @test "build: re-signing of bootloader (HAB) and kernel FIT image" {
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine
@@ -802,6 +816,7 @@ teardown_file() {
     rm -fr "$OUTDIR"
 }
 
+# bats test_tags=secboot
 @test "build: fusing without re-signing failure case" {
     cp "${SAMPLES_DIR}/config/tcbuild-no-re-sign-fuse.yaml" \
        "tcbuild-no-re-sign-fuse.yaml"
@@ -825,6 +840,7 @@ teardown_file() {
     assert_output --partial "Error: To do 'fusing', 'sign-bootloader-hab' must be defined at the same time."
 }
 
+# bats test_tags=secboot
 @test "build: fusing file outside of output directory failure case" {
     requires-supported-kernel-signing-machine
     requires-supported-hab-signing-machine
