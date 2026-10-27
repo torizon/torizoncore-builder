@@ -171,6 +171,10 @@ bats_load_library 'bats/bats-file/load.bash'
         run torizoncore-builder-shell \
             "test \"\$(fdtget ${kpath} /configurations/${config_node} fdt)\" == \"${image_node}\""
         assert_success
+
+        echo "Checking the new image node's hash values are the ones mkimage computes."
+        run check-fit-image-hashes ${kpath} ${image_node}
+        assert_success
     else
         echo "Checking existence of overlays.txt in the dt changes directory."
 	run torizoncore-builder-shell "cat /storage/dt/usr/lib/modules/*/dtb/overlays.txt"
