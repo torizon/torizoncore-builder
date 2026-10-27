@@ -1,0 +1,511 @@
+variables:
+  MAGMA_TEST_ALL:
+    value: false
+    description: "Whether to test all machines using MAGMA"
+  MAGMA_DISABLED:
+    value: false
+    description: "Whether to disable the MAGMA jobs in the pipeline."
+  MAGMA_ALLOW_FAILURE:
+    value: false
+    description: "Whether to allow the pipeline to continue upon failures in MAGMA jobs."
+
+# Build the MAGMA container with docker that will run the tests on the host PC
+build-magma-docker:
+  tags:
+    - amd64
+  stage: build
+  rules:
+    - if: '$MAGMA_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$MAGMA_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+  variables:
+    IMAGE_NAME_MAGMA: magma-docker
+    DOCKERFILE_NAME: tests/integration/magma/magma-docker.Dockerfile
+  before_script:
+    - docker info
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
+  script:
+    - ${B} docker build --build-arg CI_REGISTRY="${CI_REGISTRY}"
+                        --build-arg CI_PROJECT_NAMESPACE="${CI_PROJECT_NAMESPACE}"
+                        -f "${DOCKERFILE_NAME}"
+                        -t "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_MAGMA}:${GITLAB_DOCKERREGISTRY_SUFFIX}" .
+    - ${B} docker push "${CI_REGISTRY_IMAGE}/${IMAGE_NAME_MAGMA}:${GITLAB_DOCKERREGISTRY_SUFFIX}"
+
+.magma-template:
+  stage: test
+  variables:
+    IMAGE_NAME: torizoncore-builder-amd64
+    IMAGE_NAME_MAGMA: magma-docker
+    LAB_SSH_USER: "ci_tcb"
+  image: ${CI_REGISTRY_IMAGE}/${IMAGE_NAME_MAGMA}:${GITLAB_DOCKERREGISTRY_SUFFIX}
+  before_script:
+    - docker info
+    # TODO: TAU-124: move this SSH bootstrap into the magma image or
+    # magma-client, so each repo doesn't need its own copy
+    # $LAB_SSH_PRIVATE_KEY holds the key base64-encoded on a single
+    # line — pasting the raw multi-line PEM into GitLab's variable field
+    # got mangled (CRLF/whitespace), which `ssh` rejected with
+    # "error in libcrypto"
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$LAB_SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - LAB_HOST=$(magma-client -p "$PLACE" lab-host)
+    - echo "LAB_HOST=$LAB_HOST"
+    - ssh-keyscan -H "$LAB_HOST" >> ~/.ssh/known_hosts
+    # labgrid's own SSH to the exporter takes the user and key from here
+    - printf 'Host %s\n  User %s\n  IdentityFile ~/.ssh/id_ed25519\n  IdentitiesOnly yes\n' "$LAB_HOST" "$LAB_SSH_USER" > ~/.ssh/config
+    - chmod 600 ~/.ssh/config
+    - ssh -o BatchMode=yes -o ConnectTimeout=5 "$LAB_HOST" true
+    - magma-client -p "$PLACE" acquire
+  script:
+    # pull latest build of TorizonCore Builder
+    - echo -e "\e[0Ksection_start:$(date +%s):pull_eval_tcb_section\r\e[0KPull TorizonCore Builder to be evaluated"
+    - ${T} docker login -u "${CI_DOCKER_HUB_PULL_USER}" -p "${CI_DOCKER_HUB_PULL_PASSWORD}"
+    - ${T} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - ${T} docker pull "${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}"
+    - echo -e "\e[0Ksection_end:$(date +%s):pull_eval_tcb_section\r\e[0K"
+    - cd tests/integration
+    # Resolve the TEZI recovery installer and the rootfs image.json for this
+    # build-type/place (teziget-cli auto-discovers the latest build and
+    # picks the Artifactory repo and image of the branch/build type). The
+    # TEZI version is pinned by teziget-cli to one that works with any
+    # Torizon version, so it doesn't follow YOCTO_BRANCH.
+    - TEZI_URL=$(teziget-cli tezi --build_type "$TARGET_BUILD_TYPE" --place "$PLACE")
+    - IMAGE_URL=$(teziget-cli torizon --version "$YOCTO_BRANCH" --build_type "$TARGET_BUILD_TYPE"
+        --place "$PLACE")
+    - echo "TEZI_URL=$TEZI_URL"
+    - echo "IMAGE_URL=$IMAGE_URL"
+    - magma-client -p "$PLACE" flash --tezi-url "$TEZI_URL" --image-url "$IMAGE_URL"
+        --tos-password "$DEVICE_PASSWORD" --device-info-file device_information --no-progress
+    - ./run_all.sh --device --device-info device_information --machine $TCB_MACHINE --report
+        --tcb-tags requires-device
+        --tcb-custom-image ${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${GITLAB_DOCKERREGISTRY_SUFFIX_LATEST}
+  after_script:
+    # Always release the place, even if a step fails, so a bad run doesn't
+    # leave the board locked for everyone else
+    - magma-client -p "$PLACE" release
+  artifacts:
+    when: always
+    reports:
+      junit: tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
+    paths:
+      - tests/integration/workdir/reports/report-${CI_JOB_NAME}.xml
+
+.magma-template-linux-default-machines:
+  extends: .magma-template
+  tags:
+    - internal-network-access
+  rules:
+    - if: '$MAGMA_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$MAGMA_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+
+.magma-template-linux-all-machines:
+  extends: .magma-template
+  tags:
+    - internal-network-access
+  rules:
+    - if: '$MAGMA_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$MAGMA_TEST_ALL !~ /^true$/i'
+      when: never
+    - if: '$MAGMA_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+
+.magma-template-wsl:
+  extends: .magma-template
+  tags:
+    - windows-wsl
+  rules:
+    - if: '$MAGMA_DISABLED =~ /^true$/i'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: '$MAGMA_ALLOW_FAILURE =~ /^true$/i'
+      when: on_success
+      allow_failure: true
+    - when: on_success
+
+magma-apalis-imx6-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0027-Apalis-iMX6-Quad-1GB-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0027-Apalis-iMX6-Quad-1GB-01"
+    TCB_MACHINE: "apalis-imx6"
+
+magma-apalis-imx6-scarthgap-release:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0027-Apalis-iMX6-Quad-1GB-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0027-Apalis-iMX6-Quad-1GB-01"
+    TCB_MACHINE: "apalis-imx6"
+
+magma-apalis-imx6-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0027-Apalis-iMX6-Quad-1GB-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0027-Apalis-iMX6-Quad-1GB-01"
+    TCB_MACHINE: "apalis-imx6"
+
+magma-apalis-imx8-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0037-Apalis-iMX8-QuadMax-4GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0037-Apalis-iMX8-QuadMax-4GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "apalis-imx8"
+
+magma-apalis-imx8-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0037-Apalis-iMX8-QuadMax-4GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0037-Apalis-iMX8-QuadMax-4GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "apalis-imx8"
+
+magma-apalis-imx8-scarthgap-nightly:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0037-Apalis-iMX8-QuadMax-4GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0037-Apalis-iMX8-QuadMax-4GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "apalis-imx8"
+
+magma-aquila-am69-scarthgap-release:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0088-Aquila-AM69-Octa-32GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0088-Aquila-AM69-Octa-32GB-WB-IT-01"
+    TCB_MACHINE: "aquila-am69"
+
+magma-aquila-am69-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0088-Aquila-AM69-Octa-32GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0088-Aquila-AM69-Octa-32GB-WB-IT-01"
+    TCB_MACHINE: "aquila-am69"
+
+magma-aquila-imx95-scarthgap-release:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0098-Aquila-iMX95-Hexa-8GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0098-Aquila-iMX95-Hexa-8GB-WB-IT-01"
+    TCB_MACHINE: "aquila-imx95"
+
+magma-aquila-imx95-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0098-Aquila-iMX95-Hexa-8GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0098-Aquila-iMX95-Hexa-8GB-WB-IT-01"
+    TCB_MACHINE: "aquila-imx95"
+
+magma-colibri-imx6-kirkstone-release:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0017-Colibri-iMX6-DualLite-512MB-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0017-Colibri-iMX6-DualLite-512MB-IT-01"
+    TCB_MACHINE: "colibri-imx6"
+
+magma-colibri-imx6-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0017-Colibri-iMX6-DualLite-512MB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0017-Colibri-iMX6-DualLite-512MB-IT-01"
+    TCB_MACHINE: "colibri-imx6"
+
+magma-colibri-imx6-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0017-Colibri-iMX6-DualLite-512MB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0017-Colibri-iMX6-DualLite-512MB-IT-01"
+    TCB_MACHINE: "colibri-imx6"
+
+magma-colibri-imx6ull-emmc-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0062-Colibri-iMX6ULL-1GB-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0062-Colibri-iMX6ULL-1GB-IT-01"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+magma-colibri-imx6ull-emmc-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0062-Colibri-iMX6ULL-1GB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0062-Colibri-iMX6ULL-1GB-IT-01"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+magma-colibri-imx6ull-emmc-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0062-Colibri-iMX6ULL-1GB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0062-Colibri-iMX6ULL-1GB-IT-01"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+wsl-magma-colibri-imx6ull-emmc-scarthgap-nightly:
+  extends: .magma-template-wsl
+  resource_group: "0062-Colibri-iMX6ULL-1GB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0062-Colibri-iMX6ULL-1GB-IT-01"
+    TCB_MACHINE: "colibri-imx6ull-emmc"
+
+magma-colibri-imx7-emmc-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0039-Colibri-iMX7-Dual-1GB-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0039-Colibri-iMX7-Dual-1GB-01"
+    TCB_MACHINE: "colibri-imx7-emmc"
+
+magma-colibri-imx7-emmc-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0039-Colibri-iMX7-Dual-1GB-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0039-Colibri-iMX7-Dual-1GB-01"
+    TCB_MACHINE: "colibri-imx7-emmc"
+
+magma-colibri-imx7-emmc-scarthgap-nightly:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0039-Colibri-iMX7-Dual-1GB-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0039-Colibri-iMX7-Dual-1GB-01"
+    TCB_MACHINE: "colibri-imx7-emmc"
+
+magma-colibri-imx8x-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "colibri-imx8x"
+
+magma-colibri-imx8x-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "colibri-imx8x"
+
+magma-colibri-imx8x-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "colibri-imx8x"
+
+wsl-magma-colibri-imx8x-scarthgap-nightly:
+  extends: .magma-template-wsl
+  resource_group: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0038-Colibri-iMX8-QuadXPlus-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "colibri-imx8x"
+
+magma-toradex-smarc-imx8mp-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0097-SMARC-iMX8M-Plus-Quad-4GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0097-SMARC-iMX8M-Plus-Quad-4GB-WB-IT-01"
+    TCB_MACHINE: "toradex-smarc-imx8mp"
+
+magma-toradex-smarc-imx8mp-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0097-SMARC-iMX8M-Plus-Quad-4GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0097-SMARC-iMX8M-Plus-Quad-4GB-WB-IT-01"
+    TCB_MACHINE: "toradex-smarc-imx8mp"
+
+magma-toradex-smarc-imx95-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0096-SMARC-iMX95-Hexa-8GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0096-SMARC-iMX95-Hexa-8GB-WB-IT-01"
+    TCB_MACHINE: "toradex-smarc-imx95"
+
+magma-toradex-smarc-imx95-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0096-SMARC-iMX95-Hexa-8GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0096-SMARC-iMX95-Hexa-8GB-WB-IT-01"
+    TCB_MACHINE: "toradex-smarc-imx95"
+
+magma-verdin-am62-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0076-Verdin-AM62-Quad-2GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0076-Verdin-AM62-Quad-2GB-WB-IT-01"
+    TCB_MACHINE: "verdin-am62"
+
+magma-verdin-am62-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0076-Verdin-AM62-Quad-2GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0076-Verdin-AM62-Quad-2GB-WB-IT-01"
+    TCB_MACHINE: "verdin-am62"
+
+magma-verdin-am62-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0076-Verdin-AM62-Quad-2GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0076-Verdin-AM62-Quad-2GB-WB-IT-01"
+    TCB_MACHINE: "verdin-am62"
+
+magma-verdin-am62p-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0099-Verdin-AM62P-2GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0099-Verdin-AM62P-2GB-WB-IT-01"
+    TCB_MACHINE: "verdin-am62p"
+
+magma-verdin-am62p-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0099-Verdin-AM62P-2GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0099-Verdin-AM62P-2GB-WB-IT-01"
+    TCB_MACHINE: "verdin-am62p"
+
+magma-verdin-imx8mm-kirkstone-release:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0055-Verdin-iMX8M-Mini-Quad-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0055-Verdin-iMX8M-Mini-Quad-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "verdin-imx8mm"
+
+magma-verdin-imx8mm-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0055-Verdin-iMX8M-Mini-Quad-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0055-Verdin-iMX8M-Mini-Quad-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "verdin-imx8mm"
+
+magma-verdin-imx8mm-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0055-Verdin-iMX8M-Mini-Quad-2GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0055-Verdin-iMX8M-Mini-Quad-2GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "verdin-imx8mm"
+
+magma-verdin-imx8mp-kirkstone-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0058-Verdin-iMX8M-Plus-Quad-4GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "kirkstone-6.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0058-Verdin-iMX8M-Plus-Quad-4GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "verdin-imx8mp"
+
+magma-verdin-imx8mp-scarthgap-release:
+  extends: .magma-template-linux-default-machines
+  resource_group: "0058-Verdin-iMX8M-Plus-Quad-4GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0058-Verdin-iMX8M-Plus-Quad-4GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "verdin-imx8mp"
+
+magma-verdin-imx8mp-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0058-Verdin-iMX8M-Plus-Quad-4GB-WiFi-BT-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0058-Verdin-iMX8M-Plus-Quad-4GB-WiFi-BT-IT-01"
+    TCB_MACHINE: "verdin-imx8mp"
+
+magma-verdin-imx95-scarthgap-release:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0089-Verdin-iMX95-Hexa-8GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "release"
+    PLACE: "0089-Verdin-iMX95-Hexa-8GB-WB-IT-01"
+    TCB_MACHINE: "verdin-imx95"
+
+magma-verdin-imx95-scarthgap-nightly:
+  extends: .magma-template-linux-all-machines
+  resource_group: "0089-Verdin-iMX95-Hexa-8GB-WB-IT-01"
+  variables:
+    YOCTO_BRANCH: "scarthgap-7.x.y"
+    TARGET_BUILD_TYPE: "nightly"
+    PLACE: "0089-Verdin-iMX95-Hexa-8GB-WB-IT-01"
+    TCB_MACHINE: "verdin-imx95"

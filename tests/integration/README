@@ -173,3 +173,18 @@ $ TCB_TAGS="secboot" TCB_TESTCASE="secboot build" TCB_MACHINE=verdin-am62 ./run.
 
 The command below will execute tests tagged as 'requires-device':
 $ TCB_TAGS="requires-device" TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh
+
+Running the tests on MAGMA (CI)
+===============================
+
+The hardware-in-the-loop CI jobs (magma/magma-tests.yml) flash each
+board with `magma-client flash --tos-password`, which writes a
+shell-sourceable device information file:
+
+export DEVICE_IP="10.200.105.43"
+export DEVICE_HOSTNAME="colibri-imx6ull-emmc-06906475"
+
+run_all.sh reads it with `--device-info <file>` (default:
+device_information). The jobs need the LAB_SSH_PRIVATE_KEY (the lab
+user's private key, base64-encoded on a single line) and
+DEVICE_PASSWORD CI variables.

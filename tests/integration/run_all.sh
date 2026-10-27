@@ -5,9 +5,10 @@
 # Run all tests without a device:
 # ./run_all.sh
 #
-# Run tests that require a device where the network information is provided by a custom_device_info.json:
+# Run tests that require a device where the network information is provided by a
+# shell-sourceable device-info file (as written by `magma-client flash --tos-password`):
 #
-# ./run_all.sh --device --device-info custom_device_info.json
+# ./run_all.sh --device --device-info custom_device_information
 #
 # Run a specific test case:
 # ./run_all.sh --testcase dto
@@ -23,7 +24,7 @@ usage() {
     echo "Options:"
     echo "  -h, --help                 Show this help message"
     echo "  -d, --device               Use device connection if required by tests"
-    echo "  -i, --device-info FILE     Use specified device information JSON file (default: device_information.json)"
+    echo "  -i, --device-info FILE     Use specified device information file (default: device_information)"
     echo "  -m, --machine MACHINE      Specify machine type (e.g., apalis-imx6)"
     echo "  -t, --testcase TESTCASE    Specify test case(s) to run"
     echo "  -r, --report               Generate test report"
@@ -41,7 +42,7 @@ usage() {
 export IS_WIC=${IS_WIC:-0}
 
 USE_DEVICE=0
-DEVICE_INFO_FILE="device_information.json"
+DEVICE_INFO_FILE="device_information"
 export TCB_TESTCASE=""
 export TCB_REPORT=0
 export TCB_TAGS="all"
@@ -96,16 +97,16 @@ done
 
 check_device_connection() {
     if [ -f "$DEVICE_INFO_FILE" ]; then
-        deviceUuid=$(jq -r '.deviceUuid' "$DEVICE_INFO_FILE")
-        localIpV4=$(jq -r '.localIpV4' "$DEVICE_INFO_FILE")
-        hostname=$(jq -r '.hostname' "$DEVICE_INFO_FILE")
-        macAddress=$(jq -r '.macAddress' "$DEVICE_INFO_FILE")
+        # shellcheck disable=SC1090
+        source "$DEVICE_INFO_FILE"
 
-        export DEVICE_ADDR="$localIpV4"
-        export DEVICE_UUID="$deviceUuid"
-        export DEVICE_HOSTNAME="$hostname"
-        export DEVICE_MAC="$macAddress"
-        export TCB_DEVICE="$localIpV4"
+        if [ -z "$DEVICE_IP" ]; then
+            echo "Error: DEVICE_IP not set by '$DEVICE_INFO_FILE'."
+            exit 1
+        fi
+
+        export DEVICE_ADDR="$DEVICE_IP"
+        export TCB_DEVICE="$DEVICE_IP"
 
         echo "Using device at IP address $DEVICE_ADDR"
     else

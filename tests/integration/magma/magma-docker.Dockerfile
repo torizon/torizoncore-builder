@@ -1,10 +1,14 @@
-# Uses the AVAL container as a base, which is built in its own repo. From there, it adds
-# the docker that is necessary to run the TCB container in the tests, in addition to the
-# "sshpass" and "bats" dependencies that are also used in the tests.
+# Builds the CI image that drives MAGMA (Toradex's labgrid-based hardware-in-the-loop
+# lab tool) to provision a real board and flash it, then runs the TCB integration
+# tests against it.
+#
+# Based on magma's own published client image (built by its magma-container-manifest
+# CI job), which already has magma-client/teziget-cli on PATH via /opt/venv -- this
+# just layers on the Docker CLI and TCB-specific test tooling on top.
 ARG CI_REGISTRY
 ARG CI_PROJECT_NAMESPACE
 
-FROM ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/aval/aval:main
+FROM ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/magma:main
 
 RUN apt-get update && \
     apt-get install -y \
@@ -33,4 +37,4 @@ RUN apt-get update && \
 # Install dependencies to run TCB integration tests
 RUN apt-get update && apt-get install -y \
         sshpass bats git zstd wget bash \
-        tar openssl zip bc avahi-utils
+        tar openssl zip bc avahi-utils jq
