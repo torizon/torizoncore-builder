@@ -4,10 +4,14 @@ This module offers the class `KernelFit` for manipulating FIT images.
 
 import logging
 import re
+import shlex
+import subprocess
 from typing import Dict, List, Union, Optional, Any, BinaryIO
 
 import libfdt
 from libfdt import QUIET_NOTFOUND
+
+from tcbuilder.errors import TorizonCoreBuilderError
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -21,6 +25,9 @@ DTB_NODE_SUFFIX = ".dtb"
 DEFAULT_DTB_PROP = "default"
 RAMDISK_IMAGE_NAME_PROP = "ramdisk"
 RAMDISK_IMAGE_DATA_PROP = "data"
+
+UBOOT_TOOLS_DIR = "/u-boot/tools"
+MKIMAGE_DTC_OPT = "-I dts -O dtb -p 2000"
 
 SIGNATURE_PROPS_TO_DELETE = [
     "hashed-nodes",
@@ -45,6 +52,42 @@ DELETE_PROPS_ON_DTB_COPY = True
 #   Can't set hash 'value' property for 'hash-1' node(FDT_ERR_NOSPACE)
 #
 DELETE_HASH_PROPS_ON_RAMDISK_UPDATE = False
+
+
+def run_mkimage(args: List[str], loglevel: int = logging.DEBUG) -> str:
+    """Run U-Boot's mkimage with a reproducible timestamp and return its output."""
+    mkimage = f"{UBOOT_TOOLS_DIR}/mkimage"
+    mkimage_env = {"SOURCE_DATE_EPOCH": "0"}
+    mkimage_cmd = [mkimage, "-D", MKIMAGE_DTC_OPT] + args
+    try:
+        # Check if mkimage is present in the environment
+        mkimage_version = subprocess.check_output(
+            [mkimage, "--version"], text=True, stderr=subprocess.STDOUT).strip()
+        log.log(loglevel, "Using %s.", mkimage_version)
+
+        mkimage_print = (" ".join([f"{key}={val}" for key, val in mkimage_env.items()]) + " " +
+                         shlex.join(mkimage_cmd))
+        log.log(loglevel, "Execute: %s", mkimage_print)
+        mkimage_output = subprocess.check_output(
+            mkimage_cmd, text=True, env=mkimage_env, stderr=subprocess.STDOUT)
+
+    except subprocess.CalledProcessError as exc:
+        raise TorizonCoreBuilderError(exc.output.strip()) from exc
+
+    log.debug("---------- OUTPUT FROM MKIMAGE ----------")
+    log.debug(mkimage_output)
+    log.debug("--------- END OF MKIMAGE OUTPUT ---------")
+    return mkimage_output
+
+
+def refresh_hashes(fit_path: str) -> None:
+    """Recompute the hash values of every image in a FIT file on disk.
+
+    U-Boot rejects an image whose hash value is missing or stale, so this must
+    run after each change to the FIT. Without a key, mkimage leaves signature
+    nodes alone; signing re-runs it with one.
+    """
+    run_mkimage(["-F", fit_path])
 
 
 class KernelFitException(Exception):

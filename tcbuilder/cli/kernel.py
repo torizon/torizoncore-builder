@@ -19,7 +19,7 @@ from tcbuilder.backend.common import \
 from tcbuilder.backend.deploy import get_image_bootloader
 
 from tcbuilder.backend import kernel, dt, dto, uenv
-from tcbuilder.backend.kernelfit import KernelFit
+from tcbuilder.backend.kernelfit import KernelFit, refresh_hashes
 from tcbuilder.cli import dto as dto_cli
 
 log = logging.getLogger("torizon." + __name__)
@@ -358,6 +358,7 @@ def _set_secboot_required_bootargs(kargs, changes_dir):
     # Update kernel FIT image on disk.
     with open(kernel_path, "wb") as fhandle:
         fit.write(fhandle)
+    refresh_hashes(kernel_path)
 
 
 def kernel_set_custom_args(kernel_args):

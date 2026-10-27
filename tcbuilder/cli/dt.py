@@ -17,7 +17,7 @@ from tcbuilder.backend import uenv as uenv_be
 from tcbuilder.backend.common import \
     (checkout_dt_git_repo, images_unpack_executed, is_file_type_fit, set_output_ownership,
      update_dt_git_repo, get_src_sysroot_dir)
-from tcbuilder.backend.kernelfit import KernelFit
+from tcbuilder.backend.kernelfit import KernelFit, refresh_hashes
 from tcbuilder.backend.deploy import get_image_bootloader
 from tcbuilder.errors import \
     (InvalidArgumentError, InvalidStateError, InvalidDataError, FeatureNotImplementedError,
@@ -127,6 +127,7 @@ def _deploy_dtb_fit(*, dtb_src_path, dtb_name, changes_dir):
     # Update kernel FIT image on disk.
     with open(kernel_path, "wb") as fhandle:
         fit.write(fhandle)
+    refresh_hashes(kernel_path)
 
 
 def _deploy_updated_uenv_txt(*, fdtfile, changes_dir):

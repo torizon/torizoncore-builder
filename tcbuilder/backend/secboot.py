@@ -15,6 +15,7 @@ from tcbuilder.backend.common import \
      get_tezi_image_version, is_file_type_fit, is_tcb_container_64bit,
      set_output_ownership, FUSE_CMD_TXT_NAME)
 from tcbuilder.backend.initramfs import UnpackedInitramfs
+from tcbuilder.backend.kernelfit import MKIMAGE_DTC_OPT, UBOOT_TOOLS_DIR, run_mkimage
 from tcbuilder.backend.ubootenv import get_env_filename, find_board
 from tcbuilder.backend.platform import SECBOOT_TECH_PER_MACHINE
 
@@ -26,7 +27,6 @@ log = logging.getLogger("torizon." + __name__)
 
 DEFAULT_TCB_SIGNING_FILES_TARNAME = "tcb_signing_files.tar.gz"
 
-UBOOT_TOOLS_DIR = "/u-boot/tools"
 SECURE_BOOT_WORKDIR = "/storage/secure_boot_workdir"
 UBOOT_DTB = "u-boot.dtb"
 KERNEL_FIT_FILENAME = kernel.OSTREE_KERNEL_FILENAME
@@ -37,8 +37,6 @@ UBOOT_DTBS_DIR = "u-boot-dtbs"
 BINMAN_OUTPUT_DIR = f"{SECURE_BOOT_WORKDIR}/binman_output"
 FLASH_BIN_SIGNING_DIR = "/storage/flash_bin_signing"
 SIGNED_BOOTLOADER_ARTIFACTS_DIR = "/storage/signed_bootloader_artifacts"
-
-MKIMAGE_DTC_OPT = "-I dts -O dtb -p 2000"
 
 FLASH_BIN = "flash.bin"
 ATF_BIN = "bl31*.bin"
@@ -735,31 +733,10 @@ def sign_kernel_with_mkimage(kernel_fitimage_path, kernel_key_dir, kernel_key_al
     :param kernel_key_algo: Pair of hashing and crypto algorithms used to sign the kernel
     """
 
-    try:
-        # Check if mkimage is present in the environment
-        mkimage_version = subprocess.check_output(
-            [f"{UBOOT_TOOLS_DIR}/mkimage", "--version"],
-            text=True, stderr=subprocess.STDOUT)
-        mkimage_version = mkimage_version.strip()
-        log.info("Signing kernel FIT image with tool %s; algorithm: %s.",
-                 mkimage_version, kernel_key_algo)
-
-        mkimage_env = {"SOURCE_DATE_EPOCH": "0"}
-        mkimage_cmd = [f"{UBOOT_TOOLS_DIR}/mkimage", "-D", MKIMAGE_DTC_OPT, "-F",
-                       "-o", kernel_key_algo, "-k", kernel_key_dir, "-r", kernel_fitimage_path]
-
-        mkimage_print = (" ".join([f"{key}={val}" for key, val in mkimage_env.items()]) + " " +
-                         shlex.join(mkimage_cmd))
-        log.info("Execute: %s", mkimage_print)
-        mkimage_output = subprocess.check_output(
-            mkimage_cmd, text=True, env=mkimage_env, stderr=subprocess.STDOUT)
-
-    except subprocess.CalledProcessError as exc:
-        raise TorizonCoreBuilderError(exc.output.strip()) from exc
-
-    log.debug("---------- OUTPUT FROM MKIMAGE ----------")
-    log.debug(mkimage_output)
-    log.debug("--------- END OF MKIMAGE OUTPUT ---------")
+    log.info("Signing kernel FIT image with mkimage; algorithm: %s.", kernel_key_algo)
+    mkimage_output = run_mkimage(
+        ["-F", "-o", kernel_key_algo, "-k", kernel_key_dir, "-r", kernel_fitimage_path],
+        loglevel=logging.INFO)
 
     sig_match = re.search(r"Signature written to '(.*)'", mkimage_output, re.IGNORECASE)
 
