@@ -14,7 +14,7 @@ from tcbuilder.backend.common import \
 from tcbuilder.backend import kernel as kernel_be
 from tcbuilder.backend import splash as splash_be
 from tcbuilder.backend import ostree
-from tcbuilder.backend.kernelfit import KernelFit
+from tcbuilder.backend.kernelfit import KernelFit, refresh_hashes
 
 log = logging.getLogger("torizon." + __name__)
 
@@ -161,6 +161,7 @@ def stage_kernel_fit(fit, dst_path=None):
     log.debug(f"Writing contents to {src_path}")
     with open(src_path, "wb") as fhandle:
         fit.write(fhandle)
+    refresh_hashes(src_path)
 
     # If the new file was created successfully, remove any previous kernel FIT and move
     # it to its respective union command "staging dir" or to the specified destination.

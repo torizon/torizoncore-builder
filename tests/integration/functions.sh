@@ -514,3 +514,20 @@ set-ostree-key-in-tcbuild() {
     fi
 }
 export -f set-ostree-key-in-tcbuild
+
+# check that every hash value of a FIT image node is the one mkimage computes
+# $1 = path to the FIT image inside the container
+# $2 = name of the image node
+check-fit-image-hashes() {
+    torizoncore-builder-shell "set -e
+        cp '$1' /tmp/fit-ref
+        SOURCE_DATE_EPOCH=0 /u-boot/tools/mkimage -F /tmp/fit-ref >/dev/null
+        checked=0
+        for hash in \$(fdtget -l '$1' '/images/$2' | grep '^hash'); do
+            test \"\$(fdtget -t bx '$1' '/images/$2/'\$hash value)\" = \
+                 \"\$(fdtget -t bx /tmp/fit-ref '/images/$2/'\$hash value)\"
+            checked=\$((checked + 1))
+        done
+        test \$checked -gt 0"
+}
+export -f check-fit-image-hashes

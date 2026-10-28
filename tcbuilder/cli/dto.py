@@ -10,7 +10,7 @@ import tempfile
 
 from tcbuilder.backend import dt, dto, common, kernel
 from tcbuilder.backend.common import images_unpack_executed, is_file_type_fit, get_src_sysroot_dir
-from tcbuilder.backend.kernelfit import KernelFit, KernelFitException
+from tcbuilder.backend.kernelfit import KernelFit, KernelFitException, refresh_hashes
 from tcbuilder.backend.deploy import get_image_bootloader
 
 from tcbuilder.cli import images as images_cli
@@ -144,6 +144,7 @@ def _deploy_dtob_fit(*, dtob_src_path, dtob_name, changes_dir):
     # Update kernel FIT image on disk.
     with open(kernel_path, "wb") as fhandle:
         fit.write(fhandle)
+    refresh_hashes(kernel_path)
 
 
 def dto_apply(dtos_path, dtb_path, include_dirs,
@@ -616,6 +617,7 @@ def _dto_remove_single_fit(dtob_basename, changes_dir, restore=True):
     # Update kernel FIT image on disk.
     with open(kernel_path_chgsdir, "wb") as fhandle:
         fitcustom.write(fhandle)
+    refresh_hashes(kernel_path_chgsdir)
 
 
 def dto_remove_single(dtob_basename, presence_required=True):

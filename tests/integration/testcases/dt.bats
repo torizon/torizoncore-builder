@@ -159,6 +159,10 @@ load 'lib/common.bash'
         run torizoncore-builder-shell \
             "test \"\$(fdtget ${vmlinuz_path} /configurations/${config_node} fdt)\" == \"${image_node}\""
         assert_success
+
+        echo "Checking the new image node's hash values are the ones mkimage computes."
+        run check-fit-image-hashes ${vmlinuz_path} ${image_node}
+        assert_success
     else
         echo "Checking existence of device-tree file in kernel dtb directory."
         run torizoncore-builder-shell \

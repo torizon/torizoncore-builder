@@ -55,6 +55,22 @@ bats_load_library 'bats/bats-file/load.bash'
         STORAGE_DIR="/storage/kernel"
         run torizoncore-builder-shell "ls -l ${STORAGE_DIR}/usr/lib/modules/*/vmlinuz"
         assert_success
+
+        echo "Checking the ramdisk image node's hash values are the ones mkimage computes."
+        run torizoncore-builder-shell \
+            "VMLINUZ=\$(find ${STORAGE_DIR} -name vmlinuz); echo \${VMLINUZ}; test -n \"\${VMLINUZ}\""
+        assert_success
+        local kpath="${output}"
+
+        run torizoncore-builder-shell \
+            "for node in \$(fdtget -l ${kpath} /images); do
+                 test \"\$(fdtget ${kpath} /images/\${node} type)\" != ramdisk || echo \${node}
+             done"
+        assert_success
+        local image_node="${output}"
+
+        run check-fit-image-hashes ${kpath} ${image_node}
+        assert_success
     fi
 
     run torizoncore-builder-shell "ls -l ${STORAGE_DIR}/usr/share/plymouth/themes/spinner/watermark.png"
