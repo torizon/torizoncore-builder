@@ -300,7 +300,12 @@ is_uenv_kargs_passing_supported() {
         assert_success
         assert_output --partial 'Kernel custom arguments successfully configured with "arg1=val1 arg2=val2"'
         assert_output --partial "Setting bootargs (uenv method)"
-        assert_output --partial "Clearing bootargs (overlay method)"
+        # FIT images never carry the legacy kargs overlay, so it is only cleared on others.
+        if [ "${DEFAULT_TEZI_IMAGE_HAS_FIT_KERNEL}" = "1" ]; then
+            refute_output --partial "Clearing bootargs (overlay method)"
+        else
+            assert_output --partial "Clearing bootargs (overlay method)"
+        fi
 
         # Check uEnv.txt to see if the arguments were actually set.
         local uenv_path_chgsdir check_append
