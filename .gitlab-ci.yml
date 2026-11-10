@@ -191,6 +191,7 @@ build-arm64:
     - when: on_success
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
+    TCB_UNDER_CI: "1"
     # Skip pulling the TCB image in tcb-env-setup.sh script as it's already being pulled here.
     TCB_NO_PULL: "true"
   before_script:

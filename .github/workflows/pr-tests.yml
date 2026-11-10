@@ -43,7 +43,7 @@ env:
   TEST_IMAGE_TC_COMMON_RASPI4: "torizon-core-common-docker-dev-v6.6.0-common-raspberrypi4-64.img"
 
   TCB_TESTCASES_64BIT: "dt dto kernel"
-
+  TCB_UNDER_CI: "1"
   # tcb-env-setup.sh variables:
   # No need to pull the tcb image in the setup script
   TCB_NO_PULL: "true"
