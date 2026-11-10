@@ -28,6 +28,7 @@ env:
   AMD64_ARCH: linux/amd64
   AMD64_DOCKERFILE_NAME: torizoncore-builder.Dockerfile
   AMD64_IMAGE_NAME: torizoncore-builder-amd64
+  TCB_NAMESPACE: torizon
 
   TEST_IMAGES_TC6_VERSION: "6.6.1"
   TEST_IMAGE_TC6_32BIT: "torizon-core-docker-colibri-imx7-emmc-Tezi_6.6.1+build.14.tar"
@@ -42,6 +43,10 @@ env:
   TEST_IMAGE_TC_COMMON_RASPI4: "torizon-core-common-docker-dev-v6.6.0-common-raspberrypi4-64.img"
 
   TCB_TESTCASES_64BIT: "dt dto kernel"
+
+  # tcb-env-setup.sh variables:
+  # No need to pull the tcb image in the setup script
+  TCB_NO_PULL: "true"
 
 jobs:
   lint-dockerfiles:
@@ -155,15 +160,10 @@ jobs:
                             --label "git.ref=${GITHUB_REF_NAME}"
                             --label "git.hash=${GITHUB_SHA}"
                             --label "workflow.id=${GITHUB_RUN_ID}"
-                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+                            -t "${TCB_NAMESPACE}/${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
 
       - name: Create test-related directories
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
-
-      - name: Run setup script
-        run: |
-          TCB_SKIP_PULL=1 . ./setup.sh
-          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Torizon OS 5 32-bit test image
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC5_32BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC5_32BIT} -O workdir/images/${TEST_IMAGE_TC5_32BIT}'
@@ -171,11 +171,11 @@ jobs:
       - name: Create flag to indicate image was downloaded
         run: touch workdir/images/.images_downloaded
 
-      - name: Export TCB command
-        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+      - name: Set TCB image name for tcb-env-setup.sh
+        run: echo "TCB_IMAGENAME=${AMD64_IMAGE_NAME}" >> ${GITHUB_ENV}
 
       - name: Test TCB for Torizon OS 5 32-bit image
-        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_32BIT_MACHINE} ./run.sh
+        run: ./run_all.sh --machine "${TEST_32BIT_MACHINE}" --report -- -c -t "github-${TCB_IMAGE_TAG}"
 
       - name: Results for Torizon OS 5 32-bit
         id: tc5-32bit-results
@@ -191,7 +191,7 @@ jobs:
 
       - name: Test TCB for Torizon OS 5 64-bit image
         if: always() && (steps.tc5-32bit-results.outcome == 'success' || steps.tc5-32bit-results.outcome == 'failure')
-        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_64BIT_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ./run.sh
+        run: ./run_all.sh --machine "${TEST_64BIT_MACHINE}" --report --testcase "${TCB_TESTCASES_64BIT}" -- -c -t "github-${TCB_IMAGE_TAG}"
 
       - name: Results for Torizon OS 5 64-bit
         if: always() && (steps.tc5-32bit-results.outcome == 'success' || steps.tc5-32bit-results.outcome == 'failure')
@@ -228,15 +228,10 @@ jobs:
                             --label "git.ref=${GITHUB_REF_NAME}"
                             --label "git.hash=${GITHUB_SHA}"
                             --label "workflow.id=${GITHUB_RUN_ID}"
-                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+                            -t "${TCB_NAMESPACE}/${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
 
       - name: Create test-related directories
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
-
-      - name: Run setup script
-        run: |
-          TCB_SKIP_PULL=1 . ./setup.sh
-          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Torizon OS 6 32-bit test image
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC6_32BIT_ARTIFACTORY_URL}/${TEST_IMAGE_TC6_32BIT} -O workdir/images/${TEST_IMAGE_TC6_32BIT}'
@@ -244,11 +239,11 @@ jobs:
       - name: Create flag to indicate image was downloaded
         run: touch workdir/images/.images_downloaded
 
-      - name: Export TCB command
-        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+      - name: Set TCB image name for tcb-env-setup.sh
+        run: echo "TCB_IMAGENAME=${AMD64_IMAGE_NAME}" >> ${GITHUB_ENV}
 
       - name: Test TCB for Torizon OS 6 32-bit image
-        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_32BIT_MACHINE} ./run.sh
+        run: ./run_all.sh --machine "${TEST_32BIT_MACHINE}" --report -- -c -t "github-${TCB_IMAGE_TAG}"
 
       - name: Results for Torizon OS 6 32-bit
         id: tc6-32bit-results
@@ -264,7 +259,7 @@ jobs:
 
       - name: Test TCB for Torizon OS 6 64-bit image
         if: always() && (steps.tc6-32bit-results.outcome == 'success' || steps.tc6-32bit-results.outcome == 'failure')
-        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_64BIT_MACHINE} TCB_TESTCASE=${TCB_TESTCASES_64BIT} ./run.sh
+        run: ./run_all.sh --machine "${TEST_64BIT_MACHINE}" --report --testcase "${TCB_TESTCASES_64BIT}" -- -c -t "github-${TCB_IMAGE_TAG}"
 
       - name: Results for Torizon OS 6 64-bit
         if: always() && (steps.tc6-32bit-results.outcome == 'success' || steps.tc6-32bit-results.outcome == 'failure')
@@ -288,6 +283,7 @@ jobs:
       DATE: ${{ needs.test-setup.outputs.date }}
       TCB_IMAGE_TAG: ${{ needs.test-setup.outputs.tcb_image_tag }}
       TEST_INTEL_MACHINE: ${{ needs.test-setup.outputs.tc6_common_intel_machine }}
+      IS_WIC: 1
     defaults:
       run:
         shell: bash
@@ -309,15 +305,10 @@ jobs:
                             --label "git.ref=${GITHUB_REF_NAME}"
                             --label "git.hash=${GITHUB_SHA}"
                             --label "workflow.id=${GITHUB_RUN_ID}"
-                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+                            -t "${TCB_NAMESPACE}/${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
 
       - name: Create test-related directories
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
-
-      - name: Run setup script
-        run: |
-          TCB_SKIP_PULL=1 . ./setup.sh
-          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Common Torizon OS 6 Intel x86_64 image (zipped)
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC_COMMON_ZIP_URL}/torizon-core-common-docker-dev-v${TEST_IMAGES_TC_COMMON_VERSION}-${TEST_INTEL_MACHINE}.zip -P workdir/images/'
@@ -328,11 +319,11 @@ jobs:
       - name: Create flag to indicate image is ready
         run: touch workdir/images/.raw_images_downloaded
 
-      - name: Export TCB command
-        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+      - name: Set TCB image name for tcb-env-setup.sh
+        run: echo "TCB_IMAGENAME=${AMD64_IMAGE_NAME}" >> ${GITHUB_ENV}
 
       - name: Test TCB for Common Torizon OS 6 Intel x86_64 image
-        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_INTEL_MACHINE} ./run.sh
+        run: ./run_all.sh --machine "${TEST_INTEL_MACHINE}" --report -- -c -t "github-${TCB_IMAGE_TAG}"
 
       - name: Results for Common Torizon OS 6 Intel x86_64
         run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi
@@ -353,6 +344,7 @@ jobs:
       DATE: ${{ needs.test-setup.outputs.date }}
       TCB_IMAGE_TAG: ${{ needs.test-setup.outputs.tcb_image_tag }}
       TEST_RASPI4_MACHINE: ${{ needs.test-setup.outputs.tc6_common_raspi4_machine }}
+      IS_WIC: 1
     defaults:
       run:
         shell: bash
@@ -374,15 +366,10 @@ jobs:
                             --label "git.ref=${GITHUB_REF_NAME}"
                             --label "git.hash=${GITHUB_SHA}"
                             --label "workflow.id=${GITHUB_RUN_ID}"
-                            -t "${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
+                            -t "${TCB_NAMESPACE}/${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}"
 
       - name: Create test-related directories
         run: mkdir -p workdir/images && mkdir -p workdir/reports && rm -Rf workdir/reports/*
-
-      - name: Run setup script
-        run: |
-          TCB_SKIP_PULL=1 . ./setup.sh
-          echo "TCB_BG_ALT_NETWORK=${TCB_BG_ALT_NETWORK}" >> ${GITHUB_ENV}
 
       - name: Download Common Torizon OS 6 Raspberry Pi 4 image (zipped)
         run: 'wget --progress=dot:giga ${TEST_IMAGE_TC_COMMON_ZIP_URL}/torizon-core-common-docker-dev-v${TEST_IMAGES_TC_COMMON_VERSION}-${TEST_RASPI4_MACHINE}.zip -P workdir/images/'
@@ -393,11 +380,11 @@ jobs:
       - name: Create flag to indicate image is ready
         run: touch workdir/images/.raw_images_downloaded
 
-      - name: Export TCB command
-        run: echo "TCBCMD=docker run --rm -v /deploy -v ${GITHUB_WORKSPACE}/tests/integration/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${AMD64_IMAGE_NAME}:github-${TCB_IMAGE_TAG}" >> ${GITHUB_ENV}
+      - name: Set TCB image name for tcb-env-setup.sh
+        run: echo "TCB_IMAGENAME=${AMD64_IMAGE_NAME}" >> ${GITHUB_ENV}
 
       - name: Test TCB for Common Torizon OS 6 Raspberry Pi 4 image
-        run: TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TEST_RASPI4_MACHINE} ./run.sh
+        run: ./run_all.sh --machine "${TEST_RASPI4_MACHINE}" --report -- -c -t "github-${TCB_IMAGE_TAG}"
 
       - name: Results for Common Torizon OS 6 Raspberry Pi 4
         run: if ! grep -q "^not ok" workdir/reports/* ; then echo "All tests passed!"; else grep "^not ok" workdir/reports/* && exit 1; fi

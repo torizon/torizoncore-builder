@@ -29,13 +29,16 @@ usage() {
     echo "  -t, --testcase TESTCASE    Specify test case(s) to run"
     echo "  -r, --report               Generate test report"
     echo "  --tcb-tags TAGS            Specify TCB tags"
-    echo "  --tcb-custom-image IMAGE   Use custom TorizonCore Builder image"
-    echo "  --                         Pass the rest of the arguments to test scripts"
+    echo "  --tcb-custom-image IMAGE   Use custom TorizonCore Builder image. (default tag if not provided: latest)"
+    echo "  --                         Pass arguments to the tcb-env-setup.sh script. If --tcb-custom-image"
+    echo "                             was provided, its image tag will be automatically derived and passed to tcb-env-setup.sh with -t."
     echo
     echo "Examples:"
-    echo "  $0 -d                      Run tests, using device connection if required"
-    echo "  $0 -t dto                  Run the 'dto' test case"
-    echo "  $0 --tcb-tags requires-device -d  Run tests with 'requires-device' tag, using device connection"
+    echo "  $0 -d                                              Run tests, using device connection if required"
+    echo "  $0 -t dto                                          Run the 'dto' test case"
+    echo "  $0 --tcb-tags requires-device -d                   Run tests with 'requires-device' tag, using device connection"
+    echo "  $0 --machine apalis-imx6 -- -c -a remote           Run tests for an apalis-imx6 image, passing '-c -a remote' to tcb-env-setup.sh"
+    echo "  TCB_NO_PULL=1 $0 --tcb-custom-image tcb:custom_tag Run tests using the local 'tcb:custom_tag' image"
     exit 0
 }
 
@@ -46,10 +49,11 @@ DEVICE_INFO_FILE="device_information"
 export TCB_TESTCASE=""
 export TCB_REPORT=0
 export TCB_TAGS="all"
-export TCB_CUSTOM_IMAGE=""
 export TCB_DEVICE=""
 export DEVICE_ADDR=""
 export DEVICE_USER="torizon"
+unset SETUP_ARGS
+unset TCB_IMAGETAG
 
 while [[ "$1" != "" ]]; do
     case $1 in
@@ -77,14 +81,34 @@ while [[ "$1" != "" ]]; do
             ;;
         --tcb-custom-image )
             shift
-            export TCB_CUSTOM_IMAGE="$1"
+            if [[ "$1" == *@* ]]; then
+                echo "Error: this script doesn't accept container images with digest references."
+                exit 1
+            fi
+            if [[ "$1" == */* ]]; then
+                TCB_IMAGENAME="${1##*/}"
+                export TCB_NAMESPACE="${1%/*}"
+            else
+                TCB_IMAGENAME="${1}"
+                export TCB_NAMESPACE="docker.io"
+            fi
+            TCB_IMAGETAG="latest"
+            if [[ "$TCB_IMAGENAME" == *:* ]]; then
+                TCB_IMAGETAG="${TCB_IMAGENAME##*:}"
+                TCB_IMAGETAG="${TCB_IMAGETAG:-latest}"
+            fi
+            export TCB_IMAGENAME="${TCB_IMAGENAME%%:*}"
+            if [ -z "$TCB_IMAGENAME" ]; then
+                echo "Error: no image name in '$1'."
+                exit 1
+            fi
             ;;
         -h | --help )
             usage
             ;;
         -- )
             shift
-            TEST_ARGS="$@"
+            SETUP_ARGS=("$@")
             break
             ;;
         * )
@@ -122,7 +146,15 @@ else
 fi
 
 echo "Running setup..."
-source ./setup.sh
+if [ -z "$TCB_IMAGETAG" ]; then
+    source ./setup.sh "${SETUP_ARGS[@]}"
+else
+    echo "Custom container provided. Derived the following information:"
+    echo "Namespace: $TCB_NAMESPACE"
+    echo "Image name: $TCB_IMAGENAME"
+    echo "Image tag: $TCB_IMAGETAG"
+    source ./setup.sh -t "$TCB_IMAGETAG" "${SETUP_ARGS[@]}"
+fi
 
 if [ $? -ne 0 ]; then
     echo "Error running setup.sh"
@@ -158,7 +190,7 @@ fi
 
 echo "Running integration tests..."
 
-RUN_CMD="./run.sh $TEST_ARGS"
+RUN_CMD="./run.sh"
 
 $RUN_CMD
 

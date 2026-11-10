@@ -8,8 +8,30 @@ There are 4 main steps do run Torizon OS integration tests:
 3. Install a fresh Torizon OS image in a device (optional)
 4. Run the tests
 
-Configure the machine
-=====================
+Steps 1, 2 and 4 can be executed automatically using the run_all.sh wrapper script.
+
+Quickstart using run_all.sh
+===========================
+
+To run all integration tests for a Toradex Easy Installer image for a specific machine
+(e.g. verdin-imx8mp) using the latest release of TCB, run:
+
+$ ./run_all.sh --machine verdin-imx8mp
+
+Set IS_WIC=1 when running tests for a WIC raw image:
+
+$ IS_WIC=1 ./run_all.sh --machine intel-corei7-64
+
+Run:
+
+$ ./run_all.sh --help
+
+for additional options like run specific testcases, run device tests, or test a specific TCB image.
+
+The rest of this README goes in-depth for each of the 4 steps mentioned above.
+
+1. Configure the machine
+========================
 
 First step is to install some dependencies (you may need to adapt this
 command to other Linux distributions):
@@ -20,8 +42,28 @@ And then source the setup script:
 
 $ source setup.sh
 
-Download Torizon OS Easy Installer (TEZI) images
-================================================
+By default setup.sh will download tcb-env-setup.sh from the Toradex GitHub repo and
+run it with the '-c -a remote' arguments.
+
+You can pass additional arguments to setup.sh, which will then be forwarded to tcb-env-setup.sh,
+replacing the defaults (-a remote is still added if neither -t nor -a is given).
+
+setup.sh can be configured with the following environment variables:
+
+TCB_SCRIPT_BRANCH:    Override the default tcb-env-setup.sh Git branch/commit from https://github.com/toradex/tcb-env-setup.
+                      The value can be a branch name or a SHA commit.
+TCB_SKIP_SCRIPT_PULL: Set to 1 to skip the tcb-env-setup.sh download and use the copy
+                      already at workdir/tcb-env-setup.sh.
+                      *NOTE: This replaces TCB_SKIP_PULL from older versions of setup.sh,
+                      which also skipped pulling the TCB image. To get the old behaviour,
+                      also set TCB_NO_PULL=1.*
+TCB_NO_PULL:          Used by tcb-env-setup.sh. Set it to 1 to skip any attempts to pull the TCB image remotely.
+
+The tcb-env-setup.sh script can also be configured using other environment variables and additional arguments. Check
+https://github.com/toradex/tcb-env-setup for more details.
+
+2. Option 1: Download Torizon OS Easy Installer (TEZI) images
+=============================================================
 
 You can manually download Torizon OS Tezi images from Toradex's
 Artifactory and save them on $PWD/workdir/images. In this case, the
@@ -43,8 +85,8 @@ the respectively enviroment variables, an example would be:
 
 $ TARGET_BUILD_TYPE=release YOCTO_BRANCH=kirkstone-6.x.y TCB_MACHINE=verdin-am62 ./get_tezi_images.sh
 
-Download Common Torizon OS WIC/raw images
-=========================================
+2. Option 2: Download Common Torizon OS WIC/raw images
+======================================================
 
 You can manually download Torizon OS WIC/raw images from the Common Torizon
 GitHub repository:
@@ -63,15 +105,15 @@ parameters. To have this please set the enviroment variable TCVERSION:
 
 $ TCVERSION=6.4.0-common ./get_raw_images.sh
 
-Install a fresh Torizon OS image in a device
-============================================
+3. Install a fresh Torizon OS image in a device
+===============================================
 
 In case you also want to run test cases that requires device access,
 install a fresh Torizon OS image in the device and set the default
 password to '1' before running the tests.
 
-Run the tests
-=============
+4. Run the tests
+================
 
 There is a script called run.sh that will run the integration tests
 for you.
@@ -91,12 +133,6 @@ TCB_MACHINE:      The test scripts need a Torizon OS image to run the
                   test cases (apalis-imx6 image is the default). With
                   this variable, you can select which image will be used
                   in the test cases, based on the defined MACHINE.
-TCB_CUSTOM_IMAGE: By default, the last TorizonCore Builder version from
-                  Docker Hub will be used to run the test cases. In case
-                  you want to use a custom TorizonCore Builder version,
-                  like a locally installed image, pass the name and tag
-                  to this variable in the following format:
-                  [registry/]<name>:<tag>
 TCB_REPORT:       If set to '1', it will enable the generation of a test
                   report in $PWD/workdir/reports.
 TCB_UNDER_CI:     If set to '1', some tests not appropriate for running
@@ -156,10 +192,9 @@ testcases/dt.bats and testcases/dto.bats:
 $ TCB_TESTCASE="dt dto" TCB_MACHINE=apalis-imx6 ./run.sh
 
 The command below will execute all test cases, including those that
-require device access, using a local torizoncore-builder container
-tagged with 'v1':
+require device access:
 
-$ TCB_CUSTOM_IMAGE=torizoncore-builder:v1 TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh
+$ TCB_DEVICE=192.168.1.210 TCB_MACHINE=apalis-imx6 DEVICE_PASSWORD=<password> ./run.sh
 
 The command below will execute all the tests:
 $ TCB_TAGS="all" TCB_MACHINE=apalis-imx6 ./run.sh
