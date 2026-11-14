@@ -155,20 +155,12 @@ else
 fi
 
 # check if setup.sh was sourced.
-if [ -z "$TCBCMD" ]; then
+if [ -z "$TCB_COMMAND" ] || [ -z "${TCB_COMMAND_ARGS}" ] || [ -z "${TCB_COMMAND_BASE}" ]; then
     echo "Error: setup.sh was not sourced. Please execute 'source setup.sh' before running the test cases."
     exit 1
 fi
 
-# remove '-it' from TorizonCore Builder command (this causes problems when running
-# the test cases in an environment not attached to a TTY (e.g. GitLab CI)
-export TCBCMD=$(echo $TCBCMD | sed -e "s/ -it//g")
-
-# use a custom torizoncore-builder image
-if [ ! -z "$TCB_CUSTOM_IMAGE" ]; then
-    echo "Using custom TorizonCore Builder image [$TCB_CUSTOM_IMAGE]."
-    export TCBCMD=$(echo $TCBCMD | sed -e "s/torizon\/torizoncore-builder:.*/${TCB_CUSTOM_IMAGE//\//\\/}/g")
-fi
+echo "Using TorizonCore Builder image [${TCB_COMMAND##* }]."
 
 # check if Tezi images were downloaded
 if [ "$IS_WIC" != "1" ] && [ ! -e $IMAGES_DIR/.images_downloaded ]; then

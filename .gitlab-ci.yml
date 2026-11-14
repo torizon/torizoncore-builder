@@ -191,6 +191,9 @@ build-arm64:
     - when: on_success
   variables:
     IMAGE_NAME: torizoncore-builder-amd64
+    TCB_UNDER_CI: "1"
+    # Skip pulling the TCB image in tcb-env-setup.sh script as it's already being pulled here.
+    TCB_NO_PULL: "true"
   before_script:
     - docker info
     # setup environment for the tests
@@ -224,7 +227,7 @@ test-host-tc6-platform-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-platform-release:
   extends: .test-base
@@ -236,7 +239,7 @@ test-host-tos7-platform-release:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-platform-nightly:
   extends: .test-base
@@ -248,7 +251,7 @@ test-host-tos7-platform-nightly:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase platform
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 wsl-test-host-tos7-platform-nightly:
   extends: test-host-tos7-platform-nightly
@@ -264,7 +267,7 @@ test-host-tc6-32bit-release:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 wsl-test-host-tc6-32bit-release:
   extends: test-host-tc6-32bit-release
@@ -279,7 +282,7 @@ test-host-tc6-64bit-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-32bit-release:
   extends: .test-base
@@ -289,7 +292,7 @@ test-host-tos7-32bit-release:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-32bit-nightly:
   extends: .test-base
@@ -299,7 +302,7 @@ test-host-tos7-32bit-nightly:
     TCB_MACHINE: "apalis-imx6"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-64bit-release:
   extends: .test-base
@@ -309,7 +312,7 @@ test-host-tos7-64bit-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-64bit-nightly:
   extends: .test-base
@@ -319,7 +322,7 @@ test-host-tos7-64bit-nightly:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 wsl-test-host-tos7-64bit-nightly:
   extends: test-host-tos7-64bit-nightly
@@ -345,7 +348,7 @@ test-host-tos7-32bit-signed-nightly:
     - '[ -n "${SIGIMG_ARTIFACTORY_PROD_REPO}" ] && BASE_ARTIFACTORY_URL_PROD="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PROD_REPO}"'
     - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-64bit-signed-nightly:
   tags:
@@ -359,7 +362,7 @@ test-host-tos7-64bit-signed-nightly:
     ACCEPT_VARIANTS: "torizon-docker torizon-minimal"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-tos7-torizon-signed-nightly:
   # TODO: Review once signed images are available publicly.
@@ -381,7 +384,7 @@ test-host-tos7-torizon-signed-nightly:
     - '[ -n "${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}" ] && BASE_ARTIFACTORY_URL_PRERELEASE="${SIGIMG_ARTIFACTORY_URL}/${SIGIMG_ARTIFACTORY_PRERELEASE_REPO}"'
     # test-host-tos7-secboot-verdin-imx8mp-nightly runs the secboot cases on these same images.
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_HOST_TESTS" --tcb-tags '!secboot'
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 # One job per machine secboot supports: it signs differently on each, so a pass on one machine
 # says nothing about the others.
@@ -411,7 +414,7 @@ test-host-tos7-torizon-signed-nightly:
         export TCB_K3_REFERENCE_KEY="${K3_REFERENCE_KEY_FILE}"
       fi
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "secboot build" --tcb-tags secboot
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
   after_script:
     - '[ -z "${K3_REFERENCE_KEY_FILE}" ] || rm -f "tests/integration/workdir/${K3_REFERENCE_KEY_FILE}"'
 
@@ -464,9 +467,6 @@ test-host-tos7-secboot-verdin-am62p-nightly:
 test-common-torizon-intel:
   extends: .test-base-common-torizon
   script:
-    - TCB_SKIP_PULL=1 source ./setup.sh
-    # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${TCB_IMAGE_UNDER_TEST}"
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
@@ -476,7 +476,7 @@ test-common-torizon-intel:
     # run tests (Intel)
     - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_INTEL}" | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(.*)-.*$/\3/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_intel64_section\r\e[0KRun ${TCB_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
+    - ./run_all.sh --machine $TCB_MACHINE --report --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
     - echo -e "\e[0Ksection_end:$(date +%s):test_intel64_section\r\e[0K"
 
 test-common-torizon-rasp4:
@@ -485,10 +485,6 @@ test-common-torizon-rasp4:
     # TODO: This job is disabled for now; review this once Raspberry Pi 4 is officially supported.
     - when: never
   script:
-    # TODO: Since this creates a sub-shell, the environment variables created in setup.sh aren't persisting, because of this 'export TCBCMD' is required
-    - TCB_SKIP_PULL=1 source ./setup.sh
-    # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${TCB_IMAGE_UNDER_TEST}"
     # prepare image
     - echo -e "\e[0Ksection_start:$(date +%s):download_rawimgs_section\r\e[0KDownload WIC/raw test images"
     - mkdir -p workdir/images
@@ -498,7 +494,7 @@ test-common-torizon-rasp4:
     # run tests (Raspberry Pi 4)
     - TCB_MACHINE=$(echo "${TEST_IMAGE_TC_COMMON_RASPI4}" | sed -E 's/^torizon(-core)?-common-docker-dev-(evaluation-)?(v.*-)?(.*-..).*$/\4/')
     - echo -e "\e[0Ksection_start:$(date +%s):test_rasp4_64_section\r\e[0KRun ${TCB_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${TCB_MACHINE} ${T} ./run.sh
+    - ./run_all.sh --machine $TCB_MACHINE --report --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
     - echo -e "\e[0Ksection_end:$(date +%s):test_rasp4_64_section\r\e[0K"
 
 # Job mostly triggered by Jenkins.
@@ -512,9 +508,6 @@ test-torizoncore:
       when: never
     - if: $BUILD_MACHINE
   script:
-    - TCB_SKIP_PULL=1 source ./setup.sh
-    # TODO: Switch to Bash and use tcb-env-setup.sh script later
-    - export TCBCMD="docker run --rm -v /deploy -v $(pwd)/workdir:/workdir -v storage:/storage --net=host -v /var/run/docker.sock:/var/run/docker.sock ${TCB_IMAGE_UNDER_TEST}"
     - if [ -z ${INTERNAL_ARTIFACTORY_URL} ]; then echo "Missing variable INTERNAL_ARTIFACTORY_URL." && exit 1; fi
     - if [ -z ${ARTIFACTORY_SRC_REPO} ]; then echo "Missing variable ARTIFACTORY_SRC_REPO." && exit 1; fi
     - if [ -z ${BUILD_MANIFEST_BRANCH} ]; then echo "Missing variable BUILD_MANIFEST_BRANCH." && exit 1; fi
@@ -534,9 +527,9 @@ test-torizoncore:
     - 'wget --progress=dot:giga ${TEST_IMAGE_TORIZONCORE_URL} -P workdir/images/'
     - touch workdir/images/.images_downloaded
     - echo -e "\e[0Ksection_end:$(date +%s):download_tzimgs_section\r\e[0K"
-    # run tests (32-bit device)
     - echo -e "\e[0Ksection_start:$(date +%s):test_section\r\e[0KRun ${BUILD_MACHINE} tests"
-    - TCB_REPORT=1 TCB_UNDER_CI=1 TCB_MACHINE=${BUILD_MACHINE} TCB_TESTCASE="$TCB_HOST_TESTS" ${T} ./run.sh
+    - ./run_all.sh --machine ${BUILD_MACHINE} --report --testcase "${TCB_HOST_TESTS}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
     - echo -e "\e[0Ksection_end:$(date +%s):test_section\r\e[0K"
 
 .test-base-arm64:
@@ -557,7 +550,7 @@ test-host-arm64-tc6-64bit-release:
     TCB_MACHINE: "apalis-imx8"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_ARCH_SENSITIVE_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 test-host-arm64-tos7-64bit-nightly:
   extends: .test-base-arm64
@@ -567,7 +560,7 @@ test-host-arm64-tos7-64bit-nightly:
     TCB_MACHINE: "verdin-imx8mp"
   script:
     - ./run_all.sh --machine $TCB_MACHINE --report --testcase "$TCB_ARCH_SENSITIVE_TESTS"
-      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}"
+      --tcb-custom-image "${TCB_IMAGE_UNDER_TEST}" -- -c
 
 .aggregate-reports:
   stage: report

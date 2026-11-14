@@ -4,31 +4,25 @@
 # Globally accessible functions in the test cases
 #
 
-# run torizoncore-builder
-torizoncore-builder() {
-    local CMD=$(eval echo $TCBCMD)
-    $CMD "$@"
-}
-export -f torizoncore-builder
-
 # Usage: torizoncore-builder-ex <docker-run-params> -- <tcb-params>
 torizoncore-builder-ex() {
     local extra_params=()
 
     # Consume parameters up to the separator ("--")
-    while true; do
+    while [ $# -gt 0 ]; do
         if [ "$1" = "--" ]; then
             shift
             break
         else
-            extra_params+=("'$1'")
+            extra_params+=("$1")
             shift
         fi
     done
 
-    #local CMD=$(eval printf "{%s}" ${TCBCMD/ run / run "${extra_params[@]}" })
-    local CMD=$(eval echo ${TCBCMD/ run / run "${extra_params[@]}" })
-    $CMD "$@"
+    eval "set -- ${TCB_COMMAND_ARGS} \"\$@\""
+    set -- "${extra_params[@]}" "$@"
+    eval "set -- ${TCB_COMMAND_BASE} \"\$@\""
+    "$@"
 }
 export -f torizoncore-builder-ex
 
@@ -39,15 +33,12 @@ export TCB_BG_CONTAINER=""
 torizoncore-builder-bg() {
     # Make sure no other process is running in the background
     assert [ -z $TCB_BG_CONTAINER ]
-    # Make sure the docker command does not have the "-it" parameter(s)
-    [[ $TCBCMD == *" -it"* ]] && assert false
-    # Replace the "run" in "docker run ..." with "run -d" to run it in detached mode
-    # and to output the ID of the container.
-    local CMD=$(eval echo ${TCBCMD/ run / run -d })
-    # Print alias definition if test fail
-    echo "torizoncore-builder-bg alias was defined as: $CMD $@"
+
+    # Add "-d" to run the container in detached mode and to output its ID.
+    eval "set -- ${TCB_COMMAND_ARGS} \"\$@\""
+    eval "set -- ${TCB_COMMAND_BASE} -d \"\$@\""
     # Run container in the background
-    run $CMD $@
+    run "$@"
     assert_success
     # Save the ID of the container.
     TCB_BG_CONTAINER=$output
@@ -69,8 +60,9 @@ export -f stop-torizoncore-builder-bg
 # run command inside torizoncore-builder container
 # $@ = command to be executed
 torizoncore-builder-shell() {
-    local TCB=$(echo ${TCBCMD##* })
-    docker run --rm -v $(pwd):/workdir -v storage:/storage --net=host --entrypoint /bin/bash $TCB -c "$*"
+    eval "set -- ${TCB_COMMAND_ARGS} -c \"\$*\""
+    eval "set -- ${TCB_COMMAND_BASE} --entrypoint /bin/bash \"\$@\""
+    "$@"
 }
 export -f torizoncore-builder-shell
 
